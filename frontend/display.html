@@ -52,7 +52,7 @@
     <div class="status-icon">👤</div>
     <div>
       <div class="status-label">Person</div>
-      <div class="status-val" id="sb-person">–</div>
+      <div class="status-val" id="sb-person">N/A</div>
     </div>
   </div>
   <div class="status-item">
@@ -415,7 +415,7 @@
       const wlanEl = document.getElementById('sb-wlan');
       wlanEl.textContent = net ? 'Verbunden' : 'Getrennt';
       wlanEl.className = 'status-val ' + (net ? 'status-ok' : 'status-err');
-      const person = d.active_person_name || d.last_person_detected || '–';
+      const person = d.active_person_name || d.last_person_detected || 'N/A';
       document.getElementById('sb-person').textContent = person;
       const stateEl = document.getElementById('sb-state');
       if (d.update_available) {
