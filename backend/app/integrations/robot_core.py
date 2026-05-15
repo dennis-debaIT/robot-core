@@ -725,6 +725,7 @@ class RobotCore:
         with get_connection() as conn:
             write_state(conn, "display_status", "responding")
             write_state(conn, "last_conversation_at", now_iso())
+            write_state(conn, "active_person_name", None)
 
         self._log_message("assistant", sanitized_reply, person_name)
         self._log_event("display_status", {"status": "responding"})
