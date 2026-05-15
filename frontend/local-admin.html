@@ -1668,6 +1668,7 @@
     let _updateLogInterval = null;
 
     async function installUpdate() {
+      if (!confirm('Update jetzt installieren? Erika startet dabei neu.')) return;
       const btn = document.getElementById('update-install-btn');
       btn.disabled = true;
       btn.textContent = '⏳ Wird installiert…';
