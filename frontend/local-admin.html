@@ -407,6 +407,38 @@
             </div>
           </section>
 
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Updates</div>
+              <p>Software-Updates werden über GitHub bereitgestellt. Hier kannst du manuell prüfen und Updates installieren.</p>
+            </div>
+            <div class="field-grid" style="margin-bottom:12px;">
+              <label class="field-block">
+                <span class="field-label">Automatisch prüfen</span>
+                <select id="update-interval" class="field-select">
+                  <option value="never">Nie</option>
+                  <option value="daily" selected>Täglich (03:00 Uhr)</option>
+                  <option value="6h">Alle 6 Stunden</option>
+                  <option value="hourly">Stündlich</option>
+                </select>
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Automatisch installieren</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="update-auto-install">
+                  <span>Automatisch installieren wenn verfügbar</span>
+                </label>
+              </label>
+            </div>
+            <div id="update-status-box" style="background:var(--surface2);border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:0.82rem;line-height:1.6;">
+              <span style="color:var(--muted);">Noch nicht geprüft.</span>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button type="button" class="secondary" id="update-check-btn" onclick="checkForUpdate()">🔍 Jetzt prüfen</button>
+              <button type="button" id="update-install-btn" onclick="installUpdate()" style="display:none;">⬇️ Update installieren</button>
+            </div>
+          </section>
+
           <section class="module-card weather-legacy-hidden">
             <div class="section-copy">
               <div class="section-title">Wetteranzeige</div>
@@ -1614,6 +1646,68 @@
     reloadBtn.addEventListener('click', boot);
 
     boot();
+
+    // ── Update-Funktionen ─────────────────────────────────────
+    async function checkForUpdate() {
+      const btn = document.getElementById('update-check-btn');
+      const box = document.getElementById('update-status-box');
+      btn.disabled = true;
+      btn.textContent = '⏳ Prüfe…';
+      box.innerHTML = '<span style="color:var(--muted);">Verbinde mit GitHub…</span>';
+      try {
+        const r = await fetch('/system/update/check', { method: 'POST' });
+        const d = await r.json();
+        renderUpdateStatus(d);
+      } catch (e) {
+        box.innerHTML = '<span style="color:var(--danger);">Fehler: ' + e.message + '</span>';
+      }
+      btn.disabled = false;
+      btn.textContent = '🔍 Jetzt prüfen';
+    }
+
+    async function installUpdate() {
+      const btn = document.getElementById('update-install-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Wird installiert…';
+      try {
+        await fetch('/system/update/install', { method: 'POST' });
+        document.getElementById('update-status-box').innerHTML =
+          '<span style="color:var(--warning);">⏳ Update wird eingeleitet — Erika startet in wenigen Minuten neu.</span>';
+      } catch (e) {
+        document.getElementById('update-status-box').innerHTML =
+          '<span style="color:var(--danger);">Fehler: ' + e.message + '</span>';
+        btn.disabled = false;
+        btn.textContent = '⬇️ Update installieren';
+      }
+    }
+
+    function renderUpdateStatus(d) {
+      const box = document.getElementById('update-status-box');
+      const installBtn = document.getElementById('update-install-btn');
+      if (!d) return;
+      const when = d.checked_at ? new Date(d.checked_at).toLocaleString('de-DE') : '–';
+      if (d.error) {
+        box.innerHTML = '<span style="color:var(--danger);">⚠️ Fehler beim Prüfen: ' + d.error + '</span>';
+        installBtn.style.display = 'none';
+        return;
+      }
+      if (d.update_available) {
+        box.innerHTML =
+          '<span style="color:var(--warning);font-weight:700;">🔔 Update verfügbar!</span><br>' +
+          '<span style="color:var(--muted);">Installiert: <code>' + d.current_hash + '</code> &nbsp;→&nbsp; Neu: <code>' + d.latest_hash + '</code></span><br>' +
+          '<span style="color:var(--muted);font-size:0.75rem;">Geprüft: ' + when + '</span>';
+        installBtn.style.display = '';
+      } else {
+        box.innerHTML =
+          '<span style="color:var(--success);">✅ Alles aktuell.</span><br>' +
+          '<span style="color:var(--muted);">Version: <code>' + (d.current_hash || '–') + '</code></span><br>' +
+          '<span style="color:var(--muted);font-size:0.75rem;">Geprüft: ' + when + '</span>';
+        installBtn.style.display = 'none';
+      }
+    }
+
+    // Beim Laden aktuellen Update-Status zeigen
+    fetch('/system/update/status').then(r => r.ok ? r.json() : null).then(d => { if (d?.checked_at) renderUpdateStatus(d); }).catch(() => {});
   </script>
 </body>
 </html>

@@ -417,8 +417,14 @@
       wlanEl.className = 'status-val ' + (net ? 'status-ok' : 'status-err');
       const person = d.active_person_name || d.last_person_detected || '–';
       document.getElementById('sb-person').textContent = person;
-      const state = d.device?.effective_state || '–';
-      document.getElementById('sb-state').textContent = state;
+      const stateEl = document.getElementById('sb-state');
+      if (d.update_available) {
+        stateEl.textContent = 'Update verfügbar';
+        stateEl.style.color = 'var(--warning)';
+      } else {
+        stateEl.textContent = d.device?.effective_state || '–';
+        stateEl.style.color = '';
+      }
     } catch(e) {}
   }
   refreshStatus();

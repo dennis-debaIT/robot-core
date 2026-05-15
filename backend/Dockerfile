@@ -1,7 +1,10 @@
 FROM python:3.12-slim
 
 # ffmpeg für RTSP→HLS Live-Transcoding (Ring-Kameras via go2rtc)
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git openssh-client && rm -rf /var/lib/apt/lists/*
+
+ARG GIT_HASH=unknown
+ENV GIT_HASH=$GIT_HASH
 
 WORKDIR /app
 
