@@ -308,3 +308,4 @@ Wenn die externe API nicht gesetzt ist oder fehlschlägt, fällt der Core automa
 
 Für LM Studio mit OpenAI-kompatibler API ist `qwen/qwen3-4b-2507` aktuell der empfohlene Standard für schnelle Alltagsgespräche.
 # v1.0.1
+# v1.0.2
