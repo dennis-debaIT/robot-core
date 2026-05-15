@@ -18,15 +18,29 @@ router = APIRouter()
 _GIT_DIR = "/app"
 _UPDATE_FLAG = "/data/update.flag"
 _SSH_CMD = "ssh -o StrictHostKeyChecking=no -o BatchMode=yes"
+_VERSION_FILE = "/app/VERSION"
 
 
 def _git(*args: str, timeout: int = 30) -> str:
     env = {**os.environ, "GIT_SSH_COMMAND": _SSH_CMD, "HOME": "/root"}
     r = subprocess.run(
-        ["git"] + list(args), cwd=_GIT_DIR,
-        capture_output=True, text=True, timeout=timeout, env=env,
+        ["git", "-c", "safe.directory=/app"] + list(args),
+        cwd=_GIT_DIR, capture_output=True, text=True, timeout=timeout, env=env,
     )
     return r.stdout.strip()
+
+
+def _version_from_count(commit_ref: str = "HEAD") -> str:
+    try:
+        with open(_VERSION_FILE) as f:
+            base = f.read().strip()
+    except Exception:
+        base = "0.1"
+    try:
+        count = _git("rev-list", "--count", commit_ref)
+        return f"{base}.{count}"
+    except Exception:
+        return base
 
 
 @router.get("/", response_class=FileResponse)
@@ -51,20 +65,24 @@ def status() -> dict[str, Any]:
 @router.get("/system/update/status")
 def get_update_status() -> dict[str, Any]:
     with get_connection() as conn:
-        return read_state(conn, "git_update_status", {}) or {}
+        cached = read_state(conn, "git_update_status", {}) or {}
+    cached["current_version"] = _version_from_count("HEAD")
+    return cached
 
 
 @router.post("/system/update/check")
 def check_for_update() -> dict[str, Any]:
     try:
         _git("fetch", "origin", "main", timeout=20)
-        current = _git("rev-parse", "HEAD")[:12]
-        latest  = _git("rev-parse", "origin/main")[:12]
-        available = current != latest and bool(current) and bool(latest)
+        current_hash = _git("rev-parse", "HEAD")
+        latest_hash  = _git("rev-parse", "origin/main")
+        available = current_hash != latest_hash and bool(current_hash) and bool(latest_hash)
         result: dict[str, Any] = {
             "update_available": available,
-            "current_hash": current,
-            "latest_hash": latest,
+            "current_version": _version_from_count("HEAD"),
+            "latest_version":  _version_from_count("origin/main"),
+            "current_hash": current_hash[:12],
+            "latest_hash":  latest_hash[:12],
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "error": None,
         }
@@ -79,6 +97,19 @@ def check_for_update() -> dict[str, Any]:
     with get_connection() as conn:
         write_state(conn, "git_update_status", result)
     return result
+
+
+@router.get("/system/update/log")
+def get_update_log() -> dict[str, Any]:
+    log_path = "/data/update.log"
+    try:
+        with open(log_path) as f:
+            lines = f.readlines()
+        return {"lines": [l.rstrip() for l in lines[-40:]], "error": None}
+    except FileNotFoundError:
+        return {"lines": [], "error": None}
+    except Exception as exc:
+        return {"lines": [], "error": str(exc)}
 
 
 @router.post("/system/update/install")

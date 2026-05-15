@@ -1,21 +1,13 @@
 #!/bin/bash
-set -e
+LOG=/var/lib/docker/volumes/robot-core_robot_core_data/_data/update.log
 cd ~/robot-core
 
-git fetch origin main
+git -c safe.directory=. fetch origin main
 
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-
-if [ "$LOCAL" = "$REMOTE" ]; then
-  echo "[update] Bereits aktuell ($LOCAL)"
-  exit 0
+LOCAL=REMOTE=
+if [ "" = "" ]; then
+  echo "[update] Bereits aktuell (\)" | tee -a   exit 0
 fi
 
-echo "[update] Neues Update: $LOCAL -> $REMOTE"
-git pull --ff-only origin main
-
-GIT_HASH=$(git rev-parse HEAD)
-docker compose build --build-arg GIT_HASH=$GIT_HASH robot-core
-docker compose up -d robot-core
-echo "[update] Abgeschlossen: $(date)"
+echo "[update] Update: \ -> " | tee -a git pull --ff-only origin main 2>&1 | tee -a 
+GIT_HASH=echo "[update] Build startet..." | tee -a docker compose build --build-arg GIT_HASH=\ robot-core 2>&1 | tail -3 | tee -a docker compose up -d robot-core 2>&1 | tail -3 | tee -a echo "[update] Abgeschlossen: /15/2026 19:05:10" | tee -a 

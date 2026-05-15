@@ -1665,6 +1665,8 @@
       btn.textContent = '🔍 Jetzt prüfen';
     }
 
+    let _updateLogInterval = null;
+
     async function installUpdate() {
       const btn = document.getElementById('update-install-btn');
       btn.disabled = true;
@@ -1672,13 +1674,35 @@
       try {
         await fetch('/system/update/install', { method: 'POST' });
         document.getElementById('update-status-box').innerHTML =
-          '<span style="color:var(--warning);">⏳ Update wird eingeleitet — Erika startet in wenigen Minuten neu.</span>';
+          '<span style="color:var(--warning);font-weight:700;">⏳ Update läuft…</span>' +
+          '<pre id="update-log-box" style="margin-top:8px;font-size:0.72rem;color:var(--muted);' +
+          'background:var(--surface2);border-radius:6px;padding:8px;max-height:160px;overflow-y:auto;white-space:pre-wrap;"></pre>';
+        _startUpdateLog();
       } catch (e) {
         document.getElementById('update-status-box').innerHTML =
           '<span style="color:var(--danger);">Fehler: ' + e.message + '</span>';
         btn.disabled = false;
         btn.textContent = '⬇️ Update installieren';
       }
+    }
+
+    function _startUpdateLog() {
+      if (_updateLogInterval) clearInterval(_updateLogInterval);
+      _updateLogInterval = setInterval(async () => {
+        try {
+          const r = await fetch('/system/update/log');
+          const d = await r.json();
+          const box = document.getElementById('update-log-box');
+          if (!box) { clearInterval(_updateLogInterval); return; }
+          box.textContent = d.lines.join('\n') || '(warte auf Log…)';
+          box.scrollTop = box.scrollHeight;
+          // Fertig erkennen: "Abgeschlossen" im Log
+          if (d.lines.some(l => l.includes('Abgeschlossen') || l.includes('aktuell'))) {
+            clearInterval(_updateLogInterval);
+            setTimeout(() => location.reload(), 3000);
+          }
+        } catch {}
+      }, 2000);
     }
 
     function renderUpdateStatus(d) {
@@ -1691,16 +1715,18 @@
         installBtn.style.display = 'none';
         return;
       }
+      const cv = d.current_version || d.current_hash || '–';
+      const lv = d.latest_version  || d.latest_hash  || '–';
       if (d.update_available) {
         box.innerHTML =
           '<span style="color:var(--warning);font-weight:700;">🔔 Update verfügbar!</span><br>' +
-          '<span style="color:var(--muted);">Installiert: <code>' + d.current_hash + '</code> &nbsp;→&nbsp; Neu: <code>' + d.latest_hash + '</code></span><br>' +
+          '<span style="color:var(--muted);">Installiert: <code>' + cv + '</code> &nbsp;→&nbsp; Neu: <code>' + lv + '</code></span><br>' +
           '<span style="color:var(--muted);font-size:0.75rem;">Geprüft: ' + when + '</span>';
         installBtn.style.display = '';
       } else {
         box.innerHTML =
           '<span style="color:var(--success);">✅ Alles aktuell.</span><br>' +
-          '<span style="color:var(--muted);">Version: <code>' + (d.current_hash || '–') + '</code></span><br>' +
+          '<span style="color:var(--muted);">Version: <code>' + cv + '</code></span><br>' +
           '<span style="color:var(--muted);font-size:0.75rem;">Geprüft: ' + when + '</span>';
         installBtn.style.display = 'none';
       }
