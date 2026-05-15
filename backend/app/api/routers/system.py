@@ -43,6 +43,20 @@ def _version_from_count(commit_ref: str = "HEAD") -> str:
         return base
 
 
+def _built_hash() -> str:
+    """Hash der laufenden Container-Build — gebacken bei docker build."""
+    h = os.environ.get("GIT_HASH", "").strip()
+    return h if h and h != "unknown" else ""
+
+
+def _current_version() -> str:
+    """Version des laufenden Containers (aus Build-Hash, nicht HEAD)."""
+    h = _built_hash()
+    if h:
+        return _version_from_count(h)
+    return _version_from_count("HEAD")
+
+
 @router.get("/", response_class=FileResponse)
 def index() -> Any:
     return FileResponse(FRONTEND_INDEX)
@@ -66,7 +80,7 @@ def status() -> dict[str, Any]:
 def get_update_status() -> dict[str, Any]:
     with get_connection() as conn:
         cached = read_state(conn, "git_update_status", {}) or {}
-    cached["current_version"] = _version_from_count("HEAD")
+    cached["current_version"] = _current_version()
     return cached
 
 
@@ -74,14 +88,15 @@ def get_update_status() -> dict[str, Any]:
 def check_for_update() -> dict[str, Any]:
     try:
         _git("fetch", "origin", "main", timeout=20)
-        current_hash = _git("rev-parse", "HEAD")
-        latest_hash  = _git("rev-parse", "origin/main")
-        available = current_hash != latest_hash and bool(current_hash) and bool(latest_hash)
+        # Laufender Build-Hash (gebacken beim docker build)
+        built = _built_hash() or _git("rev-parse", "HEAD")
+        latest_hash = _git("rev-parse", "origin/main")
+        available = (built[:12] != latest_hash[:12]) and bool(latest_hash)
         result: dict[str, Any] = {
             "update_available": available,
-            "current_version": _version_from_count("HEAD"),
+            "current_version": _current_version(),
             "latest_version":  _version_from_count("origin/main"),
-            "current_hash": current_hash[:12],
+            "current_hash": built[:12],
             "latest_hash":  latest_hash[:12],
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "error": None,
@@ -89,7 +104,7 @@ def check_for_update() -> dict[str, Any]:
     except Exception as exc:
         result = {
             "update_available": False,
-            "current_hash": os.environ.get("GIT_HASH", "unknown"),
+            "current_version": _current_version(),
             "latest_hash": None,
             "checked_at": datetime.now(timezone.utc).isoformat(),
             "error": str(exc),

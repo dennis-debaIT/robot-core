@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        GIT_HASH: ${GIT_HASH:-unknown}
     container_name: robot-core
     ports:
       - "8000:8000"
@@ -47,7 +49,7 @@ services:
       - robot_core_data:/data
       - ./models:/models:ro
       - ./ssl:/ssl:ro
-      - ./.git:/app/.git:ro
+      - ./.git:/app/.git
       - /home/dennis/.ssh:/root/.ssh:ro
       - ./update.flag:/data/update.flag
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--ssl-keyfile", "/ssl/key.pem", "--ssl-certfile", "/ssl/cert.pem"]
