@@ -37,7 +37,7 @@
     <div class="status-icon">🔋</div>
     <div>
       <div class="status-label">Akku</div>
-      <div class="status-val" id="sb-battery">–</div>
+      <div class="status-val" id="sb-battery">N/A</div>
       <div class="battery-bar"><div class="battery-fill" id="sb-battery-bar" style="width:0%"></div></div>
     </div>
   </div>
@@ -406,11 +406,11 @@
   async function refreshStatus() {
     try {
       const d = await fetch('/status').then(r => r.json());
-      const batt = d.battery_level || 0;
-      document.getElementById('sb-battery').textContent = batt + '%';
+      const batt = d.battery_level != null ? d.battery_level : null;
+      document.getElementById('sb-battery').textContent = batt != null ? batt + '%' : 'N/A';
       const bar = document.getElementById('sb-battery-bar');
-      bar.style.width = batt + '%';
-      bar.style.background = batt > 30 ? 'var(--success)' : batt > 15 ? 'var(--warning)' : 'var(--danger)';
+      bar.style.width = (batt ?? 0) + '%';
+      bar.style.background = batt == null ? 'var(--muted)' : batt > 30 ? 'var(--success)' : batt > 15 ? 'var(--warning)' : 'var(--danger)';
       const net = d.device?.network_connected;
       const wlanEl = document.getElementById('sb-wlan');
       wlanEl.textContent = net ? 'Verbunden' : 'Getrennt';
