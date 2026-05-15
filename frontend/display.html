@@ -415,7 +415,7 @@
       const wlanEl = document.getElementById('sb-wlan');
       wlanEl.textContent = net ? 'Verbunden' : 'Getrennt';
       wlanEl.className = 'status-val ' + (net ? 'status-ok' : 'status-err');
-      const person = d.active_person_name || d.last_person_detected || 'N/A';
+      const person = d.active_person_name || 'N/A';
       document.getElementById('sb-person').textContent = person;
       const stateEl = document.getElementById('sb-state');
       if (d.update_available) {
