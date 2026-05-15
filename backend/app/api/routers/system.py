@@ -116,7 +116,7 @@ def check_for_update() -> dict[str, Any]:
 
 @router.get("/system/update/log")
 def get_update_log() -> dict[str, Any]:
-    log_path = "/data/update.log"
+    log_path = "/data/update.log"  # bind-mounted von ~/robot-core/update.log
     try:
         with open(log_path) as f:
             lines = f.readlines()

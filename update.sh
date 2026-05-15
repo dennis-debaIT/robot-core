@@ -1,19 +1,10 @@
 #!/bin/bash
 set -e
-LOG=/var/lib/docker/volumes/robot-core_robot_core_data/_data/update.log
+LOG=~/robot-core/update.log
 cd ~/robot-core
 
-git -c safe.directory=. fetch origin main
+echo "[update] Starte Update: $(date)" | tee -a "$LOG"
 
-LOCAL=$(git -c safe.directory=. rev-parse HEAD)
-REMOTE=$(git -c safe.directory=. rev-parse origin/main)
-
-if [ "$LOCAL" = "$REMOTE" ]; then
-  echo "[update] Bereits aktuell ($LOCAL)" | tee -a "$LOG"
-  exit 0
-fi
-
-echo "[update] Update: $LOCAL -> $REMOTE" | tee -a "$LOG"
 git -c safe.directory=. pull --ff-only origin main 2>&1 | tee -a "$LOG"
 
 export GIT_HASH
