@@ -43,7 +43,7 @@ def health() -> dict[str, str]:
 def status() -> dict[str, Any]:
     result = get_core().get_status()
     with get_connection() as conn:
-        upd = read_state(conn, "update_status", {}) or {}
+        upd = read_state(conn, "git_update_status", {}) or {}
     result["update_available"] = bool(upd.get("update_available", False))
     return result
 
@@ -51,7 +51,7 @@ def status() -> dict[str, Any]:
 @router.get("/system/update/status")
 def get_update_status() -> dict[str, Any]:
     with get_connection() as conn:
-        return read_state(conn, "update_status", {}) or {}
+        return read_state(conn, "git_update_status", {}) or {}
 
 
 @router.post("/system/update/check")
@@ -77,7 +77,7 @@ def check_for_update() -> dict[str, Any]:
             "error": str(exc),
         }
     with get_connection() as conn:
-        write_state(conn, "update_status", result)
+        write_state(conn, "git_update_status", result)
     return result
 
 
