@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any
+
+from app.database.db import get_connection
+
+
+def now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+class PersonProfileService:
+    SINGLE_VALUE_TRAITS = {
+        "person_profile",
+        "height",
+        "eye_color",
+        "favorite_color",
+        "age",
+        "occupation",
+        "hometown",
+        "residence",
+        "language",
+        "favorite_food",
+        "favorite_drink",
+        "response_humor_preference",
+        "response_style_preference",
+        "response_length_preference",
+    }
+
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        return " ".join(name.strip().split())
+
+    @staticmethod
+    def _normalize_value(value: str) -> str:
+        return " ".join(value.strip().split())
+
+    def ensure_person(self, name: str) -> int:
+        normalized_name = self._normalize_name(name)
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM persons WHERE lower(name) = lower(?)",
+                (normalized_name,),
+            ).fetchone()
+            if row:
+                return row["id"]
+
+            cursor = conn.execute(
+                """
+                INSERT INTO persons(name, created_at, updated_at)
+                VALUES (?, ?, ?)
+                """,
+                (normalized_name, now_iso(), now_iso()),
+            )
+            return int(cursor.lastrowid)
+
+    def upsert_fact(
+        self,
+        *,
+        person_name: str,
+        trait_type: str,
+        value: str,
+        source_memory_id: int | None,
+        confidence: float | None,
+    ) -> dict[str, Any]:
+        normalized_person_name = self._normalize_name(person_name)
+        normalized_value = self._normalize_value(value)
+        person_id = self.ensure_person(normalized_person_name)
+        timestamp = now_iso()
+
+        with get_connection() as conn:
+            if trait_type in self.SINGLE_VALUE_TRAITS:
+                conn.execute(
+                    """
+                    DELETE FROM person_profile_facts
+                    WHERE person_id = ?
+                      AND trait_type = ?
+                      AND lower(value) <> lower(?)
+                    """,
+                    (person_id, trait_type, normalized_value),
+                )
+
+            existing = conn.execute(
+                """
+                SELECT id
+                FROM person_profile_facts
+                WHERE person_id = ?
+                  AND trait_type = ?
+                  AND lower(value) = lower(?)
+                LIMIT 1
+                """,
+                (person_id, trait_type, normalized_value),
+            ).fetchone()
+
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE person_profile_facts
+                    SET value = ?, source_memory_id = ?, confidence = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (normalized_value, source_memory_id, confidence, timestamp, existing["id"]),
+                )
+            else:
+                conn.execute(
+                    """
+                    INSERT INTO person_profile_facts(
+                        person_id, trait_type, value, source_memory_id, confidence, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (person_id, trait_type, normalized_value, source_memory_id, confidence, timestamp, timestamp),
+                )
+
+            conn.execute(
+                "UPDATE persons SET updated_at = ? WHERE id = ?",
+                (timestamp, person_id),
+            )
+
+        return self.get_person(normalized_person_name)
+
+    def remove_fact_by_memory(self, source_memory_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT p.name
+                FROM person_profile_facts f
+                JOIN persons p ON p.id = f.person_id
+                WHERE f.source_memory_id = ?
+                LIMIT 1
+                """,
+                (source_memory_id,),
+            ).fetchone()
+            if not row:
+                return None
+
+            conn.execute(
+                "DELETE FROM person_profile_facts WHERE source_memory_id = ?",
+                (source_memory_id,),
+            )
+
+        return self.get_person(row["name"])
+
+    def get_person(self, name: str) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            person = conn.execute(
+                "SELECT * FROM persons WHERE lower(name) = lower(?)",
+                (name,),
+            ).fetchone()
+            if not person:
+                return None
+
+            facts = conn.execute(
+                """
+                SELECT trait_type, value, source_memory_id, confidence, created_at, updated_at
+                FROM person_profile_facts
+                WHERE person_id = ?
+                ORDER BY trait_type, value
+                """,
+                (person["id"],),
+            ).fetchall()
+
+        return {
+            "id": person["id"],
+            "name": person["name"],
+            "created_at": person["created_at"],
+            "updated_at": person["updated_at"],
+            "facts": [dict(row) for row in facts],
+        }
+
+    def get_person_by_id(self, person_id: int) -> dict[str, Any] | None:
+        with get_connection() as conn:
+            person = conn.execute(
+                "SELECT * FROM persons WHERE id = ?",
+                (person_id,),
+            ).fetchone()
+            if not person:
+                return None
+        return self.get_person(person["name"])
+
+    def ensure_person_stub(self, person_name: str) -> dict[str, Any]:
+        self.ensure_person(person_name)
+        return self.get_person(person_name) or {
+            "id": None,
+            "name": person_name,
+            "created_at": None,
+            "updated_at": None,
+            "facts": [],
+        }
+
+    def delete_person(self, person_id: int) -> dict[str, Any] | None:
+        person = self.get_person_by_id(person_id)
+        if not person:
+            return None
+
+        with get_connection() as conn:
+            deleted_facts = conn.execute(
+                "DELETE FROM person_profile_facts WHERE person_id = ?",
+                (person_id,),
+            ).rowcount
+            conn.execute("DELETE FROM persons WHERE id = ?", (person_id,))
+
+        return {
+            "id": person["id"],
+            "name": person["name"],
+            "deleted_fact_count": deleted_facts,
+        }
+
+    def list_people(self) -> list[dict[str, Any]]:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT
+                    p.id AS person_id,
+                    p.name,
+                    p.created_at AS person_created_at,
+                    p.updated_at AS person_updated_at,
+                    f.trait_type,
+                    f.value,
+                    f.source_memory_id,
+                    f.confidence,
+                    f.created_at AS fact_created_at,
+                    f.updated_at AS fact_updated_at
+                FROM persons p
+                LEFT JOIN person_profile_facts f ON f.person_id = p.id
+                ORDER BY lower(p.name), f.trait_type, f.value
+                """
+            ).fetchall()
+
+        people: list[dict[str, Any]] = []
+        current_id: int | None = None
+        current_person: dict[str, Any] | None = None
+        for row in rows:
+            if row["person_id"] != current_id:
+                current_id = row["person_id"]
+                current_person = {
+                    "id": row["person_id"],
+                    "name": row["name"],
+                    "created_at": row["person_created_at"],
+                    "updated_at": row["person_updated_at"],
+                    "facts": [],
+                }
+                people.append(current_person)
+
+            if current_person and row["trait_type"]:
+                current_person["facts"].append(
+                    {
+                        "trait_type": row["trait_type"],
+                        "value": row["value"],
+                        "source_memory_id": row["source_memory_id"],
+                        "confidence": row["confidence"],
+                        "created_at": row["fact_created_at"],
+                        "updated_at": row["fact_updated_at"],
+                    }
+                )
+
+        return people
+
+    def get_response_preferences(self, person_name: str | None) -> dict[str, str]:
+        if not person_name:
+            return {}
+        person = self.get_person(person_name)
+        if not person:
+            return {}
+
+        traits = {
+            "response_humor_preference",
+            "response_style_preference",
+            "response_length_preference",
+        }
+        return {
+            fact["trait_type"]: fact["value"]
+            for fact in person["facts"]
+            if fact["trait_type"] in traits
+        }

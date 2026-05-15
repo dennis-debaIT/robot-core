@@ -1,0 +1,1912 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erika Local Console</title>
+  <style>
+    :root {
+      --bg-0: #f3efe4;
+      --bg-1: #eef4ea;
+      --bg-2: #fffaf0;
+      --surface: rgba(255, 252, 247, 0.92);
+      --surface-strong: #fffdf8;
+      --surface-soft: rgba(246, 242, 234, 0.9);
+      --line: #d7d2c3;
+      --line-strong: #c3bbab;
+      --ink: #19231d;
+      --muted: #617064;
+      --accent: #2f6b4f;
+      --accent-strong: #214b38;
+      --accent-soft: rgba(47, 107, 79, 0.12);
+      --gold: #c89c4f;
+      --gold-soft: rgba(200, 156, 79, 0.16);
+      --danger: #bb543f;
+      --danger-soft: rgba(187, 84, 63, 0.12);
+      --shadow-lg: 0 28px 70px rgba(29, 39, 32, 0.12);
+      --shadow-md: 0 18px 42px rgba(29, 39, 32, 0.08);
+      --radius-xl: 30px;
+      --radius-lg: 24px;
+      --radius-md: 18px;
+      --radius-sm: 14px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", "Noto Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(47, 107, 79, 0.18), transparent 18%),
+        radial-gradient(circle at top right, rgba(200, 156, 79, 0.18), transparent 20%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-0) 48%, var(--bg-2));
+    }
+
+    .shell {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 24px 18px 40px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 20px;
+      padding: 28px;
+      border-radius: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.5);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,0.88), rgba(255,249,239,0.82)),
+        linear-gradient(120deg, rgba(47,107,79,0.08), rgba(200,156,79,0.08));
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(20px);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto -120px -120px auto;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(200,156,79,0.18), transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .hero-copy {
+      max-width: 760px;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 1.04;
+      letter-spacing: -0.03em;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.55;
+    }
+
+    .kicker {
+      display: inline-flex;
+      margin-bottom: 14px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(47, 107, 79, 0.16);
+      background: rgba(47, 107, 79, 0.08);
+      color: var(--accent-strong);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 700;
+    }
+
+    .hero-panel {
+      min-width: 280px;
+      max-width: 360px;
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.55);
+      background: rgba(255,255,255,0.72);
+      box-shadow: var(--shadow-md);
+    }
+
+    .hero-panel-title {
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 0.84rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+    }
+
+    .hero-panel strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 1.25rem;
+    }
+
+    .hero-panel p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .metric {
+      min-height: 112px;
+      padding: 14px 14px 16px;
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.48);
+      background: rgba(255,255,255,0.68);
+      box-shadow: var(--shadow-md);
+    }
+
+    .metric-label {
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .metric-value {
+      font-size: 1.08rem;
+      line-height: 1.25;
+      font-weight: 700;
+    }
+
+    .metric-sub {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.95fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    .main-column,
+    .side-column {
+      display: grid;
+      gap: 20px;
+    }
+
+    .side-column {
+      position: sticky;
+      top: 18px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid rgba(215, 210, 195, 0.9);
+      border-radius: var(--radius-xl);
+      padding: 20px;
+      box-shadow: var(--shadow-md);
+      backdrop-filter: blur(16px);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .card-header h2,
+    .card-header h3 {
+      margin: 0;
+      line-height: 1.08;
+    }
+
+    .card-header p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.96rem;
+    }
+
+    .card-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+
+    .chat-composer {
+      display: grid;
+      gap: 14px;
+    }
+
+    .grid-2, .grid-3, .grid-4 {
+      display: grid;
+      gap: 12px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .field,
+    .surface-group {
+      padding: 14px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.66);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    input, textarea, button, select {
+      width: 100%;
+      font: inherit;
+      border-radius: 16px;
+    }
+
+    input, textarea, select {
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+      color: var(--ink);
+      transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: rgba(47, 107, 79, 0.4);
+      box-shadow: 0 0 0 4px rgba(47, 107, 79, 0.12);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 132px;
+    }
+
+    button {
+      padding: 13px 15px;
+      border: 0;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      box-shadow: 0 12px 26px rgba(47, 107, 79, 0.2);
+      transition: transform 140ms ease, opacity 140ms ease, background 140ms ease, box-shadow 140ms ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      background: var(--accent-strong);
+      box-shadow: 0 16px 28px rgba(33, 75, 56, 0.24);
+    }
+
+    button.secondary {
+      background: linear-gradient(135deg, #f2dfb1, #e7cb89);
+      color: #342613;
+      box-shadow: 0 10px 22px rgba(200, 156, 79, 0.18);
+    }
+
+    button.secondary:hover {
+      background: linear-gradient(135deg, #ecd49e, #ddb96b);
+    }
+
+    button.danger {
+      background: var(--danger);
+      box-shadow: 0 10px 22px rgba(187, 84, 63, 0.2);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .toolbar button {
+      width: auto;
+      min-width: 138px;
+    }
+
+    .pill-row,
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .pill,
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.74);
+      color: var(--ink);
+      font-size: 0.94rem;
+    }
+
+    .badge {
+      background: var(--accent-soft);
+      border-color: rgba(47, 107, 79, 0.18);
+      color: var(--accent-strong);
+      font-weight: 700;
+    }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.74);
+    }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .reply-stage {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.78), rgba(247,243,235,0.88));
+      border: 1px solid rgba(215, 210, 195, 0.9);
+    }
+
+    .reply-box {
+      min-height: 150px;
+      padding: 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(195, 187, 171, 0.8);
+      background: rgba(255,255,255,0.92);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+
+    .section-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .flow-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .flow-card {
+      padding: 14px;
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+    }
+
+    .flow-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .memory-list, .profile-list, .conversation-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .memory-item,
+    .conversation-item {
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.82);
+      box-shadow: 0 8px 22px rgba(29, 39, 32, 0.05);
+    }
+
+    .memory-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .memory-meta span {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(215, 210, 195, 0.94);
+      background: rgba(246, 242, 234, 0.96);
+    }
+
+    .memory-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+
+    .memory-actions button {
+      width: auto;
+      min-width: 118px;
+    }
+
+    .profile-facts {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .profile-fact {
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(248,250,245,0.9), rgba(255,255,255,0.86));
+    }
+
+    .profile-fact strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .conversation-item.user {
+      border-left: 6px solid rgba(47, 107, 79, 0.35);
+      background: rgba(238, 246, 240, 0.95);
+    }
+
+    .conversation-item.assistant {
+      border-left: 6px solid rgba(200, 156, 79, 0.35);
+      background: rgba(255, 249, 240, 0.98);
+    }
+
+    .conversation-meta {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 10px;
+    }
+
+    .check {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.74);
+    }
+
+    .check.done {
+      background: rgba(237, 246, 240, 0.96);
+      border-color: rgba(47, 107, 79, 0.24);
+    }
+
+    .device-toggle {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+    }
+
+    .setup-note {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.78);
+      color: var(--muted);
+    }
+
+    .debug-group {
+      display: grid;
+      gap: 12px;
+    }
+
+    details.debug-panel {
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+      overflow: hidden;
+    }
+
+    details.debug-panel > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 14px 16px;
+      font-weight: 700;
+      color: var(--ink);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    details.debug-panel > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.debug-panel[open] > summary {
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 242, 234, 0.8);
+    }
+
+    .json, .feed {
+      margin: 0;
+      min-height: 120px;
+      max-height: 420px;
+      overflow: auto;
+      padding: 16px;
+      border-radius: 0 0 22px 22px;
+      border: 0;
+      background: rgba(247,250,245,0.88);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .prompt-columns {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+
+    .prompt-meta {
+      display: grid;
+      gap: 12px;
+    }
+
+    .prompt-box {
+      padding: 14px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.76);
+    }
+
+    .prompt-box strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .input-error {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 4px rgba(187, 84, 63, 0.12);
+    }
+
+    .toast {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      z-index: 20;
+      min-width: 280px;
+      max-width: 420px;
+      padding: 15px 17px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 254, 248, 0.98);
+      color: var(--ink);
+      box-shadow: var(--shadow-lg);
+      opacity: 0;
+      transform: translateY(12px);
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .toast.success {
+      border-color: rgba(47, 107, 79, 0.36);
+    }
+
+    .toast.error {
+      border-color: rgba(187, 84, 63, 0.36);
+      background: rgba(255, 246, 243, 0.98);
+    }
+
+    @media (max-width: 1320px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .side-column {
+        position: static;
+      }
+
+      .hero-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 900px) {
+      .grid-2, .grid-3, .grid-4, .status-grid, .prompt-columns, .flow-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .hero {
+        padding: 22px;
+      }
+
+      .hero-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .shell {
+        padding: 14px 12px 28px;
+      }
+
+      .hero-metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar button,
+      .memory-actions button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="hero-top">
+        <div class="hero-copy">
+          <span class="kicker">Erika Local Console</span>
+          <h1>Lokaler Betrieb, Dialog und Wissen an einem Ort</h1>
+          <p>Die Konsole priorisiert jetzt den Live-Dialog, zeigt den aktuellen Gerätezustand klarer und hält technische Debug-Informationen aus dem primären Bedienpfad heraus. Der Robot-Core bleibt die Instanz für Entscheidungen, Freigaben und Gerätestatus.</p>
+        </div>
+        <div class="hero-panel">
+          <div class="hero-panel-title">Aktiver Fokus</div>
+          <strong>Gespräch führen, prüfen, freigeben</strong>
+          <p>Chat und Antwort stehen vorn. Profilwissen, Memory-Queue, Audit und Konfiguration bleiben direkt erreichbar, aber drängen sich nicht in den Live-Dialog.</p>
+        </div>
+      </div>
+      <div class="hero-metrics">
+        <div class="metric">
+          <div class="metric-label">Gerät</div>
+          <div class="metric-value" id="heroDevice">-</div>
+          <div class="metric-sub">Lokale Instanz und aktiver Standort</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Betriebsstatus</div>
+          <div class="metric-value" id="heroState">-</div>
+          <div class="metric-sub">Bereit, Setup oder Wartung</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Akkustand</div>
+          <div class="metric-value" id="heroBattery">-</div>
+          <div class="metric-sub">Live-Gerätewert für Rückfragen</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Display</div>
+          <div class="metric-value" id="heroDisplay">-</div>
+          <div class="metric-sub">Aktuelle Anzeige des Roboters</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Erkannte Person</div>
+          <div class="metric-value" id="heroKnown">-</div>
+          <div class="metric-sub">Bezug für Gespräch und Wissen</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Offene Prüfungen</div>
+          <div class="metric-value" id="heroPending">-</div>
+          <div class="metric-sub">Vorschläge in der Approval-Queue</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="workspace">
+      <main class="main-column">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Live-Dialog</h2>
+              <p>Hier führst du echte Gespräche mit Erika. Die Antwort erscheint direkt im Vordergrund, damit TTS und Live-Beobachtung sauber funktionieren.</p>
+            </div>
+            <span class="card-label">Primary</span>
+          </div>
+          <div class="chat-composer">
+            <div class="grid-2">
+              <div class="field">
+                <label for="personName">Person</label>
+                <input id="personName" placeholder="z. B. Dennis">
+              </div>
+              <div class="field">
+                <label for="speechInput">Schnelle Spracheingabe</label>
+                <input id="speechInput" placeholder="z. B. Ich mag Kaffee">
+              </div>
+            </div>
+            <div class="field">
+              <label for="chatMessage">Nachricht</label>
+              <textarea id="chatMessage" placeholder="Nachricht an den Roboter senden"></textarea>
+            </div>
+            <div class="toolbar">
+              <button id="sendChat">Chat senden</button>
+              <button class="secondary" id="simulateSpeech">Sprache simulieren</button>
+              <button class="secondary" id="refreshStatus">Status aktualisieren</button>
+              <button class="secondary" id="previewPrompt">Prompt-Vorschau</button>
+            </div>
+          </div>
+          <div class="reply-stage" style="margin-top: 16px;">
+            <div class="card-header" style="margin-bottom: 0;">
+              <div>
+                <h3>Antwort</h3>
+                <p>Nur die sichtbare, TTS-taugliche Ausgabe. Kein Debug-Text im Live-Feld.</p>
+              </div>
+              <span class="card-label">Live</span>
+            </div>
+            <div id="chatReply" class="reply-box"></div>
+            <div class="flow-grid">
+              <div class="flow-card">
+                <strong>Dialogbezug</strong>
+                <span>Gesprächsverlauf bleibt erhalten, ohne die Antwortfläche zu blockieren.</span>
+              </div>
+              <div class="flow-card">
+                <strong>Wissenspfad</strong>
+                <span>Erkannte Aussagen landen erst als Vorschlag und nicht sofort als bestätigtes Profilwissen.</span>
+              </div>
+              <div class="flow-card">
+                <strong>Gerätestatus</strong>
+                <span>Akku und Gerätezustand werden direkt vom Core beantwortet, nicht erraten.</span>
+              </div>
+            </div>
+          </div>
+          <div class="debug-group" style="margin-top: 16px;">
+            <details class="debug-panel">
+              <summary>Chat-Details <span class="card-label">Debug</span></summary>
+              <pre id="chatResult" class="feed">Bereit.</pre>
+            </details>
+            <details class="debug-panel">
+              <summary>LLM-Kontext und Prompt-Vorschau <span class="card-label">Optional</span></summary>
+              <div style="padding: 16px; display: grid; gap: 12px;">
+                <p class="section-note">Die Prompt-Ausgabe wird nur über die Vorschau geladen. Sie aktualisiert die Live-Antwort nicht während des Streamings.</p>
+                <div class="prompt-columns">
+                  <pre id="promptSystem" class="feed" style="border-radius: 18px;">Noch keine Prompt-Vorschau.</pre>
+                  <div class="prompt-meta">
+                    <div class="prompt-box">
+                      <strong>Messages</strong>
+                      <pre id="promptMessages" class="json" style="border-radius: 16px;">[]</pre>
+                    </div>
+                    <div class="prompt-box">
+                      <strong>Kontext</strong>
+                      <pre id="promptContext" class="json" style="border-radius: 16px;">{}</pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Gesprächsverlauf</h2>
+              <p>Lesbare Chronik für echten Dialogkontext. Verlauf und Profilwissen sind bewusst getrennt.</p>
+            </div>
+            <div class="toolbar">
+              <button class="secondary" id="loadConversation">Verlauf laden</button>
+            </div>
+          </div>
+          <div id="conversationList" class="conversation-list"></div>
+          <p class="footer-note">Einmalige Fragen bleiben hier oft nur Verlauf. Erst wiederkehrende oder klare Selbstaussagen werden als Memory-Kandidaten bewertet.</p>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Simulation und manuelle Eingriffe</h2>
+              <p>Testet Geräteereignisse, manuelle Memory-Vorschläge und Statusänderungen, ohne den Live-Dialog zu überladen.</p>
+            </div>
+            <span class="card-label">Lab</span>
+          </div>
+          <div class="grid-3">
+            <div class="field">
+              <label for="batteryLevel">Akkustand</label>
+              <input id="batteryLevel" type="number" min="0" max="100" value="55">
+            </div>
+            <div class="field">
+              <label for="displayStatus">Display-Status</label>
+              <input id="displayStatus" value="ready">
+            </div>
+            <div class="field">
+              <label for="memorySubject">Memory-Betreff</label>
+              <input id="memorySubject" placeholder="z. B. Dennis">
+            </div>
+          </div>
+          <div class="toolbar" style="margin-top: 12px;">
+            <button class="secondary" id="simulatePerson">Person erkannt</button>
+            <button class="secondary" id="simulateBattery">Akku aktualisieren</button>
+            <button class="secondary" id="simulateDisplay">Display setzen</button>
+          </div>
+          <div class="field" style="margin-top: 12px;">
+            <label for="memoryProposal">Memory-Vorschlag</label>
+            <textarea id="memoryProposal" placeholder="z. B. Dennis mag Kaffee."></textarea>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" id="proposeMemory">Memory vorschlagen</button>
+          </div>
+          <details class="debug-panel" style="margin-top: 14px;">
+            <summary>Letzte API-Antwort <span class="card-label">Debug</span></summary>
+            <pre id="simulationResult" class="json">Noch keine Daten.</pre>
+          </details>
+        </section>
+      </main>
+
+      <aside class="side-column">
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Status</h2>
+              <p>Die wichtigsten Live-Werte für Betrieb, Initiative und Gesprächsbezug.</p>
+            </div>
+            <span class="card-label">Now</span>
+          </div>
+          <div class="status-grid" id="statusGrid"></div>
+          <details class="debug-panel">
+            <summary>Vollständiger Status <span class="card-label">Debug</span></summary>
+            <pre id="statusResult" class="json">Noch keine Daten.</pre>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Gerät und Setup</h2>
+              <p>Lokale Identität, Betriebszustand und geführte Setup-Hinweise an einem Ort.</p>
+            </div>
+            <div class="badge-row">
+              <span class="badge" id="deviceStateBadge">Status: -</span>
+              <span class="badge" id="deviceProvisioningBadge">Provisioning: -</span>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="deviceName">Gerätename</label>
+              <input id="deviceName" placeholder="z. B. Erika Wohnzimmer">
+            </div>
+            <div class="field">
+              <label for="siteLabel">Standort</label>
+              <input id="siteLabel" placeholder="z. B. Haushalt Meier">
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top: 12px;">
+            <div class="field">
+              <label for="deviceState">Gerätezustand</label>
+              <select id="deviceState">
+                <option value="factory">factory</option>
+                <option value="network_setup">network_setup</option>
+                <option value="updating">updating</option>
+                <option value="ready">ready</option>
+                <option value="maintenance">maintenance</option>
+                <option value="offline_degraded">offline_degraded</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="updateStatus">Update-Status</label>
+              <select id="updateStatus">
+                <option value="idle">idle</option>
+                <option value="available">available</option>
+                <option value="checking">checking</option>
+                <option value="downloading">downloading</option>
+                <option value="installing">installing</option>
+                <option value="restarting">restarting</option>
+                <option value="failed">failed</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top: 12px;">
+            <div class="field">
+              <label for="localIp">Lokale IP</label>
+              <input id="localIp" placeholder="z. B. 192.168.1.55">
+            </div>
+            <div class="field">
+              <label for="softwareVersion">Software-Version</label>
+              <input id="softwareVersion" placeholder="z. B. 0.2-alpha">
+            </div>
+          </div>
+          <div class="grid-3" style="margin-top: 12px;">
+            <div class="surface-group">
+              <label>Netzwerk verbunden</label>
+              <div class="device-toggle">
+                <input id="networkConnected" type="checkbox" style="width:auto; transform: scale(1.2);">
+                <span>LAN/WLAN aktiv</span>
+              </div>
+            </div>
+            <div class="surface-group">
+              <label>Server verbunden</label>
+              <div class="device-toggle">
+                <input id="serverConnected" type="checkbox" style="width:auto; transform: scale(1.2);">
+                <span>Plattform erreichbar</span>
+              </div>
+            </div>
+            <div class="surface-group">
+              <label>Wartungsmodus</label>
+              <div class="device-toggle">
+                <input id="maintenanceMode" type="checkbox" style="width:auto; transform: scale(1.2);">
+                <span>Servicebetrieb</span>
+              </div>
+            </div>
+          </div>
+          <div class="toolbar" style="margin-top: 12px;">
+            <button id="saveDevice">Gerät speichern</button>
+            <button class="secondary" id="reloadDevice">Gerät laden</button>
+          </div>
+          <div class="setup-note" style="margin-top: 12px;">
+            <strong>Nächster Schritt:</strong>
+            <span id="deviceNextStep">-</span>
+          </div>
+          <div class="setup-note" style="margin-top: 12px;">
+            <strong>Hinweis:</strong>
+            <span id="deviceStateHint">-</span>
+          </div>
+          <div id="deviceChecklist" class="checklist" style="margin-top: 12px;"></div>
+          <details class="debug-panel" style="margin-top: 14px;">
+            <summary>Geräte-Rohdaten <span class="card-label">Debug</span></summary>
+            <pre id="deviceResult" class="json">Noch keine Daten.</pre>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Laufzeit-Konfiguration</h2>
+              <p>Steuert Antworttiefe, LLM-Limits und Relevanzregeln zur Laufzeit.</p>
+            </div>
+            <span class="card-label">Config</span>
+          </div>
+          <div class="grid-2">
+            <div class="field">
+              <label for="quietMinutes">quiet_minutes</label>
+              <input id="quietMinutes" type="number" min="1" max="120">
+            </div>
+            <div class="field">
+              <label for="criticalBatteryThreshold">critical_battery_threshold</label>
+              <input id="criticalBatteryThreshold" type="number" min="0" max="100">
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top: 12px;">
+            <div class="field">
+              <label for="llmTimeoutSeconds">llm_timeout_seconds</label>
+              <input id="llmTimeoutSeconds" type="number" min="1" max="120">
+            </div>
+            <div class="field">
+              <label for="llmMaxTokens">llm_max_tokens</label>
+              <input id="llmMaxTokens" type="number" min="64" max="2048">
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top: 12px;">
+            <div class="field">
+              <label for="llmHistoryTurns">llm_history_turns</label>
+              <input id="llmHistoryTurns" type="number" min="0" max="20">
+            </div>
+            <div class="surface-group">
+              <label for="explainOnlyOnRequest">Erklären nur auf Anfrage</label>
+              <div class="device-toggle">
+                <input id="explainOnlyOnRequest" type="checkbox" style="width:auto; transform: scale(1.2);">
+                <span>Ausführlicher nur bei klarer Nachfrage</span>
+              </div>
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top: 12px;">
+            <div class="field">
+              <label for="topicInterestThreshold">topic_interest_threshold</label>
+              <input id="topicInterestThreshold" type="number" min="2" max="10">
+            </div>
+            <div class="field">
+              <label for="topicInterestWindowDays">topic_interest_window_days</label>
+              <input id="topicInterestWindowDays" type="number" min="1" max="90">
+            </div>
+          </div>
+          <div class="field" style="margin-top: 12px;">
+            <label for="responseStyle">response_style</label>
+            <input id="responseStyle">
+          </div>
+          <div class="field" style="margin-top: 12px;">
+            <label for="greetingSuggestionTemplate">greeting_suggestion_template</label>
+            <input id="greetingSuggestionTemplate">
+          </div>
+          <div class="toolbar" style="margin-top: 12px;">
+            <button id="saveConfig">Konfiguration speichern</button>
+            <button class="secondary" id="reloadConfig">Konfiguration laden</button>
+          </div>
+          <details class="debug-panel" style="margin-top: 14px;">
+            <summary>Konfigurations-Rohdaten <span class="card-label">Debug</span></summary>
+            <pre id="configResult" class="json">Noch keine Daten.</pre>
+          </details>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Memory Queue</h2>
+              <p>Freigabepunkt zwischen Verlauf und bestätigtem Wissen. Hier entscheidet sich, was nur Aussage bleibt und was ins Profil darf.</p>
+            </div>
+            <span class="card-label">Review</span>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" id="loadPending">Pending laden</button>
+            <button class="secondary" id="loadApproved">Approved laden</button>
+          </div>
+          <div id="memoryList" class="memory-list"></div>
+          <p class="footer-note">Dritt-Aussagen über Personen können freigegeben werden, bleiben aber oft nur als gemerkte Aussage statt direktes Profilwissen.</p>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Profile</h2>
+              <p>Hier landet nur strukturiertes, bestätigtes Langzeitwissen pro Person.</p>
+            </div>
+            <span class="card-label">Long-term</span>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" id="loadProfiles">Profile laden</button>
+          </div>
+          <div id="profileList" class="profile-list"></div>
+          <p class="footer-note">Nur bestätigte Eigenschaften wie Vorlieben, Sprache, Wohnort oder Beziehungen. Nicht jede Gesprächsaussage wird hier materialisiert.</p>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <div>
+              <h2>Audit-Log</h2>
+              <p>Kritische lokale Änderungen für Nachvollziehbarkeit und spätere Produktreife.</p>
+            </div>
+            <span class="card-label">Audit</span>
+          </div>
+          <div class="toolbar">
+            <button class="secondary" id="loadAudit">Audit laden</button>
+          </div>
+          <details class="debug-panel">
+            <summary>Audit-Einträge <span class="card-label">Log</span></summary>
+            <pre id="auditResult" class="json">Noch keine Daten.</pre>
+          </details>
+          <p class="footer-note">Enthält lokale Freigaben, Löschungen, Konfigurations- und Gerätezustandsänderungen.</p>
+        </section>
+      </aside>
+    </div>
+  </div>
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const statusGrid = document.getElementById("statusGrid");
+    const memoryList = document.getElementById("memoryList");
+    const profileList = document.getElementById("profileList");
+    const chatReply = document.getElementById("chatReply");
+    const toast = document.getElementById("toast");
+    let currentMemoryFilter = "pending";
+    let toastTimer = null;
+
+    async function callApi(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...options
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail ? JSON.stringify(data.detail) : `HTTP ${response.status}`);
+      }
+      return data;
+    }
+
+    async function streamChatApi(path, payload, handlers = {}) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "text/event-stream" },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok || !response.body) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let currentEvent = "message";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() || "";
+
+        for (const chunk of chunks) {
+          const lines = chunk.split("\n");
+          let dataLines = [];
+          currentEvent = "message";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              currentEvent = line.slice(7).trim();
+            }
+            if (line.startsWith("data: ")) {
+              dataLines.push(line.slice(6));
+            }
+          }
+          if (!dataLines.length) {
+            continue;
+          }
+          const data = JSON.parse(dataLines.join("\n"));
+          if (handlers[currentEvent]) {
+            handlers[currentEvent](data);
+          }
+        }
+      }
+    }
+
+    function showJson(target, data) {
+      document.getElementById(target).textContent = JSON.stringify(data, null, 2);
+    }
+
+    function renderReply(result) {
+      const replyValue = result && Object.prototype.hasOwnProperty.call(result, "reply")
+        ? result.reply
+        : "";
+      const reply = normalizeReplyText(replyValue ?? "");
+      chatReply.textContent = reply;
+    }
+
+    function appendReply(text) {
+      if (
+        !chatReply.textContent
+        || chatReply.textContent.startsWith("Fehler:")
+      ) {
+        chatReply.textContent = "";
+      }
+      chatReply.textContent = normalizeReplyText(chatReply.textContent + text);
+    }
+
+    function normalizeReplyText(text) {
+      return String(text)
+        .replace(/\r/g, "")
+        .replace(/(^|\n)\s*[*-]\s+/g, "$1")
+        .replace(/  \n/g, "\n")
+        .replace(/\n[^\p{L}\p{N}\s]{1,3}\s*$/u, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+    }
+
+    function renderPromptPayload(payload) {
+      document.getElementById("promptSystem").textContent = payload?.system_prompt || "Noch keine Prompt-Vorschau.";
+      document.getElementById("promptMessages").textContent = JSON.stringify(payload?.messages || [], null, 2);
+      document.getElementById("promptContext").textContent = JSON.stringify(payload?.context || {}, null, 2);
+    }
+
+    function showToast(message, type = "success") {
+      toast.textContent = message;
+      toast.className = `toast ${type} visible`;
+      if (toastTimer) {
+        clearTimeout(toastTimer);
+      }
+      toastTimer = setTimeout(() => {
+        toast.className = "toast";
+      }, 2800);
+    }
+
+    function setBusy(buttonId, busy) {
+      document.getElementById(buttonId).disabled = busy;
+    }
+
+    function markFieldError(element, hasError) {
+      element.classList.toggle("input-error", hasError);
+    }
+
+    function requireValue(element, message) {
+      const hasValue = element.value.trim().length > 0;
+      markFieldError(element, !hasValue);
+      if (!hasValue) {
+        showToast(message, "error");
+      }
+      return hasValue;
+    }
+
+    function getPrimaryPersonName() {
+      const personName = document.getElementById("personName").value.trim();
+      const memorySubject = document.getElementById("memorySubject").value.trim();
+      return personName || memorySubject || null;
+    }
+
+    function renderStatusCards(status) {
+      const initiative = status.initiative || {};
+      const device = status.device || {};
+      const items = [
+        ["GerÃ¤tezustand", device.effective_state || "-"],
+        ["Akku", `${status.battery_level}%`],
+        ["Display", status.display_status],
+        ["Serverkontakt", device.server_connected ? "verbunden" : "lokal / getrennt"],
+        ["Letzte Person", status.last_person_detected || "keine"],
+        ["Bekannt", status.known_person_detected ? "ja" : "nein"],
+        ["Pending Memories", String(status.pending_memory_count)],
+        ["Initiative", initiative.allowed ? "erlaubt" : initiative.reason || "nein"]
+      ];
+      statusGrid.innerHTML = items.map(([label, value]) => `
+        <div class="stat">
+          <strong>${label}</strong>
+          <span>${value}</span>
+        </div>
+      `).join("");
+    }
+
+    function updateHero(status) {
+      const device = status.device || {};
+      document.getElementById("heroDevice").textContent = device.device_name || "-";
+      document.getElementById("heroState").textContent = device.effective_state || "-";
+      document.getElementById("heroBattery").textContent = `${status.battery_level}%`;
+      document.getElementById("heroDisplay").textContent = status.display_status || "-";
+      document.getElementById("heroKnown").textContent = status.known_person_detected ? (status.last_person_detected || "ja") : "nein";
+      document.getElementById("heroPending").textContent = String(status.pending_memory_count);
+    }
+
+    async function refreshStatus() {
+      const data = await callApi("/status");
+      showJson("statusResult", data);
+      renderStatusCards(data);
+      updateHero(data);
+    }
+
+    function renderChecklist(items) {
+      const target = document.getElementById("deviceChecklist");
+      target.innerHTML = items.map(item => `
+        <div class="check ${item.done ? "done" : ""}">
+          <span>${item.label}</span>
+          <strong>${item.done ? "bereit" : "offen"}</strong>
+        </div>
+      `).join("");
+    }
+
+    async function loadDevice() {
+      const data = await callApi("/device");
+      document.getElementById("deviceName").value = data.device_name || "";
+      document.getElementById("siteLabel").value = data.site_label || "";
+      document.getElementById("deviceState").value = data.device_state;
+      document.getElementById("updateStatus").value = data.update_status;
+      document.getElementById("localIp").value = data.local_ip || "";
+      document.getElementById("softwareVersion").value = data.software_version || "";
+      document.getElementById("networkConnected").checked = Boolean(data.network_connected);
+      document.getElementById("serverConnected").checked = Boolean(data.server_connected);
+      document.getElementById("maintenanceMode").checked = Boolean(data.maintenance_mode);
+      document.getElementById("deviceStateBadge").textContent = `Status: ${data.effective_state}`;
+      document.getElementById("deviceProvisioningBadge").textContent = `Provisioning: ${data.provisioning_status}`;
+      document.getElementById("deviceNextStep").textContent = data.next_step;
+      document.getElementById("deviceStateHint").textContent = data.state_hint;
+      renderChecklist(data.checklist || []);
+      showJson("deviceResult", data);
+    }
+
+    async function saveDevice() {
+      const nameField = document.getElementById("deviceName");
+      const siteField = document.getElementById("siteLabel");
+      if (!requireValue(nameField, "Bitte zuerst einen GerÃ¤tenamen angeben.")) {
+        return;
+      }
+      if (!requireValue(siteField, "Bitte zuerst einen Standort angeben.")) {
+        return;
+      }
+
+      const payload = {
+        device_name: nameField.value,
+        site_label: siteField.value,
+        device_state: document.getElementById("deviceState").value,
+        update_status: document.getElementById("updateStatus").value,
+        local_ip: document.getElementById("localIp").value || null,
+        software_version: document.getElementById("softwareVersion").value || null,
+        network_connected: document.getElementById("networkConnected").checked,
+        server_connected: document.getElementById("serverConnected").checked,
+        maintenance_mode: document.getElementById("maintenanceMode").checked,
+      };
+      const data = await callApi("/device", { method: "PATCH", body: JSON.stringify(payload) });
+      showJson("deviceResult", data);
+      document.getElementById("deviceStateBadge").textContent = `Status: ${data.effective_state}`;
+      document.getElementById("deviceProvisioningBadge").textContent = `Provisioning: ${data.provisioning_status}`;
+      document.getElementById("deviceNextStep").textContent = data.next_step;
+      document.getElementById("deviceStateHint").textContent = data.state_hint;
+      renderChecklist(data.checklist || []);
+      await refreshStatus();
+      showToast("GerÃ¤tezustand gespeichert.");
+    }
+
+    async function loadConfig() {
+      const data = await callApi("/config");
+      const effective = data.effective;
+      document.getElementById("quietMinutes").value = effective.quiet_minutes;
+      document.getElementById("criticalBatteryThreshold").value = effective.critical_battery_threshold;
+      document.getElementById("llmTimeoutSeconds").value = effective.llm_timeout_seconds;
+      document.getElementById("llmMaxTokens").value = effective.llm_max_tokens;
+      document.getElementById("llmHistoryTurns").value = effective.llm_history_turns;
+      document.getElementById("topicInterestThreshold").value = effective.topic_interest_threshold;
+      document.getElementById("topicInterestWindowDays").value = effective.topic_interest_window_days;
+      document.getElementById("responseStyle").value = effective.response_style;
+      document.getElementById("greetingSuggestionTemplate").value = effective.greeting_suggestion_template;
+      document.getElementById("explainOnlyOnRequest").checked = effective.explain_only_on_request;
+      showJson("configResult", data);
+    }
+
+    async function previewPrompt() {
+      const messageField = document.getElementById("chatMessage");
+      if (!requireValue(messageField, "Bitte zuerst eine Chat-Nachricht eingeben.")) {
+        return;
+      }
+      const payload = {
+        message: messageField.value,
+        person_name: getPrimaryPersonName()
+      };
+      const data = await callApi("/chat/preview", { method: "POST", body: JSON.stringify(payload) });
+      renderPromptPayload(data);
+      showToast("Prompt-Vorschau geladen.");
+    }
+
+    function renderMemoryActions(item) {
+      if (currentMemoryFilter === "pending") {
+        return `
+          <div class="memory-actions">
+            <button class="secondary" onclick="approveMemory(${item.id})">Approve</button>
+            <button class="danger" onclick="rejectMemory(${item.id})">Reject</button>
+          </div>
+        `;
+      }
+      if (currentMemoryFilter === "approved") {
+        return `
+          <div class="memory-actions">
+            <button class="danger" onclick="rejectMemory(${item.id})">Entfernen</button>
+          </div>
+        `;
+      }
+      return `
+        <div class="memory-actions">
+          <button class="secondary" onclick="approveMemory(${item.id})">Wieder aktivieren</button>
+        </div>
+      `;
+    }
+
+    function memoryKindLabel(item) {
+      if (item.candidate_kind === "profile") {
+        return "BestÃ¤tigbares Profilwissen";
+      }
+      if (item.category === "interest_signal") {
+        return "Wiederkehrendes Interesse";
+      }
+      if (item.category === "support_signal") {
+        return "Wiederkehrendes Support-Thema";
+      }
+      return "Gemerkte Aussage";
+    }
+
+    function profileTraitLabel(traitType) {
+      if (traitType === "person_profile") {
+        return "IdentitÃ¤t";
+      }
+      if (traitType === "preference") {
+        return "Vorliebe";
+      }
+      if (traitType === "dislike") {
+        return "Abneigung";
+      }
+      if (traitType === "interest") {
+        return "Interesse";
+      }
+      if (traitType === "height") {
+        return "KÃ¶rpergrÃ¶ÃŸe";
+      }
+      if (traitType === "favorite_color") {
+        return "Lieblingsfarbe";
+      }
+      if (traitType === "eye_color") {
+        return "Augenfarbe";
+      }
+      if (traitType === "age") {
+        return "Alter";
+      }
+      if (traitType === "language") {
+        return "Sprache";
+      }
+      if (traitType === "favorite_food") {
+        return "Lieblingsessen";
+      }
+      if (traitType === "favorite_drink") {
+        return "LieblingsgetrÃ¤nk";
+      }
+      if (traitType === "pet") {
+        return "Haustier";
+      }
+      if (traitType === "occupation") {
+        return "Beruf";
+      }
+      if (traitType === "hometown") {
+        return "Herkunft";
+      }
+      if (traitType === "residence") {
+        return "Wohnort";
+      }
+      if (traitType === "family_relation") {
+        return "Familienbeziehung";
+      }
+      if (traitType === "person_relationship") {
+        return "Beziehung zu Person";
+      }
+      if (traitType === "response_humor_preference") {
+        return "Humor bei Antworten";
+      }
+      if (traitType === "response_style_preference") {
+        return "Antwortstil";
+      }
+      if (traitType === "response_length_preference") {
+        return "Antwortlänge";
+      }
+      return traitType;
+    }
+
+    function profilePreferenceMap(facts) {
+      const map = {};
+      for (const fact of facts || []) {
+        if (
+          fact.trait_type === "response_humor_preference" ||
+          fact.trait_type === "response_style_preference" ||
+          fact.trait_type === "response_length_preference"
+        ) {
+          map[fact.trait_type] = fact.value;
+        }
+      }
+      return map;
+    }
+
+    function renderPreferenceEditor(item) {
+      const prefs = profilePreferenceMap(item.facts);
+      return `
+        <div class="surface-group" style="margin-top: 14px;">
+          <label>Antwortpräferenzen für ${item.name}</label>
+          <div class="grid-3">
+            <div>
+              <label for="prefHumor-${item.id}">Humor</label>
+              <select id="prefHumor-${item.id}">
+                <option value="">Global verwenden</option>
+                <option value="higher" ${prefs.response_humor_preference === "higher" ? "selected" : ""}>eher humorvoll</option>
+                <option value="lower" ${prefs.response_humor_preference === "lower" ? "selected" : ""}>eher nüchtern</option>
+              </select>
+            </div>
+            <div>
+              <label for="prefStyle-${item.id}">Ton</label>
+              <select id="prefStyle-${item.id}">
+                <option value="">Global verwenden</option>
+                <option value="locker" ${prefs.response_style_preference === "locker" ? "selected" : ""}>locker</option>
+                <option value="sachlich" ${prefs.response_style_preference === "sachlich" ? "selected" : ""}>sachlich</option>
+              </select>
+            </div>
+            <div>
+              <label for="prefLength-${item.id}">Länge</label>
+              <select id="prefLength-${item.id}">
+                <option value="">Global verwenden</option>
+                <option value="short" ${prefs.response_length_preference === "short" ? "selected" : ""}>kurz</option>
+                <option value="detailed" ${prefs.response_length_preference === "detailed" ? "selected" : ""}>etwas ausführlicher</option>
+              </select>
+            </div>
+          </div>
+          <div class="memory-actions">
+            <button class="secondary" onclick="saveProfilePreferences(${item.id})">Präferenzen speichern</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderMemories(items) {
+      if (!items.length) {
+        memoryList.innerHTML = `<div class="memory-item">Keine EintrÃ¤ge.</div>`;
+        return;
+      }
+      memoryList.innerHTML = items.map(item => `
+        <div class="memory-item">
+          <div class="memory-meta">
+            <span>ID ${item.id}</span>
+            <span>Status: ${item.status}</span>
+            <span>Kategorie: ${item.category}</span>
+            <span>Subjekt: ${item.subject || "â€”"}</span>
+            <span>Wirkung: ${memoryKindLabel(item)}</span>
+          </div>
+          <div>${item.content}</div>
+          ${item.decision_reason ? `<div class="footer-note">Regel: ${item.decision_reason}</div>` : ""}
+          ${renderMemoryActions(item)}
+        </div>
+      `).join("");
+    }
+
+    function renderProfiles(items) {
+      if (!items.length) {
+        profileList.innerHTML = `<div class="memory-item">Noch keine Profile vorhanden.</div>`;
+        return;
+      }
+      profileList.innerHTML = items.map(item => `
+        <div class="memory-item">
+          <div class="memory-meta">
+            <span>Person ${item.name}</span>
+            <span>Fakten: ${item.facts.length}</span>
+            <span>Aktualisiert: ${item.updated_at}</span>
+          </div>
+          <div class="profile-facts">
+            ${item.facts.length ? item.facts.map(fact => `
+              <div class="profile-fact">
+                <strong>${profileTraitLabel(fact.trait_type)}</strong>
+                <span>${fact.value}</span>
+              </div>
+            `).join("") : `<div class="profile-fact"><span>Noch keine Fakten.</span></div>`}
+          </div>
+          ${renderPreferenceEditor(item)}
+          <div class="memory-actions">
+            <button class="danger" onclick="deletePerson(${item.id})">Person entfernen</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function renderConversation(items) {
+      const target = document.getElementById("conversationList");
+      if (!items.length) {
+        target.innerHTML = `<div class="conversation-item">Noch kein GesprÃ¤chsverlauf vorhanden.</div>`;
+        return;
+      }
+      target.innerHTML = items.map(item => `
+        <div class="conversation-item ${item.role}">
+          <div class="conversation-meta">${item.role === "user" ? "Nutzer" : "Erika"} Â· ${item.created_at}</div>
+          <div>${item.message}</div>
+        </div>
+      `).join("");
+    }
+
+    async function loadMemory(status = "pending") {
+      currentMemoryFilter = status;
+      const data = await callApi(`/memory?status=${status}`);
+      renderMemories(data.items);
+    }
+
+    async function loadProfiles() {
+      const data = await callApi("/profiles");
+      renderProfiles(data.items);
+    }
+
+    async function loadConversation() {
+      const personName = getPrimaryPersonName();
+      const query = personName ? `?person_name=${encodeURIComponent(personName)}&limit=60` : "?limit=60";
+      const data = await callApi(`/conversation${query}`);
+      renderConversation(data.items || []);
+    }
+
+    async function loadAudit() {
+      const data = await callApi("/audit?limit=50");
+      showJson("auditResult", data);
+    }
+
+    async function approveMemory(id) {
+      const result = await callApi(`/memory/approve/${id}`, { method: "POST" });
+      await loadMemory(currentMemoryFilter);
+      await refreshStatus();
+      await loadProfiles();
+      showJson("simulationResult", result);
+      showToast(`Memory ${id} freigegeben.`);
+    }
+
+    async function rejectMemory(id) {
+      const result = await callApi(`/memory/reject/${id}`, { method: "POST" });
+      await loadMemory(currentMemoryFilter);
+      await refreshStatus();
+      await loadProfiles();
+      showJson("simulationResult", result);
+      showToast(`Memory ${id} abgelehnt.`);
+    }
+
+    async function deletePerson(id) {
+      const result = await callApi(`/profiles/${id}`, { method: "DELETE" });
+      await loadProfiles();
+      await loadMemory(currentMemoryFilter);
+      await refreshStatus();
+      showJson("simulationResult", result);
+      showToast(`Person ${result.deleted_person.name} entfernt.`);
+    }
+
+    async function saveProfilePreferences(id) {
+      const payload = {};
+      const humor = document.getElementById(`prefHumor-${id}`).value;
+      const style = document.getElementById(`prefStyle-${id}`).value;
+      const length = document.getElementById(`prefLength-${id}`).value;
+      if (humor) {
+        payload.response_humor_preference = humor;
+      }
+      if (style) {
+        payload.response_style_preference = style;
+      }
+      if (length) {
+        payload.response_length_preference = length;
+      }
+
+      const result = await callApi(`/profiles/${id}/preferences`, {
+        method: "PATCH",
+        body: JSON.stringify(payload)
+      });
+      await loadProfiles();
+      showJson("simulationResult", result);
+      showToast(`Antwortpräferenzen für ${result.person_name} gespeichert.`);
+    }
+
+    window.approveMemory = approveMemory;
+    window.rejectMemory = rejectMemory;
+    window.deletePerson = deletePerson;
+    window.saveProfilePreferences = saveProfilePreferences;
+
+    document.getElementById("sendChat").addEventListener("click", async () => {
+      setBusy("sendChat", true);
+      try {
+        const messageField = document.getElementById("chatMessage");
+        if (!requireValue(messageField, "Bitte zuerst eine Chat-Nachricht eingeben.")) {
+          return;
+        }
+          const payload = {
+            message: messageField.value,
+            person_name: getPrimaryPersonName()
+          };
+          renderReply({ reply: "" });
+          showJson("chatResult", { status: "streaming..." });
+          await streamChatApi("/chat/stream", payload, {
+            meta: (data) => showJson("chatResult", { ...data, status: "streaming..." }),
+            delta: (data) => appendReply(data.text || ""),
+            done: (data) => {
+              renderReply(data);
+            showJson("chatResult", data);
+            refreshStatus().catch(() => {});
+            loadMemory("pending").catch(() => {});
+            loadConversation().catch(() => {});
+          },
+          error: (data) => {
+            renderReply({ reply: `Fehler: ${data.message}` });
+            showJson("chatResult", { error: data.message });
+          }
+        });
+        showToast("Chat erfolgreich gesendet.");
+      } catch (error) {
+        renderReply({ reply: `Fehler: ${error.message}` });
+        showJson("chatResult", { error: error.message });
+        showToast(`Chat fehlgeschlagen: ${error.message}`, "error");
+      } finally {
+        setBusy("sendChat", false);
+      }
+    });
+
+    document.getElementById("simulateSpeech").addEventListener("click", async () => {
+      const speechField = document.getElementById("speechInput");
+      if (!requireValue(speechField, "Bitte zuerst eine Spracheingabe angeben.")) {
+        return;
+      }
+      try {
+        const payload = {
+          text: speechField.value,
+          person_name: getPrimaryPersonName()
+        };
+        const data = await callApi("/simulate/speech", { method: "POST", body: JSON.stringify(payload) });
+        renderReply(data);
+        showJson("simulationResult", data);
+        renderPromptPayload(data.llm_context);
+        refreshStatus().catch(() => {});
+        loadMemory("pending").catch(() => {});
+        loadConversation().catch(() => {});
+        showToast("Spracheingabe simuliert.");
+      } catch (error) {
+        renderReply({ reply: `Fehler: ${error.message}` });
+        showJson("simulationResult", { error: error.message });
+        showToast(`Simulation fehlgeschlagen: ${error.message}`, "error");
+      }
+    });
+
+    document.getElementById("simulatePerson").addEventListener("click", async () => {
+      try {
+        const payload = { person_name: getPrimaryPersonName() };
+        const data = await callApi("/simulate/person", { method: "POST", body: JSON.stringify(payload) });
+        showJson("simulationResult", data);
+        await refreshStatus();
+        showToast("Personenereignis simuliert.");
+      } catch (error) {
+        showJson("simulationResult", { error: error.message });
+        showToast(`Simulation fehlgeschlagen: ${error.message}`, "error");
+      }
+    });
+
+    document.getElementById("simulateBattery").addEventListener("click", async () => {
+      try {
+        const payload = { level: Number(document.getElementById("batteryLevel").value) };
+        const data = await callApi("/simulate/battery", { method: "POST", body: JSON.stringify(payload) });
+        showJson("simulationResult", data);
+        await refreshStatus();
+        showToast("Akkustand aktualisiert.");
+      } catch (error) {
+        showJson("simulationResult", { error: error.message });
+        showToast(`Simulation fehlgeschlagen: ${error.message}`, "error");
+      }
+    });
+
+    document.getElementById("simulateDisplay").addEventListener("click", async () => {
+      const displayField = document.getElementById("displayStatus");
+      if (!requireValue(displayField, "Bitte zuerst einen Display-Status angeben.")) {
+        return;
+      }
+      try {
+        const payload = { status: displayField.value };
+        const data = await callApi("/simulate/display", { method: "POST", body: JSON.stringify(payload) });
+        showJson("simulationResult", data);
+        await refreshStatus();
+        showToast("Display-Status gesetzt.");
+      } catch (error) {
+        showJson("simulationResult", { error: error.message });
+        showToast(`Simulation fehlgeschlagen: ${error.message}`, "error");
+      }
+    });
+
+    document.getElementById("proposeMemory").addEventListener("click", async () => {
+      const memoryField = document.getElementById("memoryProposal");
+      if (!requireValue(memoryField, "Bitte zuerst einen Memory-Vorschlag eingeben.")) {
+        return;
+      }
+      try {
+        const payload = {
+          content: memoryField.value,
+          category: "general",
+          subject: getPrimaryPersonName(),
+          source: "web_ui"
+        };
+        const data = await callApi("/memory/propose", { method: "POST", body: JSON.stringify(payload) });
+        showJson("simulationResult", data);
+        await loadMemory("pending");
+        await refreshStatus();
+        showToast("Memory-Vorschlag angelegt.");
+      } catch (error) {
+        showJson("simulationResult", { error: error.message });
+        showToast(`Memory konnte nicht angelegt werden: ${error.message}`, "error");
+      }
+    });
+
+    document.getElementById("refreshStatus").addEventListener("click", refreshStatus);
+    document.getElementById("previewPrompt").addEventListener("click", async () => {
+      try {
+        await previewPrompt();
+      } catch (error) {
+        renderPromptPayload(null);
+        showToast(`Prompt-Vorschau fehlgeschlagen: ${error.message}`, "error");
+      }
+    });
+    document.getElementById("loadPending").addEventListener("click", () => loadMemory("pending"));
+    document.getElementById("loadApproved").addEventListener("click", () => loadMemory("approved"));
+    document.getElementById("loadProfiles").addEventListener("click", loadProfiles);
+    document.getElementById("loadConversation").addEventListener("click", loadConversation);
+    document.getElementById("loadAudit").addEventListener("click", loadAudit);
+    document.getElementById("reloadConfig").addEventListener("click", loadConfig);
+    document.getElementById("reloadDevice").addEventListener("click", loadDevice);
+
+    document.getElementById("saveDevice").addEventListener("click", async () => {
+      try {
+        await saveDevice();
+      } catch (error) {
+        showJson("deviceResult", { error: error.message });
+        showToast(`GerÃ¤t konnte nicht gespeichert werden: ${error.message}`, "error");
+      }
+    });
+
+    document.getElementById("saveConfig").addEventListener("click", async () => {
+      try {
+        const payload = {
+          quiet_minutes: Number(document.getElementById("quietMinutes").value),
+          critical_battery_threshold: Number(document.getElementById("criticalBatteryThreshold").value),
+          llm_timeout_seconds: Number(document.getElementById("llmTimeoutSeconds").value),
+          llm_max_tokens: Number(document.getElementById("llmMaxTokens").value),
+          llm_history_turns: Number(document.getElementById("llmHistoryTurns").value),
+          topic_interest_threshold: Number(document.getElementById("topicInterestThreshold").value),
+          topic_interest_window_days: Number(document.getElementById("topicInterestWindowDays").value),
+          response_style: document.getElementById("responseStyle").value,
+          greeting_suggestion_template: document.getElementById("greetingSuggestionTemplate").value,
+          explain_only_on_request: document.getElementById("explainOnlyOnRequest").checked
+        };
+        const data = await callApi("/config", { method: "PATCH", body: JSON.stringify(payload) });
+        showJson("configResult", data);
+        await refreshStatus();
+        showToast("Konfiguration gespeichert.");
+      } catch (error) {
+        showJson("configResult", { error: error.message });
+        showToast(`Konfiguration fehlgeschlagen: ${error.message}`, "error");
+      }
+    });
+
+    Promise.all([refreshStatus(), loadDevice(), loadConfig(), loadMemory("pending"), loadProfiles(), loadConversation(), loadAudit()]).catch(error => {
+      showJson("chatResult", { error: error.message });
+      showToast(`Initiales Laden fehlgeschlagen: ${error.message}`, "error");
+    });
+  </script>
+</body>
+</html>
+

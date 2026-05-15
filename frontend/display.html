@@ -1,0 +1,3949 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erika Display</title>
+  <link rel="stylesheet" href="/display.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <!-- HLS.js für go2rtc Live-Streams -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+<script>
+  (function() {
+    function applyScale() {
+      const scaleX = window.innerWidth  / 1280;
+      const scaleY = window.innerHeight / 800;
+      const scale  = Math.min(scaleX, scaleY);
+      document.body.style.transform = `scale(${scale})`;
+      // Zentrieren wenn Seitenverhältnis abweicht
+      const offsetX = Math.max(0, (window.innerWidth  - 1280 * scale) / 2);
+      const offsetY = Math.max(0, (window.innerHeight - 800  * scale) / 2);
+      document.body.style.transformOrigin = 'top left';
+      document.body.style.marginLeft = offsetX + 'px';
+      document.body.style.marginTop  = offsetY + 'px';
+    }
+    applyScale();
+    window.addEventListener('resize', applyScale);
+  })();
+</script>
+
+<!-- ── STATUS BAR (oben) ─────────────────────────────── -->
+<div class="status-bar">
+  <div class="status-item">
+    <div class="status-icon">🔋</div>
+    <div>
+      <div class="status-label">Akku</div>
+      <div class="status-val" id="sb-battery">–</div>
+      <div class="battery-bar"><div class="battery-fill" id="sb-battery-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+  <div class="status-item">
+    <div class="status-icon">📶</div>
+    <div>
+      <div class="status-label">WLAN</div>
+      <div class="status-val status-ok" id="sb-wlan">–</div>
+    </div>
+  </div>
+  <div class="status-item">
+    <div class="status-icon">👤</div>
+    <div>
+      <div class="status-label">Person</div>
+      <div class="status-val" id="sb-person">–</div>
+    </div>
+  </div>
+  <div class="status-item">
+    <div class="status-icon">🤖</div>
+    <div>
+      <div class="status-label">Status</div>
+      <div class="status-val" id="sb-state">–</div>
+    </div>
+  </div>
+  <div class="status-clock">
+    <div class="clock-time" id="sb-clock">00:00</div>
+    <div class="clock-date" id="sb-date">–</div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── LEFT PANEL ─────────────────────────────────────── -->
+  <div class="panel" id="left-panel">
+    <div class="panel-label" id="left-label">Wetter</div>
+    <div class="panel-content" id="left-content">
+      <div class="loading-dots" style="color:var(--muted); font-size:0.9rem;">Lade</div>
+    </div>
+  </div>
+
+  <!-- ── CENTER PANEL (FACE) ────────────────────────────── -->
+  <div class="center-panel" id="center-panel" style="position:relative;overflow:hidden;">
+    <!-- Klingel-Overlay: ersetzt das Gesicht wenn jemand klingelt -->
+    <div id="doorbell-overlay">
+      <div id="doorbell-banner">🔔 Jemand an der Tür</div>
+      <img id="doorbell-cam-img" src="" alt="Kamera">
+    </div>
+    <div class="face-wrap">
+      <svg id="robot-face" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg"
+           width="420" height="420">
+
+        <!-- ── EYEBROWS (dot-matrix) ──────────────── -->
+        <!-- Left brow: arch aus 6 Dots -->
+        <g fill="#1e4060" opacity="0.9">
+          <circle cx="104" cy="154" r="4"/>
+          <circle cx="117" cy="148" r="4"/>
+          <circle cx="130" cy="143" r="4"/>
+          <circle cx="143" cy="141" r="4"/>
+          <circle cx="156" cy="143" r="4"/>
+          <circle cx="169" cy="148" r="4"/>
+        </g>
+        <!-- Right brow -->
+        <g fill="#1e4060" opacity="0.9">
+          <circle cx="251" cy="148" r="4"/>
+          <circle cx="264" cy="143" r="4"/>
+          <circle cx="277" cy="141" r="4"/>
+          <circle cx="290" cy="143" r="4"/>
+          <circle cx="303" cy="148" r="4"/>
+          <circle cx="316" cy="154" r="4"/>
+        </g>
+
+        <!-- ── LEFT EYE (6×4 dot-matrix) ─────────── -->
+        <!-- cols: 115,128,141,154,167,180 | rows: 175,188,201,214 -->
+        <!-- Row 0 (top) -->
+        <g id="l-r0">
+          <circle cx="115" cy="175" r="4.5" fill="#0a2840"/>
+          <circle cx="128" cy="175" r="4.5" fill="#0a2840"/>
+          <circle cx="141" cy="175" r="4.5" fill="#005580"/>
+          <circle cx="154" cy="175" r="4.5" fill="#005580"/>
+          <circle cx="167" cy="175" r="4.5" fill="#0a2840"/>
+          <circle cx="180" cy="175" r="4.5" fill="#0a2840"/>
+        </g>
+        <!-- Row 1 -->
+        <g id="l-r1">
+          <circle cx="115" cy="188" r="4.5" fill="#0a2840"/>
+          <circle cx="128" cy="188" r="4.5" fill="#005580"/>
+          <circle cx="141" cy="188" r="5.5" fill="#00c8ff"/>
+          <circle cx="154" cy="188" r="5.5" fill="#00c8ff"/>
+          <circle cx="167" cy="188" r="4.5" fill="#005580"/>
+          <circle cx="180" cy="188" r="4.5" fill="#0a2840"/>
+        </g>
+        <!-- Row 2 -->
+        <g id="l-r2">
+          <circle cx="115" cy="201" r="4.5" fill="#0a2840"/>
+          <circle cx="128" cy="201" r="4.5" fill="#005580"/>
+          <circle cx="141" cy="201" r="5.5" fill="#00c8ff"/>
+          <circle cx="154" cy="201" r="5.5" fill="#00c8ff"/>
+          <circle cx="167" cy="201" r="4.5" fill="#005580"/>
+          <circle cx="180" cy="201" r="4.5" fill="#0a2840"/>
+        </g>
+        <!-- Row 3 (bottom) -->
+        <g id="l-r3">
+          <circle cx="115" cy="214" r="4.5" fill="#0a2840"/>
+          <circle cx="128" cy="214" r="4.5" fill="#0a2840"/>
+          <circle cx="141" cy="214" r="4.5" fill="#005580"/>
+          <circle cx="154" cy="214" r="4.5" fill="#005580"/>
+          <circle cx="167" cy="214" r="4.5" fill="#0a2840"/>
+          <circle cx="180" cy="214" r="4.5" fill="#0a2840"/>
+        </g>
+        <!-- Highlight -->
+        <circle cx="136" cy="183" r="2.5" fill="white" opacity="0.7"/>
+
+        <!-- ── RIGHT EYE (6×4 dot-matrix) ────────── -->
+        <!-- cols: 245,258,271,284,297,310 | rows: 175,188,201,214 -->
+        <g id="r-r0">
+          <circle cx="245" cy="175" r="4.5" fill="#0a2840"/>
+          <circle cx="258" cy="175" r="4.5" fill="#0a2840"/>
+          <circle cx="271" cy="175" r="4.5" fill="#005580"/>
+          <circle cx="284" cy="175" r="4.5" fill="#005580"/>
+          <circle cx="297" cy="175" r="4.5" fill="#0a2840"/>
+          <circle cx="310" cy="175" r="4.5" fill="#0a2840"/>
+        </g>
+        <g id="r-r1">
+          <circle cx="245" cy="188" r="4.5" fill="#0a2840"/>
+          <circle cx="258" cy="188" r="4.5" fill="#005580"/>
+          <circle cx="271" cy="188" r="5.5" fill="#00c8ff"/>
+          <circle cx="284" cy="188" r="5.5" fill="#00c8ff"/>
+          <circle cx="297" cy="188" r="4.5" fill="#005580"/>
+          <circle cx="310" cy="188" r="4.5" fill="#0a2840"/>
+        </g>
+        <g id="r-r2">
+          <circle cx="245" cy="201" r="4.5" fill="#0a2840"/>
+          <circle cx="258" cy="201" r="4.5" fill="#005580"/>
+          <circle cx="271" cy="201" r="5.5" fill="#00c8ff"/>
+          <circle cx="284" cy="201" r="5.5" fill="#00c8ff"/>
+          <circle cx="297" cy="201" r="4.5" fill="#005580"/>
+          <circle cx="310" cy="201" r="4.5" fill="#0a2840"/>
+        </g>
+        <g id="r-r3">
+          <circle cx="245" cy="214" r="4.5" fill="#0a2840"/>
+          <circle cx="258" cy="214" r="4.5" fill="#0a2840"/>
+          <circle cx="271" cy="214" r="4.5" fill="#005580"/>
+          <circle cx="284" cy="214" r="4.5" fill="#005580"/>
+          <circle cx="297" cy="214" r="4.5" fill="#0a2840"/>
+          <circle cx="310" cy="214" r="4.5" fill="#0a2840"/>
+        </g>
+        <circle cx="266" cy="183" r="2.5" fill="white" opacity="0.7"/>
+
+        <!-- ── MOUTH (dot-matrix smile) ──────────── -->
+        <g id="mouth-dots" fill="#00aacc">
+          <circle cx="175" cy="322" r="4.5"/>
+          <circle cx="188" cy="329" r="4.5"/>
+          <circle cx="202" cy="333" r="4.5"/>
+          <circle cx="216" cy="333" r="4.5"/>
+          <circle cx="230" cy="329" r="4.5"/>
+          <circle cx="243" cy="322" r="4.5"/>
+          <circle cx="182" cy="316" r="3.5" opacity="0.6"/>
+          <circle cx="236" cy="316" r="3.5" opacity="0.6"/>
+        </g>
+
+        <!-- ── EAR LIGHTS ─────────────────────────── -->
+        <circle cx="14"  cy="210" r="5" fill="#00c8ff" opacity="0.5"/>
+        <circle cx="406" cy="210" r="5" fill="#00c8ff" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="speech-text" id="speech-text"></div>
+  </div>
+
+
+  <!-- ── RIGHT PANEL ────────────────────────────────────── -->
+  <div class="panel panel-right" id="right-panel">
+    <div class="panel-label" id="right-label">Kalender</div>
+    <div class="panel-content" id="right-content">
+      <div class="cal-placeholder">
+        📅<br><br>
+        Kalender wird über<br>Home Assistant eingebunden.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── CALENDAR CENTER OVERLAY ─────────────────────────── -->
+<div id="cal-overlay"></div>
+<!-- Audio-Element für TTS (iOS braucht ein vorab erstelltes Element) -->
+<audio id="tts-audio" preload="none" style="display:none"></audio>
+
+<!-- ── NAV BAR (unten) ───────────────────────────────── -->
+<div class="nav-bar">
+  <div class="nav-left-group">
+  <button class="nav-btn active" id="nav-home" onclick="navTo('home')">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Start</span>
+  </button>
+  <button class="nav-btn" id="nav-vehicles" onclick="navTo('vehicles')">
+    <span class="nav-icon">ðŸš—</span>
+    <span class="nav-label">Fahrzeuge</span>
+  </button>
+  </div>
+  <button class="nav-btn nav-mic" id="nav-mic" onclick="startInput()">
+    <span class="nav-icon" id="mic-icon">🎤</span>
+    <span class="nav-label" id="mic-label">Sprechen</span>
+  </button>
+  <div class="nav-right-group">
+  <button class="nav-btn" id="nav-lights" onclick="navTo('lights')">
+    <span class="nav-icon">💡</span>
+    <span class="nav-label">Lichter</span>
+  </button>
+  <button class="nav-btn" id="nav-cameras" onclick="navTo('cameras')">
+    <span class="nav-icon">📷</span>
+    <span class="nav-label">Kameras</span>
+  </button>
+  <button class="nav-btn" id="nav-robots" onclick="navTo('robots')">
+    <span class="nav-icon">🤖</span>
+    <span class="nav-label">Roboter</span>
+  </button>
+  </div>
+</div>
+
+<!-- ── TEXT INPUT OVERLAY ─────────────────────────── -->
+<div id="input-overlay">
+  <div id="input-hint">Sprich oder tippe deine Nachricht</div>
+  <textarea id="input-text" placeholder="Was möchtest du wissen?" autofocus></textarea>
+  <div class="input-row">
+    <button class="input-btn input-btn-cancel" onclick="closeInput()">✕ Abbrechen</button>
+    <button class="input-btn input-btn-send" onclick="submitInput()">➤ Senden</button>
+  </div>
+</div>
+
+<script>
+  // ── Wind direction ───────────────────────────────────────
+  function windDir(deg) {
+    const dirs = ['N','NO','O','SO','S','SW','W','NW'];
+    return dirs[Math.round(deg / 45) % 8];
+  }
+
+  // ── WMO Codes ────────────────────────────────────────────
+  const WMO = {
+    0:'☀️', 1:'🌤️', 2:'⛅', 3:'☁️',
+    45:'🌫️', 48:'🌫️',
+    51:'🌦️', 53:'🌦️', 55:'🌦️',
+    61:'🌧️', 63:'🌧️', 65:'🌧️',
+    71:'❄️', 73:'❄️', 75:'❄️', 77:'🌨️',
+    80:'🌦️', 81:'🌦️', 82:'🌦️',
+    85:'🌨️', 86:'🌨️',
+    95:'⛈️', 96:'⛈️', 99:'⛈️',
+  };
+  const wmoIcon = code => WMO[code] || '🌡️';
+
+  // ── LocalStorage Cache ───────────────────────────────────
+  function cacheSet(key, data, ttlMs) {
+    localStorage.setItem(key, JSON.stringify({ data, expires: Date.now() + ttlMs }));
+  }
+  function cacheGet(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const { data, expires } = JSON.parse(raw);
+      return Date.now() < expires ? data : null;
+    } catch { return null; }
+  }
+  function clearRuntimeCaches() {
+    [
+      'weather',
+      'fuel',
+      'calendar',
+      'calendar_v2',
+      'news',
+      'vehicles',
+      'football',
+    ].forEach(key => localStorage.removeItem(key));
+    Object.keys(localStorage)
+      .filter(key => key.startsWith('league_'))
+      .forEach(key => localStorage.removeItem(key));
+  }
+  function sectionLabel(name, detail) {
+    return detail ? `${name} ${String.fromCharCode(183)} ${detail}` : name;
+  }
+  let _configRefreshTimers = [];
+  function scheduleHomeRefreshAfterConfigChange() {
+    _configRefreshTimers.forEach(timer => clearTimeout(timer));
+    _configRefreshTimers = [150, 900, 2200].map(delay => setTimeout(() => {
+      clearRuntimeCaches();
+      if (currentMode === 'idle' && _navMode === 'home') {
+        _newsCollapseInitialized = false;
+        showWeatherLeft();
+        showCalendarRight();
+        showNewsCenter();
+      }
+    }, delay));
+  }
+  function applyConfigVersion(version) {
+    if (version == null) return;
+    const current = String(version);
+    const previous = localStorage.getItem('display_config_version');
+    if (previous && previous !== current) {
+      clearRuntimeCaches();
+      scheduleHomeRefreshAfterConfigChange();
+    }
+    localStorage.setItem('display_config_version', current);
+  }
+
+  const TTL_30M = 30 * 60 * 1000;
+  const TTL_15M = 15 * 60 * 1000;
+  const TTL_5M  =  5 * 60 * 1000;
+  const TTL_2M  =  2 * 60 * 1000;
+  const TTL_1M  =      60 * 1000;
+
+  // ── Display state ─────────────────────────────────────────
+  let currentMode = null;   // null = noch nicht initialisiert
+  let contextTimer = null;
+
+  // ── FACE ANIMATION (LED blink) ───────────────────────────
+  let blinkTimer;
+  function scheduleBlink() {
+    clearTimeout(blinkTimer);
+    blinkTimer = setTimeout(doBlink, 3000 + Math.random() * 4000);
+  }
+
+  function setEyeRows(opacity) {
+    ['l-r0','l-r1','l-r2','l-r3','r-r0','r-r1','r-r2','r-r3'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.opacity = opacity;
+    });
+  }
+
+  function doBlink() {
+    // Außenreihen aus
+    ['l-r0','l-r3','r-r0','r-r3'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.opacity = '0';
+    });
+    setTimeout(() => {
+      // Alle aus
+      setEyeRows('0');
+      setTimeout(() => {
+        // Innenreihen an
+        ['l-r1','l-r2','r-r1','r-r2'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.style.opacity = '1';
+        });
+        setTimeout(() => {
+          // Alle an
+          setEyeRows('1');
+          scheduleBlink();
+        }, 60);
+      }, 80);
+    }, 60);
+  }
+  scheduleBlink();
+
+  // Subtle eye tracking (follows cursor on same machine — disabled for kiosk)
+  // Could be enabled later for interactive mode
+
+  // ── STATUS BAR ────────────────────────────────────────────
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('sb-clock').textContent =
+      now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('sb-date').textContent =
+      now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+  updateClock();
+  setInterval(updateClock, 10000);
+
+  async function refreshStatus() {
+    try {
+      const d = await fetch('/status').then(r => r.json());
+      const batt = d.battery_level || 0;
+      document.getElementById('sb-battery').textContent = batt + '%';
+      const bar = document.getElementById('sb-battery-bar');
+      bar.style.width = batt + '%';
+      bar.style.background = batt > 30 ? 'var(--success)' : batt > 15 ? 'var(--warning)' : 'var(--danger)';
+      const net = d.device?.network_connected;
+      const wlanEl = document.getElementById('sb-wlan');
+      wlanEl.textContent = net ? 'Verbunden' : 'Getrennt';
+      wlanEl.className = 'status-val ' + (net ? 'status-ok' : 'status-err');
+      const person = d.active_person_name || d.last_person_detected || '–';
+      document.getElementById('sb-person').textContent = person;
+      const state = d.device?.effective_state || '–';
+      document.getElementById('sb-state').textContent = state;
+    } catch(e) {}
+  }
+  refreshStatus();
+  setInterval(refreshStatus, 5000);
+
+  // ── WEATHER WIDGET ────────────────────────────────────────
+  function renderWeather(w) {
+    if (!w || w.enabled === false) return '';
+    const c = w.current;
+    if (!c) return '<div class="cal-placeholder">Keine Wetterdaten</div>';
+    const t = w.today;
+    const settings = w.settings || {};
+    const hours = settings.show_hourly === false ? [] : (w.forecast_hours || []);
+    const stats = [];
+    if (settings.show_feels_like !== false) stats.push(['Gef&uuml;hlt wie', `${c.feels_like}&deg;C`]);
+    if (settings.show_wind !== false) stats.push(['Wind', `${c.windspeed} km/h${c.winddirection != null ? ' ' + windDir(c.winddirection) : ''}`]);
+    if (settings.show_humidity !== false) stats.push(['Luftfeuchtigkeit', `${c.humidity}%`]);
+    if (settings.show_precipitation !== false) stats.push(['Niederschlag', `${c.precipitation} mm`]);
+    return `
+      <div class="weather-click-target" onclick="openWeatherOverview()" title="Wetterbericht anzeigen">
+      <div class="weather-main">
+        <div class="weather-icon">${wmoIcon(c.weathercode)}</div>
+        <div>
+          <div class="weather-temp">${c.temperature}&deg;</div>
+          <div class="weather-desc">${c.description}</div>
+        </div>
+      </div>
+      ${stats.length ? `<div class="weather-grid">
+        ${stats.map(([label, value]) => `
+          <div class="weather-stat">
+            <div class="weather-stat-label">${label}</div>
+            <div class="weather-stat-val">${value}</div>
+          </div>`).join('')}
+      </div>` : ''}
+      ${t && settings.show_minmax !== false ? `<div class="weather-minmax">
+        <span>&uarr; <span class="temp-high">${t.temp_max}&deg;C</span></span>
+        <span>&darr; <span class="temp-low">${t.temp_min}&deg;C</span></span>
+      </div>` : ''}
+      ${hours.length ? `<div class="forecast-hours">
+        ${hours.map(h => `
+          <div class="forecast-hour ${h.is_past ? 'past' : ''}">
+            <div class="fh-time">${h.time}</div>
+            <div class="fh-icon">${wmoIcon(h.code)}</div>
+            <div class="fh-temp">${h.temp}&deg;</div>
+          </div>
+        `).join('')}
+      </div>` : ''}
+      </div>
+    `;
+    return `
+      <div class="weather-main">
+        <div class="weather-icon">${wmoIcon(c.weathercode)}</div>
+        <div>
+          <div class="weather-temp">${c.temperature}°</div>
+          <div class="weather-desc">${c.description}</div>
+        </div>
+      </div>
+      <div class="weather-grid">
+        <div class="weather-stat">
+          <div class="weather-stat-label">Gefühlt wie</div>
+          <div class="weather-stat-val">${c.feels_like}°C</div>
+        </div>
+        <div class="weather-stat">
+          <div class="weather-stat-label">Wind</div>
+          <div class="weather-stat-val">${c.windspeed} km/h${c.winddirection != null ? ' ' + windDir(c.winddirection) : ''}</div>
+        </div>
+        <div class="weather-stat">
+          <div class="weather-stat-label">Luftfeuchtigkeit</div>
+          <div class="weather-stat-val">${c.humidity}%</div>
+        </div>
+        <div class="weather-stat">
+          <div class="weather-stat-label">Niederschlag</div>
+          <div class="weather-stat-val">${c.precipitation} mm</div>
+        </div>
+      </div>
+      ${t ? `<div class="weather-minmax">
+        <span>↑ <span class="temp-high">${t.temp_max}°C</span></span>
+        <span>↓ <span class="temp-low">${t.temp_min}°C</span></span>
+      </div>` : ''}
+      <div class="forecast-hours">
+        ${hours.map(h => `
+          <div class="forecast-hour">
+            <div class="fh-time">${h.time}</div>
+            <div class="fh-icon">${wmoIcon(h.code)}</div>
+            <div class="fh-temp">${h.temp}°</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  let _lastWeatherData = null;
+  async function loadWeather() {
+    const cached = cacheGet('weather');
+    try {
+      const resp = await fetch('/weather?_=' + Date.now(), { cache: 'no-store' });
+      if (!resp.ok) return cached || _lastWeatherData || null;
+      const d = await resp.json();
+      if (d?.enabled === false) {
+        localStorage.removeItem('weather');
+        _lastWeatherData = null;
+        return d;
+      }
+      if (d?.current) {
+        _lastWeatherData = d;
+        cacheSet('weather', d, TTL_15M);
+        return d;
+      }
+      return cached || _lastWeatherData || null;
+    } catch { return cached || _lastWeatherData || null; }
+  }
+
+  // ── FUEL PRICES ───────────────────────────────────────────
+  async function loadFuel() {
+    const cached = cacheGet('fuel');
+    if (cached) return cached;
+    try {
+      const resp = await fetch('/fuel');
+      if (!resp.ok) return null;
+      const d = await resp.json();
+      if (d?.cards?.length || d?.cheapest_diesel || d?.grouped) {
+        cacheSet('fuel', d, TTL_1M);
+        return d;
+      }
+      return null;
+    } catch { return null; }
+  }
+
+  function fuelPriceHtml(priceNum, large = false) {
+    const price = priceNum.toFixed(3).replace('.', ',');
+    const [euros, cents] = price.split(',');
+    const main = cents.slice(0, -1);
+    const last = cents.slice(-1);
+    if (large) {
+      return `<span style="font-size:2rem;font-weight:800;color:var(--warning);">${euros},</span>`
+           + `<span style="font-size:1.3rem;font-weight:700;color:var(--warning);">${main}</span>`
+           + `<span style="font-size:0.9rem;font-weight:800;color:var(--warning);position:relative;top:-0.55em;">${last}</span>`;
+    }
+    return `${euros},${main}<span style="font-size:0.65em;position:relative;top:-0.4em;">${last}</span> €`;
+  }
+
+  function renderFuelPrice(fuel) {
+    const cards = fuel?.cards || [];
+    if (cards.length) {
+      const columns = cards.map(card => `
+        <div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:2px;">
+          <div style="font-size:0.72rem;color:var(--accent);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;white-space:nowrap;">${card.label}</div>
+          <div style="display:flex;align-items:baseline;gap:3px;white-space:nowrap;">
+            ${fuelPriceHtml(card.primary.price, true)}
+            <span style="font-size:0.76rem;color:var(--muted);margin-left:2px;">&euro;/L</span>
+          </div>
+        </div>
+      `).join('');
+     return `
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <div class="panel-label" style="margin-bottom:8px;">&#9981; Kraftstoffe</div>
+          <div style="display:flex;gap:16px;align-items:flex-start;">
+            ${columns}
+          </div>
+          <div style="font-size:0.72rem;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fuel.station_name || ''}</div>
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:4px;">${(()=>{ const d=new Date(fuel.updated_at||''); return isNaN(d)?'':'Letzte Preis&auml;nderung '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr'; })()}</div>
+        </div>`;   
+}
+    if (!fuel?.cheapest_diesel && !fuel?.diesel?.length) return '';
+    const diesel = fuel.cheapest_diesel || (fuel.diesel || [])[0];
+    if (!diesel) return '';
+    const allDiesel = (fuel.diesel || []);
+    const extra = allDiesel.length > 1
+      ? allDiesel.slice(1).map(e =>
+          `<span style="font-size:0.74rem;color:var(--muted);">${fuelPriceHtml(e.price)}</span>`
+        ).join('  ')
+      : '';
+    return `
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+        <div class="panel-label" style="margin-bottom:6px;">â›½ Diesel</div>
+        <div style="display:flex;align-items:baseline;gap:3px;">
+          ${fuelPriceHtml(diesel.price, true)}
+          <span style="font-size:0.8rem;color:var(--muted);margin-left:2px;">â‚¬/L</span>
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;
+                    text-overflow:ellipsis;">${diesel.name}</div>
+        ${extra ? `<div style="margin-top:5px;display:flex;gap:10px;">${extra}</div>` : ''}
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:4px;">${(()=>{ const d=new Date(fuel.updated_at||''); return isNaN(d)?'':'Letzte Preis&auml;nderung '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr'; })()}</div>
+      </div>`;
+  }
+
+  async function loadEV() {
+    try { const r = await fetch('/vehicles', { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+
+  function formatChargeTime(minutesRaw) {
+    const minutes = parseInt(minutesRaw, 10);
+    if (!Number.isFinite(minutes) || minutes < 0) return '';
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return `${String(hours).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
+  }
+
+  function renderEVVehicle(vehicle) {
+    const isEv = Boolean(vehicle.ev_profile_enabled);
+    const energy = isEv ? vehicle.battery : vehicle.fuel_level;
+    const level = energy?.state != null ? parseInt(energy.state) : null;
+    const range = vehicle.range?.state;
+    const unit  = vehicle.range?.unit || 'km';
+    const bc    = level == null ? 'var(--muted)' : level > 40 ? 'var(--success)' : level > 20 ? 'var(--warning)' : 'var(--danger)';
+    const chargingRaw = String(vehicle.charging?.state || '').toLowerCase();
+    const isCharging = ['an','true','1','charging','ja','yes','on'].includes(chargingRaw);
+    const chargeTime = isCharging ? formatChargeTime(vehicle.remaining_charge_time?.state) : '';
+    const levelHtml = level != null ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+        <span style="font-size:0.85rem;">${isEv ? (isCharging ? '&#9889;' : '&#128267;') : '&#9981;'}</span>
+        <span style="font-weight:700;color:${bc};font-size:0.82rem;min-width:36px;">${level}%</span>
+        <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+          <div style="width:${level}%;height:100%;background:${bc};border-radius:3px;"></div>
+        </div>
+      </div>` : '';
+    const adblue = vehicle.adblue_level?.state != null ? parseInt(vehicle.adblue_level.state) : null;
+    const adblueColor = adblue == null ? 'var(--muted)' : adblue > 25 ? 'var(--accent)' : adblue > 10 ? 'var(--warning)' : 'var(--danger)';
+    const adblueHtml = !isEv && adblue != null ? `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+        <span style="font-size:0.85rem;">&#128167;</span>
+        <span style="font-weight:700;color:${adblueColor};font-size:0.82rem;min-width:36px;">${adblue}%</span>
+        <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+          <div style="width:${Math.max(0, Math.min(100, adblue))}%;height:100%;background:${adblueColor};border-radius:3px;"></div>
+        </div>
+        <span style="font-size:0.62rem;color:var(--muted);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;">AdBlue</span>
+      </div>` : '';
+    const statusHtml = isEv && vehicle.charging != null ? `
+      <div style="font-size:0.74rem;margin-bottom:5px;color:${isCharging ? 'var(--success)' : 'var(--muted)'};">
+        ${isCharging ? `&#9679; L&auml;dt gerade${chargeTime ? ` &bull; Restladezeit ${chargeTime}` : ''}` : '&#9675; Nicht am Laden'}
+      </div>` : '';
+    const rangeHtml = range ? `
+      <div style="font-size:0.78rem;color:var(--text);margin-bottom:8px;">&#128663; ${range} ${unit} Reichweite</div>` : '';
+    const stopBtn = isCharging && vehicle.stop_charging_button_entity ? `
+      <button onclick="evStopCharging('${vehicle.stop_charging_button_entity}', this)"
+        style="width:100%;padding:5px 0;border-radius:8px;background:none;
+               border:1px solid var(--warning);color:var(--warning);
+               font-size:0.72rem;font-weight:700;cursor:pointer;transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(255,171,0,0.1)'"
+        onmouseout="this.style.background='none'">&#9209; Laden stoppen</button>` : '';
+    return `
+      <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;">
+        <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.13em;color:var(--accent);
+                    text-transform:uppercase;margin-bottom:7px;">${vehicle.label || vehicle.name || 'Fahrzeug'}</div>
+        ${levelHtml}${statusHtml}${rangeHtml}${adblueHtml}${stopBtn}
+      </div>`;
+  }
+
+  function renderEV(data) {
+    const vehicles = Array.isArray(data?.vehicles) ? data.vehicles : [];
+    if (!vehicles.length) return '';
+    return vehicles.map(renderEVVehicle).join('');
+  }
+
+  async function evStopCharging(entityId, btn) {
+    if (!entityId) return;
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    try {
+      await fetch(`/ha/button/${entityId}/press`, { method: 'POST' });
+      if (btn) { btn.textContent = `${String.fromCharCode(10003)} Gestoppt`; setTimeout(() => { btn.disabled = false; btn.textContent = `${String.fromCharCode(9209)} Laden stoppen`; }, 3000); }
+    } catch {
+      if (btn) { btn.disabled = false; btn.textContent = `${String.fromCharCode(9209)} Laden stoppen`; }
+    }
+  }
+
+  async function pressVehicleButton(entityId, btn, activeLabel = 'Gesendet') {
+    if (!entityId) return;
+    const original = btn?.textContent || '';
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Sende...';
+    }
+    try {
+      const response = await fetch(`/ha/button/${entityId}/press`, { method: 'POST' });
+      if (!response.ok) throw new Error('button press failed');
+      if (btn) btn.textContent = activeLabel;
+    } catch {
+      if (btn) btn.textContent = 'Fehler';
+    } finally {
+      if (btn) {
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = original;
+        }, 2500);
+      }
+    }
+  }
+
+  let _homeLeftRenderSeq = 0;
+  function buildHomeLeftModules(weather, fuel, vehicles) {
+    const modules = [];
+    const weatherHtml = renderWeather(weather);
+    if (weatherHtml) {
+      modules.push({
+        key: 'weather',
+        label: sectionLabel('Wetter', weather?.location || ''),
+        html: `<section class="home-left-module home-left-module-weather">${weatherHtml}</section>`,
+      });
+    }
+
+    const fuelHtml = renderFuelPrice(fuel);
+    if (fuelHtml) {
+      modules.push({
+        key: 'fuel',
+        label: 'Kraftstoffe',
+        html: `<section class="home-left-module home-left-module-fuel">${fuelHtml}</section>`,
+      });
+    }
+
+    const vehicleHtml = renderEV(vehicles);
+    if (vehicleHtml) {
+      modules.push({
+        key: 'vehicles',
+        label: 'Fahrzeuge',
+        html: `<section class="home-left-module home-left-module-vehicles">${vehicleHtml}</section>`,
+      });
+    }
+    return modules;
+  }
+
+  function applyHomeLeftModules(modules) {
+    const labelEl = document.getElementById('left-label');
+    const contentEl = document.getElementById('left-content');
+    if (!labelEl || !contentEl) return;
+    const visible = modules.filter(module => module.html);
+    labelEl.textContent = visible[0]?.label || 'Start';
+    contentEl.innerHTML = visible.length
+      ? `<div class="home-left-stack">${visible.map(module => module.html).join('')}</div>`
+      : '<div class="cal-placeholder">Keine Startmodule aktiv</div>';
+  }
+
+  async function showWeatherLeft() {
+    const seq = ++_homeLeftRenderSeq;
+    const [w, fuel, ev] = await Promise.all([loadWeather(), loadFuel(), loadEV()]);
+    if (seq !== _homeLeftRenderSeq) return;
+    const weather = w?.enabled === false ? w : (w?.current ? w : (_lastWeatherData || cacheGet('weather')));
+    applyHomeLeftModules(buildHomeLeftModules(weather, fuel, ev));
+  }
+
+  // ── FOOTBALL WIDGET ───────────────────────────────────────
+  function renderFootballMatch(f) {
+    if (!f?.lastMatch) return '<div class="cal-placeholder">Kein Spiel gefunden</div>';
+    const m = f.lastMatch;
+    const t = f.team || {};
+    const badges = { win:'result-win', defeat:'result-defeat', draw:'result-draw' };
+    const labels = { win:'Sieg', defeat:'Niederlage', draw:'Unentschieden' };
+    const ht = m.halfTime ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:3px;">Halbzeit ${m.halfTime.home}:${m.halfTime.away}</div>` : '';
+    const logoH = m.homeTeam?.iconUrl
+      ? `<img src="${m.homeTeam.iconUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:50%;background:var(--surface2);padding:4px;" onerror="this.style.display='none'">`
+      : `<div style="width:48px;height:48px;background:var(--surface2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:var(--muted)">${(m.homeTeam?.shortName||'?').substring(0,3)}</div>`;
+    const logoA = m.awayTeam?.iconUrl
+      ? `<img src="${m.awayTeam.iconUrl}" style="width:48px;height:48px;object-fit:contain;border-radius:50%;background:var(--surface2);padding:4px;" onerror="this.style.display='none'">`
+      : `<div style="width:48px;height:48px;background:var(--surface2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:800;color:var(--muted)">${(m.awayTeam?.shortName||'?').substring(0,3)}</div>`;
+    return `
+      <div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;margin-bottom:10px;">LETZTES SPIEL · ${m.date||''}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;">
+        <div style="text-align:center;flex:1;">
+          ${logoH}
+          <div style="font-size:0.76rem;margin-top:5px;font-weight:600;">${m.homeTeam?.shortName||'?'}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:2.8rem;font-weight:900;color:#fff;line-height:1;">${m.homeTeam?.score} : ${m.awayTeam?.score}</div>
+          ${ht}
+        </div>
+        <div style="text-align:center;flex:1;">
+          ${logoA}
+          <div style="font-size:0.76rem;margin-top:5px;font-weight:600;">${m.awayTeam?.shortName||'?'}</div>
+        </div>
+      </div>
+      <div style="margin:8px 0;">
+        <span class="match-result-badge ${badges[m.result]||'result-draw'}">${labels[m.result]||'–'}</span>
+      </div>
+      <div style="font-size:0.82rem;color:var(--muted);line-height:1.45;margin-top:8px;">${m.summary||''}</div>
+    `;
+  }
+
+  function renderLeagueOverview(f) {
+    if (!f) return '<div class="cal-placeholder">Keine Daten</div>';
+    const rows = (f.table?.full_table || []).slice(0, 3).map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;
+                  border-bottom:1px solid var(--border);">
+        <div style="font-size:1.4rem;font-weight:900;color:var(--accent);width:28px;
+                    text-align:center;">${r.rank}</div>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:0.9rem;">${r.shortName||r.teamName}</div>
+          <div style="font-size:0.74rem;color:var(--muted);">${r.points} Pkt · ${r.wins}S ${r.draws}U ${r.losses}N</div>
+        </div>
+      </div>`).join('');
+    return `
+      <div style="padding:8px 0;">
+        <div style="font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;margin-bottom:12px;">
+          SAISON ${f.league?.season||''}
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted);letter-spacing:0.08em;margin-bottom:8px;">SPITZE</div>
+        ${rows}
+      </div>`;
+  }
+
+  function renderFootballTeamPanel(f) {
+    if (!f?.team) return '<div class="cal-placeholder">Team nicht gefunden</div>';
+    const t = f.team;
+    const tb = f.table;
+    const logo = t.iconUrl
+      ? `<img src="${t.iconUrl}" style="width:110px;height:110px;object-fit:contain;
+              border-radius:50%;background:var(--surface2);padding:6px;"
+              onerror="this.style.display='none'" loading="lazy">`
+      : `<div style="width:110px;height:110px;background:var(--surface2);border-radius:50%;
+                     display:flex;align-items:center;justify-content:center;
+                     font-size:1.6rem;font-weight:800;color:var(--muted);">
+           ${t.shortName?.substring(0,3)||'?'}</div>`;
+    return `
+      <div style="display:flex;flex-direction:column;align-items:center;padding:8px 0;">
+        ${logo}
+        <div style="font-size:1.15rem;font-weight:800;margin-top:10px;text-align:center;line-height:1.25;">${t.name}</div>
+        <div style="color:var(--muted);font-size:0.78rem;margin-top:3px;">${f.league?.name || ''}</div>
+        <div style="margin:14px 0 10px;padding:14px 24px;background:rgba(0,200,255,0.07);
+                    border:1px solid rgba(0,200,255,0.2);border-radius:14px;text-align:center;width:100%;">
+          <div style="font-size:2.8rem;font-weight:900;color:var(--accent);line-height:1;">${tb.rank}.</div>
+          <div style="font-size:0.64rem;color:var(--muted);letter-spacing:0.1em;margin-top:2px;">TABELLENPLATZ</div>
+          <div style="font-size:1.5rem;font-weight:800;margin-top:10px;">${tb.points}
+            <span style="font-size:0.8rem;color:var(--muted);font-weight:400;">Pkt</span></div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:4px;">
+            ${tb.wins}S&nbsp;·&nbsp;${tb.draws}U&nbsp;·&nbsp;${tb.losses}N
+          </div>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:2px;">
+            ${tb.goals}:${tb.opponentGoals} Tore
+          </div>
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted);text-align:center;">Saison ${f.league?.season || ''}</div>
+      </div>`;
+  }
+
+  function renderFootballTable(f) {
+    if (!f?.table) return '';
+    const rows = (f.table.full_table || f.table.surrounding || []).map(r => `
+      <div class="table-row ${r.isHighlighted ? 'highlighted' : ''}"
+           style="padding:4px 8px;">
+        <div class="table-rank ${r.isHighlighted ? 'highlighted' : ''}">${r.rank}</div>
+        <div class="table-name" style="font-size:0.78rem;">${r.shortName || r.teamName}</div>
+        <div class="table-sp" style="font-size:0.74rem;">${r.matches}</div>
+        <div class="table-pts" style="font-size:0.82rem;">${r.points}</div>
+      </div>`).join('');
+    const header = `<div style="display:grid;grid-template-columns:28px 1fr 28px 32px;
+        gap:4px;padding:3px 8px 5px;font-size:0.62rem;color:var(--muted);
+        border-bottom:1px solid var(--border);margin-bottom:3px;">
+      <span style="text-align:center">#</span><span>Verein</span>
+      <span style="text-align:right">SP</span><span style="text-align:right">PKT</span>
+    </div>`;
+    return header + rows;
+  }
+
+  async function loadFootball(team) {
+    if (!team) return null;
+    const key = 'football_' + team;
+    const cached = cacheGet(key);
+    if (cached) return cached;
+    try {
+      const d = await fetch('/football/' + encodeURIComponent(team)).then(r => r.json());
+      cacheSet(key, d, TTL_2M);
+      return d;
+    } catch { return null; }
+  }
+
+  async function loadLeagueTable(leagueId) {
+    const key = 'league_' + (leagueId || 'bl2');
+    const cached = cacheGet(key);
+    if (cached) return cached;
+    try {
+      const d = await fetch('/football/league/' + encodeURIComponent(leagueId || 'bl2')).then(r => r.json());
+      if (d?.table) { cacheSet(key, d, TTL_2M); return d; }
+      return null;
+    } catch { return null; }
+  }
+
+  // ── CALENDAR ──────────────────────────────────────────────
+  async function loadCalendar() {
+    const cached = cacheGet('calendar_v2');
+    if (cached?.days) return cached;  // nur nutzen wenn neues Format
+    try {
+      const resp = await fetch('/calendar', { cache: 'no-store' });
+      if (!resp.ok) return null;
+      const d = await resp.json();
+      if (d?.days !== undefined) {
+        localStorage.removeItem('calendar');
+        cacheSet('calendar_v2', d, TTL_5M);
+        return d;
+      }
+      return null;
+    } catch { return null; }
+  }
+
+  function renderCalendarData(cal) {
+    if (!cal) {
+      return `<div class="cal-placeholder">📅<br><br>Kalender nicht verfügbar.</div>`;
+    }
+    if (!cal.days || cal.days.length === 0) {
+      return `<div class="cal-placeholder">📅<br><br>Keine Termine in den nächsten 7 Tagen.</div>`;
+    }
+
+    let html = '';
+
+    // Nächster Termin (wenn in der Zukunft)
+    if (cal.next_event) {
+      const ne = cal.next_event;
+      const when = ne.weekday === 'Heute' ? ne.time
+                 : `${ne.weekday}, ${ne.date} · ${ne.time}`;
+      html += `
+        <div style="background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.25);
+                    border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+          <div style="font-size:0.62rem;color:var(--accent);letter-spacing:0.11em;margin-bottom:4px;">NÄCHSTER TERMIN</div>
+          <div style="font-weight:700;font-size:0.9rem;line-height:1.3;">${ne.title}</div>
+          <div style="color:var(--muted);font-size:0.76rem;margin-top:3px;">${ne.weekday} · ${ne.date} · ${ne.time}${ne.location ? ' · ' + ne.location : ''}</div>
+        </div>`;
+    }
+
+    // Tage
+    cal.days.forEach(day => {
+      html += `
+        <div style="margin-bottom:8px;">
+          <div style="font-size:0.64rem;font-weight:800;color:var(--muted);letter-spacing:0.11em;
+                      text-transform:uppercase;padding:3px 0 4px;border-bottom:1px solid var(--border);
+                      margin-bottom:5px;">
+            ${day.label} &nbsp;·&nbsp; ${day.date}
+          </div>`;
+      day.events.forEach(ev => {
+        const loc = ev.location
+          ? `<div class="cal-sub">${ev.location}</div>` : '';
+        html += `
+          <div class="cal-item" style="margin-bottom:4px;">
+            <div class="cal-time">${ev.time}</div>
+            <div class="cal-body">
+              <div class="cal-title">${ev.title}</div>
+              ${loc}
+            </div>
+          </div>`;
+      });
+      html += `</div>`;
+    });
+
+    if (cal.total_count > 12) {
+      html += `<div style="font-size:0.74rem;color:var(--muted);text-align:center;padding-top:4px;">
+        +${cal.total_count - 12} weitere Termine
+      </div>`;
+    }
+    return html;
+  }
+
+  async function showCalendarRight() {
+    const cal = await loadCalendar();
+    setPanel('right', 'Kalender', renderCalendarData(cal));
+  }
+
+  // ── NEWS CENTER ───────────────────────────────────────────
+  let _newsInterval = null;
+
+  async function loadNews() {
+    try {
+      const r = await fetch('/news');
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  }
+
+  let _newsFilter = 'all';
+  let _lastNewsData = null;
+  let _newsCollapsed = false;
+  let _newsCollapseInitialized = false;
+
+  function _newsSources(data) {
+    return Array.isArray(data?.sources) ? data.sources : [];
+  }
+
+  function _newsDisplaySettings(data) {
+    const display = data?.display || {};
+    return {
+      defaultCollapsed: Boolean(display.default_collapsed),
+      collapsedCount: Math.max(1, Math.min(parseInt(display.collapsed_count ?? 3, 10) || 3, 10)),
+    };
+  }
+
+  function _renderNewsFilters(data) {
+    const sources = _newsSources(data);
+    const dynamicButtons = sources.map(source => `
+      <button class="news-filter-btn" id="nf-${source.id}" onclick="_setNewsFilter('${source.id}')">${source.label}</button>
+    `).join('');
+    return `
+      <button class="news-filter-btn active" id="nf-all" onclick="_setNewsFilter('all')">Alle</button>
+      ${dynamicButtons}
+    `;
+  }
+
+  function _setNewsFilter(source) {
+    _newsFilter = source;
+    document.querySelectorAll('.news-filter-btn').forEach(b => b.classList.remove('active'));
+    (document.getElementById('nf-' + source) || document.getElementById('nf-all')).classList.add('active');
+    const el = document.getElementById('news-list');
+    if (el && _lastNewsData) el.innerHTML = _renderNewsList(_lastNewsData);
+  }
+
+  function toggleNewsCollapsed() {
+    _newsCollapsed = !_newsCollapsed;
+    _applyNewsLayoutState();
+    const el = document.getElementById('news-list');
+    if (el && _lastNewsData) el.innerHTML = _renderNewsList(_lastNewsData);
+  }
+
+  function _applyNewsLayoutState() {
+    const cp = document.getElementById('center-panel');
+    const nc = document.getElementById('news-center');
+    cp?.classList.toggle('news-collapsed', _newsCollapsed);
+    cp?.classList.toggle('news-expanded', !_newsCollapsed);
+    nc?.classList.toggle('collapsed', _newsCollapsed);
+    nc?.classList.toggle('expanded', !_newsCollapsed);
+    const toggle = document.getElementById('news-toggle-hint');
+    if (toggle) toggle.textContent = _newsCollapsed ? 'Mehr anzeigen' : 'Minimieren';
+  }
+
+  function _renderNewsList(data) {
+    const items = _newsFilter === 'all'
+      ? (data.items || [])
+      : (data.items || []).filter(i => i.source_key === _newsFilter);
+    if (!items.length) return '<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">Keine Nachrichten</div>';
+    const settings = _newsDisplaySettings(data);
+    const visibleItems = _newsCollapsed ? items.slice(0, settings.collapsedCount) : items;
+    const hiddenCount = Math.max(0, items.length - visibleItems.length);
+    const rows = visibleItems.map(item => {
+      const logo = item.icon_url;
+      const logoHtml = logo
+        ? `<img src="${logo}" class="news-source-logo" alt="${item.source}" onerror="this.style.opacity='0'">`
+        : '';
+      return `<div class="news-item">
+        <div class="news-logo-cell">${logoHtml}</div>
+        <div class="news-title">${item.title}</div>
+        <div class="news-time">${item.pub_date ? _relTime(item.pub_date) : ''}</div>
+      </div>`;
+    }).join('');
+    return rows + (_newsCollapsed && hiddenCount
+      ? `<button class="news-more-row" onclick="toggleNewsCollapsed()">+${hiddenCount} weitere News anzeigen</button>`
+      : '');
+  }
+
+  function renderNewsItems(data) {
+    _lastNewsData = data;
+    return _renderNewsList(data);
+  }
+
+  async function showNewsCenter() {
+    const cp = document.getElementById('center-panel');
+    cp.classList.add('news-mode');
+    let nc = document.getElementById('news-center');
+    if (!nc) {
+      nc = document.createElement('div');
+      nc.id = 'news-center';
+      cp.appendChild(nc);
+    }
+    const data = await loadNews();
+    if (!_newsCollapseInitialized) {
+      _newsCollapsed = _newsDisplaySettings(data).defaultCollapsed;
+      _newsCollapseInitialized = true;
+    }
+    cp.classList.toggle('news-collapsed', _newsCollapsed);
+    cp.classList.toggle('news-expanded', !_newsCollapsed);
+    nc.innerHTML = `
+      <button class="news-section-label news-toggle" onclick="toggleNewsCollapsed()">
+        <span>News</span>
+        <span id="news-toggle-hint">${_newsCollapsed ? 'Mehr anzeigen' : 'Minimieren'}</span>
+      </button>
+      <div class="news-filter-bar">
+        ${_renderNewsFilters(data)}
+      </div>
+      <div id="news-list">${renderNewsItems(data)}</div>`;
+    _applyNewsLayoutState();
+    clearInterval(_newsInterval);
+    _newsInterval = setInterval(async () => {
+      if (currentMode !== 'idle' || !_isHome()) return;
+      const d = await loadNews();
+      const el = document.getElementById('news-list');
+      if (el) {
+        el.innerHTML = renderNewsItems(d);
+        _applyNewsLayoutState();
+      }
+    }, 60 * 1000);
+  }
+
+  function hideNewsCenter() {
+    clearInterval(_newsInterval);
+    const cp = document.getElementById('center-panel');
+    cp.classList.remove('news-mode', 'news-collapsed', 'news-expanded');
+    const nc = document.getElementById('news-center');
+    if (nc) nc.remove();
+  }
+
+  // ── CALENDAR SOURCE COLORS ────────────────────────────────
+  function calSourceColor(calName) {
+    const n = (calName || '').toLowerCase();
+    if (n.includes('familie'))    return { bg: 'rgba(0,230,118,0.2)',  fg: '#00e676' };
+    if (n.includes('geburtstag')) return { bg: 'rgba(255,171,0,0.2)',  fg: '#ffab00' };
+    if (n.includes('feiertag'))   return { bg: 'rgba(120,130,180,0.25)', fg: '#a0aacc' };
+    if (n.includes('arbeit') || n.includes('work'))
+                                  return { bg: 'rgba(0,200,255,0.2)',  fg: '#00c8ff' };
+    // Deterministisch aus Kalendernamen, helle Pastelltöne
+    let hash = 0;
+    for (const c of calName || '') hash = (hash * 31 + c.charCodeAt(0)) & 0xffff;
+    const hue = (hash * 137) % 360;
+    return { bg: `hsla(${hue},55%,40%,0.25)`, fg: `hsl(${hue},90%,78%)` };
+  }
+
+  // ── CALENDAR CENTER DETAIL ────────────────────────────────
+  function showCalendarCenter(cal, focus) {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    if (!cal?.days?.length) { clearCalendarCenter(); return; }
+
+    const labelMap = { today: 'Heute', tomorrow: 'Morgen' };
+    const targetLabel = labelMap[focus] || 'Heute';
+    let day = cal.days.find(d => d.label === targetLabel) || cal.days[0];
+    if (!day?.events?.length) { clearCalendarCenter(); return; }
+
+    let html = `<div class="cal-center-header">${(day.weekday||'').toUpperCase()} · ${day.date||''}</div>`;
+
+    day.events.forEach(ev => {
+      const timeStr = ev.is_allday
+        ? 'Ganztägig'
+        : `${ev.time}${ev.end_time ? ' – ' + ev.end_time : ''} Uhr`;
+      const loc  = ev.location ? `
+        <div class="cal-center-row"><span class="icon">📍</span><span>${ev.location}</span></div>` : '';
+      const desc = ev.description ? `
+        <div class="cal-center-desc">${ev.description.replace(/\n/g,'<br>')}</div>` : '';
+      const col = calSourceColor(ev.calendar);
+      const badge = ev.calendar ? `
+        <span class="cal-source-badge" style="background:${col.bg};color:${col.fg};">
+          ${ev.calendar}
+        </span>` : '';
+
+      html += `
+        <div class="cal-center-event">
+          <div class="cal-center-title">${ev.title}</div>
+          <div class="cal-center-row"><span class="icon">🕐</span><span>${timeStr}</span></div>
+          ${loc}${desc}${badge}
+        </div>`;
+    });
+
+    overlay.innerHTML = html;
+    overlay.classList.add('active');
+  }
+
+  function clearCalendarCenter() {
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active', 'weather-expanded'); overlay.innerHTML = ''; }
+  }
+
+  // ── WEATHER TOMORROW + FORECAST ──────────────────────────
+  function renderWeatherDay(day, detailed) {
+    if (!day) return '<div class="cal-placeholder">Keine Daten</div>';
+    return `
+      <div style="text-align:center;padding:12px 0 8px;">
+        <div style="font-size:5rem;line-height:1;filter:drop-shadow(0 0 18px rgba(0,200,255,0.3));">
+          ${wmoIcon(day.weathercode)}
+        </div>
+        <div style="font-size:1.1rem;color:var(--muted);margin-top:10px;">${day.description}</div>
+        <div style="display:flex;justify-content:center;gap:28px;margin-top:16px;">
+          <div><div class="temp-high" style="font-size:2rem;font-weight:800;">↑${day.temp_max}°</div>
+               <div style="font-size:0.72rem;color:var(--muted);">MAX</div></div>
+          <div><div class="temp-low" style="font-size:2rem;font-weight:800;">↓${day.temp_min}°</div>
+               <div style="font-size:0.72rem;color:var(--muted);">MIN</div></div>
+        </div>
+      </div>
+      ${detailed ? `
+      <div class="weather-grid" style="margin-top:14px;">
+        <div class="weather-stat">
+          <div class="weather-stat-label">Wind max.</div>
+          <div class="weather-stat-val">${day.windspeed_max ?? '–'} km/h</div>
+        </div>
+        <div class="weather-stat">
+          <div class="weather-stat-label">Niederschlag</div>
+          <div class="weather-stat-val">${day.precipitation ?? 0} mm</div>
+        </div>
+      </div>` : ''}
+    `;
+  }
+
+  function renderWeatherForecast(w) {
+    if (!w) return '<div class="cal-placeholder">Keine Daten</div>';
+    const days = [w.tomorrow, ...(w.forecast_days || [])].filter(Boolean);
+    if (!days.length) return '<div class="cal-placeholder">Keine Vorhersage</div>';
+    return days.map(day => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 8px;
+                  border-bottom:1px solid var(--border);">
+        <div style="min-width:80px;font-size:0.82rem;font-weight:600;color:var(--text);">
+          ${day.label}
+          <div style="font-size:0.68rem;color:var(--muted);font-weight:400;">${day.date?.split(',')[0]||''}</div>
+        </div>
+        <div style="font-size:1.6rem;flex-shrink:0;">${wmoIcon(day.weathercode)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:0.76rem;color:var(--muted);white-space:nowrap;overflow:hidden;
+                      text-overflow:ellipsis;">${day.description}</div>
+          ${day.precipitation > 0
+            ? `<div style="font-size:0.72rem;color:#7ab8ff;">💧 ${day.precipitation} mm</div>`
+            : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div class="temp-high" style="font-size:0.9rem;font-weight:700;">↑${day.temp_max}°</div>
+          <div class="temp-low"  style="font-size:0.84rem;font-weight:600;">↓${day.temp_min}°</div>
+        </div>
+      </div>`).join('');
+  }
+
+  // ── PANEL SWITCHER ────────────────────────────────────────
+  let weatherOverviewState = { data: null, selectedIndex: 0 };
+
+  function renderWeatherOverview(w, selectedIndex = 0) {
+    if (!w) return '<div class="cal-placeholder">Keine Wetterdaten</div>';
+    const days = [w.today, w.tomorrow, ...(w.forecast_days || [])].filter(Boolean).slice(0, 7);
+    if (!days.length) return '<div class="cal-placeholder">Keine Vorhersage verfuegbar</div>';
+    const safeIndex = Math.max(0, Math.min(selectedIndex || 0, days.length - 1));
+    const selectedDay = days[safeIndex];
+    const hourly = ((w.hourly_by_day || {})[selectedDay.iso_date] || []).slice(0, 24);
+    const settings = w.settings || {};
+    const showHourTemp = settings.show_hourly_temperature !== false;
+    const showHourPop = settings.show_hourly_precip_probability !== false;
+    const showHourRain = settings.show_hourly_precipitation !== false;
+    const showHourWind = settings.show_hourly_wind !== false;
+    if (!days.length) return '<div class="cal-placeholder">Keine Vorhersage verfügbar</div>';
+    return `
+      <div class="weather-overview">
+        <div class="weather-overview-head">
+          <div>
+            <div class="weather-overview-kicker">Wetterbericht</div>
+            <div class="weather-overview-title">${escapeHTML(w.location || 'Standort')} ${String.fromCharCode(183)} Nächste 7 Tage</div>
+          </div>
+          <button class="weather-overview-close" onclick="closeWeatherOverview()">Schliessen</button>
+        </div>
+        <div class="weather-days-grid">
+          ${days.map((day, index) => `
+            <section class="weather-day-card ${index === safeIndex ? 'active' : ''}" onclick="selectWeatherOverviewDay(${index})">
+              <div>
+                <div class="weather-day-name">${escapeHTML(day.label || '')}</div>
+                <div class="weather-day-date">${escapeHTML((day.date || '').split(',').pop()?.trim() || day.date || '')}</div>
+              </div>
+              <div class="weather-day-icon">${wmoIcon(day.weathercode)}</div>
+              <div class="weather-day-desc">${escapeHTML(day.description || '')}</div>
+              <div class="weather-day-temps">
+                <span class="temp-high">&uarr;${day.temp_max}&deg;</span>
+                <span class="temp-low">&darr;${day.temp_min}&deg;</span>
+              </div>
+              <div class="weather-day-meta">
+                <span>Regen ${day.precipitation ?? 0} mm</span>
+                <span>Wind ${day.windspeed_max ?? '-'} km/h</span>
+              </div>
+            </section>
+          `).join('')}
+        </div>
+        <div class="weather-hourly-panel">
+          <div class="weather-hourly-title">Stundenwerte ${String.fromCharCode(183)} ${escapeHTML(selectedDay.label || '')}</div>
+          ${hourly.length ? `
+            <div class="weather-hourly-scroll">
+              ${hourly.map(hour => `
+                <div class="weather-hour-card">
+                  <div class="weather-hour-time">${escapeHTML(hour.time || '')}</div>
+                  <div class="weather-hour-icon">${wmoIcon(hour.code)}</div>
+                  ${showHourTemp ? `<div class="weather-hour-temp">${hour.temp ?? '-'}&deg;</div>` : ''}
+                  ${showHourPop || showHourRain || showHourWind ? `<div class="weather-hour-meta">
+                    ${showHourPop ? `<span>Regen ${hour.precip_prob ?? 0}%</span>` : ''}
+                    ${showHourRain ? `<span>Nied. ${hour.precipitation ?? 0} mm</span>` : ''}
+                    ${showHourWind ? `<span>Wind ${hour.windspeed ?? '-'} km/h</span>` : ''}
+                  </div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          ` : '<div class="cal-placeholder">Keine Stundenwerte fuer diesen Tag</div>'}
+        </div>
+      </div>`;
+  }
+
+  function selectWeatherOverviewDay(index) {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay || !weatherOverviewState.data) return;
+    weatherOverviewState.selectedIndex = index;
+    overlay.innerHTML = renderWeatherOverview(weatherOverviewState.data, index);
+  }
+
+  async function openWeatherOverview() {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    const w = await loadWeather();
+    weatherOverviewState = { data: w, selectedIndex: 0 };
+    overlay.innerHTML = renderWeatherOverview(w, 0);
+    overlay.classList.remove('vehicle-map-expanded', 'vac-map-expanded', 'cam-expanded', 'cam-detail-mode');
+    overlay.classList.add('active', 'weather-expanded');
+  }
+
+  function closeWeatherOverview() {
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) {
+      overlay.classList.remove('active', 'weather-expanded');
+      overlay.innerHTML = '';
+    }
+    weatherOverviewState = { data: null, selectedIndex: 0 };
+  }
+
+  function setPanel(side, label, html) {
+    const labelEl   = document.getElementById(side + '-label');
+    const contentEl = document.getElementById(side + '-content');
+    contentEl.classList.add('fade-out');
+    setTimeout(() => {
+      labelEl.textContent = label;
+      contentEl.innerHTML = html;
+      contentEl.classList.remove('fade-out');
+    }, 300);
+  }
+
+  async function applyMode(mode, data) {
+    if (mode === currentMode) return;  // gleicher Modus → nichts tun
+    currentMode = mode;
+
+    clearTimeout(contextTimer);
+
+    if (mode === 'idle') {
+      clearCalendarCenter();
+      showWeatherLeft();
+      showCalendarRight();
+      showNewsCenter();
+      return;
+    }
+
+    hideNewsCenter();
+
+    // Context mode — timeout nach 30s zurück zu idle
+    contextTimer = setTimeout(() => {
+      currentMode = 'idle';
+      clearCalendarCenter();
+      showWeatherLeft();
+      showCalendarRight();
+      showNewsCenter();
+    }, 30000);
+
+    if (mode === 'football') {
+      const team = data?.team || 'darmstadt';
+      const submode = data?.submode || 'table';
+      const f = await loadFootball(team);
+      const leagueName = f?.league?.name || '2. Bundesliga';
+      if (submode === 'league_table') {
+        const lid = data?.league_id || 'bl2';
+        const lt = await loadLeagueTable(lid);
+        const ln = lt?.league?.name || leagueName;
+        setPanel('left', ln, renderLeagueOverview(lt));
+        setPanel('right', ln + ' · Tabelle', renderFootballTable(lt));
+      } else if (submode === 'match') {
+        setPanel('left', 'Letztes Spiel', renderFootballMatch(f));
+        setPanel('right', leagueName + ' · Tabelle', renderFootballTable(f));
+      } else {
+        setPanel('left', f?.team?.name || 'Team', renderFootballTeamPanel(f));
+        setPanel('right', leagueName + ' · Tabelle', renderFootballTable(f));
+      }
+    }
+
+    if (mode === 'calendar') {
+      const focus = data?.focus || 'today';
+      const [cal, w] = await Promise.all([loadCalendar(), loadWeather()]);
+      // Links: Wetter (wie idle)
+      document.getElementById('left-label').textContent = 'Wetter · ' + (w?.location || '');
+      document.getElementById('left-content').innerHTML = renderWeather(w) + renderFuelPrice(await loadFuel());
+      // Mitte: Termin-Details (Gesicht ausgeblendet)
+      showCalendarCenter(cal, focus);
+      // Rechts: Kalenderübersicht
+      setPanel('right', 'Kalender', renderCalendarData(cal));
+    }
+
+    if (mode === 'weather_detail') {
+      const submode = data?.submode || 'current';
+      const loc = data?.location || null;
+      const locParam = loc ? `&location=${encodeURIComponent(loc)}` : '';
+      const resp = await fetch(`/weather?_=${Date.now()}${locParam}`, { cache: 'no-store' });
+      const w = resp.ok ? await resp.json() : _lastWeatherData;
+      if (submode === 'tomorrow' && w?.tomorrow) {
+        setPanel('left',  'Morgen · ' + (w.location || ''), renderWeatherDay(w.tomorrow, true));
+        setPanel('right', 'Nächste Tage', renderWeatherForecast(w));
+      } else {
+        setPanel('left',  'Wetter · ' + (w?.location || ''), renderWeather(w));
+        setPanel('right', 'Vorhersage', renderWeatherForecast(w));
+      }
+    }
+  }
+
+  // ── DISPLAY STATE POLLING ─────────────────────────────────
+  let _lightsAutoReturnTimer = null;
+
+  async function pollDisplayState() {
+    try {
+      const state = await fetch('/display/state', { cache: 'no-store' }).then(r => r.json());
+      applyModuleVisibility(state.modules);
+      applyConfigVersion(state.config_version);
+      if (state.mode === 'lights') {
+        // Sprachbefehl hat Licht gesteuert → Lichtansicht zeigen
+        if (_navMode !== 'lights') {
+          navTo('lights');  // startet _startLightsPolling() intern
+        } else {
+          refreshLightsView();
+        }
+        // Auto-Return: nur setzen wenn noch kein Timer läuft
+        // (läuft bereits → bestehenden Timer weiterlaufen lassen)
+        if (!_lightsAutoReturnTimer) {
+          _lightsAutoReturnTimer = setTimeout(() => {
+            _lightsAutoReturnTimer = null;
+            if (_navMode === 'lights') navTo('home');
+          }, 10000);
+        }
+      } else if (_navMode !== 'lights' && _navMode !== 'cameras' && _navMode !== 'robots' && state.mode !== currentMode) {
+        applyMode(state.mode, state);
+      }
+    } catch {}
+  }
+
+  // ── REPLY TEXT (live Untertitel aus LLM) ──────────────────
+  let _lastReplyText = null;   // zuletzt GEZEIGTER Text (bleibt gesetzt bis API null liefert)
+  let _replyHideTimer = null;
+
+  function showReplyText(text, done) {
+    const el = document.getElementById('speech-text');
+    clearTimeout(_replyHideTimer);
+
+    el.innerHTML = '';
+    el.classList.add('visible');
+    el.appendChild(document.createTextNode(text));
+
+    if (!done) {
+      const cursor = document.createElement('span');
+      cursor.className = 'speech-cursor';
+      el.appendChild(cursor);
+    } else {
+      // Anzeigedauer: min 12s, ~70ms pro Zeichen
+      const duration = Math.max(12000, text.length * 70);
+      _replyHideTimer = setTimeout(() => {
+        el.classList.remove('visible');
+        // _lastReplyText NICHT null setzen — verhindert erneutes Anzeigen
+        // solange API denselben Text zurückgibt (TTL noch nicht abgelaufen)
+        setTimeout(() => { el.innerHTML = ''; }, 400);
+      }, duration);
+    }
+  }
+
+  async function pollReplyText() {
+    try {
+      const d = await fetch('/reply/latest').then(r => r.json());
+      const text = d?.text || null;
+      const done = d?.done !== false;
+      if (text && text !== _lastReplyText) {
+        // Neuer Text → anzeigen und als "gezeigt" merken
+        _lastReplyText = text;
+        showReplyText(text, done);
+      } else if (!text && _lastReplyText) {
+        // Backend-TTL abgelaufen → Reset, bereit für nächste Antwort
+        _lastReplyText = null;
+        clearTimeout(_replyHideTimer);
+        const el = document.getElementById('speech-text');
+        el.classList.remove('visible');
+        el.innerHTML = '';
+      }
+    } catch {}
+  }
+
+  // ── TTS AUDIO — Streaming Queue (iOS + Desktop) ──────────
+  // Primär: Web Audio API (AudioContext) — einmal beim User-Klick aktiviert,
+  // bleibt dauerhaft aktiv → kein Autoplay-Problem auf Edge/Chrome.
+  // iOS-Fallback: HTML-Audio-Element + silent-WAV-Unlock.
+  const _ttsAudio = document.getElementById('tts-audio');
+  let _audioCtx = null;
+  let _audioUnlocked = false;
+  let _ttsQueue = [];
+  let _ttsPlaying = false;
+  let _ttsBuf = '';
+  let _currentSource = null;  // Laufende AudioBufferSourceNode
+
+  function unlockAudio() {
+    if (_audioUnlocked) return;
+    // Web Audio API: Context einmal resumieren → bleibt aktiv
+    if (!_audioCtx) {
+      _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    _audioCtx.resume().then(() => { _audioUnlocked = true; }).catch(() => {});
+
+    // iOS: HTML-Audio-Element zusätzlich mit silent WAV entsperren
+    if (_ttsAudio) {
+      const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+      _ttsAudio.src = SILENT;
+      _ttsAudio.play().then(() => { _ttsAudio.pause(); }).catch(() => {});
+    }
+  }
+
+  let _prefetchCache = {};  // text → ArrayBuffer (Voraus-Synthese)
+
+  function resetTts() {
+    _ttsQueue = [];
+    _ttsPlaying = false;
+    _ttsBuf = '';
+    _prefetchCache = {};
+    if (_currentSource) {
+      try { _currentSource.onended = null; _currentSource.stop(); } catch {}
+      _currentSource = null;
+    }
+  }
+
+  async function _synthesize(text) {
+    const r = await fetch('/tts/synthesize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!r.ok) throw new Error('TTS failed');
+    return r.arrayBuffer();  // ArrayBuffer statt Blob-URL — für Web Audio API
+  }
+
+  async function _playNext() {
+    if (_ttsPlaying || _ttsQueue.length === 0) return;
+    _ttsPlaying = true;
+    const text = _ttsQueue.shift();
+
+    // Nächsten Chunk parallel vorab synthetisieren
+    if (_ttsQueue.length > 0) {
+      const next = _ttsQueue[0];
+      if (!_prefetchCache[next]) {
+        _synthesize(next).then(buf => { _prefetchCache[next] = buf; }).catch(() => {});
+      }
+    }
+
+    const done = () => { _ttsPlaying = false; _playNext(); };
+
+    try {
+      const buf = _prefetchCache[text] || await _synthesize(text);
+      delete _prefetchCache[text];
+
+      // Blob-URL aus ArrayBuffer — für beide Wiedergabe-Wege nutzbar
+      const blob = new Blob([buf], { type: 'audio/wav' });
+      const url  = URL.createObjectURL(blob);
+
+      // ── Weg 1: _ttsAudio (durch silent-WAV bereits aktiviert) ──
+      // Dieses Element wurde in unlockAudio() einmal mit play() aktiviert,
+      // sodass Edge/Chrome kein User-Gesture mehr für spätere plays verlangt.
+      if (_ttsAudio && _audioUnlocked) {
+        _ttsAudio.onended = null;
+        _ttsAudio.onerror = null;
+        _ttsAudio.src = url;
+        _ttsAudio.onended = () => { URL.revokeObjectURL(url); done(); };
+        _ttsAudio.onerror = (e) => {
+          console.warn('[TTS] _ttsAudio error:', e);
+          URL.revokeObjectURL(url);
+          done();
+        };
+        try {
+          await _ttsAudio.play();
+          return;
+        } catch (e) {
+          console.warn('[TTS] _ttsAudio.play() blocked:', e.name, '— versuche AudioContext');
+          URL.revokeObjectURL(url);
+          _ttsAudio.onended = _ttsAudio.onerror = null;
+        }
+      }
+
+      // ── Weg 2: Web Audio API (AudioContext) ──
+      const ctx = _audioCtx;
+      if (ctx) {
+        try {
+          if (ctx.state !== 'running') await ctx.resume();
+          // Blob nochmal holen (URL war revoked) — neu synthetisieren
+          const buf2 = await _synthesize(text);
+          const audioBuf = await ctx.decodeAudioData(buf2);
+          const source = ctx.createBufferSource();
+          _currentSource = source;
+          source.buffer = audioBuf;
+          source.connect(ctx.destination);
+          source.onended = () => { if (_currentSource === source) _currentSource = null; done(); };
+          source.start();
+          return;
+        } catch (e) {
+          console.warn('[TTS] AudioContext failed:', e);
+        }
+      }
+
+      console.error('[TTS] Kein Wiedergabe-Weg verfügbar. unlockAudio() aufgerufen?', _audioUnlocked);
+      done();
+    } catch (e) {
+      console.warn('[TTS] _playNext Fehler:', e);
+      _ttsPlaying = false;
+      _playNext();
+    }
+  }
+
+  function enqueueTts(text) {
+    const t = (text || '').trim().replace(/\s+/g, ' ');
+    if (t.length < 2) return;
+    _ttsQueue.push(t);
+    _playNext();
+    // Nächsten Chunk sofort vorab synthetisieren
+    if (_ttsQueue.length > 0) {
+      const next = _ttsQueue[_ttsQueue.length - 1];
+      if (!_prefetchCache[next]) {
+        _synthesize(next).then(url => { _prefetchCache[next] = url; }).catch(() => {});
+      }
+    }
+  }
+
+  // Aggressives Chunking: erst nach 20 Zeichen, dann nach Pausen, dann nach Satzenden
+  function feedTts(chunk, flush = false) {
+    _ttsBuf += chunk;
+
+    // Erster Chunk: schon nach ~20 Zeichen (für sofortigen Start)
+    // Folge-Chunks: nach Komma/Pause ab 30 Zeichen, nach Wortgrenze ab 65 Zeichen
+    const isFirst = _ttsQueue.length === 0 && !_ttsPlaying;
+    const minLen  = isFirst ? 10 : 28;
+
+    const patterns = [
+      /^(.+?[.!?])\s/,                    // Satzende — immer sofort
+      new RegExp(`^(.{${minLen},}?[,;:])\\ `), // Pause bei min. Zeichen
+    ];
+
+    let changed = true;
+    while (changed && _ttsBuf.length >= minLen) {
+      changed = false;
+      for (const p of patterns) {
+        const m = p.exec(_ttsBuf);
+        if (m) {
+          enqueueTts(m[1]);
+          _ttsBuf = _ttsBuf.slice(m[0].length);
+          changed = true;
+          break;
+        }
+      }
+      // Kein Muster → Wortgrenze-Schnitt wenn Buffer zu lang
+      if (!changed && _ttsBuf.length >= 70) {
+        const cut = _ttsBuf.lastIndexOf(' ', 70);
+        if (cut > minLen) {
+          enqueueTts(_ttsBuf.slice(0, cut));
+          _ttsBuf = _ttsBuf.slice(cut + 1);
+          changed = true;
+        }
+      }
+    }
+
+    if (flush && _ttsBuf.trim().length > 1) {
+      enqueueTts(_ttsBuf.trim());
+      _ttsBuf = '';
+    }
+  }
+
+  function playTts(text) { enqueueTts(text); }
+
+  // ── DISPLAY INPUT (Sprache + Text) ───────────────────────
+  const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let _recognition = null;
+  let _chatBusy = false;
+
+  function resetMicState() {
+    const micBtn  = document.getElementById('nav-mic');
+    const micIcon = document.getElementById('mic-icon');
+    const micLbl  = document.getElementById('mic-label');
+    if (micBtn)  micBtn.classList.remove('listening');
+    if (micIcon) micIcon.textContent = '🎤';
+    if (micLbl)  micLbl.textContent  = 'Sprechen';
+  }
+
+  // Sprache nur über HTTPS möglich — bei HTTP direkt Texteingabe
+  // localhost gilt auch als sicher (für lokale Entwicklung)
+  const _secureContext = location.protocol === 'https:' || location.hostname === 'localhost';
+  const _canUseMic = _SR && _secureContext;
+
+  let _listening = false;
+  let _interimText = '';
+
+  function startInput() {
+    unlockAudio();  // iOS: Audio während User-Geste entsperren
+    if (_chatBusy) return;
+    if (_listening) {
+      stopSpeech();
+      return;
+    }
+    if (_canUseMic) {
+      startSpeech();
+    } else {
+      openTextOverlay();
+    }
+  }
+
+  function stopSpeech() {
+    // stop() statt abort() → Browser verarbeitet noch vorhandenen Audio-Puffer
+    // und feuert onresult mit isFinal=true, dann onend
+    if (_recognition) { try { _recognition.stop(); } catch {} }
+  }
+
+  function startSpeech() {
+    if (_recognition) { try { _recognition.abort(); } catch {} _recognition = null; }
+
+    const rec = new _SR();
+    rec.lang = 'de-DE';
+    rec.continuous = true;    // true → Browser stoppt nicht selbst, wir steuern manuell
+    rec.interimResults = true;
+    _recognition = rec;
+    _listening = true;
+    _interimText = '';
+
+    const micBtn  = document.getElementById('nav-mic');
+    const micIcon = document.getElementById('mic-icon');
+    const micLbl  = document.getElementById('mic-label');
+    micBtn.classList.add('listening');
+    micIcon.textContent = '⏹';
+    micLbl.textContent  = 'Tippen = Stop';
+
+    // Waveform-Animation im Statusbar-Bereich
+    const wave = document.createElement('div');
+    wave.id = 'wave-indicator';
+    wave.style.cssText = 'position:fixed;bottom:64px;left:50%;transform:translateX(-50%);' +
+      'display:flex;gap:5px;align-items:center;z-index:300;' +
+      'background:rgba(255,61,61,0.15);border:1px solid rgba(255,61,61,0.4);' +
+      'border-radius:20px;padding:8px 20px;';
+    wave.innerHTML = [20,32,16,40,24].map(h =>
+      `<div style="width:4px;height:${h}px;background:var(--danger);border-radius:2px;` +
+      `animation:wave-bar 0.6s ease-in-out infinite alternate;` +
+      `animation-delay:${Math.random()*0.4}s"></div>`
+    ).join('') + '<span style="font-size:0.8rem;color:var(--danger);margin-left:10px;font-weight:700;">Höre zu …</span>';
+    document.body.appendChild(wave);
+
+    let gotResult = false;
+    let _silenceTimer = null;
+    const SILENCE_MS = 2500;  // 2,5s Stille → automatisch stoppen
+
+    const resetSilenceTimer = () => {
+      clearTimeout(_silenceTimer);
+      _silenceTimer = setTimeout(() => { if (_listening) stopSpeech(); }, SILENCE_MS);
+    };
+
+    // Stille-Timer sofort starten (falls Nutzer nichts sagt)
+    resetSilenceTimer();
+
+    rec.onresult = (e) => {
+      // Alle Ergebnisse sammeln (interim + final)
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          gotResult = true;
+          _interimText += t;
+        } else {
+          interim += t;
+        }
+      }
+      const display = (_interimText + interim).trim();
+      if (display) showReplyText('🎤 ' + display, false);
+      // Bei jedem Sprach-Segment Timer zurücksetzen
+      resetSilenceTimer();
+    };
+
+    rec.onspeechend = () => {
+      // Browser erkennt Ende des Sprachsignals → sofort stoppen
+      clearTimeout(_silenceTimer);
+      if (_listening) stopSpeech();
+    };
+
+    rec.onerror = (e) => {
+      finishListening();
+      if (e.error === 'not-allowed') {
+        openTextOverlay('Kein Mikrofon-Zugriff.');
+      } else if (e.error !== 'aborted') {
+        // Bei anderen Fehlern: wenn wir schon Text haben → senden, sonst Texteingabe
+        if (_interimText.trim()) {
+          sendToDisplay(_interimText.trim());
+        } else {
+          openTextOverlay('Fehler: ' + e.error);
+        }
+      }
+    };
+
+    rec.onend = () => {
+      const text = _interimText.trim();
+      finishListening();
+      if (text) {
+        sendToDisplay(text);  // Zwischentext reicht als finale Eingabe
+      } else {
+        openTextOverlay('Nichts erkannt — bitte Text eingeben.');
+      }
+    };
+
+    try {
+      rec.start();
+    } catch (e) {
+      finishListening();
+      openTextOverlay('Mikrofon nicht verfügbar.');
+    }
+  }
+
+  function finishListening() {
+    _listening = false;
+    _recognition = null;
+    resetMicState();
+    const wave = document.getElementById('wave-indicator');
+    if (wave) wave.remove();
+  }
+
+  function openTextOverlay(hint) {
+    const overlay = document.getElementById('input-overlay');
+    const hintEl  = document.getElementById('input-hint');
+    const input   = document.getElementById('input-text');
+    if (hintEl) hintEl.textContent = hint || 'Sprich oder tippe deine Nachricht';
+    if (input)  input.value = '';
+    overlay.classList.add('visible');
+    setTimeout(() => input?.focus(), 150);
+  }
+
+  function closeInput() {
+    document.getElementById('input-overlay').classList.remove('visible');
+    if (_recognition) { try { _recognition.abort(); } catch {} _recognition = null; }
+    resetMicState();
+  }
+
+  function submitInput() {
+    unlockAudio();
+    const text = (document.getElementById('input-text')?.value || '').trim();
+    closeInput();
+    if (text) sendToDisplay(text);
+  }
+
+  // Enter → Senden, Shift+Enter → Zeilenumbruch
+  setTimeout(() => {
+    document.getElementById('input-text')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitInput(); }
+    });
+    // Icon anpassen wenn kein Mikrofon verfügbar
+    if (!_canUseMic) {
+      const icon = document.getElementById('mic-icon');
+      const lbl  = document.getElementById('mic-label');
+      if (icon) icon.textContent = '⌨️';
+      if (lbl)  lbl.textContent  = 'Eingabe';
+    }
+  }, 500);
+
+  async function sendToDisplay(text) {
+    if (_chatBusy || !text) return;
+    _chatBusy = true;
+    resetTts();
+
+    const personName = (document.getElementById('sb-person')?.textContent?.trim()) || 'Dennis';
+    showReplyText('🎤 ' + text, false);
+
+    try {
+      const resp = await fetch('/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, person_name: personName }),
+      });
+
+      if (!resp.ok) throw new Error('Chat error');
+      const reader  = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let fullReply = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const d = JSON.parse(line.slice(6));
+            if (d.text) {
+              fullReply += d.text;
+              showReplyText(fullReply, false);
+              feedTts(d.text);          // Sofort in TTS-Queue
+            }
+            if (d.reply) {
+              fullReply = d.reply;
+              showReplyText(fullReply, true);
+              feedTts('', true);        // Rest aus Buffer abspielen
+            }
+          } catch {}
+        }
+      }
+    } catch (e) {
+      showReplyText('Fehler: ' + e.message, true);
+    } finally {
+      _chatBusy = false;
+    }
+  }
+
+  // ── NAVIGATION ────────────────────────────────────────────
+  let _navMode = 'home';
+  let _enabledModules = { lights: true, vehicles: true };
+  let _selectedGroup = null;
+  let _lightsLiveInterval = null;
+  let _vehiclesData = [];
+  let _selectedVehicle = null;
+  let _vehiclesInterval = null;
+  let _vehicleMap = null;
+  let _vehicleRoute = null;
+  let _vehicleCurrentMarker = null;
+  let _vehicleMapExpanded = false;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const vehicleIcon = document.querySelector('#nav-vehicles .nav-icon');
+    if (vehicleIcon) vehicleIcon.innerHTML = '&#128663;';
+    applyModuleVisibility(_enabledModules);
+  });
+
+  function applyModuleVisibility(modules) {
+    _enabledModules = {
+      lights: modules?.lights !== false,
+      vehicles: modules?.vehicles !== false,
+      robots: modules?.robots !== false,
+    };
+    const lightsBtn = document.getElementById('nav-lights');
+    const vehiclesBtn = document.getElementById('nav-vehicles');
+    const robotsBtn = document.getElementById('nav-robots');
+    if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
+    if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
+    if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
+    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots)) {
+      navTo('home');
+    }
+  }
+
+  function _startLightsPolling() {
+    if (_lightsLiveInterval) return;
+    _lightsLiveInterval = setInterval(() => refreshLightsView(), 3000);
+  }
+
+  function _stopLightsPolling() {
+    clearInterval(_lightsLiveInterval);
+    _lightsLiveInterval = null;
+  }
+
+  function navTo(mode) {
+    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots)) {
+      mode = 'home';
+    }
+    _navMode = mode;
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const btn = document.getElementById('nav-' + mode);
+    if (btn) btn.classList.add('active');
+
+    if (mode === 'home') {
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearRobotsView();
+      clearVehiclesView();
+      currentMode = null;
+      applyMode('idle');
+    } else if (mode === 'lights') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearCamerasView();
+      clearRobotsView();
+      clearVehiclesView();
+      showLightsView();
+      _startLightsPolling();
+    } else if (mode === 'cameras') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearRobotsView();
+      clearVehiclesView();
+      showCamerasView();
+      _startCamerasPolling();
+    } else if (mode === 'robots') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearVehiclesView();
+      showRobotsView();
+    } else if (mode === 'vehicles') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearRobotsView();
+      showVehiclesView();
+    }
+  }
+
+  // Fahrzeuge
+  async function loadVehiclesData() {
+    try {
+      const r = await fetch('/vehicles', { cache: 'no-store' });
+      if (!r.ok) return [];
+      const d = await r.json();
+      _vehiclesData = d.vehicles || [];
+      return _vehiclesData;
+    } catch {
+      return [];
+    }
+  }
+
+  function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[ch]));
+  }
+
+  function escapeAttr(value) {
+    return escapeHTML(value).replace(/`/g, '&#96;');
+  }
+
+  async function loadVehicleHistory(vehicleId) {
+    try {
+      const r = await fetch(`/vehicles/${encodeURIComponent(vehicleId)}/location-history?days=14`, { cache: 'no-store' });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return d.points || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function showVehiclesView() {
+    const vehicles = await loadVehiclesData();
+    await _renderVehiclesView(vehicles);
+    _vehiclesInterval = setInterval(async () => {
+      if (_navMode !== 'vehicles') return;
+      const data = await loadVehiclesData();
+      await _renderVehiclesView(data);
+    }, 30000);
+  }
+
+  async function _renderVehiclesView(vehicles) {
+    document.getElementById('left-label').textContent = 'Fahrzeuge';
+    const lc = document.getElementById('left-content');
+    lc.style.overflowY = 'auto';
+    lc.innerHTML = renderVehicleList(vehicles || []);
+
+    const vehicle = (vehicles || []).find(v => v.id === _selectedVehicle) || (vehicles || [])[0] || null;
+    if (vehicle && !_selectedVehicle) _selectedVehicle = vehicle.id;
+
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    if (!vehicle) {
+      overlay.innerHTML = '<div class="vehicle-empty">Keine Fahrzeuge konfiguriert.</div>';
+      overlay.classList.add('active');
+      setPanel('right', 'Fahrzeuge', '<div class="cal-placeholder">Keine Fahrzeugdaten vorhanden.</div>');
+      return;
+    }
+
+    const history = await loadVehicleHistory(vehicle.id);
+    if (_vehicleMapExpanded) {
+      overlay.innerHTML = renderVehicleMapExpanded(vehicle, history);
+      overlay.classList.add('active', 'vehicle-map-expanded');
+      setTimeout(() => initVehicleMap(vehicle, history, 'vehicle-map-expanded'), 80);
+      return;
+    }
+
+    overlay.innerHTML = renderVehicleDetail(vehicle, history);
+    overlay.classList.add('active');
+    overlay.classList.remove('vehicle-map-expanded');
+    setPanel('right', 'Karte', renderVehicleHistoryPanel(vehicle, history));
+    setTimeout(() => initVehicleMap(vehicle, history, 'vehicle-map'), 380);
+  }
+
+  function renderVehicleList(vehicles) {
+    if (!vehicles.length) return '<div class="cal-placeholder">Keine Fahrzeuge gefunden</div>';
+    return vehicles.map(v => {
+      const selected = v.id === _selectedVehicle ? ' selected' : '';
+      const activity = vehicleStateLabel(v.activity?.state || v.location?.state || 'unbekannt');
+      const battery = v.battery ? `${v.battery.state}${v.battery.unit || '%'}` : (v.fuel_level ? `${v.fuel_level.state}${v.fuel_level.unit || '%'}` : '');
+      return `
+        <div class="vehicle-list-item${selected}" onclick="selectVehicle('${escapeAttr(v.id)}')">
+          <span class="vehicle-dot"></span>
+          <div style="flex:1;min-width:0;">
+            <div class="vehicle-list-name">${escapeHTML(v.label || v.id)}</div>
+            <div class="vehicle-list-sub">${escapeHTML(activity)}</div>
+          </div>
+          <span class="vehicle-list-meta">${escapeHTML(battery)}</span>
+        </div>`;
+    }).join('');
+  }
+
+  function renderVehicleDetail(vehicle, history) {
+    const energyEntity = vehicle.battery || vehicle.fuel_level || null;
+    const batteryPct = parseFloat(energyEntity?.state ?? '0');
+    const hasBattery = Number.isFinite(batteryPct) && energyEntity;
+    const adbluePct = parseFloat(vehicle.adblue_level?.state ?? 'NaN');
+    const hasAdblue = Number.isFinite(adbluePct) && vehicle.adblue_level;
+    const location = vehicle.location;
+    const statusLabel = vehicleStateLabel(vehicle.activity?.state || location?.state || 'aktiv');
+    const coreRows = [];
+    const evRows = [];
+    if (vehicle.odometer) coreRows.push(['Kilometerstand', `${vehicle.odometer.state} ${vehicle.odometer.unit || ''}`]);
+    coreRows.push(['Status', statusLabel]);
+    coreRows.push(['Verlauf', `${history.length} Punkte / 14 Tage`]);
+    if (vehicle.range) evRows.push(['Reichweite', `${vehicle.range.state} ${vehicle.range.unit || ''}`]);
+    if (vehicle.fuel_level) evRows.push(['Tank', `${vehicle.fuel_level.state} ${vehicle.fuel_level.unit || '%'}`]);
+    if (vehicle.adblue_level) evRows.push(['AdBlue', `${vehicle.adblue_level.state} ${vehicle.adblue_level.unit || '%'}`]);
+    if (vehicle.charging) evRows.push(['Ladestatus', vehicleChargeStateLabel(vehicle.charging.state)]);
+    if (vehicle.remaining_charge_time) evRows.push(['Restladezeit', formatMinutesAsHHMM(vehicle.remaining_charge_time.state)]);
+    const actions = [];
+    if (vehicle.climate_button_entity) {
+      actions.push(`<button class="vehicle-action-btn" onclick="pressVehicleButton('${escapeAttr(vehicle.climate_button_entity)}', this, 'Klima gestartet')">&#127777; Klima starten</button>`);
+    }
+    return `
+      <div class="vehicle-detail-wrap">
+        <div class="vehicle-detail-header">
+          <div>
+            <div class="vehicle-detail-kicker">Fahrzeug</div>
+            <div class="vehicle-detail-title">${escapeHTML(vehicle.label || vehicle.id)}</div>
+          </div>
+          <div class="vehicle-state-pill">${escapeHTML(statusLabel)}</div>
+        </div>
+        ${hasBattery ? `
+          <div class="vehicle-battery">
+            <span>${vehicle.ev_profile_enabled ? '&#128267;' : '&#9981;'} ${Math.round(batteryPct)}%</span>
+            <div class="vehicle-battery-bg"><div class="vehicle-battery-fill" style="width:${Math.max(0, Math.min(100, batteryPct))}%"></div></div>
+          </div>` : ''}
+        ${hasAdblue ? `
+          <div class="vehicle-battery vehicle-adblue">
+            <span>&#128167; AdBlue ${Math.round(adbluePct)}%</span>
+            <div class="vehicle-battery-bg"><div class="vehicle-battery-fill adblue-fill" style="width:${Math.max(0, Math.min(100, adbluePct))}%"></div></div>
+          </div>` : ''}
+        <div class="vehicle-section-grid">
+          ${renderVehicleSection('Fahrdaten', coreRows)}
+          ${renderVehicleSection(vehicle.ev_profile_enabled ? 'E-Antrieb' : 'Antrieb', evRows)}
+        </div>
+        ${actions.length ? `<div class="vehicle-actions">${actions.join('')}</div>` : ''}
+      </div>`;
+  }
+
+  function renderVehicleSection(title, rows) {
+    if (!rows.length) return '';
+    return `
+      <section class="vehicle-section">
+        <h3>${escapeHTML(title)}</h3>
+        ${rows.map(([label, value]) => `
+          <div class="vehicle-fact">
+            <span>${escapeHTML(label)}</span>
+            <strong>${escapeHTML(value)}</strong>
+          </div>`).join('')}
+      </section>`;
+  }
+
+  function vehicleStateLabel(value) {
+    const raw = String(value ?? '').trim();
+    const key = raw.toLowerCase();
+    const labels = {
+      'not_in_charge': 'Nicht am Laden',
+      'not charging': 'Nicht am Laden',
+      'off': 'Aus',
+      'on': 'An',
+      'charging': 'Lädt gerade',
+      'in_charge': 'Lädt gerade',
+      'plugged_in': 'Angeschlossen',
+      'home': 'Zuhause',
+      'not_home': 'Unterwegs',
+      'away': 'Unterwegs',
+      'unknown': 'Unbekannt',
+      'unavailable': 'Nicht verfügbar',
+      'active': 'Aktiv',
+      'aktiv': 'Aktiv',
+    };
+    return labels[key] || raw.replaceAll('_', ' ');
+  }
+
+  function vehicleChargeStateLabel(value) {
+    const key = String(value ?? '').trim().toLowerCase();
+    if (['off', 'false', '0', 'not_in_charge', 'not charging'].includes(key)) return 'Nicht am Laden';
+    if (['on', 'true', '1', 'charging', 'in_charge'].includes(key)) return 'Lädt gerade';
+    return vehicleStateLabel(value);
+  }
+
+  function renderVehicleHistoryPanel(vehicle, history) {
+    const mapCard = `
+      <div class="vehicle-map-card vehicle-map-clickable" onclick="expandVehicleMap()">
+        <div id="vehicle-map" class="vehicle-map vehicle-map-widget"></div>
+        <div class="vehicle-map-hint">Antippen zum Vergr&ouml;&szlig;ern</div>
+      </div>`;
+    if (!history.length) {
+      return mapCard + '<div class="cal-placeholder">Noch kein Standortverlauf gespeichert.</div>';
+    }
+    const latest = history[history.length - 1];
+    const first = history[0];
+    return `
+      <div class="vehicle-history-panel">
+        ${mapCard}
+        <div class="vehicle-history-card">
+          <div class="vehicle-history-label">Aktuelle Position</div>
+          <div class="vehicle-history-main">${Number(latest.latitude).toFixed(5)}, ${Number(latest.longitude).toFixed(5)}</div>
+          <div class="vehicle-history-sub">${formatDateTime(latest.recorded_at)}</div>
+        </div>
+        <div class="vehicle-history-card">
+          <div class="vehicle-history-label">Gespeicherter Verlauf</div>
+          <div class="vehicle-history-main">${history.length} Punkte</div>
+          <div class="vehicle-history-sub">seit ${formatDateTime(first.recorded_at)}</div>
+        </div>
+      </div>`;
+  }
+
+  function renderVehicleMapExpanded(vehicle, history) {
+    return `
+      <div class="vehicle-map-expanded-wrap">
+        <div class="vehicle-map-expanded-header">
+          <div>
+            <div class="vehicle-detail-kicker">Karte</div>
+            <div class="vehicle-map-expanded-title">${escapeHTML(vehicle.label || vehicle.id)}</div>
+          </div>
+          <button class="vehicle-map-close" onclick="closeVehicleMapExpanded()">Schliessen</button>
+        </div>
+        <div id="vehicle-map-expanded" class="vehicle-map vehicle-map-expanded-canvas"></div>
+      </div>`;
+  }
+
+  function initVehicleMap(vehicle, history, targetId = 'vehicle-map') {
+    const el = document.getElementById(targetId);
+    if (!el || typeof L === 'undefined') return;
+    if (_vehicleMap) {
+      _vehicleMap.remove();
+      _vehicleMap = null;
+    }
+    _vehicleRoute = null;
+    _vehicleCurrentMarker = null;
+    const points = (history || []).map(p => [Number(p.latitude), Number(p.longitude)]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    if (!points.length && vehicle.location) points.push([vehicle.location.latitude, vehicle.location.longitude]);
+    if (!points.length) {
+      el.innerHTML = '<div class="vehicle-map-empty">Keine Position verfuegbar</div>';
+      return;
+    }
+    const center = points[points.length - 1];
+    _vehicleMap = L.map(el, { zoomControl: false, attributionControl: false }).setView(center, 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(_vehicleMap);
+    if (points.length > 1) {
+      _vehicleRoute = L.polyline(points, { color: '#00d6ff', weight: 4, opacity: 0.8 }).addTo(_vehicleMap);
+      _vehicleMap.fitBounds(_vehicleRoute.getBounds(), { padding: [20, 20] });
+      points.slice(0, -1).forEach((point, index) => {
+        L.marker(point, {
+          interactive: false,
+          icon: L.divIcon({
+            className: 'vehicle-history-marker',
+            html: `<span>${index + 1}</span>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          }),
+        }).addTo(_vehicleMap);
+      });
+    }
+    _vehicleCurrentMarker = L.marker(center, {
+      icon: L.divIcon({ className: 'vehicle-current-marker', html: '<span></span>', iconSize: [24, 24], iconAnchor: [12, 12] })
+    }).addTo(_vehicleMap);
+    [80, 250, 700].forEach(delay => setTimeout(() => {
+      if (!_vehicleMap) return;
+      _vehicleMap.invalidateSize();
+      if (_vehicleRoute) {
+        _vehicleMap.fitBounds(_vehicleRoute.getBounds(), { padding: [20, 20] });
+      } else {
+        _vehicleMap.setView(center, 14);
+      }
+    }, delay));
+  }
+
+  function selectVehicle(vehicleId) {
+    _selectedVehicle = vehicleId;
+    _vehicleMapExpanded = false;
+    _renderVehiclesView(_vehiclesData || []);
+  }
+
+  function expandVehicleMap() {
+    _vehicleMapExpanded = true;
+    _renderVehiclesView(_vehiclesData || []);
+  }
+
+  function closeVehicleMapExpanded() {
+    _vehicleMapExpanded = false;
+    _renderVehiclesView(_vehiclesData || []);
+  }
+
+  function clearVehiclesView() {
+    clearInterval(_vehiclesInterval);
+    _vehiclesInterval = null;
+    _selectedVehicle = null;
+    if (_vehicleMap) {
+      _vehicleMap.remove();
+      _vehicleMap = null;
+    }
+    _vehicleRoute = null;
+    _vehicleCurrentMarker = null;
+    _vehicleMapExpanded = false;
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active', 'vehicle-map-expanded'); overlay.innerHTML = ''; }
+    document.getElementById('left-content').style.overflowY = '';
+  }
+
+  function formatMinutesAsHHMM(value) {
+    const minutes = parseInt(value, 10);
+    if (!Number.isFinite(minutes)) return String(value || '');
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '';
+    try {
+      return new Date(value).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+    } catch {
+      return value;
+    }
+  }
+
+  // ── CAMERA VIEW ───────────────────────────────────────────
+  let _camerasData    = null;
+  let _selectedCamera = null;
+  let _camerasInterval = null;
+
+  function _startCamerasPolling() {
+    if (_camerasInterval) return;
+    _camerasInterval = setInterval(() => _refreshCameraEvents(), 15000); // Nur Events, kein Video-Neustart
+  }
+  function _stopCamerasPolling() {
+    clearInterval(_camerasInterval);
+    _camerasInterval = null;
+  }
+
+  async function loadCamerasData() {
+    try {
+      const r = await fetch('/ha/cameras');
+      if (!r.ok) return null;
+      const d = await r.json();
+      _camerasData = d.cameras || [];
+      return _camerasData;
+    } catch { return null; }
+  }
+
+  async function loadCameraEvents() {
+    try {
+      const r = await fetch('/ha/cameras/events');
+      if (!r.ok) return [];
+      return (await r.json()).events || [];
+    } catch { return []; }
+  }
+
+  function _camEventIcon(type) {
+    if (type === 'ding')   return '🔔';
+    if (type === 'motion') return '🚶';
+    return '📷';
+  }
+
+  function _camEventLabel(e) {
+    if (e.type === 'ding')   return 'Klingel';
+    if (e.type === 'motion') return e.state === 'on' ? 'Bewegung erkannt' : 'Bewegung beendet';
+    if (e.state === 'unavailable') return 'Kamera offline';
+    return e.state || 'Ereignis';
+  }
+
+  function _relTime(iso) {
+    if (!iso) return '';
+    const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (diff < 60)  return 'gerade eben';
+    if (diff < 3600) return `vor ${Math.floor(diff/60)} Min`;
+    if (diff < 86400) return `vor ${Math.floor(diff/3600)} Std`;
+    return `vor ${Math.floor(diff/86400)} Tagen`;
+  }
+
+  // Snapshot-Kameras ausblenden — nur Live-Ansichten zeigen
+  function _liveCameras(cameras) {
+    return (cameras || []).filter(c => !c.entity_id.endsWith('_snapshot'));
+  }
+
+  function renderCameraList(cameras) {
+    const live = _liveCameras(cameras);
+    if (!live.length) return '<div class="cal-placeholder">Keine Kameras</div>';
+    const allSel = _selectedCamera === null ? ' selected' : '';
+    let html = `<div class="cam-list-item${allSel}" onclick="selectCamera(null)">
+      <span style="font-size:1rem;">📷</span>
+      <div style="flex:1;font-weight:700;font-size:0.85rem;">Alle Kameras</div>
+    </div>`;
+    html += live.map(c => {
+      const sel  = c.entity_id === _selectedCamera ? ' selected' : '';
+      const avail = c.state !== 'unavailable';
+      return `<div class="cam-list-item${sel}" onclick="selectCamera('${c.entity_id}')">
+        <div class="cam-dot${avail ? '' : ' off'}"></div>
+        <div style="flex:1;font-size:0.82rem;font-weight:600;white-space:nowrap;
+                    overflow:hidden;text-overflow:ellipsis;">${c.name}</div>
+      </div>`;
+    }).join('');
+    return html;
+  }
+
+  // HLS-Stream via Backend (ffmpeg RTSP→HLS)
+  function _streamUrl(entityId) { return `/ha/cameras/${entityId}/stream`; }
+  function _snapUrl(entityId) { return `/ha/cameras/${entityId}/snapshot?_t=${Date.now()}`; }
+
+  function _attachHls(video, entityId) {
+    if (!video) return;
+    const url = _streamUrl(entityId);
+    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+      const hls = new Hls({
+        lowLatencyMode: true,
+        liveSyncDurationCount: 2,
+        liveMaxLatencyDurationCount: 6,
+        // Aggressives Retry bei Fehlern
+        fragLoadingMaxRetry: 6,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingMaxRetry: 4,
+        fragLoadingRetryDelay: 1000,
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      video._hls = hls;
+
+      // Error-Recovery: Netzwerk-Fehler → neu laden; Media-Fehler → recovern
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          setTimeout(() => hls.startLoad(), 2000);
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+        } else {
+          // Letzter Ausweg: HLS neu aufbauen nach 4s
+          hls.destroy();
+          setTimeout(() => _attachHls(video, entityId), 4000);
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url;
+    }
+    video.play().catch(() => {});
+  }
+
+  function _destroyAllHls() {
+    document.querySelectorAll('video[data-cam-id]').forEach(v => {
+      if (v._hls) { v._hls.destroy(); v._hls = null; }
+      v.src = '';
+    });
+  }
+
+  function _camVideo(entityId) {
+    return `<video data-cam-id="${entityId}" autoplay muted playsinline></video>`;
+  }
+
+  function renderCameraTiles(cameras) {
+    const live = _liveCameras(cameras);
+    if (!live.length) return '<div class="cal-placeholder">Keine Kameras verfügbar</div>';
+    return `<div class="cam-tile-grid">${live.map(c => `
+      <div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
+        ${_isSnapshotCam(c.entity_id)
+          ? `<img src="${_snapUrl(c.entity_id)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block;">`
+          : _camVideo(c.entity_id)}
+        <div class="cam-tile-label">${c.name}</div>
+      </div>`).join('')}</div>`;
+  }
+
+  function renderCameraDetail(camera) {
+    const isSnap = _isSnapshotCam(camera.entity_id);
+    const expandLabel = _cameraExpanded ? '⤡ Kleiner' : '⤢ Groß';
+    const _btn = (id, click, label) =>
+      `<button ${id ? `id="${id}"` : ''} onclick="${click}"
+               style="background:none;border:1px solid var(--border);color:var(--muted);
+                      border-radius:6px;padding:3px 10px;font-size:0.72rem;cursor:pointer;
+                      white-space:nowrap;transition:color 0.15s,border-color 0.15s;"
+               onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'"
+               onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">${label}</button>`;
+    const mediaHtml = isSnap
+      ? `<div id="cam-media-container" style="flex:1;position:relative;min-height:0;overflow:hidden;">
+           <img data-cam-id="${camera.entity_id}" src="${_snapUrl(camera.entity_id)}"
+                style="width:100%;height:100%;object-fit:contain;background:#000;display:block;">
+           <button onclick="startCameraLive('${camera.entity_id}')"
+                   style="position:absolute;bottom:14px;right:14px;
+                          background:rgba(0,0,0,0.65);border:1px solid var(--accent);
+                          color:var(--accent);border-radius:8px;padding:7px 18px;
+                          font-size:0.78rem;font-weight:700;cursor:pointer;letter-spacing:0.05em;">▶ Live</button>
+         </div>`
+      : `<div id="cam-media-container" style="flex:1;min-height:0;">${_camVideo(camera.entity_id)}</div>`;
+    return `<div class="cam-detail" style="height:100%;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;padding:8px 14px 4px;flex-shrink:0;gap:8px;">
+        <span style="font-size:0.65rem;color:var(--accent);letter-spacing:0.13em;flex:1;">
+          ${camera.name.toUpperCase()}
+          <span id="cam-live-status" style="color:${isSnap ? 'var(--muted)' : 'var(--success)'};margin-left:8px;font-size:0.6rem;">
+            ${isSnap ? '● Snapshot' : '● Live'}
+          </span>
+        </span>
+        ${_btn('btn-expand-cam', 'toggleExpandCamera()', expandLabel)}
+        ${_btn('', `enterCameraFullscreen('${camera.entity_id}')`, '⛶ Vollbild')}
+      </div>
+      ${mediaHtml}
+    </div>`;
+  }
+
+  function _isSnapshotCam(entityId) {
+    return !!entityId;
+  }
+
+  let _snapRefreshTimer = null;
+  function _startSnapRefresh(entityId) {
+    _stopSnapRefresh();
+    _snapRefreshTimer = setInterval(() => {
+      const img = document.querySelector(`img[data-cam-id="${entityId}"]`);
+      if (img) img.src = _snapUrl(entityId);
+    }, 5000);
+  }
+  function _stopSnapRefresh() {
+    clearInterval(_snapRefreshTimer);
+    _snapRefreshTimer = null;
+  }
+  function _maybeStartSnapRefresh() {
+    if (_selectedCamera && _isSnapshotCam(_selectedCamera)) _startSnapRefresh(_selectedCamera);
+    else _stopSnapRefresh();
+  }
+
+  let _currentLiveEntity = null;
+
+  async function startCameraLive(entityId) {
+    _stopSnapRefresh();
+    _currentLiveEntity = entityId;
+    const mediaEl = document.getElementById('cam-media-container');
+    const statusEl = document.getElementById('cam-live-status');
+    if (!mediaEl) return;
+
+    if (statusEl) { statusEl.textContent = '⏳ Verbinde…'; statusEl.style.color = 'var(--muted)'; }
+
+    try {
+      const r = await fetch(`/ha/cameras/${entityId}/live/start`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const { m3u8_url, timeout_seconds } = await r.json();
+
+      mediaEl.innerHTML = `<div id="cam-live-wrap" style="flex:1;min-height:0;width:100%;height:100%;">${_camVideo(entityId)}</div>`;
+      if (statusEl) { statusEl.textContent = '● Live'; statusEl.style.color = 'var(--success)'; }
+
+      const video = document.querySelector(`video[data-cam-id="${entityId}"]`);
+      if (video) _attachHlsDirect(video, m3u8_url);
+
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = '● Kein Stream'; statusEl.style.color = 'var(--danger)'; }
+      mediaEl.innerHTML = `<img src="/ha/cameras/${entityId}/snapshot?_t=${Date.now()}"
+        style="width:100%;height:100%;object-fit:contain;background:#000;display:block;">`;
+    }
+  }
+
+  async function stopCameraLive(entityId) {
+    if (!entityId) return;
+    const video = document.querySelector(`video[data-cam-id="${entityId}"]`);
+    if (video && video._hls) { video._hls.destroy(); video._hls = null; }
+    await fetch(`/ha/cameras/${entityId}/live/stop`, { method: 'POST' }).catch(() => {});
+    _currentLiveEntity = null;
+  }
+
+  // HLS direkt an m3u8_url hängen — kein Auto-Restart bei Fehler
+  function _attachHlsDirect(video, m3u8_url) {
+    if (!video) return;
+    if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+      const hls = new Hls({ lowLatencyMode: true, liveSyncDurationCount: 2 });
+      video._hls = hls;
+      hls.loadSource(m3u8_url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        // Bei fatal Network-Error: KEIN Restart (stream wurde gestoppt)
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = m3u8_url;
+    }
+    video.play().catch(() => {});
+  }
+
+  function _initCameraStreams() {
+    document.querySelectorAll('video[data-cam-id]').forEach(v => _attachHls(v, v.dataset.camId));
+  }
+
+  let _cameraExpanded = false;
+
+  function toggleExpandCamera() {
+    _cameraExpanded = !_cameraExpanded;
+    const overlay = document.getElementById('cal-overlay');
+    overlay.classList.toggle('cam-expanded', _cameraExpanded);
+    const btn = document.getElementById('btn-expand-cam');
+    if (btn) btn.textContent = _cameraExpanded ? '⤡ Kleiner' : '⤢ Groß';
+  }
+
+  function enterCameraFullscreen(entityId) {
+    const video = document.querySelector(`video[data-cam-id="${entityId}"]`);
+    if (!video) return;
+    const fn = video.requestFullscreen || video.webkitRequestFullscreen || video.mozRequestFullScreen;
+    if (fn) fn.call(video);
+  }
+
+  function renderCameraEvents(events) {
+    if (!events?.length) return '<div class="cal-placeholder">Keine Ereignisse</div>';
+    return events.map(e => `
+      <div class="cam-event-item">
+        <div class="cam-event-icon">${_camEventIcon(e.type)}</div>
+        <div>
+          <div class="cam-event-name">${e.name} · ${_camEventLabel(e)}</div>
+          <div class="cam-event-time">${_relTime(e.when)}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  async function showCamerasView() {
+    _selectedCamera = null;
+    const [cameras, events] = await Promise.all([loadCamerasData(), loadCameraEvents()]);
+    _renderCamerasView(cameras, events);
+    _initCameraStreams();
+    _maybeStartSnapRefresh();
+  }
+
+  function _renderCamerasView(cameras, events) {
+    // Links: Kamera-Liste
+    document.getElementById('left-label').textContent = 'Kameras';
+    const leftContent = document.getElementById('left-content');
+    leftContent.style.overflowY = 'auto';
+    leftContent.innerHTML = renderCameraList(cameras || []);
+
+    // Mitte: Overlay
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) {
+      const cam = cameras?.find(c => c.entity_id === _selectedCamera);
+      overlay.innerHTML = cam ? renderCameraDetail(cam) : renderCameraTiles(cameras || []);
+      overlay.classList.toggle('active', true);
+      overlay.classList.toggle('cam-expanded', _cameraExpanded && !!cam);
+    }
+
+    // Rechts: Ereignisse (ID für gezielte Aktualisierung ohne Video-Neustart)
+    setPanel('right', 'Letzte Ereignisse', `<div id="cam-events-panel">${renderCameraEvents(events || [])}</div>`);
+  }
+
+  async function _refreshCameraEvents() {
+    // Nur Events-Liste aktualisieren — Video-Elemente NICHT anfassen
+    if (_navMode !== 'cameras') return;
+    const events = await loadCameraEvents();
+    const rightEl = document.querySelector('.right-panel .panel-content, #right-content');
+    const evEl = document.getElementById('cam-events-panel');
+    if (evEl) evEl.innerHTML = renderCameraEvents(events || []);
+  }
+
+  async function refreshCamerasView() {
+    // Nur beim expliziten Kamera-Wechsel aufrufen, nicht beim Polling
+    if (_navMode !== 'cameras') return;
+    const [cameras, events] = await Promise.all([loadCamerasData(), loadCameraEvents()]);
+    _renderCamerasView(cameras, events);
+    _initCameraStreams();
+    _maybeStartSnapRefresh();
+  }
+
+  function selectCamera(entity_id) {
+    if (!entity_id) _cameraExpanded = false;
+    _destroyAllHls();
+    _stopSnapRefresh();
+    _selectedCamera = entity_id;
+    refreshCamerasView();
+  }
+
+  function clearCamerasView() {
+    _stopCamerasPolling();
+    _destroyAllHls();
+    _cameraExpanded = false;
+    if (_currentLiveEntity) {
+      stopCameraLive(_currentLiveEntity);
+    } else {
+      fetch('/ha/cameras/stop-all', { method: 'POST' }).catch(() => {});
+    }
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active', 'cam-expanded'); overlay.innerHTML = ''; }
+    document.getElementById('left-content').style.overflowY = '';
+  }
+
+  // Tab versteckt → Stream sofort stoppen
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && _navMode === 'cameras') {
+      if (_currentLiveEntity) stopCameraLive(_currentLiveEntity);
+      else fetch('/ha/cameras/stop-all', { method: 'POST' }).catch(() => {});
+    }
+  });
+
+  // ── ROBOTER VIEW ──────────────────────────────────────────
+  let _robotsData = null;
+  let _selectedRobot = null;
+  let _robotsInterval = null;
+  const _lastKnownBattery = {}; // { entity_id: { pct, ts } }
+
+  const _ROBOT_STATE_LABELS = {
+    mowing: 'Mäht', docked: 'In der Basis', paused: 'Pausiert',
+    returning: 'Kehrt zurück', returning_to_charge: 'Kehrt zur Basis', returning_to_wash: 'Kehrt zum Waschen',
+    error: 'Fehler', edgecut: 'Kantenschnitt', rain_delay: 'Regenverzögerung',
+    cleaning: 'Saugt', idle: 'Bereit', stopped: 'Gestoppt', unknown: 'Unbekannt',
+    // Dreame / Valetudo
+    sweeping: 'Saugt', mopping: 'Wischt', washing: 'Pads waschen',
+    sweeping_and_mopping: 'Saugen & Wischen',
+    sweeping_then_mopping: 'Saugen, dann Wischen',
+    charging: 'Lädt', charging_completed: 'Geladen',
+    drying: 'Pads trocknen', self_cleaning: 'Selbstreinigung',
+    emptying: 'Entleert', sleeping: 'Standby', standby: 'Standby',
+  };
+  const _ROBOT_STATE_COLORS = {
+    mowing: 'var(--success)', cleaning: 'var(--success)',
+    docked: 'var(--muted)', idle: 'var(--muted)', sleeping: 'var(--muted)', standby: 'var(--muted)',
+    paused: 'var(--warning)', returning: 'var(--accent)', returning_to_charge: 'var(--accent)', returning_to_wash: 'var(--accent)',
+    error: 'var(--danger)', edgecut: 'var(--success)', rain_delay: 'var(--warning)',
+    sweeping: 'var(--success)', mopping: 'var(--accent)', washing: 'var(--warning)',
+    drying: 'var(--warning)', sweeping_and_mopping: 'var(--success)',
+    sweeping_then_mopping: 'var(--success)', mopping_after_sweeping: 'var(--success)',
+    charging: 'var(--success)', charging_completed: 'var(--muted)',
+    emptying: 'var(--warning)', self_cleaning: 'var(--warning)',
+  };
+  const _VAC_STATE_ICONS = {
+    sweeping: '🧹', mopping: '💧', sweeping_and_mopping: '🧹', mopping_after_sweeping: '🧹',
+    sweeping_then_mopping: '🧹', washing: '🫧', drying: '💨',
+    charging: '⚡', charging_completed: '✅', returning: '🏠', returning_to_charge: '🏠', returning_to_wash: '🫧',
+    paused: '⏸', idle: '💤', sleeping: '💤', standby: '💤',
+    emptying: '🗑️', self_cleaning: '🔄', error: '⚠️',
+  };
+
+  // Landroid erkennen: lawn_mower Domain
+  const _LANDROID_ID = 'lawn_mower';
+
+  async function loadRobots() {
+    try {
+      const r = await fetch('/ha/robots');
+      if (!r.ok) return null;
+      const d = await r.json();
+      _robotsData = d.robots || [];
+      _robotsData.forEach(r => {
+        if (r.battery != null) _lastKnownBattery[r.entity_id] = { pct: parseInt(r.battery), ts: new Date() };
+      });
+      return _robotsData;
+    } catch { return null; }
+  }
+
+  async function sendRobotCommand(entityId, command) {
+    try {
+      await fetch(`/ha/robots/${entityId}/command`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+      });
+      setTimeout(() => refreshRobotsView(), 1500);
+    } catch {}
+  }
+
+  function _robotStateLabel(state) {
+    return _ROBOT_STATE_LABELS[state] || (typeof _VAC_STATE_DE !== 'undefined' && _VAC_STATE_DE[state]) || state || '–';
+  }
+  function _robotStateColor(state) {
+    return _ROBOT_STATE_COLORS[state] || 'var(--muted)';
+  }
+
+  function _formatRobotErrorWhen(whenIso) {
+    const d = whenIso ? new Date(whenIso) : null;
+    if (!d || Number.isNaN(d.getTime())) return '';
+    const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return `${date} ${time}`;
+  }
+
+  function renderRobotList(robots) {
+    if (!robots?.length) return '<div class="cal-placeholder">Keine Roboter gefunden</div>';
+    return robots.map(r => {
+      const sel = r.entity_id === _selectedRobot ? ' selected' : '';
+      const color = _robotStateColor(r.state);
+      return `<div class="robot-list-item${sel}" onclick="selectRobot('${r.entity_id}')">
+        <div class="r-dot" style="background:${color};"></div>
+        <div style="flex:1;font-size:0.82rem;font-weight:600;">${r.name}</div>
+        <div style="font-size:0.68rem;color:${color};">${_robotStateLabel(r.state)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderRobotDetail(robot, errorLog) {
+    if (!robot) return '<div class="robot-placeholder">Kein Roboter ausgewählt</div>';
+    if (robot.domain === 'vacuum') return renderRobotDetailVacuum(robot);
+    if (robot.domain !== 'lawn_mower') {
+      return `<div class="robot-detail-wrap">
+        <div class="robot-detail-name">${robot.name}</div>
+        <div class="robot-placeholder" style="margin-top:20px;">Detailansicht folgt</div>
+      </div>`;
+    }
+    const extras = robot.extras || {};
+    const chargingRaw = (extras.ladevorgang?.state || '').toLowerCase();
+    const isCharging = ['an','true','1','charging','ja','yes','on'].includes(chargingRaw);
+    let stateLabel = _robotStateLabel(robot.state);
+    let stateColor = _robotStateColor(robot.state);
+    if (robot.state === 'docked' && isCharging) { stateLabel = 'Lädt'; stateColor = 'var(--warning)'; }
+
+    const _cached = _lastKnownBattery[robot.entity_id];
+    const battPct = robot.battery != null ? parseInt(robot.battery) : (_cached?.pct ?? null);
+    const battStale = robot.battery == null && _cached != null;
+    const battColor = battPct == null ? 'var(--muted)' : battPct > 40 ? 'var(--success)' : battPct > 20 ? 'var(--warning)' : 'var(--danger)';
+    const battTs = battStale && _cached?.ts
+      ? (() => { const d = _cached.ts; return `${d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})} ${d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})} Uhr`; })()
+      : null;
+    const battHtml = battPct != null
+      ? `<div class="robot-battery-bar-wrap">
+           <span style="min-width:52px;font-weight:700;color:${battColor};">🔋 ${battPct}%${battStale ? ' *' : ''}</span>
+           <div class="robot-battery-bar-bg"><div class="robot-battery-bar-fill" style="width:${battPct}%;background:${battColor};"></div></div>
+           ${battTs ? `<div style="font-size:0.65rem;color:var(--muted);margin-top:3px;">* Letzter Wert: ${battTs}</div>` : ''}
+         </div>`
+      : '<div style="color:var(--muted);font-size:0.75rem;">Batteriestand nicht verfügbar</div>';
+
+    const isActive = ['mowing','edgecut','returning'].includes(robot.state);
+    const primaryBtn = isActive
+      ? `<button class="robot-action-btn" onclick="sendRobotCommand('${robot.entity_id}','pause')">⏸ Pause</button>`
+      : `<button class="robot-action-btn" onclick="sendRobotCommand('${robot.entity_id}','start_mowing')">▶ Mähen</button>`;
+    const dockBtn = robot.state !== 'docked'
+      ? `<button class="robot-action-btn" onclick="sendRobotCommand('${robot.entity_id}','dock')">🏠 Basis</button>` : '';
+
+    const errEntries = Array.isArray(errorLog?.entries) ? errorLog.entries : [];
+    const errHtml = errEntries.length
+      ? errEntries.map(e => {
+          const t = _formatRobotErrorWhen(e.when);
+          const cls = e.severity || (e.resolved ? 'ok' : 'error');
+          return `<div class="robot-err-log-item">
+            <span class="robot-err-time">${t}</span>
+            <span class="robot-err-state ${cls}">${e.state}</span>
+          </div>`;
+        }).join('')
+      : '<div style="color:var(--muted);font-size:0.74rem;" id="robot-err-loading">Lade…</div>';
+
+    return `<div class="robot-detail-wrap">
+      <div class="robot-detail-name">${robot.name}</div>
+      <span class="robot-status-badge" style="color:${stateColor};border-color:${stateColor};">${stateLabel}</span>
+      ${battHtml}
+      <div class="robot-actions">${primaryBtn}${dockBtn}</div>
+      <div>
+        <div class="panel-label" style="margin-bottom:6px;">Statusprotokoll (letzte 20)</div>
+        <div class="robot-error-list" id="robot-err-list">${errHtml}</div>
+      </div>
+    </div>`;
+  }
+
+  function _formatRuntime(hoursStr) {
+    const h = parseFloat(hoursStr);
+    if (isNaN(h)) return hoursStr;
+    const totalH = Math.round(h);
+    const days   = Math.floor(h / 24);
+    const remH   = Math.floor(h % 24);
+    const mins   = Math.round((h - Math.floor(h)) * 60);
+    return `${totalH} h · ${days} Tage, ${remH} Std, ${mins} Min`;
+  }
+
+  function renderRobotExtras(robot) {
+    const extras = robot?.extras || {};
+    const rows = [
+      { key: 'taglicher_fortschritt',        label: 'Tagesfortschritt' },
+      { key: 'batterietemperatur',            label: 'Batterietemperatur' },
+      { key: 'batteriespannung',              label: 'Batteriespannung' },
+      { key: 'verbleibende_regenverzogerung', label: 'Regenverzögerung' },
+      { key: 'gesamte_laufzeit_des_mahers',   label: 'Gesamtlaufzeit', fmt: _formatRuntime },
+      { key: 'batterieladezyklen_gesamt',     label: 'Ladezyklen' },
+      { key: 'signalstarke',                  label: 'Signalstärke' },
+    ].filter(r => extras[r.key]);
+    if (!rows.length) return '<div class="cal-placeholder">Keine Sensordaten</div>';
+    return rows.map(r => {
+      const s = extras[r.key];
+      const val = r.fmt ? r.fmt(s.state) : `${s.state}${s.unit ? ' '+s.unit : ''}`;
+      return `<div class="robot-sensor-row">
+        <span class="robot-sensor-label">${r.label}</span>
+        <span class="robot-sensor-value">${val}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── VACUUM (Krümel Knecht / Carsten) ─────────────────────
+  const _VAC_STATE_DE = {
+    'idle': 'Bereit', 'docked': 'In der Basis',
+    'charging': 'Lädt', 'charging_completed': 'Geladen',
+    'cleaning': 'Reinigt', 'segment_cleaning': 'Raumreinigung',
+    'zone_cleaning': 'Zonenreinigung', 'spot_cleaning': 'Punktreinigung',
+    'paused': 'Pausiert', 'returning': 'Kehrt zurück',
+    'returning_to_charge': 'Kehrt zur Basis',
+    'returning_to_wash': 'Kehrt zum Waschen',
+    'error': 'Fehler', 'moving': 'Bewegt sich', 'mapping': 'Kartiert',
+    // Dreame / Valetudo Zustände
+    'sweeping': 'Saugt', 'mopping': 'Wischt', 'washing': 'Pads waschen',
+    'sweeping_and_mopping': 'Saugen & Wischen',
+    'sweeping_then_mopping': 'Saugen, dann Wischen',
+    'drying': 'Pads trocknen', 'self_cleaning': 'Selbstreinigung',
+    'emptying': 'Entleert', 'sleeping': 'Standby', 'standby': 'Standby',
+    'fast_mapping': 'Kartiert', 'updating': 'Aktualisiert',
+  };
+  const _VAC_IN_BASE  = new Set(['docked','charging','charging_completed','idle']);
+  const _VAC_CLEANING = new Set([
+    'cleaning', 'segment_cleaning', 'zone_cleaning', 'spot_cleaning',
+    'sweeping', 'mopping', 'washing', 'sweeping_and_mopping', 'sweeping_then_mopping',
+  ]);
+
+  const _ROOM_DE = {
+    'Utility Room': 'Abstellraum', 'Corridor': 'Flur',
+    'Dining Hall': 'Esszimmer',    'Living Room': 'Wohnzimmer',
+    'Kitchen': 'Küche',            'Bathroom': 'Bad',
+    'Bedroom': 'Schlafzimmer',     'Office': 'Büro',
+  };
+  let _selectedRooms = new Set();
+  let _vacuumRooms   = [];
+  let _mapTimer      = null;
+  const _vacuumStats = {}; // slug → fertig gerendertes HTML
+
+  let _vacuumMapExpandedFor = null;
+
+  function _robotNameSlug(entityId) {
+    return entityId.split('.')[1]; // "vacuum.krumel_knecht" → "krumel_knecht"
+  }
+
+  async function _loadVacuumSensors(slug) {
+    try {
+      const r = await fetch(`/ha/robots/${slug}/sensors`);
+      return r.ok ? await r.json() : null;
+    } catch { return null; }
+  }
+
+  function _parseVacuumRooms(selects) {
+    const rooms = {};
+    for (const [eid, d] of Object.entries(selects)) {
+      const mN = eid.match(/room_(\d+)_name$/);
+      if (mN) { rooms[mN[1]] = rooms[mN[1]] || {}; rooms[mN[1]].name = d.state; rooms[mN[1]].num = mN[1]; }
+      const mO = eid.match(/room_(\d+)_order$/);
+      if (mO) { rooms[mO[1]] = rooms[mO[1]] || {}; rooms[mO[1]].orderEid = eid; rooms[mO[1]].options = d.options || []; rooms[mO[1]].curOrder = d.state; }
+      const mV = eid.match(/room_(\d+)_visibility$/);
+      if (mV) { rooms[mV[1]] = rooms[mV[1]] || {}; rooms[mV[1]].visible = d.state !== 'invisible'; }
+    }
+    return Object.values(rooms).filter(r => r.visible !== false && r.name && r.orderEid)
+                               .sort((a, b) => a.num - b.num);
+  }
+
+  let _vacuumMode   = null; // aktuell gewählter Modus-Schlüssel
+  let _vacuumCycles = 1;   // Reinigungszyklen: 1, 2 oder 3
+
+  // ── Vacuum-Konfiguration: Fallback-Defaults ──────────────
+  // Werden durch robot.config aus der Admin-Datenbank überschrieben.
+  const _DREAME_DEFAULTS = {
+    rooms: [
+      { id: 3, name: 'Abstellraum' }, { id: 4, name: 'Flur' },
+      { id: 5, name: 'Esszimmer' },   { id: 6, name: 'Wohnzimmer' },
+      { id: 7, name: 'Küche' },       { id: 8, name: 'Bad' },
+    ],
+    modes: [
+      { key: 'sweeping',               label: '🧹 Nur saugen',              cleaning_mode_option: 'sweeping',               suction_level: 3, water_volume: 0 },
+      { key: 'mopping',                label: '💧 Nur wischen',             cleaning_mode_option: 'mopping',                suction_level: 0, water_volume: 3 },
+      { key: 'sweeping_and_mopping',   label: '🧹+💧 Saugen & Wischen',     cleaning_mode_option: 'sweeping_and_mopping',   suction_level: 3, water_volume: 3 },
+      { key: 'mopping_after_sweeping', label: '🧹→💧 Wischen nach Saugen',  cleaning_mode_option: 'mopping_after_sweeping', suction_level: 3, water_volume: 3 },
+    ],
+    defaultMode: 'sweeping',
+  };
+  // Gibt die effektive Vacuum-Config zurück: DB-Config wenn vorhanden, sonst Defaults
+  function _robotVacuumCfg(robot) {
+    const cfg = robot?.config || {};
+    const slug = _robotNameSlug(robot?.entity_id || '');
+    return {
+      rooms:       cfg.rooms?.length ? cfg.rooms : _DREAME_DEFAULTS.rooms,
+      modes:       cfg.modes?.length ? cfg.modes : _DREAME_DEFAULTS.modes,
+      defaultMode: cfg.default_mode  || _DREAME_DEFAULTS.defaultMode,
+      mapCamera:   cfg.map_camera    || `camera.${slug}_map`,
+      hasRooms:    !!(cfg.rooms?.length || slug.includes('krumel')),
+    };
+  }
+  const _VAC_MODES = _DREAME_DEFAULTS.modes;
+
+  function setVacuumMode(key) {
+    _vacuumMode = key;
+    document.querySelectorAll('.vac-mode-btn').forEach(b =>
+      b.classList.toggle('selected', b.dataset.mode === key));
+  }
+
+  function setVacuumCycles(n) {
+    _vacuumCycles = n;
+    document.querySelectorAll('.vac-cycle-btn').forEach(b =>
+      b.classList.toggle('selected', parseInt(b.dataset.cycles) === n));
+  }
+
+  function renderRobotDetailVacuum(robot) {
+    const slug = _robotNameSlug(robot.entity_id);
+    const vcfg = _robotVacuumCfg(robot);
+    const curMode = _vacuumMode || vcfg.defaultMode;
+    const modeBtns = vcfg.modes.map(m =>
+      `<button class="room-btn vac-mode-btn${curMode === m.key ? ' selected' : ''}"
+        data-mode="${m.key}" onclick="setVacuumMode('${m.key}')">${m.label}</button>`
+    ).join('');
+
+    // Räume: aus robot.config wenn vorhanden, sonst Defaults
+    let roomsHtml = '';
+    if (vcfg.hasRooms) {
+      roomsHtml = vcfg.rooms.map(r => {
+        const sel = _selectedRooms.has(String(r.id)) ? ' selected' : '';
+        return `<button class="room-btn${sel}" data-room="${r.id}" onclick="toggleVacuumRoom('${r.id}')">${r.name}</button>`;
+      }).join('') + `<button class="room-btn" onclick="toggleAllRooms()" style="border-style:dashed;">Alle</button>`;
+    } else {
+      roomsHtml = `<div id="vac-rooms-${slug}" style="display:flex;flex-wrap:wrap;gap:8px;"><div style="color:var(--muted);font-size:0.74rem;">Lade Räume…</div></div>`;
+    }
+
+    return `<div class="robot-detail-wrap">
+      <div class="robot-detail-name">${robot.name}</div>
+      <div id="vac-status-${slug}"><div style="color:var(--muted);font-size:0.74rem;">Lade…</div></div>
+      <div>
+        <div class="panel-label" style="margin-bottom:8px;">Modus</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${modeBtns}</div>
+        <div class="panel-label" style="margin-bottom:8px;">Zyklen</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          ${[1,2,3].map(n => `<button class="room-btn vac-cycle-btn${_vacuumCycles===n?' selected':''}" data-cycles="${n}" onclick="setVacuumCycles(${n})">${n}×</button>`).join('')}
+        </div>
+        <div class="panel-label" style="margin-bottom:8px;">Räume</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">${roomsHtml}</div>
+      </div>
+      <div class="robot-actions" id="vac-actions-${slug}" style="margin-top:4px;">
+        <div style="color:var(--muted);font-size:0.74rem;">Lade Status…</div>
+      </div>
+      <div id="vac-feedback-${slug}" style="min-height:24px;font-size:0.76rem;margin-top:4px;"></div>
+    </div>`;
+  }
+
+  function _formatCleaningTime(minutes) {
+    const m = parseFloat(minutes);
+    if (isNaN(m)) return `${minutes} Min`;
+    const h = Math.floor(m / 60);
+    const min = Math.round(m % 60);
+    return h > 0 ? `${h} Std, ${min} Min` : `${min} Min`;
+  }
+
+  function _applyVacuumStats(slug) {
+    const el = document.getElementById('vac-map-stats');
+    if (el && _vacuumStats[slug]) el.innerHTML = _vacuumStats[slug];
+  }
+
+  async function _loadVacuumStats(slug, sensorSlug) {
+    const ss = sensorSlug || slug;
+    const _bad = new Set(['unavailable', 'unknown', '']);
+    const _f = async (eid) => {
+      try { const r = await fetch(`/ha/entity/${eid}/state`); return r.ok ? r.json() : null; }
+      catch { return null; }
+    };
+    const [timeD, areaD] = await Promise.all([
+      _f(`sensor.${ss}_total_cleaning_time`),
+      _f(`sensor.${ss}_total_cleaned_area`),
+    ]);
+    const rows = [];
+    if (timeD?.state && !_bad.has(timeD.state))
+      rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gesamtreinigungszeit</span><span class="robot-sensor-value">${_formatCleaningTime(timeD.state)}</span></div>`);
+    if (areaD?.state && !_bad.has(areaD.state))
+      rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gereinigte Fläche gesamt</span><span class="robot-sensor-value">${parseFloat(areaD.state).toFixed(1)} ${areaD.unit || 'm²'}</span></div>`);
+    if (rows.length) {
+      _vacuumStats[slug] = `<div style="border-top:1px solid var(--border);padding-top:8px;">${rows.join('')}</div>`;
+      _applyVacuumStats(slug);
+    }
+  }
+
+  function _renderVacuumMap(slug, robot) {
+    const camId = _robotVacuumCfg(robot).mapCamera || `camera.${slug}_map`;
+    const extras = robot?.extras || {};
+    const _bad = new Set(['unavailable', 'unknown', '']);
+    const rows = [];
+    const timeS = extras['total_cleaning_time'];
+    const areaS = extras['total_cleaned_area'];
+    if (timeS?.state && !_bad.has(timeS.state))
+      rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gesamtreinigungszeit</span><span class="robot-sensor-value">${_formatCleaningTime(timeS.state)}</span></div>`);
+    if (areaS?.state && !_bad.has(areaS.state))
+      rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gereinigte Fläche gesamt</span><span class="robot-sensor-value">${parseFloat(areaS.state).toFixed(1)} ${areaS.unit || 'm²'}</span></div>`);
+    const statsHtml = rows.length
+      ? `<div id="vac-map-stats" style="border-top:1px solid var(--border);padding-top:8px;margin-top:8px;">${rows.join('')}</div>`
+      : `<div id="vac-map-stats"></div>`;
+    return `<div style="padding:10px;">
+      <img id="vac-map" class="vacuum-map-img clickable"
+        src="/ha/cameras/${camId}/snapshot?_t=${Date.now()}"
+        onclick="openVacuumMapOverlay('${robot.entity_id}')"
+        onerror="this.style.minHeight='120px';this.alt='Keine Karte';">
+      ${statsHtml}
+    </div>`;
+  }
+
+  function _renderVacuumMapExpanded(slug, robot) {
+    const camId = _robotVacuumCfg(robot).mapCamera || `camera.${slug}_map`;
+    const statsHtml = _vacuumStats[slug] || '<div id="vac-map-stats"></div>';
+    return `<div class="vac-map-overlay">
+      <div class="vac-map-overlay-header">
+        <div class="vac-map-overlay-title">${robot?.name || 'Karte'} · Karte</div>
+        <button class="vac-map-overlay-close" onclick="closeVacuumMapOverlay()">Zurück</button>
+      </div>
+      <div class="vac-map-overlay-body">
+        <div class="vac-map-overlay-media">
+          <img id="vac-map-expanded" src="/ha/cameras/${camId}/snapshot?_t=${Date.now()}"
+            onerror="this.alt='Keine Karte verfügbar';">
+        </div>
+        <div class="vac-map-overlay-side">
+          <div class="panel-label">Details</div>
+          ${statsHtml}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  function openVacuumMapOverlay(entityId) {
+    const robot = (_robotsData || []).find(r => r.entity_id === entityId);
+    if (!robot || robot.domain !== 'vacuum') return;
+    const slug = _robotNameSlug(entityId);
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    _vacuumMapExpandedFor = entityId;
+    overlay.innerHTML = _renderVacuumMapExpanded(slug, robot);
+    overlay.classList.add('active', 'vac-map-expanded');
+    overlay.classList.remove('cam-detail-mode');
+  }
+
+  function closeVacuumMapOverlay() {
+    const entityId = _vacuumMapExpandedFor || _selectedRobot;
+    _vacuumMapExpandedFor = null;
+    const robot = (_robotsData || []).find(r => r.entity_id === entityId);
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay || !robot) return;
+    overlay.classList.remove('vac-map-expanded');
+    overlay.innerHTML = renderRobotDetail(robot, null);
+    overlay.classList.add('active');
+    if (robot.domain === 'vacuum') {
+      const slug = _robotNameSlug(robot.entity_id);
+      _updateVacuumDetail(robot.entity_id, slug);
+      _loadVacuumStats(slug, robot.sensor_slug);
+    } else if (robot.domain === 'lawn_mower') {
+      _loadAndRenderErrors(robot.entity_id);
+    }
+  }
+
+  function _startMapRefresh(_slug) {
+    // HA aktualisiert die Kamera-Entity selbst — kein eigener Refresh nötig
+  }
+
+  async function _updateVacuumDetail(entityId, slug) {
+    const data = await _loadVacuumSensors(slug);
+    if (!data) return;
+    const { sensors, selects } = data;
+
+    // Aufgelöster Sensor-Slug: bei vacuum.carsten_carsten liefert das Backend
+    // Sensoren mit Prefix "carsten", nicht "carsten_carsten"
+    const robot = (_robotsData || []).find(r => r.entity_id === entityId);
+    const ss = robot?.sensor_slug || slug;
+
+    // Status + Kontext-Buttons
+    const rawState = (sensors[`sensor.${ss}_state`]?.state || '').toLowerCase();
+    const stateLabel = _VAC_STATE_DE[rawState] || rawState || '–';
+    const stateColor = _ROBOT_STATE_COLORS[rawState] || 'var(--muted)';
+    const stateIcon  = _VAC_STATE_ICONS[rawState] || '';
+    const stEl = document.getElementById(`vac-status-${slug}`);
+    if (stEl) {
+      const batt    = sensors[`sensor.${ss}_battery_level`]?.state;
+      const battPct = batt != null ? parseInt(batt) : null;
+      const bColor  = battPct == null ? 'var(--muted)' : battPct > 40 ? 'var(--success)' : battPct > 20 ? 'var(--warning)' : 'var(--danger)';
+      const battHtml = battPct != null
+        ? `<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+             <span style="font-size:0.78rem;font-weight:700;color:${bColor};">🔋 ${battPct}%</span>
+             <div style="width:44px;height:5px;background:var(--border);border-radius:3px;">
+               <div class="robot-battery-bar-fill" style="width:${battPct}%;height:100%;background:${bColor};border-radius:3px;"></div>
+             </div>
+           </div>`
+        : '';
+
+      const _bad = new Set(['unavailable','unknown','']);
+      const isCleaning = _VAC_CLEANING.has(rawState);
+      const curRoom  = sensors[`sensor.${ss}_current_room`]?.state || '';
+      const progress = parseInt(sensors[`sensor.${ss}_cleaning_progress`]?.state || '0') || 0;
+      const areaNow  = sensors[`sensor.${ss}_cleaned_area`]?.state || '';
+      const timeNow  = sensors[`sensor.${ss}_cleaning_time`]?.state || '';
+      const vcfg = _robotVacuumCfg(robot);
+      // HA-Raumname → Config-Name: select.{slug}_room_N_name → vcfg.rooms[id].name
+      const _haRoomMap = {};
+      Object.entries(selects).forEach(([eid, s]) => {
+        const m = eid.match(/_room_(\d+)_name$/);
+        if (!m) return;
+        const conf = vcfg.rooms.find(r => r.id === parseInt(m[1]));
+        if (conf && s.state && !['unavailable','unknown'].includes(s.state))
+          _haRoomMap[s.state.toLowerCase()] = conf.name;
+      });
+      const roomLabel = _haRoomMap[curRoom.toLowerCase()] || curRoom;
+      let progressHtml = '';
+      if (isCleaning && (roomLabel || progress > 0)) {
+        const meta = [
+          roomLabel ? `📍 ${roomLabel}` : '',
+          !_bad.has(areaNow) ? `${parseFloat(areaNow).toFixed(1)} m²` : '',
+          !_bad.has(timeNow) ? `${timeNow} Min` : '',
+        ].filter(Boolean).join(' · ');
+        progressHtml = `
+          <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;margin-top:8px;">
+            ${meta ? `<div style="font-size:0.71rem;color:var(--muted);margin-bottom:5px;">${meta}</div>` : ''}
+            <div style="height:4px;background:var(--border);border-radius:2px;">
+              <div style="width:${progress}%;height:100%;background:var(--success);border-radius:2px;transition:width 0.8s;"></div>
+            </div>
+          </div>`;
+      }
+
+      stEl.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;">
+          <span class="robot-status-badge" style="color:${stateColor};border-color:${stateColor};">${stateIcon} ${stateLabel}</span>
+          ${battHtml}
+        </div>
+        ${progressHtml}`;
+    }
+    // Buttons je Zustand aktualisieren
+    const actsEl = document.getElementById(`vac-actions-${slug}`);
+    if (actsEl) {
+      const eid = `vacuum.${slug}`;
+      const inBase   = _VAC_IN_BASE.has(rawState);
+      const cleaning = _VAC_CLEANING.has(rawState);
+      const paused   = rawState === 'paused';
+      const returning = rawState === 'returning' || rawState === 'returning_to_wash' || rawState === 'returning_to_charge';
+      let btns = '';
+      if (inBase) {
+        btns = `<button class="robot-action-btn" onclick="startVacuumCleaning('${eid}','${slug}')">▶ Starten</button>`;
+      } else if (cleaning) {
+        btns = `<button class="robot-action-btn" onclick="stopVacuumCleaning('${eid}')">⏸ Pause</button>
+                <button class="robot-action-btn" onclick="vacuumReturnBase('${eid}')">🏠 Basis</button>`;
+      } else if (paused) {
+        btns = `<button class="robot-action-btn" onclick="startVacuumCleaning('${eid}','${slug}')">▶ Fortfahren</button>
+                <button class="robot-action-btn" onclick="vacuumReturnBase('${eid}')">🏠 Basis</button>`;
+      } else if (returning) {
+        btns = `<button class="robot-action-btn" onclick="stopVacuumCleaning('${eid}')">⏸ Pause</button>`;
+      } else {
+        btns = `<button class="robot-action-btn" onclick="startVacuumCleaning('${eid}','${slug}')">▶ Starten</button>
+                <button class="robot-action-btn" onclick="vacuumReturnBase('${eid}')">🏠 Basis</button>`;
+      }
+      actsEl.innerHTML = btns;
+    }
+
+    // Stats werden separat via _loadVacuumStats() geladen
+
+    // Räume — nur beim ersten Laden befüllen
+    const rmEl = document.getElementById(`vac-rooms-${slug}`);
+    if (rmEl && !rmEl.querySelector('.room-btn[data-room]')) {
+      const rooms = _parseVacuumRooms(selects);
+      _vacuumRooms = rooms;
+      _selectedRooms = new Set(rooms.filter(r => r.curOrder && r.curOrder !== '0').map(r => r.num));
+      rmEl.innerHTML = rooms.map(r => {
+        const label = _ROOM_DE[r.name] || r.name;
+        const sel = _selectedRooms.has(r.num) ? ' selected' : '';
+        return `<button class="room-btn${sel}" data-room="${r.num}" onclick="toggleVacuumRoom('${r.num}')">${label}</button>`;
+      }).join('') + `<button class="room-btn" onclick="toggleAllRooms()" style="border-style:dashed;">Alle</button>`;
+    }
+  }
+
+  function toggleVacuumRoom(num) {
+    if (_selectedRooms.has(num)) _selectedRooms.delete(num);
+    else _selectedRooms.add(num);
+    document.querySelectorAll('.room-btn[data-room]').forEach(b =>
+      b.classList.toggle('selected', _selectedRooms.has(b.dataset.room)));
+  }
+
+  function toggleAllRooms() {
+    const robot = (_robotsData || []).find(r => r.entity_id === _selectedRobot);
+    const all = _robotVacuumCfg(robot).rooms.map(r => String(r.id));
+    const allSelected = all.every(n => _selectedRooms.has(n));
+    _selectedRooms = allSelected ? new Set() : new Set(all);
+    document.querySelectorAll('.room-btn[data-room]').forEach(b =>
+      b.classList.toggle('selected', _selectedRooms.has(b.dataset.room)));
+  }
+
+  function _vacuumFeedback(slug, msg, type) {
+    const el = document.getElementById(`vac-feedback-${slug}`);
+    if (!el) return;
+    const c = { success: 'var(--success)', error: 'var(--danger)', warning: 'var(--warning)' };
+    el.style.color = c[type] || 'var(--text)';
+    el.textContent = msg;
+    setTimeout(() => { if (el.textContent === msg) el.textContent = ''; }, 5000);
+  }
+
+  async function startVacuumCleaning(entityId, slug) {
+    const robot = (_robotsData || []).find(r => r.entity_id === entityId);
+    const vcfg = _robotVacuumCfg(robot);
+
+    if (vcfg.hasRooms) {
+      // Segment-Reinigung mit Dreame-Service
+      const segmentIds = [..._selectedRooms].map(s => parseInt(s)).filter(n => !isNaN(n));
+      if (segmentIds.length === 0) {
+        _vacuumFeedback(slug, 'Bitte mindestens einen Raum auswählen.', 'warning');
+        return;
+      }
+      const modeKey = _vacuumMode || vcfg.defaultMode;
+      const mode = vcfg.modes.find(m => m.key === modeKey) || vcfg.modes[0];
+      const roomNames = segmentIds.map(id => vcfg.rooms.find(r => r.id === id)?.name || id).join(', ');
+      try {
+        const r = await fetch('/ha/dreame/clean_segments', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            entity_id: entityId,
+            segments: segmentIds,
+            cleaning_mode_option: mode.cleaning_mode_option,
+            suction_level: mode.suction_level,
+            water_volume: mode.water_volume,
+            cleaning_times: _vacuumCycles,
+          }),
+        });
+        if (r.ok) _vacuumFeedback(slug, `Reinigung gestartet: ${roomNames}`, 'success');
+        else       _vacuumFeedback(slug, 'Fehler beim Starten der Reinigung.', 'error');
+      } catch {
+        _vacuumFeedback(slug, 'Home Assistant nicht erreichbar.', 'error');
+      }
+    } else {
+      // Generisch: vacuum.start
+      await fetch(`/ha/robots/${entityId}/command`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({command: 'start'}),
+      }).catch(() => {});
+    }
+  }
+
+  async function stopVacuumCleaning(entityId) {
+    await fetch(`/ha/robots/${entityId}/command`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: 'pause'})
+    }).catch(() => {});
+  }
+
+  async function vacuumReturnBase(entityId) {
+    await fetch(`/ha/robots/${entityId}/command`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: 'return_to_base'})
+    }).catch(() => {});
+  }
+
+  async function _loadAndRenderErrors(entityId) {
+    try {
+      const r = await fetch(`/ha/robots/${entityId}/errors`);
+      const log = r.ok ? await r.json() : null;
+      const el = document.getElementById('robot-err-list');
+      if (!el || !log) return;
+      const errEntries = log.entries || [];
+      el.innerHTML = errEntries.length
+        ? errEntries.map(e => {
+            const t = _formatRobotErrorWhen(e.when);
+            const cls = e.severity || (e.resolved ? 'ok' : 'error');
+            return `<div class="robot-err-log-item">
+              <span class="robot-err-time">${t}</span>
+              <span class="robot-err-state ${cls}">${e.state}</span>
+            </div>`;
+          }).join('')
+        : '<div style="color:var(--muted);font-size:0.74rem;">Keine letzten Status-Eintr&auml;ge gefunden</div>';
+    } catch {}
+  }
+
+  async function showRobotsView() {
+    const robots = await loadRobots();
+    _renderRobotsView(robots);
+    _robotsInterval = setInterval(async () => {
+      if (_navMode !== 'robots') return;
+      const r = await loadRobots();
+      _renderRobotsView(r);
+    }, 10000);
+  }
+
+  let _robotOverlayRobot = null; // entity_id des aktuell gerenderten Overlays
+
+  function _renderRobotsView(robots) {
+    // Linkes Panel: immer aktualisieren (nur Text, kein Flash)
+    document.getElementById('left-label').textContent = 'Roboter';
+    const lc = document.getElementById('left-content');
+    lc.style.overflowY = 'auto';
+    lc.innerHTML = renderRobotList(robots || []);
+
+    const robot = (robots || []).find(r => r.entity_id === _selectedRobot) || (robots || [])[0] || null;
+    if (robot && !_selectedRobot) _selectedRobot = robot.entity_id;
+
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay || !robot) return;
+
+    if (_vacuumMapExpandedFor && _vacuumMapExpandedFor === robot.entity_id && robot.domain === 'vacuum') {
+      const slug = _robotNameSlug(robot.entity_id);
+      overlay.innerHTML = _renderVacuumMapExpanded(slug, robot);
+      overlay.classList.add('active', 'vac-map-expanded');
+      return;
+    }
+
+    const isFirstRender = _robotOverlayRobot !== robot.entity_id;
+
+    if (isFirstRender) {
+      // Vollständig rendern — nur beim ersten Laden oder Roboterwechsel
+      _robotOverlayRobot = robot.entity_id;
+      overlay.innerHTML = renderRobotDetail(robot, null);
+      overlay.classList.add('active');
+      overlay.classList.remove('vac-map-expanded');
+      if (robot.domain === 'lawn_mower') {
+        _loadAndRenderErrors(robot.entity_id);
+        setPanel('right', robot.name, renderRobotExtras(robot));
+      } else if (robot.domain === 'vacuum') {
+        const slug = _robotNameSlug(robot.entity_id);
+        setPanel('right', 'Karte', _renderVacuumMap(slug, robot)); // erst rendern → vac-map-stats existiert
+        _startMapRefresh(slug);
+        _updateVacuumDetail(robot.entity_id, slug);          // dann Status/Räume
+        _loadVacuumStats(slug, robot.sensor_slug);          // dann Stats
+      } else {
+        setPanel('right', robot.name || 'Sensoren', renderRobotExtras(robot));
+      }
+    } else {
+      // Partial update — nur dynamische Teile, KEIN Overlay-Neurender
+      if (robot.domain === 'lawn_mower') {
+        // Nur Status-Badge und Batterie aktualisieren
+        const badge = overlay.querySelector('.robot-status-badge');
+        if (badge) {
+          badge.textContent = _robotStateLabel(robot.state);
+          badge.style.color = badge.style.borderColor = _robotStateColor(robot.state);
+        }
+        const _cb = _lastKnownBattery[robot.entity_id];
+        const batt = robot.battery != null ? parseInt(robot.battery) : (_cb?.pct ?? null);
+        if (batt != null) {
+          const fill = overlay.querySelector('.robot-battery-bar-fill');
+          const txt  = overlay.querySelector('.robot-battery-bar-wrap span');
+          if (fill) fill.style.width = batt + '%';
+          if (txt)  txt.textContent = `🔋 ${batt}%${robot.battery == null ? ' *' : ''}`;
+        }
+        setPanel('right', robot.name, renderRobotExtras(robot));
+      } else if (robot.domain === 'vacuum') {
+        const slug = _robotNameSlug(robot.entity_id);
+        _updateVacuumDetail(robot.entity_id, slug);
+        // Stats direkt aus robot.extras aktualisieren
+        const statsEl = document.getElementById('vac-map-stats');
+        if (statsEl) {
+          const _bad = new Set(['unavailable','unknown','']);
+          const e = robot.extras || {};
+          const rows = [];
+          const tS = e['total_cleaning_time'];
+          const aS = e['total_cleaned_area'];
+          if (tS?.state && !_bad.has(tS.state))
+            rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gesamtreinigungszeit</span><span class="robot-sensor-value">${_formatCleaningTime(tS.state)}</span></div>`);
+          if (aS?.state && !_bad.has(aS.state))
+            rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gereinigte Fläche gesamt</span><span class="robot-sensor-value">${parseFloat(aS.state).toFixed(1)} ${aS.unit||'m²'}</span></div>`);
+          if (rows.length) statsEl.innerHTML = rows.join('');
+        }
+      }
+    }
+  }
+
+  function selectRobot(entityId) {
+    _selectedRobot = entityId;
+    _robotOverlayRobot = null; // erzwingt Vollrender für neuen Roboter
+    _vacuumMapExpandedFor = null;
+    _selectedRooms = new Set();
+    clearInterval(_mapTimer);
+    const robot = (_robotsData || []).find(r => r.entity_id === entityId);
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) {
+      overlay.classList.remove('vac-map-expanded');
+      overlay.innerHTML = renderRobotDetail(robot, null);
+      if (robot?.domain === 'lawn_mower') {
+        _loadAndRenderErrors(entityId);
+      } else if (robot?.domain === 'vacuum') {
+        const slug = _robotNameSlug(entityId);
+        _updateVacuumDetail(entityId, slug);
+        setPanel('right', 'Karte', _renderVacuumMap(slug, robot));
+        _startMapRefresh(slug);
+        document.querySelectorAll('.robot-list-item').forEach(el => el.classList.remove('selected'));
+        document.querySelector(`.robot-list-item[onclick*="${entityId}"]`)?.classList.add('selected');
+        return;
+      }
+    }
+    setPanel('right', robot?.name || 'Sensoren', renderRobotExtras(robot));
+    document.querySelectorAll('.robot-list-item').forEach(el => el.classList.remove('selected'));
+    document.querySelector(`.robot-list-item[onclick*="${entityId}"]`)?.classList.add('selected');
+  }
+
+  function refreshRobotsView() {
+    if (_navMode !== 'robots') return;
+    loadRobots().then(r => _renderRobotsView(r));
+  }
+
+  function clearRobotsView() {
+    clearInterval(_robotsInterval);
+    clearInterval(_mapTimer);
+    _robotsInterval = null;
+    _mapTimer = null;
+    _selectedRobot = null;
+    _robotOverlayRobot = null;
+    _selectedRooms = new Set();
+    _vacuumMapExpandedFor = null;
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active', 'vac-map-expanded'); overlay.innerHTML = ''; }
+    document.getElementById('left-content').style.overflowY = '';
+  }
+
+  // ── KLINGEL-ERKENNUNG (Doorbell → Kamera im Home-Screen) ──
+  let _doorbellTimer = null;
+  let _lastDoorbellChanged = null;  // null = noch nicht initialisiert
+
+  async function pollDoorbellState() {
+    if (_navMode !== 'home' || currentMode !== 'idle') return;
+    try {
+      const d = await fetch('/ha/doorbell').then(r => r.json());
+      // Beim ersten Poll: Ist-Zustand merken, NICHT triggern (verhindert Fehlalarm beim Laden)
+      if (_lastDoorbellChanged === null) {
+        _lastDoorbellChanged = (d.doorbells || []).map(s => s.last_changed).join('|');
+        return;
+      }
+      const currentKey = (d.doorbells || []).map(s => s.last_changed).join('|');
+      if (currentKey === _lastDoorbellChanged) return;
+      _lastDoorbellChanged = currentKey;
+      const active = (d.doorbells || []).find(s => s.state === 'on');
+      if (active) _showDoorbellCamera(active.entity_id);
+    } catch {}
+  }
+
+  async function _showDoorbellCamera(doorbellEntityId) {
+    // Kamera-Entity aus Sensor-ID ableiten: haustur_ding → camera.*haustur*
+    const base = doorbellEntityId.replace('binary_sensor.', '').replace(/_ding$/, '');
+    const cameras = _camerasData || (await loadCamerasData()) || [];
+    const cam = cameras.find(c => c.entity_id.includes(base))
+             || cameras.find(c => c.entity_id === `camera.${base}_live_ansicht`)
+             || cameras.find(c => c.entity_id.startsWith('camera.haustur'))
+             || cameras[0];
+
+    const overlay = document.getElementById('doorbell-overlay');
+    const img     = document.getElementById('doorbell-cam-img');
+    if (!overlay || !cam) return;
+
+    img.dataset.snapId = cam.entity_id;
+    img.src = _snapUrl(cam.entity_id);
+    overlay.classList.add('active');
+    _startSnapRefresh();
+
+    // Auto-Return nach 30s
+    clearTimeout(_doorbellTimer);
+    _doorbellTimer = setTimeout(() => {
+      overlay.classList.remove('active');
+      img.src = '';
+      _stopSnapRefresh();
+    }, 30000);
+  }
+
+  // ── LIGHT CONTROL ─────────────────────────────────────────
+  let _lightsData = null;
+
+  async function loadLightsData() {
+    try {
+      const r = await fetch('/ha/lights');
+      if (!r.ok) return null;
+      const d = await r.json();
+      _lightsData = d.lights || [];
+      return _lightsData;
+    } catch { return null; }
+  }
+
+  async function callLightService(entity_id, service, brightness_pct, colorData) {
+    const body = { entity_id, service };
+    if (brightness_pct !== undefined && brightness_pct !== null) body.brightness_pct = brightness_pct;
+    if (colorData?.rgb_color) body.rgb_color = colorData.rgb_color;
+    if (colorData?.color_temp) body.color_temp = colorData.color_temp;
+    try {
+      await fetch('/ha/lights/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      // Kurz warten dann neu laden
+      setTimeout(() => refreshLightsView(), 600);
+    } catch {}
+  }
+
+  // Lampen-Icon: 💡 immer, nur Helligkeit/Opacity unterschiedlich
+  const bulbOn  = `<span style="font-size:1.3rem;">💡</span>`;
+  const bulbOff = `<span style="font-size:1.3rem;opacity:0.25;filter:grayscale(1);">💡</span>`;
+  const bulbOnSm  = `<span style="font-size:1.1rem;">💡</span>`;
+  const bulbOffSm = `<span style="font-size:1.1rem;opacity:0.25;filter:grayscale(1);">💡</span>`;
+
+  function renderLightGroupsList(lights, selectedId) {
+    const memberIds = new Set(lights.flatMap(l => l.members || []));
+    const groups = lights.filter(l => l.is_group || !memberIds.has(l.entity_id));
+    if (!groups.length) return '<div class="cal-placeholder">Keine Gruppen gefunden</div>';
+
+    const allSel = selectedId === null ? ' selected' : '';
+    let html = `
+      <div class="light-group-item${allSel}" onclick="selectLightGroup(null)"
+           style="border-color:var(--accent);background:rgba(0,200,255,0.06);">
+        <span style="font-size:1.2rem;">🏠</span>
+        <div style="flex:1;font-weight:700;font-size:0.88rem;">Alle Gruppen</div>
+        <span style="font-size:0.7rem;color:var(--accent);">
+          ${groups.filter(g=>g.state==='on').length}/${groups.length} ein
+        </span>
+      </div>`;
+
+    html += groups.map(g => {
+      const isOn = g.state === 'on';
+      const sel = g.entity_id === selectedId ? ' selected' : '';
+      return `
+        <div class="light-group-item ${isOn?'on':''}${sel}"
+             onclick="selectLightGroup('${g.entity_id}')">
+          ${isOn ? bulbOn : bulbOff}
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:700;font-size:0.88rem;white-space:nowrap;
+                        overflow:hidden;text-overflow:ellipsis;">${g.name}</div>
+            ${isOn && g.brightness_pct ? `<div style="font-size:0.72rem;color:var(--muted);">${g.brightness_pct}%</div>` : ''}
+          </div>
+          <span style="color:${isOn?'var(--warning)':'var(--border)'};font-size:0.8rem;">${isOn?'●':'○'}</span>
+        </div>`;
+    }).join('');
+    return html;
+  }
+
+  async function turnAllOff() {
+    if (!_lightsData) return;
+    const memberIds = new Set(_lightsData.flatMap(l => l.members || []));
+    const groups = _lightsData.filter(l => (l.is_group || !memberIds.has(l.entity_id)) && l.state === 'on');
+    await Promise.all(groups.map(g =>
+      fetch('/ha/lights/control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity_id: g.entity_id, service: 'turn_off' }),
+      })
+    ));
+    setTimeout(() => refreshLightsView(), 700);
+  }
+
+  function renderAllGroupsCenter(groups) {
+    if (!groups.length) return '<div class="cal-placeholder">Keine Gruppen vorhanden</div>';
+    const onCount = groups.filter(g => g.state === 'on').length;
+    const anyOn = onCount > 0;
+    let html = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="font-size:0.65rem;color:var(--accent);letter-spacing:0.13em;">
+          ALLE GRUPPEN · ${onCount} von ${groups.length} EIN
+        </div>
+        <button onclick="turnAllOff()"
+                style="background:${anyOn?'rgba(255,61,61,0.12)':'var(--surface2)'};
+                       border:1px solid ${anyOn?'rgba(255,61,61,0.4)':'var(--border)'};
+                       color:${anyOn?'var(--danger)':'var(--muted)'};
+                       border-radius:8px;padding:6px 14px;font-size:0.76rem;font-weight:700;
+                       cursor:${anyOn?'pointer':'default'};letter-spacing:0.04em;
+                       -webkit-tap-highlight-color:transparent;">
+          ⏻ Alles aus
+        </button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">`;
+
+    html += groups.map(g => {
+      const isOn = g.state === 'on';
+      return `
+        <div style="background:var(--surface2);
+                    border:1px solid ${isOn?'rgba(255,171,0,0.35)':'var(--border)'};
+                    border-radius:12px;padding:14px;cursor:pointer;
+                    display:flex;flex-direction:column;gap:8px;"
+             onclick="selectLightGroup('${g.entity_id}')">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="font-weight:800;font-size:0.92rem;white-space:nowrap;
+                        overflow:hidden;text-overflow:ellipsis;">${g.name}</div>
+            <span style="font-size:1.1rem;flex-shrink:0;${isOn?'':'opacity:0.22;filter:grayscale(1)'}">💡</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:0.76rem;color:${isOn?'var(--warning)':'var(--muted)'};">
+              ${isOn ? `EIN${g.brightness_pct?' · '+g.brightness_pct+'%':''}` : 'AUS'}
+            </div>
+            <div onclick="event.stopPropagation();callLightService('${g.entity_id}','toggle')"
+                 style="width:42px;height:26px;border-radius:13px;flex-shrink:0;cursor:pointer;
+                        background:${isOn?'var(--warning)':'var(--surface)'};
+                        border:1px solid ${isOn?'var(--warning)':'var(--border)'};
+                        display:flex;align-items:center;
+                        padding:${isOn?'0 3px 0 15px':'0 15px 0 3px'};
+                        -webkit-tap-highlight-color:transparent;">
+              <div style="width:18px;height:18px;border-radius:50%;
+                          background:${isOn?'#fff':'var(--muted)'}"></div>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    html += '</div>';
+    return html;
+  }
+
+  // white:true → Weißton; RGB-Werte entsprechen IKEA Warmweiß-Preset exakt
+  const _COLOR_PRESETS = [
+    { label:'Warmweiß',   white:true,  ct:370, rgb:[255,174,91],  bg:'#ffae5b' },
+    { label:'Neutralweiß',white:true,  ct:250, rgb:[255,228,150], bg:'#ffe496' },
+    { label:'Kaltweiß',   white:true,  ct:154, rgb:[200,220,255], bg:'#c8dcff' },
+    { label:'Rot',        white:false, ct:null, rgb:[255,0,0],    bg:'#ff2020' },
+    { label:'Orange',     white:false, ct:null, rgb:[255,100,0],  bg:'#ff6400' },
+    { label:'Gelb',       white:false, ct:null, rgb:[255,220,0],  bg:'#ffdc00' },
+    { label:'Grün',       white:false, ct:null, rgb:[0,200,50],   bg:'#00c832' },
+    { label:'Blau',       white:false, ct:null, rgb:[0,100,255],  bg:'#0064ff' },
+    { label:'Lila',       white:false, ct:null, rgb:[150,0,255],  bg:'#9600ff' },
+    { label:'Rosa',       white:false, ct:null, rgb:[255,50,180], bg:'#ff32b4' },
+  ];
+
+  function _rgbToHex(rgb) {
+    if (!rgb) return '#ffffff';
+    return '#' + rgb.map(v => ('0' + Math.max(0, Math.min(255, v)).toString(16)).slice(-2)).join('');
+  }
+
+  function _hsToRgb(h, s) {
+    const c = s, x = c*(1-Math.abs((h/60)%2-1)), m = 1-c;
+    let r,g,b;
+    if(h<60){r=c;g=x;b=0}else if(h<120){r=x;g=c;b=0}else if(h<180){r=0;g=c;b=x}
+    else if(h<240){r=0;g=x;b=c}else if(h<300){r=x;g=0;b=c}else{r=c;g=0;b=x}
+    return [Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];
+  }
+
+  function onColorWheelClick(ev, wheel, eid) {
+    ev.stopPropagation();
+    const rect = wheel.getBoundingClientRect();
+    const cx = rect.width/2, cy = rect.height/2;
+    const src = ev.changedTouches ? ev.changedTouches[0] : ev;
+    const ex = src.clientX - rect.left - cx;
+    const ey = src.clientY - rect.top  - cy;
+    const r  = Math.sqrt(ex*ex + ey*ey);
+    if (r > cx + 4) return;
+    const hue = ((Math.atan2(ey, ex) * 180 / Math.PI) + 360) % 360;
+    const sat = Math.min(1, r / cx);
+    const rgb = _hsToRgb(hue, sat);
+    const dot = document.getElementById('cw-dot-' + eid.replace(/[.\-]/g,'_'));
+    if (dot) {
+      dot.style.display = 'block';
+      dot.style.left = (cx + ex) + 'px';
+      dot.style.top  = (cy + ey) + 'px';
+      dot.style.background = 'rgb(' + rgb.join(',') + ')';
+    }
+    callLightService(eid, 'turn_on', null, {rgb_color: rgb});
+  }
+
+  function _renderLightColors(light) {
+    if (!light.supports_color && !light.supports_color_temp) return '';
+    const eid  = light.entity_id;
+    const safe = eid.replace(/[.\-]/g, '_');
+    const isCT = light.color_mode === 'color_temp';
+
+    let dots = '';
+    for (const c of _COLOR_PRESETS) {
+      if (c.white  && !light.supports_color_temp && !light.supports_color) continue;
+      if (!c.white && !light.supports_color) continue;
+      // Weißtöne immer per RGB (IKEA nutzt HS-Modus, kein color_temp)
+      const colorArg = '{rgb_color:[' + c.rgb.join(',') + ']}';
+      // Aktiv-Erkennung via RGB (Toleranz 50 pro Kanal)
+      let active = false;
+      if (light.rgb_color)
+        active = Math.abs(light.rgb_color[0]-c.rgb[0]) < 50
+              && Math.abs(light.rgb_color[1]-c.rgb[1]) < 50
+              && Math.abs(light.rgb_color[2]-c.rgb[2]) < 50;
+      const bdr = active ? '3px solid #fff'                    : '3px solid transparent';
+      const shd = active ? '0 0 0 2px rgba(255,255,255,0.7)'  : '0 0 0 1px rgba(255,255,255,0.15)';
+      dots += '<div onclick="callLightService(\'' + eid + '\',\'turn_on\',null,' + colorArg + ')"'
+            + ' title="' + c.label + '"'
+            + ' style="width:38px;height:38px;border-radius:50%;background:' + c.bg + ';cursor:pointer;'
+            + 'flex-shrink:0;border:' + bdr + ';box-shadow:' + shd + ';transition:transform 0.1s;"'
+            + ' onmouseover="this.style.transform=\'scale(1.12)\'"'
+            + ' onmouseout="this.style.transform=\'scale(1)\'"></div>';
+    }
+
+    // Color Wheel
+    const wheel = light.supports_color
+      ? '<div style="margin-top:16px;">'
+        + '<div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;margin-bottom:8px;">FARB-RAD</div>'
+        + '<div style="position:relative;width:160px;height:160px;border-radius:50%;cursor:crosshair;margin:0 auto;'
+        + 'background:conic-gradient(hsl(0,100%,50%),hsl(60,100%,50%),hsl(120,100%,50%),'
+        + 'hsl(180,100%,50%),hsl(240,100%,50%),hsl(300,100%,50%),hsl(360,100%,50%));'
+        + 'box-shadow:0 0 0 2px var(--border);"'
+        + ' onclick="onColorWheelClick(event,this,\'' + eid + '\')"'
+        + ' ontouchend="onColorWheelClick(event,this,\'' + eid + '\')">'
+        + '<div style="position:absolute;inset:0;border-radius:50%;pointer-events:none;'
+        + 'background:radial-gradient(circle,rgba(255,255,255,1) 0%,rgba(255,255,255,0) 72%);"></div>'
+        + '<div id="cw-dot-' + safe + '" style="position:absolute;width:14px;height:14px;'
+        + 'border-radius:50%;border:2px solid #fff;box-shadow:0 0 5px rgba(0,0,0,0.7);'
+        + 'transform:translate(-50%,-50%);pointer-events:none;display:none;top:50%;left:50%;"></div>'
+        + '</div></div>'
+      : '';
+
+    return '<div style="margin-top:18px;text-align:left;">'
+         + '<div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;margin-bottom:10px;">FARBE</div>'
+         + '<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">' + dots + '</div>'
+         + wheel + '</div>';
+  }
+
+  function renderLightCenter(light) {
+    if (!light) return '<div class="cal-placeholder">Kein Raum gewählt</div>';
+    const isOn = light.state === 'on';
+    // Slider-Wert: aktuell Helligkeit wenn an, 0 wenn aus
+    const sliderVal = isOn ? (light.brightness_pct || 100) : 0;
+    const sliderLabel = isOn ? sliderVal + '%' : 'Aus';
+    return `
+      <div style="text-align:center;padding:20px 0 10px;">
+        <div style="font-size:0.65rem;color:var(--accent);letter-spacing:0.13em;margin-bottom:14px;">
+          ${light.name.toUpperCase()}
+        </div>
+        <div class="light-onoff-btn ${isOn?'on':''}"
+             onclick="callLightService('${light.entity_id}','toggle')">
+          ${isOn ? '💡' : '<span style="opacity:0.3;filter:grayscale(1);">💡</span>'}
+        </div>
+        <div style="font-size:0.9rem;font-weight:700;margin-bottom:20px;
+                    color:${isOn?'var(--warning)':'var(--muted)'};">
+          ${isOn ? 'EIN' : 'AUS'}
+        </div>
+        ${light.supports_brightness ? `
+        <div class="light-slider-wrap">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;
+                      color:var(--muted);margin-bottom:8px;">
+            <span>Aus</span>
+            <span id="slider-label" style="font-size:0.82rem;font-weight:700;color:var(--text);">${sliderLabel}</span>
+            <span>100%</span>
+          </div>
+          <input type="range" class="light-slider" min="0" max="100"
+                 value="${sliderVal}"
+                 oninput="document.getElementById('slider-label').textContent=this.value>0?this.value+'%':'Aus'"
+                 onchange="onSliderChange('${light.entity_id}',parseInt(this.value))">
+        </div>` : ''}
+        ${_renderLightColors(light)}
+      </div>`;
+  }
+
+  function onSliderChange(entity_id, val) {
+    if (val === 0) {
+      callLightService(entity_id, 'turn_off');
+    } else {
+      callLightService(entity_id, 'turn_on', val);
+    }
+  }
+
+  function renderLightLamps(light, allLights) {
+    if (!light?.is_group || !light.members?.length) return '';
+    const members = allLights.filter(l => light.members.includes(l.entity_id));
+    if (!members.length) return '';
+    let html = `<div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;margin-bottom:8px;">EINZELNE LAMPEN</div>`;
+    html += members.map(m => {
+      const isOn = m.state === 'on';
+      return `
+        <div class="light-lamp-row">
+          ${isOn ? bulbOnSm : bulbOffSm}
+          <div style="flex:1;font-size:0.82rem;font-weight:600;">${m.name}</div>
+          ${isOn && m.brightness_pct ? `<span style="font-size:0.74rem;color:var(--muted);">${m.brightness_pct}%</span>` : ''}
+          <div onclick="callLightService('${m.entity_id}','toggle')"
+               style="width:36px;height:22px;border-radius:11px;cursor:pointer;
+                      background:${isOn?'var(--warning)':'var(--surface)'};
+                      border:1px solid ${isOn?'var(--warning)':'var(--border)'};
+                      display:flex;align-items:center;
+                      padding:${isOn?'0 3px 0 13px':'0 13px 0 3px'};">
+            <div style="width:16px;height:16px;border-radius:50%;background:${isOn?'#fff':'var(--muted)'}"></div>
+          </div>
+        </div>`;
+    }).join('');
+    return html;
+  }
+
+  function selectLightGroup(entity_id) {
+    _selectedGroup = entity_id;
+    refreshLightsView();
+  }
+
+  async function showLightsView() {
+    const lights = await loadLightsData();
+    if (!lights) return;
+    // Start immer mit Alle-Gruppen-Übersicht
+    _selectedGroup = null;
+    renderLightsView(lights);
+  }
+
+  function renderLightsView(lights) {
+    if (!lights) return;
+    // Alle Entities, die Kinder anderer Gruppen sind, ausblenden auf Top-Level
+    const memberIds = new Set(lights.flatMap(l => l.members || []));
+    // Top-Level: Gruppen + ausgewählte Einzelentitäten, die nicht Mitglied einer Gruppe sind.
+    const groups = lights.filter(l => l.is_group || !memberIds.has(l.entity_id));
+    const selected = _selectedGroup ? lights.find(l => l.entity_id === _selectedGroup) : null;
+
+    // Links: Gruppen + Schalter (scrollbar)
+    document.getElementById('left-label').textContent = 'Räume';
+    const leftContent = document.getElementById('left-content');
+    leftContent.style.overflowY = 'auto';
+    leftContent.innerHTML = renderLightGroupsList(lights, _selectedGroup);
+
+    // Mitte: Overlay
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) {
+      if (!selected) {
+        // Alle Gruppen Übersicht
+        overlay.innerHTML = renderAllGroupsCenter(groups);
+      } else {
+        // Einzelne Gruppe/Schalter steuern
+        overlay.innerHTML = renderLightCenter(selected);
+      }
+      overlay.classList.add('active');
+    }
+
+    // Rechts: Einzellampen der gewählten Gruppe (oder leer)
+    if (selected?.is_group) {
+      setPanel('right', selected.name, renderLightLamps(selected, lights));
+    } else {
+      setPanel('right', 'Lampen', '<div class="cal-placeholder">Gruppe auswählen</div>');
+    }
+  }
+
+  async function refreshLightsView() {
+    if (_navMode !== 'lights') return;
+    const lights = await loadLightsData();
+    renderLightsView(lights);
+  }
+
+  function clearLightsView() {
+    _stopLightsPolling();
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
+    document.getElementById('left-content').style.overflowY = '';
+  }
+
+  // ── INIT ──────────────────────────────────────────────────
+  applyMode('idle');
+  setInterval(pollDisplayState, 2000);
+  setInterval(pollReplyText, 400);
+  setInterval(pollDoorbellState, 3000);
+
+  const _isHome = () => _navMode === 'home';
+
+  // Kraftstoff jede Minute aktualisieren
+  setInterval(async () => {
+    localStorage.removeItem('fuel');
+    if (currentMode === 'idle' && _isHome()) showWeatherLeft();
+  }, TTL_1M);
+
+  // Wetter + Kalender alle 15 Min aktualisieren
+  setInterval(async () => {
+    localStorage.removeItem('weather');
+    localStorage.removeItem('calendar');
+    localStorage.removeItem('calendar_v2');
+    localStorage.removeItem('fuel');
+    if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
+  }, TTL_15M);
+
+  // ── VIEWPORT SCALING (10"-Display = scale 1, iPad/Desktop skaliert proportional) ──
+  function _scaleToFit() {
+    const s = Math.min(window.innerWidth / 1280, window.innerHeight / 800);
+    document.body.style.transform = `scale(${s})`;
+    document.body.style.marginLeft = ((window.innerWidth  - 1280 * s) / 2) + 'px';
+    document.body.style.marginTop  = ((window.innerHeight - 800  * s) / 2) + 'px';
+  }
+  _scaleToFit();
+  window.addEventListener('resize', _scaleToFit);
+</script>
+</body>
+</html>

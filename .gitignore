@@ -1,0 +1,25 @@
+# Laufzeit & Secrets
+.env
+*.db
+*.db-shm
+*.db-wal
+
+# TTS-Modelle (gro?, ger?tespezifisch)
+models/
+
+# SSL-Zertifikate
+ssl/
+
+# Backups & tempor?re Dateien
+_codex_backup_*/
+*.bak
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Docker
+.docker/

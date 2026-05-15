@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erika Lokaler Admin</title>
+  <link rel="stylesheet" href="/local-admin.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">Lokaler Admin</div>
+      <h1>Erika vor Ort konfigurieren</h1>
+      <p>Diese Oberfläche ist für den Anwender am Gerät gedacht. Die bestehende Console bleibt unverändert und separat erhalten.</p>
+    </section>
+
+    <nav class="tab-bar" aria-label="Konfiguration">
+      <button type="button" class="tab-button active" data-tab-target="tab-overview">Übersicht</button>
+      <button type="button" class="tab-button" data-tab-target="tab-news">News</button>
+      <button type="button" class="tab-button" data-tab-target="tab-weather">Wetter</button>
+      <button type="button" class="tab-button" data-tab-target="tab-vehicles">Fahrzeuge</button>
+      <button type="button" class="tab-button" data-tab-target="tab-lights">Lichter</button>
+      <button type="button" class="tab-button" data-tab-target="tab-robots">Roboter</button>
+      <button type="button" class="tab-button" data-tab-target="tab-fuel">Kraftstoff</button>
+      <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
+    </nav>
+
+    <section class="layout">
+      <section class="panel-stack">
+        <article id="tab-overview" class="panel-card tab-panel active">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Übersicht</div>
+              <h2>Module und Status</h2>
+            </div>
+            <div class="meta-chip" id="overview-active-chip">0 Module aktiv</div>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Display-Module</div>
+              <p>Hier siehst du, welche Bereiche aktuell aktiv sind und wo sie im Display erscheinen. Die Detailkonfiguration bleibt in den jeweiligen Tabs.</p>
+            </div>
+            <div id="module-overview-grid" class="module-overview-grid"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Systemzusammenfassung</div>
+              <p>Kurzer Überblick über die wichtigsten Einstellungen des lokalen Geräts.</p>
+            </div>
+            <div class="summary-list summary-list-wide">
+              <div class="summary-item">
+                <span class="summary-label">News</span>
+                <span id="summary-news" class="summary-value">6h</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Quellen</span>
+                <span id="summary-sources" class="summary-value">0 aktiv</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Wetter</span>
+                <span id="summary-weather" class="summary-value">Aktiv</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Fahrzeuge</span>
+                <span id="summary-ev" class="summary-value">1 aktiv</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Lichter</span>
+                <span id="summary-lights" class="summary-value">Aktiv</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Roboter</span>
+                <span id="summary-robots" class="summary-value">Aktiv</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">Kraftstoff</span>
+                <span id="summary-fuel" class="summary-value">Aus</span>
+              </div>
+              <div class="summary-item">
+                <span class="summary-label">HA</span>
+                <span id="summary-ha" class="summary-value">-</span>
+              </div>
+            </div>
+          </section>
+
+        </article>
+
+        <article id="tab-news" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">News</div>
+              <h2>Feed und Zeitfenster</h2>
+            </div>
+            <div class="meta-chip" id="selected-count-chip">0 Quellen aktiv</div>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Rückblick</div>
+              <p>Lege fest, aus welchem Zeitraum News auf dem Display berücksichtigt werden.</p>
+            </div>
+            <div class="control">
+              <div class="control-top">
+                <div>
+                  <div class="control-label">Rückblick in Stunden</div>
+                  <div class="control-hint">Kurze Zeitfenster halten den Feed aktueller. Lange Zeitfenster zeigen auch ältere Meldungen bis maximal 24 Stunden.</div>
+                </div>
+                <div class="pill" id="news-count-pill">6h</div>
+              </div>
+
+              <input id="news-count-range" type="range" min="1" max="24" step="1" value="6">
+              <div class="range-scale">
+                <span>1</span>
+                <span>12</span>
+                <span>24</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Darstellung</div>
+              <p>Lege fest, ob News nach einem Display-Neustart platzsparend starten. Auf dem Display kann die Ansicht per Klick auf die News-Überschrift temporär umgeschaltet werden.</p>
+            </div>
+            <div class="field-grid">
+              <label class="switch-card">
+                <input id="news-default-collapsed" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">Im Standard minimiert laden</span>
+                  <span class="switch-text">Mehr Platz für das Gesicht im Startbereich</span>
+                </span>
+              </label>
+              <label class="field-block">
+                <span class="field-label">News im minimierten Zustand</span>
+                <input id="news-collapsed-count" class="field-input" type="number" min="1" max="10" step="1" value="3">
+              </label>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Quellen</div>
+              <p>Wähle selbst aus, welche Quellen Erika für den News-Bereich verwenden soll. Feed-spezifische Filterlogiken bleiben im Hintergrund aktiv.</p>
+            </div>
+            <div id="source-grid" class="source-grid"></div>
+          </section>
+
+        </article>
+
+        <article id="tab-weather" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Wetter</div>
+              <h2>Anzeige und Stundenfenster</h2>
+            </div>
+            <label class="switch-card">
+              <input id="weather-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Wetter im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Stundenleiste</div>
+              <p>Der Standort bleibt global unter System. Hier legst du fest, welche Wetterdaten links im Display erscheinen.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Vergangene Stunden</span>
+                <input id="weather-past-hours" class="field-input" type="number" min="0" max="12" step="1">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Zukünftige Stunden</span>
+                <input id="weather-future-hours" class="field-input" type="number" min="1" max="24" step="1">
+              </label>
+              <label class="field-block checkbox-block"><span class="field-label">Gefühlt</span><label class="mini-check"><input id="weather-show-feels" type="checkbox"><span>Gefühlt wie</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Wind</span><label class="mini-check"><input id="weather-show-wind" type="checkbox"><span>Wind</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Feuchte</span><label class="mini-check"><input id="weather-show-humidity" type="checkbox"><span>Luftfeuchtigkeit</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Regen</span><label class="mini-check"><input id="weather-show-precip" type="checkbox"><span>Niederschlag</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Min/Max</span><label class="mini-check"><input id="weather-show-minmax" type="checkbox"><span>Tageswerte</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Stunden</span><label class="mini-check"><input id="weather-show-hourly" type="checkbox"><span>Stundenleiste</span></label></label>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Tagesdetail</div>
+              <p>Diese Werte erscheinen unten in der großen 7-Tage-Ansicht, wenn du einen Tag auswählst.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block checkbox-block"><span class="field-label">Temperatur</span><label class="mini-check"><input id="weather-hourly-temp" type="checkbox"><span>Temperatur anzeigen</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Wahrscheinlichkeit</span><label class="mini-check"><input id="weather-hourly-pop" type="checkbox"><span>Regenwahrscheinlichkeit</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Niederschlag</span><label class="mini-check"><input id="weather-hourly-rain" type="checkbox"><span>Niederschlag in mm</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Wind</span><label class="mini-check"><input id="weather-hourly-wind" type="checkbox"><span>Windgeschwindigkeit</span></label></label>
+            </div>
+          </section>
+        </article>
+
+        <article id="tab-vehicles" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Fahrzeuge</div>
+              <h2>Autos und Entities</h2>
+            </div>
+            <label class="switch-card">
+              <input id="ev-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Fahrzeuge im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Konfiguration</div>
+              <p>Lege Fahrzeuge an und wähle die passenden Home-Assistant-Entitäten. Bei E-Autos werden Ladezustand, Restladezeit und Stop-Button zusätzlich verwendet.</p>
+            </div>
+            <div class="stack-actions">
+              <button id="ev-add-btn" class="secondary" type="button">Fahrzeug hinzufügen</button>
+            </div>
+            <div id="ev-vehicle-list" class="vehicle-stack"></div>
+          </section>
+        </article>
+
+        <article id="tab-lights" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Lichter</div>
+              <h2>Entitäten auswählen</h2>
+            </div>
+            <label class="switch-card">
+              <input id="lights-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Lichter im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Auswahl</div>
+              <p>Beim ersten Laden werden Licht-Entitäten automatisch vorausgewählt. Schalter und Steckdosen kannst du manuell ergänzen, wenn dahinter Lichter hängen.</p>
+            </div>
+            <div class="stack-actions">
+              <button id="lights-select-lights-btn" class="secondary" type="button">Alle light.* auswählen</button>
+              <button id="lights-clear-btn" class="secondary" type="button">Auswahl leeren</button>
+            </div>
+            <div id="light-entity-grid" class="entity-grid"></div>
+          </section>
+        </article>
+
+        <article id="tab-fuel" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Kraftstoff</div>
+              <h2>Anzeige und Sorten</h2>
+            </div>
+            <label class="switch-card">
+              <input id="fuel-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Preise im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Tankstelle</div>
+              <p>Wähle die Tankstelle aus, deren Tankerkönig-Sensoren im Display verwendet werden sollen. Es werden nur Preise dieser Tankstelle angezeigt.</p>
+            </div>
+            <div id="fuel-station-grid" class="station-grid"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Kraftstoffarten</div>
+              <p>Wähle die Sorten aus, die im Display erscheinen sollen. Wenn keine Sorte aktiv ist, bleibt der gesamte Bereich leer.</p>
+            </div>
+            <div id="fuel-type-grid" class="option-grid"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Zuordnung</div>
+              <p>Ordne jeder ausgewählten Sorte genau den Home-Assistant-Sensor der gewählten Tankstelle zu. Ohne manuelle Auswahl verwendet Erika die automatische Erkennung.</p>
+            </div>
+            <div id="fuel-assignment-grid" class="assignment-grid"></div>
+          </section>
+        </article>
+
+        <article id="tab-robots" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Roboter</div>
+              <h2>Sichtbare Roboter</h2>
+            </div>
+            <label class="switch-card">
+              <input id="robots-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Roboter im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Auswahl</div>
+              <p>Wähle aus, welche Home-Assistant-Roboter im Display erscheinen. Ohne gespeicherte Auswahl werden zunächst alle gefundenen Roboter angezeigt.</p>
+            </div>
+            <div class="stack-actions">
+              <button id="robots-select-all-btn" class="secondary" type="button">Alle auswählen</button>
+              <button id="robots-clear-btn" class="secondary" type="button">Auswahl leeren</button>
+            </div>
+            <div id="robot-entity-grid" class="entity-grid"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Status- und Fehlerregeln</div>
+              <p>Lege pro Roboter fest, welche Fehlerzustände als ok, Warnung oder echter Fehler gelten. Mehrere Werte werden mit Komma getrennt.</p>
+            </div>
+            <div id="robot-mapping-grid" class="robot-mapping-grid"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Saugroboter-Konfiguration</div>
+              <p>Räume, Reinigungsmodi und Karten-Kamera pro Saugroboter. Räume werden im Display als Auswahl-Buttons angezeigt.</p>
+            </div>
+            <div id="vacuum-config-grid"></div>
+          </section>
+        </article>
+
+        <article id="tab-system" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">System</div>
+              <h2>Home Assistant und Laufzeit</h2>
+            </div>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Home-Assistant-Verbindung</div>
+              <p>Diese Verbindung wird vom lokalen System für Kalender, Entitäten, Kameras und weitere Module verwendet. Host, Port und Token sollten hier statt hart im System gepflegt werden.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Protokoll</span>
+                <select id="ha-scheme" class="field-select">
+                  <option value="http">http</option>
+                  <option value="https">https</option>
+                </select>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Host / IP</span>
+                <input id="ha-host" class="field-input" type="text" placeholder="homeassistant oder 192.168.x.x">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Port</span>
+                <input id="ha-port" class="field-input" type="number" min="1" max="65535" placeholder="8123">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Long-Lived Access Token</span>
+                <input id="ha-token" class="field-input" type="password" placeholder="Bearer-Token aus Home Assistant">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Benutzername</span>
+                <input id="ha-username" class="field-input" type="text" placeholder="Optional gespeichert">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Passwort</span>
+                <input id="ha-password" class="field-input" type="password" placeholder="Optional gespeichert">
+              </label>
+            </div>
+            <div class="system-actions">
+              <button id="ha-test-btn" class="secondary" type="button">Verbindung prüfen</button>
+              <div id="ha-test-status" class="inline-status"></div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Standort</div>
+              <p>Der Systemstandort wird zuerst für das Wetter genutzt und kann später auch für weitere lokale Funktionen verwendet werden.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Standort / Ort</span>
+                <input id="site-location" class="field-input" type="text" placeholder="z. B. Ostenfeld">
+              </label>
+            </div>
+          </section>
+
+          <section class="module-card weather-legacy-hidden">
+            <div class="section-copy">
+              <div class="section-title">Wetteranzeige</div>
+              <p>Dein aktueller Aufbau ist der Standard. Du kannst aber festlegen, welche Kennzahlen und wie viele Stunden Vergangenheit/Zukunft im linken Displaybereich erscheinen.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block checkbox-block">
+                <span class="field-label">Modul</span>
+                <label class="mini-check">
+                  <input id="weather-enabled" type="checkbox">
+                  <span>Wetter anzeigen</span>
+                </label>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Vergangene Stunden</span>
+                <input id="weather-past-hours" class="field-input" type="number" min="0" max="12" step="1">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Zukünftige Stunden</span>
+                <input id="weather-future-hours" class="field-input" type="number" min="1" max="24" step="1">
+              </label>
+              <label class="field-block checkbox-block"><span class="field-label">Gefühlt</span><label class="mini-check"><input id="weather-show-feels" type="checkbox"><span>Gefühlt wie</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Wind</span><label class="mini-check"><input id="weather-show-wind" type="checkbox"><span>Wind</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Feuchte</span><label class="mini-check"><input id="weather-show-humidity" type="checkbox"><span>Luftfeuchtigkeit</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Regen</span><label class="mini-check"><input id="weather-show-precip" type="checkbox"><span>Niederschlag</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Min/Max</span><label class="mini-check"><input id="weather-show-minmax" type="checkbox"><span>Tageswerte</span></label></label>
+              <label class="field-block checkbox-block"><span class="field-label">Stunden</span><label class="mini-check"><input id="weather-show-hourly" type="checkbox"><span>Stundenleiste</span></label></label>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Aktueller Stand</div>
+              <p>Die lokale Admin-Oberfläche läuft separat unter <code>/local-admin</code> und ersetzt die bestehende Console nicht. Weitere Module wie Lichter, Roboter und Kameras können auf derselben Struktur folgen. Benutzername und Passwort werden bereits gespeichert, die API-Anbindung nutzt aktuell aber stabil den Token-Pfad.</p>
+            </div>
+          </section>
+        </article>
+
+        <div class="action-bar">
+          <button id="save-btn" type="button">Speichern</button>
+          <button id="reload-btn" class="secondary" type="button">Neu laden</button>
+          <div id="status" class="status"></div>
+        </div>
+      </section>
+
+    </section>
+  </main>
+
+  <script>
+    const rangeEl = document.getElementById('news-count-range');
+    const pillEl = document.getElementById('news-count-pill');
+    const saveBtn = document.getElementById('save-btn');
+    const reloadBtn = document.getElementById('reload-btn');
+    const statusEl = document.getElementById('status');
+    const moduleOverviewGridEl = document.getElementById('module-overview-grid');
+    const overviewActiveChipEl = document.getElementById('overview-active-chip');
+    const sourceGridEl = document.getElementById('source-grid');
+    const selectedCountChipEl = document.getElementById('selected-count-chip');
+    const newsDefaultCollapsedEl = document.getElementById('news-default-collapsed');
+    const newsCollapsedCountEl = document.getElementById('news-collapsed-count');
+    const evEnabledEl = document.getElementById('ev-enabled');
+    const evVehicleListEl = document.getElementById('ev-vehicle-list');
+    const evAddBtn = document.getElementById('ev-add-btn');
+    const fuelEnabledEl = document.getElementById('fuel-enabled');
+    const fuelStationGridEl = document.getElementById('fuel-station-grid');
+    const fuelAssignmentGridEl = document.getElementById('fuel-assignment-grid');
+    const summaryNewsEl = document.getElementById('summary-news');
+    const summarySourcesEl = document.getElementById('summary-sources');
+    const summaryWeatherEl = document.getElementById('summary-weather');
+    const summaryEvEl = document.getElementById('summary-ev');
+    const summaryLightsEl = document.getElementById('summary-lights');
+    const summaryRobotsEl = document.getElementById('summary-robots');
+    const summaryFuelEl = document.getElementById('summary-fuel');
+    const summaryHaEl = document.getElementById('summary-ha');
+    const haSchemeEl = document.getElementById('ha-scheme');
+    const haHostEl = document.getElementById('ha-host');
+    const haPortEl = document.getElementById('ha-port');
+    const haTokenEl = document.getElementById('ha-token');
+    const haUsernameEl = document.getElementById('ha-username');
+    const haPasswordEl = document.getElementById('ha-password');
+    const haTestBtn = document.getElementById('ha-test-btn');
+    const haTestStatusEl = document.getElementById('ha-test-status');
+    const siteLocationEl = document.getElementById('site-location');
+    const weatherEnabledEl = document.getElementById('weather-enabled');
+    const weatherPastHoursEl = document.getElementById('weather-past-hours');
+    const weatherFutureHoursEl = document.getElementById('weather-future-hours');
+    const weatherShowFeelsEl = document.getElementById('weather-show-feels');
+    const weatherShowWindEl = document.getElementById('weather-show-wind');
+    const weatherShowHumidityEl = document.getElementById('weather-show-humidity');
+    const weatherShowPrecipEl = document.getElementById('weather-show-precip');
+    const weatherShowMinmaxEl = document.getElementById('weather-show-minmax');
+    const weatherShowHourlyEl = document.getElementById('weather-show-hourly');
+    const weatherHourlyTempEl = document.getElementById('weather-hourly-temp');
+    const weatherHourlyPopEl = document.getElementById('weather-hourly-pop');
+    const weatherHourlyRainEl = document.getElementById('weather-hourly-rain');
+    const weatherHourlyWindEl = document.getElementById('weather-hourly-wind');
+    const lightsEnabledEl = document.getElementById('lights-enabled');
+    const lightEntityGridEl = document.getElementById('light-entity-grid');
+    const lightsSelectLightsBtn = document.getElementById('lights-select-lights-btn');
+    const lightsClearBtn = document.getElementById('lights-clear-btn');
+    const robotsEnabledEl = document.getElementById('robots-enabled');
+    const robotEntityGridEl = document.getElementById('robot-entity-grid');
+    const robotMappingGridEl = document.getElementById('robot-mapping-grid');
+    const robotsSelectAllBtn = document.getElementById('robots-select-all-btn');
+    const robotsClearBtn = document.getElementById('robots-clear-btn');
+    let fuelTypeOptions = [];
+    let fuelStations = [];
+    let fuelAssignments = {};
+    let sourceCatalog = [];
+    let lightCatalog = [];
+    let robotCatalog = [];
+    let robotStateMappings = {};
+    let vacuumConfigs = {}; // { [entity_id]: { map_camera, rooms: [{id,name}], modes: [{key,label,cleaning_mode_option,suction_level,water_volume}], default_mode } }
+    let evFieldOptions = {};
+    let evVehicles = [];
+    let evVehicleCounter = 0;
+
+    function setStatus(text, isError = false) {
+      statusEl.textContent = text || '';
+      statusEl.classList.toggle('error', Boolean(isError));
+    }
+
+    function activateTab(tabId) {
+      document.querySelectorAll('.tab-button').forEach((button) => {
+        button.classList.toggle('active', button.dataset.tabTarget === tabId);
+      });
+      document.querySelectorAll('.tab-panel').forEach((panel) => {
+        panel.classList.toggle('active', panel.id === tabId);
+      });
+    }
+
+    function syncPill() {
+      pillEl.textContent = `${rangeEl.value}h`;
+    }
+
+    function getSelectedSourceIds() {
+      return Array.from(document.querySelectorAll('input[name="news-source"]:checked')).map((input) => input.value);
+    }
+
+    function getSelectedFuelTypeIds() {
+      return Array.from(document.querySelectorAll('input[name="fuel-type"]:checked')).map((input) => input.value);
+    }
+
+    function getSelectedLightEntityIds() {
+      return Array.from(document.querySelectorAll('input[name="light-entity"]:checked')).map((input) => input.value);
+    }
+
+    function getSelectedRobotEntityIds() {
+      return Array.from(document.querySelectorAll('input[name="robot-entity"]:checked')).map((input) => input.value);
+    }
+
+    function parseStateList(value) {
+      return String(value || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+    }
+
+    function getRobotStateMappingsFromDom() {
+      const mappings = {};
+      document.querySelectorAll('[data-robot-mapping]').forEach((input) => {
+        const entityId = input.dataset.robotEntity;
+        const field = input.dataset.robotMapping;
+        if (!entityId || !field) return;
+        mappings[entityId] = mappings[entityId] || {};
+        mappings[entityId][field] = parseStateList(input.value);
+      });
+      return mappings;
+    }
+
+    function getSelectedFuelStationId() {
+      return document.querySelector('input[name="fuel-station"]:checked')?.value || '';
+    }
+
+    function getFuelAssignmentsFromDom() {
+      const assignments = {};
+      document.querySelectorAll('[data-fuel-assignment]').forEach((select) => {
+        if (select.value) assignments[select.dataset.fuelAssignment] = select.value;
+      });
+      return assignments;
+    }
+
+    function syncSelectedCount() {
+      const count = getSelectedSourceIds().length;
+      selectedCountChipEl.textContent = `${count} Quelle${count === 1 ? '' : 'n'} aktiv`;
+      summarySourcesEl.textContent = `${count} aktiv`;
+    }
+
+    function syncFuelAvailability() {
+      const enabled = fuelEnabledEl.checked;
+      document.querySelectorAll('input[name="fuel-type"]').forEach((input) => {
+        input.disabled = !enabled;
+      });
+      document.querySelectorAll('[data-fuel-assignment]').forEach((input) => {
+        input.disabled = !enabled;
+      });
+      document.querySelectorAll('.toggle-option').forEach((item) => {
+        item.classList.toggle('disabled', !enabled);
+      });
+      const selectedTypes = getSelectedFuelTypeIds();
+      const selectedStation = fuelStations.find((station) => station.id === getSelectedFuelStationId());
+      summaryFuelEl.textContent = enabled
+        ? (selectedStation ? selectedStation.label : 'Keine Tankstelle')
+        : 'Aus';
+    }
+
+    function getEvFieldOptions(field) {
+      return Array.isArray(evFieldOptions[field]) ? evFieldOptions[field] : [];
+    }
+
+    function buildEntityOptions(field, selectedValue) {
+      const options = getEvFieldOptions(field);
+      const current = selectedValue || '';
+      const optionHtml = options.map((item) => `
+        <option value="${escapeHtml(item.entity_id)}" ${item.entity_id === current ? 'selected' : ''}>
+          ${escapeHtml(item.name)} (${escapeHtml(item.entity_id)})
+        </option>
+      `).join('');
+      return `<option value="">Nicht gesetzt</option>${optionHtml}`;
+    }
+
+    function newEvVehicle() {
+      evVehicleCounter += 1;
+      return {
+        id: `vehicle_${evVehicleCounter}`,
+        label: `Fahrzeug ${evVehicleCounter}`,
+        enabled: true,
+        ev_profile_enabled: false,
+        location_entity: '',
+        odometer_entity: '',
+        activity_entity: '',
+        battery_entity: '',
+        range_entity: '',
+        fuel_level_entity: '',
+        adblue_level_entity: '',
+        charging_entity: '',
+        remaining_charge_time_entity: '',
+        stop_charging_button_entity: '',
+        climate_button_entity: '',
+      };
+    }
+
+    function renderEvVehicles() {
+      if (!evVehicles.length) {
+        evVehicleListEl.innerHTML = '<div class="empty-state">Noch kein Fahrzeug angelegt.</div>';
+        syncSummary();
+        return;
+      }
+      evVehicleListEl.innerHTML = evVehicles.map((vehicle, index) => `
+        <section class="vehicle-card ${vehicle.ev_profile_enabled ? 'is-ev' : 'is-normal'}" data-vehicle-index="${index}">
+          <div class="vehicle-card-head">
+            <div class="section-title">Fahrzeug ${index + 1}</div>
+            <button type="button" class="secondary ev-remove-btn" data-vehicle-index="${index}">Entfernen</button>
+          </div>
+          <div class="field-grid">
+            <label class="field-block">
+              <span class="field-label">Anzeigename</span>
+              <input class="field-input ev-field" data-vehicle-index="${index}" data-field="label" type="text" value="${escapeHtml(vehicle.label || '')}">
+            </label>
+            <label class="field-block checkbox-block">
+              <span class="field-label">Aktiv</span>
+              <label class="mini-check">
+                <input class="ev-field" data-vehicle-index="${index}" data-field="enabled" type="checkbox" ${vehicle.enabled !== false ? 'checked' : ''}>
+                <span>Im Fahrzeugbereich anzeigen</span>
+              </label>
+            </label>
+            <label class="field-block checkbox-block">
+              <span class="field-label">Fahrzeugtyp</span>
+              <label class="mini-check">
+                <input class="ev-field ev-type-toggle" data-vehicle-index="${index}" data-field="ev_profile_enabled" type="checkbox" ${vehicle.ev_profile_enabled ? 'checked' : ''}>
+                <span>E-Auto</span>
+              </label>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Standort</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="location_entity">${buildEntityOptions('location_entity', vehicle.location_entity)}</select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Kilometerstand</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="odometer_entity">${buildEntityOptions('odometer_entity', vehicle.odometer_entity)}</select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Status / Aktivität</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="activity_entity">${buildEntityOptions('activity_entity', vehicle.activity_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
+              <span class="field-label">Batterie in %</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="battery_entity">${buildEntityOptions('battery_entity', vehicle.battery_entity)}</select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Reichweite</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="range_entity">${buildEntityOptions('range_entity', vehicle.range_entity)}</select>
+            </label>
+            <label class="field-block normal-only">
+              <span class="field-label">Tank in %</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="fuel_level_entity">${buildEntityOptions('fuel_level_entity', vehicle.fuel_level_entity)}</select>
+            </label>
+            <label class="field-block normal-only">
+              <span class="field-label">AdBlue in %</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="adblue_level_entity">${buildEntityOptions('adblue_level_entity', vehicle.adblue_level_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
+              <span class="field-label">Ladestatus</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="charging_entity">${buildEntityOptions('charging_entity', vehicle.charging_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
+              <span class="field-label">Restladezeit</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="remaining_charge_time_entity">${buildEntityOptions('remaining_charge_time_entity', vehicle.remaining_charge_time_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
+              <span class="field-label">Stop-Button</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="stop_charging_button_entity">${buildEntityOptions('stop_charging_button_entity', vehicle.stop_charging_button_entity)}</select>
+            </label>
+            <label class="field-block">
+              <span class="field-label">Klima starten</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="climate_button_entity">${buildEntityOptions('climate_button_entity', vehicle.climate_button_entity)}</select>
+            </label>
+          </div>
+        </section>
+      `).join('');
+
+      document.querySelectorAll('.ev-field').forEach((input) => {
+        input.addEventListener('input', syncEvStateFromDom);
+        input.addEventListener('change', syncEvStateFromDom);
+      });
+      document.querySelectorAll('.ev-type-toggle').forEach((input) => {
+        input.addEventListener('change', () => {
+          syncEvStateFromDom();
+          renderEvVehicles();
+        });
+      });
+      document.querySelectorAll('.ev-remove-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          evVehicles.splice(Number(button.dataset.vehicleIndex), 1);
+          renderEvVehicles();
+        });
+      });
+      syncSummary();
+    }
+
+    function syncEvStateFromDom() {
+      evVehicles = Array.from(document.querySelectorAll('.vehicle-card')).map((card, index) => {
+        const getField = (field) => card.querySelector(`[data-field="${field}"]`)?.value || '';
+        const getChecked = (field) => Boolean(card.querySelector(`[data-field="${field}"]`)?.checked);
+        return {
+          id: evVehicles[index]?.id || `vehicle_${index + 1}`,
+          label: getField('label').trim() || `Fahrzeug ${index + 1}`,
+          enabled: getChecked('enabled'),
+          ev_profile_enabled: getChecked('ev_profile_enabled'),
+          location_entity: getField('location_entity'),
+          odometer_entity: getField('odometer_entity'),
+          activity_entity: getField('activity_entity'),
+          battery_entity: getField('battery_entity'),
+          range_entity: getField('range_entity'),
+          fuel_level_entity: getField('fuel_level_entity'),
+          adblue_level_entity: getField('adblue_level_entity'),
+          charging_entity: getField('charging_entity'),
+          remaining_charge_time_entity: getField('remaining_charge_time_entity'),
+          stop_charging_button_entity: getField('stop_charging_button_entity'),
+          climate_button_entity: getField('climate_button_entity'),
+        };
+      });
+      syncSummary();
+    }
+
+    function syncEvAvailability() {
+      const enabled = evEnabledEl.checked;
+      evAddBtn.disabled = !enabled;
+      evVehicleListEl.querySelectorAll('input, select, button').forEach((input) => {
+        if (input.id === 'ev-add-btn') return;
+        input.disabled = !enabled;
+      });
+      const activeCount = evVehicles.filter((vehicle) => vehicle.enabled !== false).length;
+      summaryEvEl.textContent = enabled ? `${activeCount} aktiv` : 'Aus';
+    }
+
+    function moduleStatus(enabled, detail) {
+      return {
+        enabled: Boolean(enabled),
+        label: enabled ? (detail || 'Aktiv') : 'Aus',
+      };
+    }
+
+    function renderModuleOverview() {
+      if (!moduleOverviewGridEl) return;
+      const activeVehicles = evVehicles.filter((vehicle) => vehicle.enabled !== false).length;
+      const selectedSources = getSelectedSourceIds().length;
+      const selectedLights = getSelectedLightEntityIds().length;
+      const selectedRobots = getSelectedRobotEntityIds().length;
+      const selectedFuelTypes = getSelectedFuelTypeIds().length;
+      const selectedStation = fuelStations.find((station) => station.id === getSelectedFuelStationId());
+      const modules = [
+        { name: 'News', area: 'Startseite Mitte', tab: 'tab-news', ...moduleStatus(true, `${rangeEl.value}h ${String.fromCharCode(183)} ${selectedSources} Quellen`) },
+        { name: 'Wetter', area: 'Startseite links · Detail per Klick', tab: 'tab-weather', ...moduleStatus(weatherEnabledEl.checked, `${weatherFutureHoursEl.value || 0}h Zukunft`) },
+        { name: 'Fahrzeuge', area: 'Startseite links · Button unten', tab: 'tab-vehicles', ...moduleStatus(evEnabledEl.checked, `${activeVehicles} aktiv`) },
+        { name: 'Lichter', area: 'Button unten', tab: 'tab-lights', ...moduleStatus(lightsEnabledEl.checked, `${selectedLights} Entitäten`) },
+        { name: 'Roboter', area: 'Button unten', tab: 'tab-robots', ...moduleStatus(robotsEnabledEl.checked, `${selectedRobots} aktiv`) },
+        { name: 'Kraftstoff', area: 'Startseite links', tab: 'tab-fuel', ...moduleStatus(fuelEnabledEl.checked, selectedStation ? `${selectedStation.label} ${String.fromCharCode(183)} ${selectedFuelTypes} Sorten` : `${selectedFuelTypes} Sorten`) },
+        { name: 'System', area: 'Grundkonfiguration', tab: 'tab-system', ...moduleStatus(true, (haHostEl.value || '').trim() || 'HA nicht gesetzt') },
+      ];
+      const activeCount = modules.filter((module) => module.enabled).length;
+      if (overviewActiveChipEl) {
+        overviewActiveChipEl.textContent = `${activeCount} Modul${activeCount === 1 ? '' : 'e'} aktiv`;
+      }
+      moduleOverviewGridEl.innerHTML = modules.map((module) => `
+        <button type="button" class="module-overview-card ${module.enabled ? 'is-active' : 'is-disabled'}" data-jump-tab="${module.tab}">
+          <span class="module-overview-top">
+            <span class="module-overview-name">${escapeHtml(module.name)}</span>
+            <span class="module-overview-status">${escapeHtml(module.label)}</span>
+          </span>
+          <span class="module-overview-area">${escapeHtml(module.area)}</span>
+        </button>
+      `).join('');
+      moduleOverviewGridEl.querySelectorAll('[data-jump-tab]').forEach((button) => {
+        button.addEventListener('click', () => activateTab(button.dataset.jumpTab));
+      });
+    }
+
+    function syncSummary() {
+      summaryNewsEl.textContent = newsDefaultCollapsedEl.checked
+        ? `${rangeEl.value}h ${String.fromCharCode(183)} minimiert (${newsCollapsedCountEl.value})`
+        : `${rangeEl.value}h`;
+      syncSelectedCount();
+      summaryWeatherEl.textContent = weatherEnabledEl.checked ? 'Aktiv' : 'Aus';
+      syncEvAvailability();
+      summaryLightsEl.textContent = lightsEnabledEl.checked ? `${getSelectedLightEntityIds().length} aktiv` : 'Aus';
+      summaryRobotsEl.textContent = robotsEnabledEl.checked ? `${getSelectedRobotEntityIds().length} aktiv` : 'Aus';
+      syncFuelAvailability();
+      const host = (haHostEl.value || '').trim();
+      const port = (haPortEl.value || '').trim();
+      summaryHaEl.textContent = host ? `${host}${port ? `:${port}` : ''}` : '-';
+      if (siteLocationEl?.value) {
+        summaryHaEl.textContent += ` · ${siteLocationEl.value.trim()}`;
+      }
+      renderModuleOverview();
+    }
+
+    function renderLightSelector(selectedEntities) {
+      const selected = new Set(selectedEntities || []);
+      const hasSavedSelection = selected.size > 0;
+      lightEntityGridEl.innerHTML = lightCatalog.map((item) => {
+        const entityId = item.entity_id || '';
+        const checked = hasSavedSelection ? selected.has(entityId) : entityId.startsWith('light.');
+        const type = item.is_group ? 'Gruppe' : (entityId.startsWith('switch.') ? 'Schalter' : 'Licht');
+        return `
+          <label class="entity-option">
+            <input type="checkbox" name="light-entity" value="${escapeHtml(entityId)}" ${checked ? 'checked' : ''}>
+            <span class="entity-main">
+              <span class="entity-name">${escapeHtml(item.name || entityId)}</span>
+              <span class="entity-id">${escapeHtml(entityId)}</span>
+            </span>
+            <span class="entity-type">${escapeHtml(type)}</span>
+          </label>
+        `;
+      }).join('');
+      document.querySelectorAll('input[name="light-entity"]').forEach((input) => {
+        input.addEventListener('change', syncSummary);
+      });
+    }
+
+    function renderRobotSelector(selectedEntities) {
+      const selected = new Set(selectedEntities || []);
+      const hasSavedSelection = selected.size > 0;
+      robotEntityGridEl.innerHTML = robotCatalog.length ? robotCatalog.map((item) => {
+        const entityId = item.entity_id || '';
+        const checked = hasSavedSelection ? selected.has(entityId) : true;
+        const type = entityId.startsWith('vacuum.') ? 'Saugroboter' : (entityId.startsWith('lawn_mower.') ? 'Mäher' : item.domain || 'Roboter');
+        return `
+          <label class="entity-option">
+            <input type="checkbox" name="robot-entity" value="${escapeHtml(entityId)}" ${checked ? 'checked' : ''}>
+            <span class="entity-main">
+              <span class="entity-name">${escapeHtml(item.name || entityId)}</span>
+              <span class="entity-id">${escapeHtml(entityId)}</span>
+            </span>
+            <span class="entity-type">${escapeHtml(type)}</span>
+          </label>
+        `;
+      }).join('') : '<div class="empty-state">Keine Roboter in Home Assistant gefunden.</div>';
+      document.querySelectorAll('input[name="robot-entity"]').forEach((input) => {
+        input.addEventListener('change', syncSummary);
+        input.addEventListener('change', renderRobotMappingSelector);
+        input.addEventListener('change', renderVacuumConfigSection);
+      });
+      renderRobotMappingSelector();
+      renderVacuumConfigSection();
+      syncSummary();
+    }
+
+    function renderRobotMappingSelector() {
+      if (!robotMappingGridEl) return;
+      const selected = new Set(getSelectedRobotEntityIds());
+      const robots = robotCatalog.filter((item) => selected.has(item.entity_id || ''));
+      if (!robots.length) {
+        robotMappingGridEl.innerHTML = '<div class="empty-state">Kein Roboter ausgewählt.</div>';
+        return;
+      }
+      const defaults = {
+        no_error_states: 'kein fehler, no_error, none, ok',
+        ok_states: 'mowing, docked, charging, idle, paused, returning, returning_to_charge, edgecut',
+        warn_states: 'rain_delay, rain_delayed',
+        critical_states: 'lifted, outside_wire, wire_missing, trapped, blade_motor_blocked, wheel_motor_blocked',
+      };
+      robotMappingGridEl.innerHTML = robots.map((robot) => {
+        const entityId = robot.entity_id || '';
+        const rules = robotStateMappings[entityId] || {};
+        const valueFor = (key) => Array.isArray(rules[key]) && rules[key].length ? rules[key].join(', ') : defaults[key];
+        return `
+          <section class="robot-mapping-card">
+            <div class="section-title">${escapeHtml(robot.name || entityId)}</div>
+            <div class="entity-id" style="margin-bottom:12px;">${escapeHtml(entityId)}</div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Kein Fehler</span>
+                <input class="field-input" data-robot-entity="${escapeHtml(entityId)}" data-robot-mapping="no_error_states" value="${escapeHtml(valueFor('no_error_states'))}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Betrieb / ok</span>
+                <input class="field-input" data-robot-entity="${escapeHtml(entityId)}" data-robot-mapping="ok_states" value="${escapeHtml(valueFor('ok_states'))}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Warnung</span>
+                <input class="field-input" data-robot-entity="${escapeHtml(entityId)}" data-robot-mapping="warn_states" value="${escapeHtml(valueFor('warn_states'))}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Fehler</span>
+                <input class="field-input" data-robot-entity="${escapeHtml(entityId)}" data-robot-mapping="critical_states" value="${escapeHtml(valueFor('critical_states'))}">
+              </label>
+            </div>
+          </section>
+        `;
+      }).join('');
+      robotMappingGridEl.querySelectorAll('[data-robot-mapping]').forEach((input) => {
+        input.addEventListener('input', () => {
+          robotStateMappings = getRobotStateMappingsFromDom();
+        });
+        input.addEventListener('change', () => {
+          robotStateMappings = getRobotStateMappingsFromDom();
+        });
+      });
+    }
+
+    // ── Vacuum Config ─────────────────────────────────────────
+    const _VAC_MODE_DEFS = [
+      { key: 'sweeping',               label: '🧹 Nur saugen',              hasSuction: true,  hasWater: false, defSuction: 3, defWater: 0 },
+      { key: 'mopping',                label: '💧 Nur wischen',             hasSuction: false, hasWater: true,  defSuction: 0, defWater: 3 },
+      { key: 'sweeping_and_mopping',   label: '🧹+💧 Saugen & Wischen',     hasSuction: true,  hasWater: true,  defSuction: 3, defWater: 3 },
+      { key: 'mopping_after_sweeping', label: '🧹→💧 Wischen nach Saugen',  hasSuction: true,  hasWater: true,  defSuction: 3, defWater: 3 },
+      { key: 'sweeping_then_mopping',  label: '🧹→💧 Saugen, dann Wischen', hasSuction: true,  hasWater: true,  defSuction: 3, defWater: 3 },
+    ];
+
+    function onVacModeChange(sel) {
+      const card = sel.closest('[data-mode-index]');
+      if (!card) return;
+      const def = _VAC_MODE_DEFS.find(m => m.key === sel.value) || _VAC_MODE_DEFS[0];
+      const sLabel = card.querySelector('.vac-suction-label');
+      const wLabel = card.querySelector('.vac-water-label');
+      if (sLabel) sLabel.style.display = def.hasSuction ? '' : 'none';
+      if (wLabel) wLabel.style.display = def.hasWater   ? '' : 'none';
+    }
+
+    function renderVacuumConfigSection() {
+      const gridEl = document.getElementById('vacuum-config-grid');
+      if (!gridEl) return;
+      const selected = new Set(getSelectedRobotEntityIds());
+      const vacuums = robotCatalog.filter((r) => selected.has(r.entity_id) && r.entity_id?.startsWith('vacuum.'));
+      if (!vacuums.length) {
+        gridEl.innerHTML = '<div class="empty-state">Kein Saugroboter ausgewählt.</div>';
+        return;
+      }
+      gridEl.innerHTML = vacuums.map((robot) => {
+        const eid = robot.entity_id;
+        const cfg = vacuumConfigs[eid] || { map_camera: '', rooms: [], modes: [], default_mode: '' };
+        const roomsHtml = cfg.rooms.map((room, i) => `
+          <div class="vehicle-card" data-vac-entity="${escapeHtml(eid)}" data-room-index="${i}">
+            <div class="vehicle-card-head">
+              <div class="section-title">Raum ${i + 1}</div>
+              <button type="button" class="secondary vac-room-remove" data-entity="${escapeHtml(eid)}" data-index="${i}">Entfernen</button>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Dreame Segment-ID</span>
+                <input class="field-input vac-room-field" type="number" min="1"
+                  data-entity="${escapeHtml(eid)}" data-room-index="${i}" data-field="id"
+                  value="${escapeHtml(String(room.id || ''))}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Anzeigename</span>
+                <input class="field-input vac-room-field" type="text"
+                  data-entity="${escapeHtml(eid)}" data-room-index="${i}" data-field="name"
+                  value="${escapeHtml(room.name || '')}">
+              </label>
+            </div>
+          </div>`).join('');
+        const _sLabels = ['Leise','Normal','Stark','Turbo'];
+        const _wLabels = ['Kein Wasser','Leicht trocken','Feucht','Nass'];
+        const modesHtml = cfg.modes.map((mode, i) => {
+          const modeKey = mode.cleaning_mode_option || mode.key || 'sweeping';
+          const def = _VAC_MODE_DEFS.find(m => m.key === modeKey) || _VAC_MODE_DEFS[0];
+          const modeOpts = _VAC_MODE_DEFS.map(m =>
+            `<option value="${m.key}" ${modeKey === m.key ? 'selected' : ''}>${m.label}</option>`
+          ).join('');
+          const sOpts = [0,1,2,3].map(v =>
+            `<option value="${v}" ${(mode.suction_level??def.defSuction)==v?'selected':''}>${_sLabels[v]}</option>`);
+          const wOpts = [0,1,2,3].map(v =>
+            `<option value="${v}" ${(mode.water_volume??def.defWater)==v?'selected':''}>${_wLabels[v]}</option>`);
+          return `
+          <div class="vehicle-card" data-vac-entity="${escapeHtml(eid)}" data-mode-index="${i}">
+            <div class="vehicle-card-head">
+              <div class="section-title">Modus ${i + 1}</div>
+              <button type="button" class="secondary vac-mode-remove" data-entity="${escapeHtml(eid)}" data-index="${i}">Entfernen</button>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Modus</span>
+                <select class="field-select vac-mode-field" onchange="onVacModeChange(this)"
+                  data-entity="${escapeHtml(eid)}" data-mode-index="${i}" data-field="cleaning_mode_option">
+                  ${modeOpts}
+                </select>
+              </label>
+              <label class="field-block vac-suction-label" style="${def.hasSuction ? '' : 'display:none'}">
+                <span class="field-label">Saugleistung</span>
+                <select class="field-select vac-mode-field"
+                  data-entity="${escapeHtml(eid)}" data-mode-index="${i}" data-field="suction_level">
+                  ${sOpts.join('')}
+                </select>
+              </label>
+              <label class="field-block vac-water-label" style="${def.hasWater ? '' : 'display:none'}">
+                <span class="field-label">Wasservolumen</span>
+                <select class="field-select vac-mode-field"
+                  data-entity="${escapeHtml(eid)}" data-mode-index="${i}" data-field="water_volume">
+                  ${wOpts.join('')}
+                </select>
+              </label>
+            </div>
+          </div>`;
+        }).join('');
+        const modeKeys = cfg.modes.map((m) => m.cleaning_mode_option || m.key).filter(Boolean);
+        const defaultOptions = _VAC_MODE_DEFS
+          .filter(m => modeKeys.includes(m.key))
+          .map(m => `<option value="${m.key}" ${cfg.default_mode === m.key ? 'selected' : ''}>${m.label}</option>`)
+          .join('');
+        return `
+          <div class="robot-mapping-card" style="margin-bottom:18px;">
+            <div class="section-title" style="margin-bottom:12px;">${escapeHtml(robot.name || eid)}</div>
+            <div class="field-grid" style="margin-bottom:12px;">
+              <label class="field-block">
+                <span class="field-label">Karten-Kamera (entity_id)</span>
+                <input class="field-input vac-camera-field" type="text" placeholder="camera.xxx_map"
+                  data-entity="${escapeHtml(eid)}"
+                  value="${escapeHtml(cfg.map_camera || '')}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Standard-Modus</span>
+                <select class="field-select vac-default-mode" data-entity="${escapeHtml(eid)}">
+                  <option value="">– kein Standard –</option>
+                  ${defaultOptions}
+                </select>
+              </label>
+            </div>
+            <div style="margin-bottom:10px;">
+              <button type="button" class="secondary vac-import-btn" data-entity="${escapeHtml(eid)}" style="font-size:0.75rem;">
+                ↓ Von HA importieren
+              </button>
+              <span class="vac-import-status" data-entity="${escapeHtml(eid)}" style="font-size:0.72rem;margin-left:8px;color:var(--color-muted,#666);"></span>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <div class="section-title">Räume</div>
+              <button type="button" class="secondary vac-room-add" data-entity="${escapeHtml(eid)}" style="font-size:0.75rem;padding:3px 10px;">+ Raum</button>
+            </div>
+            <div class="vehicle-stack" id="vac-rooms-${eid.replace(/\./g, '-')}">${roomsHtml || '<div class="empty-state">Keine Räume definiert.</div>'}</div>
+            <div style="display:flex;gap:8px;margin:12px 0 8px;">
+              <div class="section-title">Modi</div>
+              <button type="button" class="secondary vac-mode-add" data-entity="${escapeHtml(eid)}" style="font-size:0.75rem;padding:3px 10px;">+ Modus</button>
+            </div>
+            <div class="vehicle-stack" id="vac-modes-${eid.replace(/\./g, '-')}">${modesHtml || '<div class="empty-state">Keine Modi definiert.</div>'}</div>
+          </div>`;
+      }).join('');
+
+      // Import-Button
+      gridEl.querySelectorAll('.vac-import-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const eid = btn.dataset.entity;
+          const statusEl = gridEl.querySelector(`.vac-import-status[data-entity="${eid}"]`);
+          btn.disabled = true;
+          if (statusEl) statusEl.textContent = 'Importiere…';
+          try {
+            const r = await fetch(`/ha/robots/${encodeURIComponent(eid)}/detect-config`);
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const detected = await r.json();
+            vacuumConfigs[eid] = {
+              map_camera:   detected.map_camera   || '',
+              rooms:        detected.rooms        || [],
+              modes:        detected.modes        || [],
+              default_mode: detected.default_mode || '',
+            };
+            if (statusEl) statusEl.textContent = `✓ ${detected.rooms.length} Räume, ${detected.modes.length} Modi importiert`;
+            renderVacuumConfigSection();
+          } catch (err) {
+            if (statusEl) statusEl.textContent = `Fehler: ${err.message}`;
+          } finally {
+            btn.disabled = false;
+          }
+        });
+      });
+
+      // Event listeners
+      gridEl.querySelectorAll('.vac-room-field, .vac-mode-field, .vac-camera-field, .vac-default-mode').forEach((el) => {
+        el.addEventListener('input', syncVacuumConfigsFromDom);
+        el.addEventListener('change', syncVacuumConfigsFromDom);
+      });
+      gridEl.querySelectorAll('.vac-room-add').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const eid = btn.dataset.entity;
+          if (!vacuumConfigs[eid]) vacuumConfigs[eid] = { map_camera: '', rooms: [], modes: [], default_mode: '' };
+          const rooms = vacuumConfigs[eid].rooms || [];
+          const nextId = rooms.length ? Math.max(...rooms.map((r) => Number(r.id) || 0)) + 1 : 1;
+          vacuumConfigs[eid].rooms = [...rooms, { id: nextId, name: `Raum ${nextId}` }];
+          renderVacuumConfigSection();
+        });
+      });
+      gridEl.querySelectorAll('.vac-room-remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const eid = btn.dataset.entity;
+          const idx = Number(btn.dataset.index);
+          if (vacuumConfigs[eid]?.rooms) {
+            vacuumConfigs[eid].rooms.splice(idx, 1);
+            renderVacuumConfigSection();
+          }
+        });
+      });
+      gridEl.querySelectorAll('.vac-mode-add').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const eid = btn.dataset.entity;
+          if (!vacuumConfigs[eid]) vacuumConfigs[eid] = { map_camera: '', rooms: [], modes: [], default_mode: '' };
+          vacuumConfigs[eid].modes = [...(vacuumConfigs[eid].modes || []), { key: 'sweeping', label: '🧹 Nur saugen', cleaning_mode_option: 'sweeping', suction_level: 3, water_volume: 0 }];
+          renderVacuumConfigSection();
+        });
+      });
+      gridEl.querySelectorAll('.vac-mode-remove').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const eid = btn.dataset.entity;
+          const idx = Number(btn.dataset.index);
+          if (vacuumConfigs[eid]?.modes) {
+            vacuumConfigs[eid].modes.splice(idx, 1);
+            renderVacuumConfigSection();
+          }
+        });
+      });
+    }
+
+    function syncVacuumConfigsFromDom() {
+      const gridEl = document.getElementById('vacuum-config-grid');
+      if (!gridEl) return;
+      // Camera + default mode
+      gridEl.querySelectorAll('.vac-camera-field').forEach((el) => {
+        const eid = el.dataset.entity;
+        if (!vacuumConfigs[eid]) vacuumConfigs[eid] = { map_camera: '', rooms: [], modes: [], default_mode: '' };
+        vacuumConfigs[eid].map_camera = el.value.trim();
+      });
+      gridEl.querySelectorAll('.vac-default-mode').forEach((el) => {
+        const eid = el.dataset.entity;
+        if (!vacuumConfigs[eid]) vacuumConfigs[eid] = { map_camera: '', rooms: [], modes: [], default_mode: '' };
+        vacuumConfigs[eid].default_mode = el.value;
+      });
+      // Rooms
+      const roomsByEntity = {};
+      gridEl.querySelectorAll('[data-room-index]').forEach((card) => {
+        const eid = card.dataset.vacEntity;
+        if (!eid) return;
+        const idx = Number(card.dataset.roomIndex);
+        if (!roomsByEntity[eid]) roomsByEntity[eid] = [];
+        const id = parseInt(card.querySelector('[data-field="id"]')?.value || '0');
+        const name = (card.querySelector('[data-field="name"]')?.value || '').trim();
+        roomsByEntity[eid][idx] = { id: id || idx + 1, name: name || `Raum ${idx + 1}` };
+      });
+      Object.entries(roomsByEntity).forEach(([eid, rooms]) => {
+        if (vacuumConfigs[eid]) vacuumConfigs[eid].rooms = rooms.filter(Boolean);
+      });
+      // Modes
+      const modesByEntity = {};
+      gridEl.querySelectorAll('[data-mode-index]').forEach((card) => {
+        const eid = card.dataset.vacEntity;
+        if (!eid) return;
+        const idx = Number(card.dataset.modeIndex);
+        if (!modesByEntity[eid]) modesByEntity[eid] = [];
+        const getF = (f) => (card.querySelector(`[data-field="${f}"]`)?.value || '').trim();
+        const modeKey = getF('cleaning_mode_option') || 'sweeping';
+        const modeDef = _VAC_MODE_DEFS.find(m => m.key === modeKey) || _VAC_MODE_DEFS[0];
+        modesByEntity[eid][idx] = {
+          key: modeKey,
+          label: modeDef.label,
+          cleaning_mode_option: modeKey,
+          suction_level: modeDef.hasSuction ? parseInt(getF('suction_level') || String(modeDef.defSuction)) : modeDef.defSuction,
+          water_volume:  modeDef.hasWater   ? parseInt(getF('water_volume')  || String(modeDef.defWater))   : modeDef.defWater,
+        };
+      });
+      Object.entries(modesByEntity).forEach(([eid, modes]) => {
+        if (vacuumConfigs[eid]) vacuumConfigs[eid].modes = modes.filter(Boolean);
+      });
+    }
+
+    function renderSourceSelector(selectedSources) {
+      const selected = new Set(selectedSources || []);
+      sourceGridEl.innerHTML = sourceCatalog.map((source) => `
+        <label class="source-option">
+          <div class="source-header">
+            <div class="source-visual">
+              ${source.icon_url ? `<img class="source-icon" src="${escapeHtml(source.icon_url)}" alt="${escapeHtml(source.label)}" onerror="this.style.opacity='0'">` : '<div class="source-icon fallback"></div>'}
+            </div>
+            <input type="checkbox" name="news-source" value="${escapeHtml(source.id)}" ${selected.has(source.id) ? 'checked' : ''}>
+          </div>
+          <div class="source-name">${escapeHtml(source.label)}</div>
+          <div class="source-url">${escapeHtml(source.url || '')}</div>
+        </label>
+      `).join('');
+      document.querySelectorAll('input[name="news-source"]').forEach((input) => {
+        input.addEventListener('change', syncSummary);
+      });
+      syncSelectedCount();
+    }
+
+    function renderFuelTypeSelector(selectedTypes) {
+      const target = document.getElementById('fuel-type-grid');
+      const selected = new Set(selectedTypes || []);
+      target.innerHTML = fuelTypeOptions.map((item) => `
+        <label class="toggle-option">
+          <input type="checkbox" name="fuel-type" value="${escapeHtml(item.id)}" ${selected.has(item.id) ? 'checked' : ''}>
+          <div class="toggle-option-name">${escapeHtml(item.label)}</div>
+        </label>
+      `).join('');
+      document.querySelectorAll('input[name="fuel-type"]').forEach((input) => {
+        input.addEventListener('change', syncSummary);
+        input.addEventListener('change', renderFuelAssignmentSelector);
+      });
+      syncFuelAvailability();
+      renderFuelAssignmentSelector();
+    }
+
+    function renderFuelStationSelector(selectedStationId) {
+      if (!fuelStations.length) {
+        fuelStationGridEl.innerHTML = '<div class="empty-state">Keine Tankerkönig-Sensoren in Home Assistant gefunden.</div>';
+        syncFuelAvailability();
+        return;
+      }
+      const selectedId = selectedStationId || fuelStations[0]?.id || '';
+      fuelStationGridEl.innerHTML = fuelStations.map((station) => {
+        const types = (station.fuel_types || []).map((type) => {
+          const option = fuelTypeOptions.find((item) => item.id === type);
+          return option?.label || type;
+        }).join(' · ');
+        const entities = (station.entities || []).map((entity) => `
+          <div class="station-entity">
+            <span>${escapeHtml(entity.type_label || entity.type_id)}</span>
+            <span>${escapeHtml(entity.entity_id || '')}</span>
+          </div>
+        `).join('');
+        return `
+          <label class="station-option">
+            <div class="station-option-head">
+              <input type="radio" name="fuel-station" value="${escapeHtml(station.id)}" ${station.id === selectedId ? 'checked' : ''}>
+              <div>
+                <div class="station-name">${escapeHtml(station.label)}</div>
+                <div class="station-types">${escapeHtml(types || 'Keine Sorten erkannt')}</div>
+              </div>
+            </div>
+            <div class="station-entities">${entities}</div>
+          </label>
+        `;
+      }).join('');
+      document.querySelectorAll('input[name="fuel-station"]').forEach((input) => {
+        input.addEventListener('change', syncSummary);
+        input.addEventListener('change', renderFuelAssignmentSelector);
+      });
+      syncFuelAvailability();
+      renderFuelAssignmentSelector();
+    }
+
+    function renderFuelAssignmentSelector() {
+      if (!fuelAssignmentGridEl) return;
+      const selectedTypes = getSelectedFuelTypeIds();
+      const station = fuelStations.find((item) => item.id === getSelectedFuelStationId());
+      const entities = Array.isArray(station?.entities) ? station.entities : [];
+      if (!selectedTypes.length) {
+        fuelAssignmentGridEl.innerHTML = '<div class="empty-state">Keine Kraftstoffart ausgewählt.</div>';
+        return;
+      }
+      if (!entities.length) {
+        fuelAssignmentGridEl.innerHTML = '<div class="empty-state">Keine Sensoren für diese Tankstelle gefunden.</div>';
+        return;
+      }
+      const optionsHtml = (typeId, selectedEntity) => {
+        const autoLabel = fuelTypeOptions.find((item) => item.id === typeId)?.label || typeId;
+        return [
+          `<option value="">Automatisch erkennen (${escapeHtml(autoLabel)})</option>`,
+          ...entities.map((entity) => `
+            <option value="${escapeHtml(entity.entity_id || '')}" ${entity.entity_id === selectedEntity ? 'selected' : ''}>
+              ${escapeHtml(entity.type_label || entity.type_id || 'Kraftstoff')} · ${escapeHtml(entity.name || entity.entity_id || '')}
+            </option>
+          `),
+        ].join('');
+      };
+      fuelAssignmentGridEl.innerHTML = selectedTypes.map((typeId) => {
+        const label = fuelTypeOptions.find((item) => item.id === typeId)?.label || typeId;
+        const selectedEntity = fuelAssignments[typeId] || '';
+        return `
+          <label class="field-block assignment-option">
+            <span class="field-label">${escapeHtml(label)}</span>
+            <select class="field-select" data-fuel-assignment="${escapeHtml(typeId)}" ${fuelEnabledEl.checked ? '' : 'disabled'}>
+              ${optionsHtml(typeId, selectedEntity)}
+            </select>
+          </label>
+        `;
+      }).join('');
+      fuelAssignmentGridEl.querySelectorAll('[data-fuel-assignment]').forEach((select) => {
+        select.addEventListener('change', () => {
+          fuelAssignments = getFuelAssignmentsFromDom();
+          syncSummary();
+        });
+      });
+    }
+
+    function renderPreview(items) {
+      return;
+      if (!items.length) {
+        previewListEl.innerHTML = '<div class="preview-item"><div class="preview-title">Keine News verfügbar.</div></div>';
+        return;
+      }
+      previewListEl.innerHTML = items.map((item) => `
+        <div class="preview-item">
+          <div class="preview-source">${escapeHtml(item.source || 'News')}</div>
+          <div class="preview-title">${escapeHtml(item.title || '')}</div>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function loadConfig() {
+      setStatus('Lade Konfiguration...');
+      const response = await fetch('/local-admin/integrations/catalog');
+      if (!response.ok) {
+        throw new Error('Konfiguration konnte nicht geladen werden.');
+      }
+      const data = await response.json();
+      sourceCatalog = data?.catalog?.entities?.news_sources || [];
+      lightCatalog = data?.catalog?.entities?.lights || [];
+      robotCatalog = data?.catalog?.entities?.robots || [];
+      fuelTypeOptions = data?.catalog?.entities?.fuel_type_options || [];
+      fuelStations = data?.catalog?.entities?.fuel_stations || [];
+      evFieldOptions = data?.catalog?.entities?.vehicles?.field_options || data?.catalog?.entities?.ev?.field_options || {};
+
+      const hours = data?.config?.news?.lookback_hours ?? data?.config?.news?.item_count ?? 6;
+      const selectedSources = data?.config?.news?.selected_sources || [];
+      const newsConfig = data?.config?.news || {};
+      const fuelConfig = data?.config?.fuel_prices || {};
+      const selectedFuelTypes = Array.isArray(fuelConfig.fuel_types) ? fuelConfig.fuel_types : ['diesel'];
+      const selectedFuelStationId = fuelConfig.selected_station_id || '';
+      const vehicleConfig = data?.config?.vehicles || {};
+      const evConfig = data?.config?.ev || {};
+      const defaultVehicle = data?.catalog?.entities?.vehicles?.default_vehicle || data?.catalog?.entities?.ev?.default_vehicle || newEvVehicle();
+      const haConfig = data?.config?.system?.home_assistant || data?.catalog?.entities?.system?.home_assistant?.defaults || {};
+      const siteConfig = data?.config?.system?.site || {};
+      const weatherConfig = data?.config?.weather || data?.config?.system?.weather || {};
+      const lightsConfig = data?.config?.lights || {};
+      const robotsConfig = data?.config?.robots || {};
+      robotStateMappings = robotsConfig.state_mappings || {};
+      vacuumConfigs = robotsConfig.vacuum_configs || {};
+
+      rangeEl.value = hours;
+      newsDefaultCollapsedEl.checked = Boolean(newsConfig.default_collapsed);
+      newsCollapsedCountEl.value = newsConfig.collapsed_count ?? 3;
+      fuelEnabledEl.checked = Boolean(fuelConfig.enabled);
+      fuelAssignments = fuelConfig.fuel_assignments || {};
+      evEnabledEl.checked = vehicleConfig.enabled !== false;
+      evVehicles = Array.isArray(vehicleConfig.items) ? vehicleConfig.items : (Array.isArray(evConfig.vehicles) ? evConfig.vehicles : [defaultVehicle]);
+      evVehicleCounter = evVehicles.length;
+      haSchemeEl.value = haConfig.scheme || 'http';
+      haHostEl.value = haConfig.host || '';
+      haPortEl.value = haConfig.port || 8123;
+      haTokenEl.value = haConfig.token || '';
+      haUsernameEl.value = haConfig.username || '';
+      haPasswordEl.value = haConfig.password || '';
+      siteLocationEl.value = siteConfig.location || data?.catalog?.entities?.system?.site?.default_location || 'Ostenfeld';
+      weatherEnabledEl.checked = weatherConfig.enabled !== false;
+      weatherPastHoursEl.value = weatherConfig.hourly_past_hours ?? 0;
+      weatherFutureHoursEl.value = weatherConfig.hourly_future_hours ?? 5;
+      weatherShowFeelsEl.checked = weatherConfig.show_feels_like !== false;
+      weatherShowWindEl.checked = weatherConfig.show_wind !== false;
+      weatherShowHumidityEl.checked = weatherConfig.show_humidity !== false;
+      weatherShowPrecipEl.checked = weatherConfig.show_precipitation !== false;
+      weatherShowMinmaxEl.checked = weatherConfig.show_minmax !== false;
+      weatherShowHourlyEl.checked = weatherConfig.show_hourly !== false;
+      weatherHourlyTempEl.checked = weatherConfig.show_hourly_temperature !== false;
+      weatherHourlyPopEl.checked = weatherConfig.show_hourly_precip_probability !== false;
+      weatherHourlyRainEl.checked = weatherConfig.show_hourly_precipitation !== false;
+      weatherHourlyWindEl.checked = weatherConfig.show_hourly_wind !== false;
+      lightsEnabledEl.checked = lightsConfig.enabled !== false;
+      robotsEnabledEl.checked = robotsConfig.enabled !== false;
+      haTestStatusEl.textContent = '';
+      haTestStatusEl.classList.remove('error', 'success');
+      renderSourceSelector(selectedSources);
+      renderLightSelector(lightsConfig.selected_entities || []);
+      renderRobotSelector(robotsConfig.selected_entities || []);
+      renderVacuumConfigSection();
+      renderEvVehicles();
+      renderFuelStationSelector(selectedFuelStationId);
+      renderFuelTypeSelector(selectedFuelTypes);
+      syncPill();
+      syncSummary();
+      setStatus('');
+    }
+
+    async function loadPreview() {
+      const response = await fetch('/news');
+      if (!response.ok) {
+        throw new Error('News konnten nicht geladen werden.');
+      }
+      const data = await response.json();
+      renderPreview(data.items || []);
+    }
+
+    async function saveConfig() {
+      saveBtn.disabled = true;
+      setStatus('Speichere Konfiguration...');
+      try {
+        const response = await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            news: {
+              lookback_hours: Number(rangeEl.value),
+              selected_sources: getSelectedSourceIds(),
+              default_collapsed: newsDefaultCollapsedEl.checked,
+              collapsed_count: Number(newsCollapsedCountEl.value),
+            },
+            lights: {
+              enabled: lightsEnabledEl.checked,
+              selected_entities: getSelectedLightEntityIds(),
+            },
+            robots: {
+              enabled: robotsEnabledEl.checked,
+              selected_entities: getSelectedRobotEntityIds(),
+              state_mappings: getRobotStateMappingsFromDom(),
+              vacuum_configs: vacuumConfigs,
+            },
+            ev: {
+              enabled: evEnabledEl.checked,
+              vehicles: evVehicles.filter((vehicle) => vehicle.ev_profile_enabled),
+            },
+            vehicles: {
+              enabled: evEnabledEl.checked,
+              location_history_days: 14,
+              poll_seconds: 30,
+              items: evVehicles,
+            },
+            fuel_prices: {
+              enabled: fuelEnabledEl.checked,
+              fuel_types: getSelectedFuelTypeIds(),
+              selected_station_id: getSelectedFuelStationId(),
+              fuel_assignments: getFuelAssignmentsFromDom(),
+            },
+            weather: {
+              enabled: weatherEnabledEl.checked,
+              hourly_past_hours: Number(weatherPastHoursEl.value),
+              hourly_future_hours: Number(weatherFutureHoursEl.value),
+              show_feels_like: weatherShowFeelsEl.checked,
+              show_wind: weatherShowWindEl.checked,
+              show_humidity: weatherShowHumidityEl.checked,
+              show_precipitation: weatherShowPrecipEl.checked,
+              show_minmax: weatherShowMinmaxEl.checked,
+              show_hourly: weatherShowHourlyEl.checked,
+              show_hourly_temperature: weatherHourlyTempEl.checked,
+              show_hourly_precip_probability: weatherHourlyPopEl.checked,
+              show_hourly_precipitation: weatherHourlyRainEl.checked,
+              show_hourly_wind: weatherHourlyWindEl.checked,
+            },
+            system: {
+              home_assistant: {
+                scheme: haSchemeEl.value,
+                host: haHostEl.value.trim(),
+                port: Number(haPortEl.value),
+                token: haTokenEl.value.trim(),
+                username: haUsernameEl.value.trim(),
+                password: haPasswordEl.value,
+              },
+              site: {
+                location: siteLocationEl.value.trim(),
+              },
+            },
+          }),
+        });
+        if (!response.ok) {
+          throw new Error('Speichern fehlgeschlagen.');
+        }
+        try {
+          localStorage.setItem('local_admin_saved_at', String(Date.now()));
+        } catch {}
+        await loadConfig();
+        setStatus('Gespeichert.');
+      } catch (error) {
+        setStatus(error.message || 'Speichern fehlgeschlagen.', true);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    async function testHaConnection() {
+      haTestBtn.disabled = true;
+      haTestStatusEl.textContent = 'Prüfe Verbindung...';
+      haTestStatusEl.classList.remove('error', 'success');
+      try {
+        const response = await fetch('/local-admin/system/home-assistant/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            home_assistant: {
+              scheme: haSchemeEl.value,
+              host: haHostEl.value.trim(),
+              port: Number(haPortEl.value),
+              token: haTokenEl.value.trim(),
+              username: haUsernameEl.value.trim(),
+              password: haPasswordEl.value,
+            },
+          }),
+        });
+        if (!response.ok) {
+          throw new Error('Verbindungstest fehlgeschlagen.');
+        }
+        const data = await response.json();
+        const result = data?.result || {};
+        haTestStatusEl.textContent = result.detail || (result.ok ? 'Verbindung erfolgreich.' : 'Verbindung fehlgeschlagen.');
+        haTestStatusEl.classList.toggle('success', Boolean(result.ok));
+        haTestStatusEl.classList.toggle('error', !result.ok);
+      } catch (error) {
+        haTestStatusEl.textContent = error.message || 'Verbindungstest fehlgeschlagen.';
+        haTestStatusEl.classList.add('error');
+        haTestStatusEl.classList.remove('success');
+      } finally {
+        haTestBtn.disabled = false;
+      }
+    }
+
+    async function boot() {
+      try {
+        await loadConfig();
+      } catch (error) {
+        setStatus(error.message || 'Initialisierung fehlgeschlagen.', true);
+      }
+    }
+
+    document.querySelectorAll('.tab-button').forEach((button) => {
+      button.addEventListener('click', () => activateTab(button.dataset.tabTarget));
+    });
+    rangeEl.addEventListener('input', () => {
+      syncPill();
+      syncSummary();
+    });
+    evEnabledEl.addEventListener('change', syncSummary);
+    evAddBtn.addEventListener('click', () => {
+      evVehicles.push(newEvVehicle());
+      renderEvVehicles();
+    });
+    fuelEnabledEl.addEventListener('change', syncSummary);
+    [
+      haSchemeEl, haHostEl, haPortEl, haTokenEl, haUsernameEl, haPasswordEl,
+      siteLocationEl, weatherEnabledEl, weatherPastHoursEl, weatherFutureHoursEl,
+      weatherShowFeelsEl, weatherShowWindEl, weatherShowHumidityEl, weatherShowPrecipEl,
+      weatherShowMinmaxEl, weatherShowHourlyEl, newsDefaultCollapsedEl, newsCollapsedCountEl,
+      weatherHourlyTempEl, weatherHourlyPopEl, weatherHourlyRainEl, weatherHourlyWindEl,
+      lightsEnabledEl, robotsEnabledEl,
+    ].forEach((input) => {
+      input.addEventListener('input', syncSummary);
+      input.addEventListener('change', syncSummary);
+    });
+    lightsSelectLightsBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="light-entity"]').forEach((input) => {
+        input.checked = String(input.value || '').startsWith('light.');
+      });
+      syncSummary();
+    });
+    lightsClearBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="light-entity"]').forEach((input) => {
+        input.checked = false;
+      });
+      syncSummary();
+    });
+    robotsSelectAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="robot-entity"]').forEach((input) => {
+        input.checked = true;
+      });
+      syncSummary();
+    });
+    robotsClearBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="robot-entity"]').forEach((input) => {
+        input.checked = false;
+      });
+      syncSummary();
+    });
+    haTestBtn.addEventListener('click', testHaConnection);
+    saveBtn.addEventListener('click', saveConfig);
+    reloadBtn.addEventListener('click', boot);
+
+    boot();
+  </script>
+</body>
+</html>
