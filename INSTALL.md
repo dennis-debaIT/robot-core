@@ -2,7 +2,7 @@
 
 ## Schnellinstallation (empfohlen)
 
-Auf einem frischen Ubuntu/Debian System einen einzigen Befehl ausführen:
+Auf einem frischen Ubuntu/Debian System — **kein GitHub-Account nötig**:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install.sh | bash

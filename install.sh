@@ -6,7 +6,7 @@ set -e
 #   curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install.sh | bash
 # ─────────────────────────────────────────────────────────────
 
-REPO="git@github.com:dennis-debaIT/robot-core.git"
+REPO="https://github.com/dennis-debaIT/robot-core.git"
 INSTALL_DIR="$HOME/robot-core"
 USER_NAME="${SUDO_USER:-$USER}"
 
@@ -54,33 +54,7 @@ else
 fi
 sudo systemctl enable --now docker > /dev/null 2>&1 || true
 
-# ── 3. SSH-Key für GitHub ─────────────────────────────────────
-step "SSH-Key einrichten"
-KEY_FILE="$HOME/.ssh/id_ed25519"
-if [ ! -f "$KEY_FILE" ]; then
-    ssh-keygen -t ed25519 -C "erika-robot-core" -f "$KEY_FILE" -N "" > /dev/null
-    success "Neuer SSH-Key erstellt"
-fi
-
-echo ""
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}Füge diesen SSH-Key bei GitHub hinzu:${NC}"
-echo -e "${YELLOW}github.com → Settings → SSH and GPG keys → New SSH key${NC}"
-echo ""
-cat "$KEY_FILE.pub"
-echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo ""
-read -r -p "Drücke ENTER sobald der Key bei GitHub eingetragen ist..."
-
-# Verbindung testen
-info "Teste GitHub-Verbindung..."
-if ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-    success "GitHub-Verbindung erfolgreich"
-else
-    warn "Verbindungstest fehlgeschlagen — fahre trotzdem fort"
-fi
-
-# ── 4. Repo klonen ────────────────────────────────────────────
+# ── 3. Repo klonen ───────────────────────────────────────────
 step "Repository klonen"
 if [ -d "$INSTALL_DIR/.git" ]; then
     info "Repo bereits vorhanden — aktualisiere..."
