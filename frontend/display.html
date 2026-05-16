@@ -1911,7 +1911,7 @@
 
   // ── NAVIGATION ────────────────────────────────────────────
   let _navMode = 'home';
-  let _enabledModules = { lights: true, vehicles: true };
+  let _enabledModules = { lights: true, vehicles: true, robots: true, cameras: true };
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
   let _vehiclesData = [];
@@ -1933,14 +1933,17 @@
       lights: modules?.lights !== false,
       vehicles: modules?.vehicles !== false,
       robots: modules?.robots !== false,
+      cameras: modules?.cameras !== false,
     };
     const lightsBtn = document.getElementById('nav-lights');
     const vehiclesBtn = document.getElementById('nav-vehicles');
     const robotsBtn = document.getElementById('nav-robots');
+    const camerasBtn = document.getElementById('nav-cameras');
     if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
     if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
     if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
-    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots)) {
+    if (camerasBtn) camerasBtn.hidden = !_enabledModules.cameras;
+    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras)) {
       navTo('home');
     }
   }
@@ -1956,7 +1959,7 @@
   }
 
   function navTo(mode) {
-    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots)) {
+    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras)) {
       mode = 'home';
     }
     _navMode = mode;

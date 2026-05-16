@@ -19,11 +19,6 @@ class CameraStreamService:
     _RTSP_USER = os.environ.get("ROBOT_RING_RTSP_USER", "erika")
     _RTSP_PASS = os.environ.get("ROBOT_RING_RTSP_PASS", "erika123")
 
-    RING_DEVICE_MAP: dict[str, str] = {
-        "camera.haustur_live_ansicht": "343ea4dd0896",
-        "camera.garten_live_ansicht": "649a63f0d054",
-        "camera.terrasse_live_ansicht": "649a63eef039",
-    }
     LIVE_TIMEOUT = 300
     _watchdog_started = False
 
@@ -35,20 +30,33 @@ class CameraStreamService:
         threading.Thread(target=cls._ffmpeg_watchdog, daemon=True).start()
 
     @classmethod
+    def _get_cameras_db_config(cls) -> dict:
+        from app.database.db import get_connection, read_state
+        try:
+            with get_connection() as conn:
+                config = read_state(conn, "local_admin_integration_config", {}) or {}
+            return config.get("cameras") or {}
+        except Exception:
+            return {}
+
+    @classmethod
     def ring_ids(cls) -> set[str]:
-        return set(cls.RING_DEVICE_MAP.keys())
+        return set(cls._get_cameras_db_config().get("selected_entities") or [])
 
     @classmethod
     def rtsp_url(cls, entity_id: str) -> str:
         ha_host = HomeAssistantRuntimeConfigService.get_config()["host"]
-        device_id = cls.RING_DEVICE_MAP.get(entity_id)
+        camera_configs = cls._get_cameras_db_config().get("camera_configs") or {}
+        cam_cfg = camera_configs.get(entity_id) or {}
+        device_id = str(cam_cfg.get("ring_device_id") or "").strip()
         if device_id:
             return f"rtsp://{cls._RTSP_USER}:{cls._RTSP_PASS}@{ha_host}:8554/{device_id}_live"
         return f"rtsp://{cls._RTSP_USER}:{cls._RTSP_PASS}@{ha_host}:8554/{entity_id}"
 
     @classmethod
     def live_switch(cls, entity_id: str) -> str | None:
-        for key in cls.RING_DEVICE_MAP:
+        selected = cls._get_cameras_db_config().get("selected_entities") or []
+        for key in selected:
             cam_part = key.replace("camera.", "").replace("_live_ansicht", "")
             if entity_id == key or cam_part in entity_id:
                 return f"switch.{cam_part}_live_stream"

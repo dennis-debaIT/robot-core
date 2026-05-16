@@ -21,6 +21,7 @@
       <button type="button" class="tab-button" data-tab-target="tab-vehicles">Fahrzeuge</button>
       <button type="button" class="tab-button" data-tab-target="tab-lights">Lichter</button>
       <button type="button" class="tab-button" data-tab-target="tab-robots">Roboter</button>
+      <button type="button" class="tab-button" data-tab-target="tab-cameras">Kameras</button>
       <button type="button" class="tab-button" data-tab-target="tab-fuel">Kraftstoff</button>
       <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
     </nav>
@@ -346,6 +347,35 @@
           </section>
         </article>
 
+        <article id="tab-cameras" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Kameras</div>
+              <h2>Sichtbare Kameras</h2>
+            </div>
+            <label class="switch-card">
+              <input id="cameras-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Kameras im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Auswahl & Live-Stream</div>
+              <p>Wähle aus, welche Kameras im Display erscheinen. Trage für Ring-Kameras die Geräte-ID ein (aus dem RTSP-Pfad), damit der Live-Stream funktioniert.</p>
+            </div>
+            <div class="stack-actions">
+              <button id="cameras-select-all-btn" class="secondary" type="button">Alle auswählen</button>
+              <button id="cameras-clear-btn" class="secondary" type="button">Auswahl leeren</button>
+            </div>
+            <div id="camera-entity-grid" class="entity-grid"></div>
+          </section>
+        </article>
+
         <article id="tab-system" class="panel-card tab-panel">
           <header class="panel-header">
             <div>
@@ -541,6 +571,10 @@
     const lightsClearBtn = document.getElementById('lights-clear-btn');
     const robotsEnabledEl = document.getElementById('robots-enabled');
     const robotEntityGridEl = document.getElementById('robot-entity-grid');
+    const camerasEnabledEl = document.getElementById('cameras-enabled');
+    const cameraEntityGridEl = document.getElementById('camera-entity-grid');
+    const camerasSelectAllBtn = document.getElementById('cameras-select-all-btn');
+    const camerasClearBtn = document.getElementById('cameras-clear-btn');
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
     const robotsSelectAllBtn = document.getElementById('robots-select-all-btn');
     const robotsClearBtn = document.getElementById('robots-clear-btn');
@@ -550,6 +584,8 @@
     let sourceCatalog = [];
     let lightCatalog = [];
     let robotCatalog = [];
+    let cameraCatalog = [];
+    let cameraConfigs = {};
     let robotStateMappings = {};
     let vacuumConfigs = {}; // { [entity_id]: { map_camera, rooms: [{id,name}], modes: [{key,label,cleaning_mode_option,suction_level,water_volume}], default_mode } }
     let evFieldOptions = {};
@@ -588,6 +624,56 @@
 
     function getSelectedRobotEntityIds() {
       return Array.from(document.querySelectorAll('input[name="robot-entity"]:checked')).map((input) => input.value);
+    }
+
+    function getSelectedCameraEntityIds() {
+      return Array.from(document.querySelectorAll('input[name="camera-entity"]:checked')).map((input) => input.value);
+    }
+
+    function syncCameraConfigsFromDom() {
+      if (!cameraEntityGridEl) return;
+      cameraEntityGridEl.querySelectorAll('.camera-device-id').forEach((el) => {
+        const eid = el.dataset.entity;
+        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true };
+        cameraConfigs[eid].ring_device_id = el.value.trim();
+      });
+    }
+
+    function renderCameraSelector(selectedEntities, savedCameraConfigs) {
+      cameraConfigs = savedCameraConfigs || {};
+      const selected = new Set(selectedEntities || []);
+      if (!cameraCatalog.length) {
+        cameraEntityGridEl.innerHTML = '<div class="empty-state">Keine Kameras in Home Assistant gefunden.</div>';
+        return;
+      }
+      cameraEntityGridEl.innerHTML = cameraCatalog.map((item) => {
+        const entityId = item.entity_id || '';
+        const checked = selected.has(entityId);
+        const cfg = cameraConfigs[entityId] || {};
+        return `
+          <div class="entity-option camera-entity-row">
+            <label style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer;">
+              <input type="checkbox" name="camera-entity" value="${escapeHtml(entityId)}" ${checked ? 'checked' : ''}>
+              <span class="entity-main">
+                <span class="entity-name">${escapeHtml(item.name || entityId)}</span>
+                <span class="entity-id">${escapeHtml(entityId)}</span>
+              </span>
+            </label>
+            <label class="field-block" style="min-width:180px;max-width:220px;">
+              <span class="field-label" style="font-size:11px;">Ring Geräte-ID (RTSP)</span>
+              <input class="field-input camera-device-id" type="text" placeholder="z.B. 343ea4dd0896"
+                data-entity="${escapeHtml(entityId)}"
+                value="${escapeHtml(cfg.ring_device_id || '')}">
+            </label>
+          </div>
+        `;
+      }).join('');
+      cameraEntityGridEl.querySelectorAll('input[name="camera-entity"]').forEach((input) => {
+        input.addEventListener('change', syncSummary);
+      });
+      cameraEntityGridEl.querySelectorAll('.camera-device-id').forEach((el) => {
+        el.addEventListener('input', syncCameraConfigsFromDom);
+      });
     }
 
     function parseStateList(value) {
@@ -825,6 +911,7 @@
       const selectedSources = getSelectedSourceIds().length;
       const selectedLights = getSelectedLightEntityIds().length;
       const selectedRobots = getSelectedRobotEntityIds().length;
+      const selectedCameras = getSelectedCameraEntityIds().length;
       const selectedFuelTypes = getSelectedFuelTypeIds().length;
       const selectedStation = fuelStations.find((station) => station.id === getSelectedFuelStationId());
       const modules = [
@@ -833,6 +920,7 @@
         { name: 'Fahrzeuge', area: 'Startseite links · Button unten', tab: 'tab-vehicles', ...moduleStatus(evEnabledEl.checked, `${activeVehicles} aktiv`) },
         { name: 'Lichter', area: 'Button unten', tab: 'tab-lights', ...moduleStatus(lightsEnabledEl.checked, `${selectedLights} Entitäten`) },
         { name: 'Roboter', area: 'Button unten', tab: 'tab-robots', ...moduleStatus(robotsEnabledEl.checked, `${selectedRobots} aktiv`) },
+        { name: 'Kameras', area: 'Button unten', tab: 'tab-cameras', ...moduleStatus(camerasEnabledEl.checked, `${selectedCameras} aktiv`) },
         { name: 'Kraftstoff', area: 'Startseite links', tab: 'tab-fuel', ...moduleStatus(fuelEnabledEl.checked, selectedStation ? `${selectedStation.label} ${String.fromCharCode(183)} ${selectedFuelTypes} Sorten` : `${selectedFuelTypes} Sorten`) },
         { name: 'System', area: 'Grundkonfiguration', tab: 'tab-system', ...moduleStatus(true, (haHostEl.value || '').trim() || 'HA nicht gesetzt') },
       ];
@@ -1390,6 +1478,7 @@
       sourceCatalog = data?.catalog?.entities?.news_sources || [];
       lightCatalog = data?.catalog?.entities?.lights || [];
       robotCatalog = data?.catalog?.entities?.robots || [];
+      cameraCatalog = data?.catalog?.entities?.cameras || [];
       fuelTypeOptions = data?.catalog?.entities?.fuel_type_options || [];
       fuelStations = data?.catalog?.entities?.fuel_stations || [];
       evFieldOptions = data?.catalog?.entities?.vehicles?.field_options || data?.catalog?.entities?.ev?.field_options || {};
@@ -1408,6 +1497,7 @@
       const weatherConfig = data?.config?.weather || data?.config?.system?.weather || {};
       const lightsConfig = data?.config?.lights || {};
       const robotsConfig = data?.config?.robots || {};
+      const camerasConfig = data?.config?.cameras || {};
       robotStateMappings = robotsConfig.state_mappings || {};
       vacuumConfigs = robotsConfig.vacuum_configs || {};
 
@@ -1441,11 +1531,13 @@
       weatherHourlyWindEl.checked = weatherConfig.show_hourly_wind !== false;
       lightsEnabledEl.checked = lightsConfig.enabled !== false;
       robotsEnabledEl.checked = robotsConfig.enabled !== false;
+      camerasEnabledEl.checked = camerasConfig.enabled !== false;
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
       renderSourceSelector(selectedSources);
       renderLightSelector(lightsConfig.selected_entities || []);
       renderRobotSelector(robotsConfig.selected_entities || []);
+      renderCameraSelector(camerasConfig.selected_entities || [], camerasConfig.camera_configs || {});
       renderVacuumConfigSection();
       renderEvVehicles();
       renderFuelStationSelector(selectedFuelStationId);
@@ -1487,6 +1579,18 @@
               selected_entities: getSelectedRobotEntityIds(),
               state_mappings: getRobotStateMappingsFromDom(),
               vacuum_configs: vacuumConfigs,
+            },
+            cameras: {
+              enabled: camerasEnabledEl.checked,
+              selected_entities: getSelectedCameraEntityIds(),
+              camera_configs: (() => {
+                syncCameraConfigsFromDom();
+                const result = {};
+                getSelectedCameraEntityIds().forEach((eid) => {
+                  result[eid] = cameraConfigs[eid] || { name: '', ring_device_id: '', has_live_stream: true };
+                });
+                return result;
+              })(),
             },
             ev: {
               enabled: evEnabledEl.checked,
@@ -1612,7 +1716,7 @@
       weatherShowFeelsEl, weatherShowWindEl, weatherShowHumidityEl, weatherShowPrecipEl,
       weatherShowMinmaxEl, weatherShowHourlyEl, newsDefaultCollapsedEl, newsCollapsedCountEl,
       weatherHourlyTempEl, weatherHourlyPopEl, weatherHourlyRainEl, weatherHourlyWindEl,
-      lightsEnabledEl, robotsEnabledEl,
+      lightsEnabledEl, robotsEnabledEl, camerasEnabledEl,
     ].forEach((input) => {
       input.addEventListener('input', syncSummary);
       input.addEventListener('change', syncSummary);
@@ -1637,6 +1741,18 @@
     });
     robotsClearBtn.addEventListener('click', () => {
       document.querySelectorAll('input[name="robot-entity"]').forEach((input) => {
+        input.checked = false;
+      });
+      syncSummary();
+    });
+    camerasSelectAllBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="camera-entity"]').forEach((input) => {
+        input.checked = true;
+      });
+      syncSummary();
+    });
+    camerasClearBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="camera-entity"]').forEach((input) => {
         input.checked = false;
       });
       syncSummary();

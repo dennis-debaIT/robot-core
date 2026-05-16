@@ -169,6 +169,7 @@ def get_display_state() -> dict[str, Any]:
         "lights": bool((config.get("lights") or {}).get("enabled", True)),
         "vehicles": bool((config.get("vehicles") or {}).get("enabled", True)),
         "robots": bool((config.get("robots") or {}).get("enabled", True)),
+        "cameras": bool((config.get("cameras") or {}).get("enabled", True)),
     }
     with get_connection() as conn:
         raw = read_state(conn, "display_intent")

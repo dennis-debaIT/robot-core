@@ -78,7 +78,7 @@ class IntegrationConfigService:
                 "poll_seconds": 30,
                 "items": [VehicleService.default_vehicle()],
             },
-            "cameras": {"enabled": True, "selected_entities": []},
+            "cameras": {"enabled": True, "selected_entities": [], "camera_configs": {}},
             "meta": {
                 "version": 1,
             },
@@ -132,6 +132,10 @@ class IntegrationConfigService:
         if not current_vehicle_items:
             vehicles["items"] = [VehicleService.from_ev_vehicle(item) for item in ev["vehicles"]]
         vehicles["items"] = self._sanitize_vehicles(vehicles.get("items"), ev["vehicles"])
+        cameras_config = merged.setdefault("cameras", {})
+        cameras_config["enabled"] = bool(cameras_config.get("enabled", True))
+        cameras_config["selected_entities"] = self._sanitize_string_list(cameras_config.get("selected_entities"))
+        cameras_config["camera_configs"] = self._sanitize_camera_configs(cameras_config.get("camera_configs"))
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -175,6 +179,10 @@ class IntegrationConfigService:
         vehicles["location_history_days"] = self._sanitize_vehicle_history_days(vehicles.get("location_history_days", 14))
         vehicles["poll_seconds"] = self._sanitize_vehicle_poll_seconds(vehicles.get("poll_seconds", 30))
         vehicles["items"] = self._sanitize_vehicles(vehicles.get("items"), ev["vehicles"])
+        cameras_config = updated.setdefault("cameras", {})
+        cameras_config["enabled"] = bool(cameras_config.get("enabled", True))
+        cameras_config["selected_entities"] = self._sanitize_string_list(cameras_config.get("selected_entities"))
+        cameras_config["camera_configs"] = self._sanitize_camera_configs(cameras_config.get("camera_configs"))
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:
@@ -510,6 +518,22 @@ class IntegrationConfigService:
                 "rooms": rooms,
                 "modes": modes,
                 "default_mode": str(cfg.get("default_mode") or "").strip(),
+            }
+        return result
+
+    @staticmethod
+    def _sanitize_camera_configs(value: Any) -> dict[str, dict[str, Any]]:
+        if not isinstance(value, dict):
+            return {}
+        result: dict[str, dict[str, Any]] = {}
+        for entity_id, cfg in value.items():
+            entity = str(entity_id or "").strip()
+            if not entity or not isinstance(cfg, dict):
+                continue
+            result[entity] = {
+                "name": str(cfg.get("name") or "").strip(),
+                "ring_device_id": str(cfg.get("ring_device_id") or "").strip(),
+                "has_live_stream": bool(cfg.get("has_live_stream", True)),
             }
         return result
 
