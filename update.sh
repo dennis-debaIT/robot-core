@@ -4,7 +4,7 @@ LOG=~/robot-core/update.log
 cd ~/robot-core
 
 echo "[update] Starte Update: $(date)" | tee -a "$LOG"
-git -c safe.directory=. fetch origin main 2>&1 | tee -a "$LOG"
+git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1 | tee -a "$LOG"
 git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)
