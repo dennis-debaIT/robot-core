@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import urllib.request as _req
 from typing import Any
 
@@ -14,6 +15,17 @@ router = APIRouter()
 CameraStreamService.ensure_started()
 
 
+def _camera_type(entity_id: str) -> str:
+    eid = entity_id.lower()
+    if "_snapshot" in eid:
+        return "snapshot"
+    if "_map" in eid or "_karte" in eid:
+        return "map"
+    if "_live" in eid:
+        return "live"
+    return "other"
+
+
 @router.get("/ha/cameras")
 def get_ha_cameras() -> dict[str, Any]:
     from app.search.providers.homeassistant import HomeAssistantProvider
@@ -21,6 +33,37 @@ def get_ha_cameras() -> dict[str, Any]:
     all_cams = HomeAssistantProvider().get_cameras()
     ring_ids = CameraStreamService.ring_ids()
     return {"cameras": [cam for cam in all_cams if cam["entity_id"] in ring_ids]}
+
+
+@router.get("/ha/cameras/detect-ring")
+def detect_ring_cameras() -> dict[str, Any]:
+    from app.search.providers.homeassistant import HomeAssistantProvider
+
+    ha = HomeAssistantProvider()
+    states = ha._get("/states") or []
+    cameras: list[dict[str, Any]] = []
+    for state in states:
+        entity_id = state.get("entity_id", "")
+        if not entity_id.startswith("camera."):
+            continue
+        attrs = state.get("attributes", {})
+        ring_device_id = ""
+        stream_source = str(attrs.get("stream_source") or "")
+        if stream_source:
+            m = re.search(r"/([a-f0-9]{10,16})_live", stream_source)
+            if m:
+                ring_device_id = m.group(1)
+        cam_type = _camera_type(entity_id)
+        cameras.append({
+            "entity_id": entity_id,
+            "name": attrs.get("friendly_name", entity_id),
+            "state": state.get("state", "unknown"),
+            "type": cam_type,
+            "ring_device_id": ring_device_id,
+            "has_stream_source": bool(stream_source),
+        })
+    cameras.sort(key=lambda c: c["name"].lower())
+    return {"cameras": cameras}
 
 
 @router.get("/ha/cameras/{entity_id}/snapshot")

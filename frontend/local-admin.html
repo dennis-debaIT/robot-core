@@ -366,13 +366,19 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Auswahl & Live-Stream</div>
-              <p>Wähle aus, welche Kameras im Display erscheinen. Trage für Ring-Kameras die Geräte-ID ein (aus dem RTSP-Pfad), damit der Live-Stream funktioniert.</p>
+              <p>Wähle aus, welche Kameras im Display erscheinen. Trage für Ring-Kameras die Geräte-ID ein (aus dem RTSP-Pfad), damit der Live-Stream funktioniert — oder lass sie automatisch erkennen.</p>
             </div>
-            <div class="stack-actions">
+            <div class="camera-filter-bar">
+              <button id="cameras-import-ha-btn" type="button">Aus HA importieren</button>
+              <button id="cameras-live-btn" class="secondary" type="button">Nur Live auswählen</button>
               <button id="cameras-select-all-btn" class="secondary" type="button">Alle auswählen</button>
               <button id="cameras-clear-btn" class="secondary" type="button">Auswahl leeren</button>
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-left:auto;">
+                <input type="checkbox" id="cameras-hide-non-live" style="accent-color:var(--accent);">
+                Snapshots &amp; Maps ausblenden
+              </label>
             </div>
-            <div id="camera-entity-grid" class="entity-grid"></div>
+            <div id="camera-entity-grid"></div>
           </section>
         </article>
 
@@ -639,6 +645,28 @@
       });
     }
 
+    function _cameraType(entityId) {
+      const eid = entityId.toLowerCase();
+      if (eid.includes('_snapshot')) return 'snapshot';
+      if (eid.includes('_map') || eid.includes('_karte')) return 'map';
+      if (eid.includes('_live')) return 'live';
+      return 'other';
+    }
+
+    function _cameraTypeBadge(type) {
+      const labels = { live: 'Live', snapshot: 'Snapshot', map: 'Karte', other: 'Kamera' };
+      return `<span class="camera-type-badge camera-type-${type}">${labels[type] || type}</span>`;
+    }
+
+    function _applyHideNonLive() {
+      const hide = document.getElementById('cameras-hide-non-live')?.checked;
+      cameraEntityGridEl.querySelectorAll('.camera-row').forEach((row) => {
+        const type = row.dataset.camType;
+        row.classList.toggle('is-hidden-snapshot', hide && type === 'snapshot');
+        row.classList.toggle('is-hidden-map', hide && type === 'map');
+      });
+    }
+
     function renderCameraSelector(selectedEntities, savedCameraConfigs) {
       cameraConfigs = savedCameraConfigs || {};
       const selected = new Set(selectedEntities || []);
@@ -646,34 +674,74 @@
         cameraEntityGridEl.innerHTML = '<div class="empty-state">Keine Kameras in Home Assistant gefunden.</div>';
         return;
       }
-      cameraEntityGridEl.innerHTML = cameraCatalog.map((item) => {
+      const rows = cameraCatalog.map((item) => {
         const entityId = item.entity_id || '';
         const checked = selected.has(entityId);
         const cfg = cameraConfigs[entityId] || {};
+        const type = _cameraType(entityId);
         return `
-          <div class="entity-option camera-entity-row">
-            <label style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer;">
-              <input type="checkbox" name="camera-entity" value="${escapeHtml(entityId)}" ${checked ? 'checked' : ''}>
-              <span class="entity-main">
-                <span class="entity-name">${escapeHtml(item.name || entityId)}</span>
-                <span class="entity-id">${escapeHtml(entityId)}</span>
-              </span>
-            </label>
-            <label class="field-block" style="min-width:180px;max-width:220px;">
-              <span class="field-label" style="font-size:11px;">Ring Geräte-ID (RTSP)</span>
-              <input class="field-input camera-device-id" type="text" placeholder="z.B. 343ea4dd0896"
-                data-entity="${escapeHtml(entityId)}"
-                value="${escapeHtml(cfg.ring_device_id || '')}">
-            </label>
+          <div class="camera-row" data-cam-type="${type}">
+            <input type="checkbox" name="camera-entity" value="${escapeHtml(entityId)}" ${checked ? 'checked' : ''}>
+            <div class="camera-row-info" onclick="this.previousElementSibling.click()">
+              <span class="camera-row-name">${escapeHtml(item.name || entityId)}</span>
+              <span class="camera-row-eid">${escapeHtml(entityId)}</span>
+            </div>
+            ${_cameraTypeBadge(type)}
+            <div class="camera-row-device">
+              <label class="field-block">
+                <span class="field-label">Ring Geräte-ID (RTSP)</span>
+                <input class="field-input camera-device-id" type="text" placeholder="z.B. 343ea4dd0896"
+                  data-entity="${escapeHtml(entityId)}"
+                  value="${escapeHtml(cfg.ring_device_id || '')}">
+              </label>
+            </div>
           </div>
         `;
       }).join('');
+      cameraEntityGridEl.innerHTML = `<div class="camera-rows">${rows}</div>`;
       cameraEntityGridEl.querySelectorAll('input[name="camera-entity"]').forEach((input) => {
         input.addEventListener('change', syncSummary);
       });
       cameraEntityGridEl.querySelectorAll('.camera-device-id').forEach((el) => {
         el.addEventListener('input', syncCameraConfigsFromDom);
       });
+      _applyHideNonLive();
+    }
+
+    async function importFromHa() {
+      const btn = document.getElementById('cameras-import-ha-btn');
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Erkenne…';
+      try {
+        const r = await fetch('/ha/cameras/detect-ring');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        const detected = data.cameras || [];
+        // Aktuellen DOM-Stand einlesen bevor wir überschreiben
+        syncCameraConfigsFromDom();
+        // Device-IDs aus HA übernehmen, Live-Kameras auswählen
+        let filled = 0;
+        detected.forEach((cam) => {
+          const cb = cameraEntityGridEl.querySelector(`input[name="camera-entity"][value="${CSS.escape(cam.entity_id)}"]`);
+          if (cb) {
+            cb.checked = cam.type === 'live';
+          }
+          if (cam.ring_device_id) {
+            if (!cameraConfigs[cam.entity_id]) cameraConfigs[cam.entity_id] = { name: '', ring_device_id: '', has_live_stream: true };
+            cameraConfigs[cam.entity_id].ring_device_id = cam.ring_device_id;
+            const input = cameraEntityGridEl.querySelector(`.camera-device-id[data-entity="${CSS.escape(cam.entity_id)}"]`);
+            if (input) { input.value = cam.ring_device_id; filled++; }
+          }
+        });
+        syncSummary();
+        const liveCount = detected.filter((c) => c.type === 'live').length;
+        btn.textContent = `✓ ${liveCount} Live-Kameras${filled ? `, ${filled} IDs` : ''}`;
+        setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2500);
+      } catch (e) {
+        btn.textContent = '✗ Fehler';
+        setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
+      }
     }
 
     function parseStateList(value) {
@@ -1746,17 +1814,21 @@
       syncSummary();
     });
     camerasSelectAllBtn.addEventListener('click', () => {
-      document.querySelectorAll('input[name="camera-entity"]').forEach((input) => {
-        input.checked = true;
-      });
+      document.querySelectorAll('input[name="camera-entity"]').forEach((input) => { input.checked = true; });
       syncSummary();
     });
     camerasClearBtn.addEventListener('click', () => {
+      document.querySelectorAll('input[name="camera-entity"]').forEach((input) => { input.checked = false; });
+      syncSummary();
+    });
+    document.getElementById('cameras-import-ha-btn').addEventListener('click', importFromHa);
+    document.getElementById('cameras-live-btn').addEventListener('click', () => {
       document.querySelectorAll('input[name="camera-entity"]').forEach((input) => {
-        input.checked = false;
+        input.checked = _cameraType(input.value) === 'live';
       });
       syncSummary();
     });
+    document.getElementById('cameras-hide-non-live').addEventListener('change', _applyHideNonLive);
     haTestBtn.addEventListener('click', testHaConnection);
     saveBtn.addEventListener('click', saveConfig);
     reloadBtn.addEventListener('click', boot);
