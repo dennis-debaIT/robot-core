@@ -132,6 +132,12 @@ def trigger_install() -> dict[str, Any]:
     try:
         with open(_UPDATE_FLAG, "w") as f:
             json.dump({"requested_at": datetime.now(timezone.utc).isoformat()}, f)
+        # Update-Status sofort auf "läuft" setzen → Display zeigt nicht mehr "verfügbar"
+        with get_connection() as conn:
+            cached = read_state(conn, "git_update_status", {}) or {}
+            cached["update_available"] = False
+            cached["installing"] = True
+            write_state(conn, "git_update_status", cached)
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
