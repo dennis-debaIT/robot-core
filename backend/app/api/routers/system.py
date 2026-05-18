@@ -17,7 +17,7 @@ router = APIRouter()
 
 _GIT_DIR = "/app"
 _UPDATE_FLAG = "/data/update.flag"
-_REBOOT_FLAG = "/data/reboot.flag"
+_REBOOT_FLAG = "/reboot.flag"
 _SSH_CMD = "ssh -o StrictHostKeyChecking=no -o BatchMode=yes"
 _VERSION_FILE = "/app/VERSION"
 
