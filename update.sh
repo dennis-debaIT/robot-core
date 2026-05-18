@@ -28,6 +28,11 @@ else
 fi
 git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 
+# Flag-Dateien sicherstellen (werden durch git reset ggf. gelöscht, da in .gitignore)
+touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
+[ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
+mkdir -p ha_config
+
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)
 echo "[update] Build startet (GIT_HASH=$GIT_HASH)..." | tee -a "$LOG"
 docker compose up -d --build robot-core 2>&1 | tail -4 | tee -a "$LOG"
