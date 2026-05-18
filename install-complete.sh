@@ -39,6 +39,21 @@ echo ""
 # ══════════════════════════════════════════════════════════
 
 # ── 1. System-Pakete ──────────────────────────────────────
+step "Swap prüfen (Schutz vor OOM beim Docker-Build)"
+TOTAL_RAM_MB=$(free -m | awk '/^Mem:/{print $2}')
+SWAP_MB=$(free -m | awk '/^Swap:/{print $2}')
+if [ "$SWAP_MB" -lt 1024 ] && [ ! -f /swapfile ]; then
+    info "Wenig RAM ($TOTAL_RAM_MB MB) + kein Swap — lege 2GB Swapfile an..."
+    fallocate -l 2G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
+    chmod 600 /swapfile
+    mkswap /swapfile > /dev/null
+    swapon /swapfile
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    success "Swapfile angelegt (2GB)"
+else
+    success "Speicher OK (RAM: ${TOTAL_RAM_MB}MB, Swap: ${SWAP_MB}MB)"
+fi
+
 step "System aktualisieren"
 apt-get update -qq
 apt-get install -y --no-install-recommends \
