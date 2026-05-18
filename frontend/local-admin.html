@@ -1897,45 +1897,97 @@
       btn.textContent = '🔍 Jetzt prüfen';
     }
 
-    let _updateLogInterval = null;
+    let _updatePollInterval = null;
+    let _updateExpectedHash = null;
+    let _updateStartTime = null;
+    const _UPDATE_TIMEOUT_MS = 5 * 60 * 1000;
 
     async function installUpdate() {
       if (!confirm('Update jetzt installieren? Erika startet dabei neu.')) return;
-      const btn = document.getElementById('update-install-btn');
-      btn.disabled = true;
-      btn.textContent = '⏳ Wird installiert…';
+      // Ziel-Hash vor dem Install merken
+      try {
+        const s = await fetch('/system/update/status').then(r => r.json());
+        _updateExpectedHash = s.latest_hash || null;
+      } catch {}
+
       try {
         await fetch('/system/update/install', { method: 'POST' });
-        document.getElementById('update-status-box').innerHTML =
-          '<span style="color:var(--warning);font-weight:700;">⏳ Update läuft…</span>' +
-          '<pre id="update-log-box" style="margin-top:8px;font-size:0.72rem;color:var(--muted);' +
-          'background:var(--surface2);border-radius:6px;padding:8px;max-height:160px;overflow-y:auto;white-space:pre-wrap;"></pre>';
-        _startUpdateLog();
       } catch (e) {
-        document.getElementById('update-status-box').innerHTML =
-          '<span style="color:var(--danger);">Fehler: ' + e.message + '</span>';
-        btn.disabled = false;
-        btn.textContent = '⬇️ Update installieren';
+        alert('Fehler: ' + e.message);
+        return;
       }
+
+      _updateStartTime = Date.now();
+      _showUpdateProgress();
+      if (_updatePollInterval) clearInterval(_updatePollInterval);
+      _updatePollInterval = setInterval(_pollUpdateProgress, 3000);
     }
 
-    function _startUpdateLog() {
-      if (_updateLogInterval) clearInterval(_updateLogInterval);
-      _updateLogInterval = setInterval(async () => {
-        try {
-          const r = await fetch('/system/update/log');
-          const d = await r.json();
-          const box = document.getElementById('update-log-box');
-          if (!box) { clearInterval(_updateLogInterval); return; }
-          box.textContent = d.lines.join('\n') || '(warte auf Log…)';
-          box.scrollTop = box.scrollHeight;
-          // Fertig erkennen: "Abgeschlossen" im Log
-          if (d.lines.some(l => l.includes('Abgeschlossen') || l.includes('aktuell'))) {
-            clearInterval(_updateLogInterval);
-            setTimeout(() => location.reload(), 3000);
-          }
-        } catch {}
-      }, 2000);
+    function _showUpdateProgress() {
+      const box = document.getElementById('update-status-box');
+      box.innerHTML = `
+        <div style="font-weight:700;color:var(--warning);margin-bottom:4px;">⏳ Update wird installiert…</div>
+        <div class="update-progress-track"><div class="update-progress-fill"></div></div>
+        <div id="update-phase" style="font-size:0.78rem;color:var(--muted);margin-bottom:8px;">Warte auf Cron-Job…</div>
+        <pre id="update-log-box" style="font-size:0.7rem;color:var(--muted);background:rgba(0,0,0,0.3);
+          border:1px solid var(--line);border-radius:6px;padding:8px;max-height:150px;
+          overflow-y:auto;white-space:pre-wrap;margin:0;">(warte auf Log…)</pre>
+      `;
+      document.getElementById('update-install-btn').style.display = 'none';
+      document.getElementById('update-check-btn').disabled = true;
+    }
+
+    async function _pollUpdateProgress() {
+      if (Date.now() - _updateStartTime > _UPDATE_TIMEOUT_MS) {
+        clearInterval(_updatePollInterval);
+        document.getElementById('update-status-box').innerHTML =
+          '<span style="color:var(--warning);">⚠️ Timeout — bitte Seite neu laden und manuell prüfen.</span>';
+        document.getElementById('update-check-btn').disabled = false;
+        document.getElementById('update-install-btn').style.display = '';
+        return;
+      }
+
+      // Log-Zeilen anzeigen
+      try {
+        const d = await fetch('/system/update/log').then(r => r.json());
+        const logBox = document.getElementById('update-log-box');
+        const phaseEl = document.getElementById('update-phase');
+        if (logBox) {
+          logBox.textContent = (d.lines || []).slice(-14).join('\n') || '(warte auf Log…)';
+          logBox.scrollTop = logBox.scrollHeight;
+        }
+        if (phaseEl) {
+          const text = (d.lines || []).join(' ');
+          if (text.includes('Abgeschlossen')) phaseEl.textContent = 'Container startet neu…';
+          else if (text.includes('Build startet') || text.includes('Recreate')) phaseEl.textContent = 'Container wird gebaut…';
+          else if (text.includes('HEAD is now') || text.includes('Fetch via')) phaseEl.textContent = 'Code wird geladen…';
+          else if (text.includes('Starte Update')) phaseEl.textContent = 'Update gestartet…';
+        }
+      } catch {}
+
+      // Versionsprüfung (API kann kurz offline sein beim Neustart)
+      try {
+        const s = await fetch('/system/update/status').then(r => r.json());
+        const done = _updateExpectedHash
+          ? (s.current_hash || '').startsWith(_updateExpectedHash.substring(0, 8))
+          : (!s.update_available && !s.installing);
+        if (done) {
+          clearInterval(_updatePollInterval);
+          _showUpdateSuccess(s.current_version || '?');
+        }
+      } catch {} // API offline = Container startet gerade → weiterpolling
+    }
+
+    function _showUpdateSuccess(version) {
+      document.getElementById('update-status-box').innerHTML = `
+        <div class="update-success-box">
+          <div class="update-success-icon">✅</div>
+          <div class="update-success-title">Update erfolgreich installiert!</div>
+          <div class="update-success-sub">Version ${escapeHtml(version)} ist jetzt aktiv.</div>
+        </div>
+      `;
+      document.getElementById('update-check-btn').disabled = false;
+      setTimeout(() => location.reload(), 4000);
     }
 
     function renderUpdateStatus(d) {
