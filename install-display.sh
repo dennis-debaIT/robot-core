@@ -335,13 +335,16 @@ EOF
 
     plymouth-set-default-theme erika 2>/dev/null || true
 
-    # GRUB: quiet splash aktivieren
+    # GRUB: quiet splash + loglevel=3 (unterdrückt Boot-Warnungen wie copymods)
     if [ -f /etc/default/grub ]; then
-        sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+        sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3"/' /etc/default/grub
         grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub \
-            || echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"' >> /etc/default/grub
+            || echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash loglevel=3"' >> /etc/default/grub
         update-grub > /dev/null 2>&1 || true
     fi
+
+    # Veralteten copymods-Hook entfernen falls vorhanden
+    rm -f /usr/share/initramfs-tools/hooks/copymods 2>/dev/null || true
 
     update-initramfs -u -k all > /dev/null 2>&1 || true
     success "Boot-Screen 'Erika' aktiviert"
