@@ -1899,23 +1899,27 @@
 
     let _updatePollInterval = null;
     let _updateExpectedHash = null;
+    let _updateStartVersion = null;
     let _updateStartTime = null;
+    let _updateLogCountBefore = 0;
     const _UPDATE_TIMEOUT_MS = 5 * 60 * 1000;
 
     async function installUpdate() {
       if (!confirm('Update jetzt installieren? Erika startet dabei neu.')) return;
-      // Ziel-Hash vor dem Install merken
       try {
         const s = await fetch('/system/update/status').then(r => r.json());
         _updateExpectedHash = s.latest_hash || null;
+        _updateStartVersion = s.current_version || null;
+      } catch {}
+      // Anzahl Log-Zeilen vor dem Update merken
+      try {
+        const l = await fetch('/system/update/log').then(r => r.json());
+        _updateLogCountBefore = (l.lines || []).length;
       } catch {}
 
       try {
         await fetch('/system/update/install', { method: 'POST' });
-      } catch (e) {
-        alert('Fehler: ' + e.message);
-        return;
-      }
+      } catch (e) { alert('Fehler: ' + e.message); return; }
 
       _updateStartTime = Date.now();
       _showUpdateProgress();
@@ -1926,11 +1930,14 @@
     function _showUpdateProgress() {
       const box = document.getElementById('update-status-box');
       box.innerHTML = `
-        <div style="font-weight:700;color:var(--warning);margin-bottom:4px;">⏳ Update wird installiert…</div>
-        <div class="update-progress-track"><div class="update-progress-fill"></div></div>
-        <div id="update-phase" style="font-size:0.78rem;color:var(--muted);margin-bottom:8px;">Warte auf Cron-Job…</div>
-        <pre id="update-log-box" style="font-size:0.7rem;color:var(--muted);background:rgba(0,0,0,0.3);
-          border:1px solid var(--line);border-radius:6px;padding:8px;max-height:150px;
+        <div style="font-weight:700;color:#ffab00;margin-bottom:6px;">⏳ Update wird installiert…</div>
+        <div style="background:#24284a;border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px;position:relative;">
+          <div id="upd-bar" style="position:absolute;top:0;height:100%;background:#00c8ff;border-radius:6px;
+            width:40%;animation:update-bar-slide 1.8s ease-in-out infinite;"></div>
+        </div>
+        <div id="update-phase" style="font-size:0.78rem;color:#7f8dcb;margin-bottom:8px;">Warte auf Cron-Job…</div>
+        <pre id="update-log-box" style="font-size:0.7rem;color:#7f8dcb;background:rgba(0,0,0,0.35);
+          border:1px solid #24284a;border-radius:6px;padding:8px;max-height:150px;
           overflow-y:auto;white-space:pre-wrap;margin:0;">(warte auf Log…)</pre>
       `;
       document.getElementById('update-install-btn').style.display = 'none';
@@ -1938,44 +1945,52 @@
     }
 
     async function _pollUpdateProgress() {
-      if (Date.now() - _updateStartTime > _UPDATE_TIMEOUT_MS) {
+      const elapsed = Date.now() - _updateStartTime;
+      if (elapsed > _UPDATE_TIMEOUT_MS) {
         clearInterval(_updatePollInterval);
         document.getElementById('update-status-box').innerHTML =
-          '<span style="color:var(--warning);">⚠️ Timeout — bitte Seite neu laden und manuell prüfen.</span>';
+          '<span style="color:#ffab00;">⚠️ Timeout — bitte Seite neu laden und manuell prüfen.</span>';
         document.getElementById('update-check-btn').disabled = false;
         document.getElementById('update-install-btn').style.display = '';
         return;
       }
 
-      // Log-Zeilen anzeigen
+      // Log lesen und Phase erkennen
+      let logLines = [];
+      let newAbgeschlossen = false;
       try {
         const d = await fetch('/system/update/log').then(r => r.json());
+        logLines = d.lines || [];
         const logBox = document.getElementById('update-log-box');
         const phaseEl = document.getElementById('update-phase');
         if (logBox) {
-          logBox.textContent = (d.lines || []).slice(-14).join('\n') || '(warte auf Log…)';
+          logBox.textContent = logLines.slice(-14).join('\n') || '(warte auf Log…)';
           logBox.scrollTop = logBox.scrollHeight;
         }
+        // Neue "Abgeschlossen"-Einträge seit Start erkennen
+        const newLines = logLines.slice(_updateLogCountBefore);
+        const newText = newLines.join(' ');
+        newAbgeschlossen = newLines.some(l => l.includes('Abgeschlossen'));
         if (phaseEl) {
-          const text = (d.lines || []).join(' ');
-          if (text.includes('Abgeschlossen')) phaseEl.textContent = 'Container startet neu…';
-          else if (text.includes('Build startet') || text.includes('Recreate')) phaseEl.textContent = 'Container wird gebaut…';
-          else if (text.includes('HEAD is now') || text.includes('Fetch via')) phaseEl.textContent = 'Code wird geladen…';
-          else if (text.includes('Starte Update')) phaseEl.textContent = 'Update gestartet…';
+          if (newAbgeschlossen)                                    phaseEl.textContent = 'Container startet neu…';
+          else if (newText.includes('Build startet') || newText.includes('Recreate')) phaseEl.textContent = 'Container wird gebaut…';
+          else if (newText.includes('HEAD is now') || newText.includes('Fetch via'))  phaseEl.textContent = 'Code wird geladen…';
+          else if (newText.includes('Starte Update'))              phaseEl.textContent = 'Update gestartet…';
         }
       } catch {}
 
-      // Versionsprüfung (API kann kurz offline sein beim Neustart)
+      // Fertig-Erkennung: Hash ODER geänderte Version ODER neues "Abgeschlossen" + kurze Wartezeit
       try {
         const s = await fetch('/system/update/status').then(r => r.json());
-        const done = _updateExpectedHash
-          ? (s.current_hash || '').startsWith(_updateExpectedHash.substring(0, 8))
-          : (!s.update_available && !s.installing);
-        if (done) {
+        const hashMatch = _updateExpectedHash &&
+          (s.current_hash || '').startsWith(_updateExpectedHash.substring(0, 8));
+        const versionChanged = _updateStartVersion && s.current_version !== _updateStartVersion;
+        const logDone = newAbgeschlossen && elapsed > 15000; // mind. 15s vergangen
+        if (hashMatch || versionChanged || logDone) {
           clearInterval(_updatePollInterval);
           _showUpdateSuccess(s.current_version || '?');
         }
-      } catch {} // API offline = Container startet gerade → weiterpolling
+      } catch {} // API offline → Container startet → weiterpolling
     }
 
     function _showUpdateSuccess(version) {
