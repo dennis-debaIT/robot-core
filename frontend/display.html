@@ -3530,14 +3530,14 @@
 
     // Kamera suchen: zuerst in geladenen Daten, dann direkt aus HA
     let cameras = (_camerasData && _camerasData.length) ? _camerasData : (await loadCamerasData()) || [];
-    let cam = cameras.find(c => c.entity_id.includes(base))
-           || cameras.find(c => c.entity_id === `camera.${base}_live_ansicht`)
-           || cameras.find(c => c.entity_id.startsWith('camera.haustur'));
 
-    // Fallback: Kamera-Entity direkt aus Sensor-ID ableiten (auch wenn Modul nicht konfiguriert)
-    if (!cam) {
-      cam = { entity_id: `camera.${base}_live_ansicht`, has_live_stream: true };
-    }
+    // 1. Per konfiguriertem doorbell_sensor (systemunabhängig, kein Name-Matching)
+    let cam = cameras.find(c => c.doorbell_sensor === doorbellEntityId);
+    // 2. Fallback: Entity-ID-Namensähnlichkeit (ring-mqtt / native Ring Namenskonvention)
+    if (!cam) cam = cameras.find(c => c.entity_id.includes(base));
+    if (!cam) cam = cameras.find(c => c.entity_id === `camera.${base}_live_ansicht`);
+    // 3. Letzter Ausweg: Kamera-Entity direkt aus Sensor-ID ableiten (auch ohne Admin-Konfiguration)
+    if (!cam) cam = { entity_id: `camera.${base}_live_ansicht`, has_live_stream: true };
 
     const overlay = document.getElementById('doorbell-overlay');
     if (!overlay) return;

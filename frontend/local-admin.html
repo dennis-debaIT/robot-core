@@ -593,6 +593,7 @@
     let robotCatalog = [];
     let cameraCatalog = [];
     let cameraConfigs = {};
+    let doorbellSensors = [];
     let robotStateMappings = {};
     let vacuumConfigs = {}; // { [entity_id]: { map_camera, rooms: [{id,name}], modes: [{key,label,cleaning_mode_option,suction_level,water_volume}], default_mode } }
     let evFieldOptions = {};
@@ -641,8 +642,13 @@
       if (!cameraEntityGridEl) return;
       cameraEntityGridEl.querySelectorAll('.camera-device-id').forEach((el) => {
         const eid = el.dataset.entity;
-        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true };
+        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '' };
         cameraConfigs[eid].ring_device_id = el.value.trim();
+      });
+      cameraEntityGridEl.querySelectorAll('.camera-doorbell-sensor').forEach((el) => {
+        const eid = el.dataset.entity;
+        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '' };
+        cameraConfigs[eid].doorbell_sensor = el.value;
       });
     }
 
@@ -680,6 +686,9 @@
         const checked = selected.has(entityId);
         const cfg = cameraConfigs[entityId] || {};
         const type = _cameraType(entityId);
+        const doorbellOptions = doorbellSensors.map(s =>
+          `<option value="${escapeHtml(s.entity_id)}" ${cfg.doorbell_sensor === s.entity_id ? 'selected' : ''}>${escapeHtml(s.name || s.entity_id)}</option>`
+        ).join('');
         return `
           <div class="camera-row" data-cam-type="${type}">
             <input type="checkbox" name="camera-entity" value="${escapeHtml(entityId)}" ${checked ? 'checked' : ''}>
@@ -696,6 +705,15 @@
                   value="${escapeHtml(cfg.ring_device_id || '')}">
               </label>
             </div>
+            <div class="camera-row-device">
+              <label class="field-block">
+                <span class="field-label">Klingel-Sensor</span>
+                <select class="field-select camera-doorbell-sensor" data-entity="${escapeHtml(entityId)}">
+                  <option value="">– keine –</option>
+                  ${doorbellOptions}
+                </select>
+              </label>
+            </div>
           </div>
         `;
       }).join('');
@@ -705,6 +723,9 @@
       });
       cameraEntityGridEl.querySelectorAll('.camera-device-id').forEach((el) => {
         el.addEventListener('input', syncCameraConfigsFromDom);
+      });
+      cameraEntityGridEl.querySelectorAll('.camera-doorbell-sensor').forEach((el) => {
+        el.addEventListener('change', syncCameraConfigsFromDom);
       });
       _applyHideNonLive();
     }
@@ -1617,6 +1638,11 @@
       renderSourceSelector(selectedSources);
       renderLightSelector(lightsConfig.selected_entities || []);
       renderRobotSelector(robotsConfig.selected_entities || []);
+      // Klingel-Sensoren laden (für Dropdown)
+      try {
+        const dbRes = await fetch('/ha/doorbell');
+        if (dbRes.ok) doorbellSensors = (await dbRes.json()).doorbells || [];
+      } catch {}
       renderCameraSelector(camerasConfig.selected_entities || [], camerasConfig.camera_configs || {});
       renderVacuumConfigSection();
       renderEvVehicles();
@@ -1667,7 +1693,13 @@
                 syncCameraConfigsFromDom();
                 const result = {};
                 getSelectedCameraEntityIds().forEach((eid) => {
-                  result[eid] = cameraConfigs[eid] || { name: '', ring_device_id: '', has_live_stream: true };
+                  const cfg = cameraConfigs[eid] || {};
+                  result[eid] = {
+                    name: cfg.name || '',
+                    ring_device_id: cfg.ring_device_id || '',
+                    has_live_stream: cfg.has_live_stream !== false,
+                    doorbell_sensor: cfg.doorbell_sensor || '',
+                  };
                 });
                 return result;
               })(),

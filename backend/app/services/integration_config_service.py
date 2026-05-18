@@ -534,6 +534,7 @@ class IntegrationConfigService:
                 "name": str(cfg.get("name") or "").strip(),
                 "ring_device_id": str(cfg.get("ring_device_id") or "").strip(),
                 "has_live_stream": bool(cfg.get("has_live_stream", True)),
+                "doorbell_sensor": str(cfg.get("doorbell_sensor") or "").strip(),
             }
         return result
 

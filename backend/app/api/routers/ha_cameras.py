@@ -40,6 +40,7 @@ def get_ha_cameras() -> dict[str, Any]:
             continue
         cfg = camera_configs.get(cam["entity_id"]) or {}
         cam["has_live_stream"] = bool(cfg.get("ring_device_id", "").strip()) and bool(cfg.get("has_live_stream", True))
+        cam["doorbell_sensor"] = str(cfg.get("doorbell_sensor") or "").strip()
         result.append(cam)
     return {"cameras": result}
 
