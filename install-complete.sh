@@ -141,7 +141,7 @@ chmod +x update.sh
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
-CRON_REBOOT="* * * * * grep -q requested_at $INSTALL_DIR/reboot.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/reboot.flag && sudo /sbin/reboot || true"
+CRON_REBOOT="@reboot bash $INSTALL_DIR/reboot-watcher.sh >> $INSTALL_DIR/reboot.log 2>&1 &"
 _CRON_TMP=$(mktemp)
 (echo "HOME=$REAL_HOME"; echo "PATH=$_CRON_PATH"; echo "$CRON_DAILY"; echo "$CRON_FLAG"; echo "$CRON_REBOOT") > "$_CRON_TMP"
 crontab -u "$REAL_USER" - < "$_CRON_TMP"
@@ -149,8 +149,10 @@ rm -f "$_CRON_TMP"
 # Neustart ohne sudo-Passwort erlauben
 echo "$REAL_USER ALL=(ALL) NOPASSWD: /sbin/reboot" > /etc/sudoers.d/erika-reboot
 chmod 440 /etc/sudoers.d/erika-reboot
-# reboot.flag erstellen
+# reboot.flag erstellen + Watcher starten
 touch "$INSTALL_DIR/reboot.flag"
+chmod +x "$INSTALL_DIR/reboot-watcher.sh" 2>/dev/null || true
+nohup bash "$INSTALL_DIR/reboot-watcher.sh" >> "$INSTALL_DIR/reboot.log" 2>&1 &
 success "Cron-Jobs eingerichtet (inkl. Neustart-Trigger)"
 
 # ── 7. Container bauen und starten ────────────────────────

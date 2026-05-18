@@ -115,7 +115,9 @@ fi
 # ── 7. Update-Hilfsdateien ────────────────────────────────────
 step "Update-System einrichten"
 touch update.flag reboot.flag
-chmod +x update.sh
+chmod +x update.sh reboot-watcher.sh
+# Reboot-Watcher beim Boot starten
+nohup bash "$INSTALL_DIR/reboot-watcher.sh" >> "$INSTALL_DIR/reboot.log" 2>&1 &
 # Neustart ohne sudo-Passwort erlauben (für Reboot-Flag-Cron)
 echo "$USER_NAME ALL=(ALL) NOPASSWD: /sbin/reboot" > /etc/sudoers.d/erika-reboot
 chmod 440 /etc/sudoers.d/erika-reboot
@@ -124,7 +126,7 @@ chmod 440 /etc/sudoers.d/erika-reboot
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
-CRON_REBOOT="* * * * * grep -q requested_at $INSTALL_DIR/reboot.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/reboot.flag && sudo /sbin/reboot || true"
+CRON_REBOOT="@reboot bash $INSTALL_DIR/reboot-watcher.sh >> $INSTALL_DIR/reboot.log 2>&1 &"
 
 # Bestehende robot-core Eintraege entfernen und neu schreiben (atomar ueber temp-Datei)
 _CRON_TMP=$(mktemp)
