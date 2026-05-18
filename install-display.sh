@@ -63,8 +63,9 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     openbox \
     avahi-daemon libnss-mdns \
     unclutter \
+    fonts-noto-color-emoji fonts-noto-core fonts-liberation \
     > /dev/null
-success "Basis-Pakete installiert"
+success "Basis-Pakete installiert (inkl. Emoji-Schriftarten)"
 
 # ── 2. VM-Treiber erkennen und installieren ───────────────
 step "VM-Grafiktreiber ermitteln"
