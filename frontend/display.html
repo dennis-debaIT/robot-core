@@ -2474,26 +2474,26 @@
     return `<video data-cam-id="${entityId}" autoplay muted playsinline></video>`;
   }
 
-  let _camGridMode = (() => { try { return localStorage.getItem('cam_grid_mode') || 'auto'; } catch { return 'auto'; } })();
+  let _camGridMode = (() => { try { return localStorage.getItem('cam_grid_mode') || 'grid2'; } catch { return 'grid2'; } })();
 
   function setCamGrid(mode) {
     _camGridMode = mode;
     try { localStorage.setItem('cam_grid_mode', mode); } catch {}
     const grid = document.querySelector('.cam-tile-grid');
-    if (grid) grid.classList.toggle('grid2', mode === 'grid2');
+    if (grid) { grid.classList.toggle('single', mode === 'auto'); }
     document.querySelectorAll('.cam-grid-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   }
 
   function renderCameraTiles(cameras) {
     const live = _liveCameras(cameras);
     if (!live.length) return '<div class="cal-placeholder">Keine Kameras verfügbar</div>';
-    const grid2 = _camGridMode === 'grid2';
+    const single = _camGridMode === 'auto';
     return `<div class="cam-tile-wrap">
       <div class="cam-grid-bar">
-        <button class="cam-grid-btn${!grid2 ? ' active' : ''}" data-mode="auto" onclick="setCamGrid('auto')">⊟ Auto</button>
-        <button class="cam-grid-btn${grid2  ? ' active' : ''}" data-mode="grid2" onclick="setCamGrid('grid2')">⊞ 2-Spalten</button>
+        <button class="cam-grid-btn${!single ? ' active' : ''}" data-mode="grid2" onclick="setCamGrid('grid2')">⊞ 2-Spalten</button>
+        <button class="cam-grid-btn${single  ? ' active' : ''}" data-mode="auto"  onclick="setCamGrid('auto')">⊟ 1-Spalte</button>
       </div>
-      <div class="cam-tile-grid${grid2 ? ' grid2' : ''}">${live.map(c => `
+      <div class="cam-tile-grid${single ? ' single' : ''}">${live.map(c => `
         <div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
           <img src="${_snapUrl(c.entity_id)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block;">
           <div class="cam-tile-label">${c.name}</div>

@@ -850,15 +850,15 @@
     /* â”€â”€ CAMERA VIEW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .cam-tile-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 10px;
       padding: 10px;
       overflow-y: auto;
       align-content: start;
       align-items: start;
     }
-    .cam-tile-grid.grid2 {
-      grid-template-columns: 1fr 1fr;
+    .cam-tile-grid.single {
+      grid-template-columns: 1fr;
     }
     .cam-tile-wrap {
       display: flex;
