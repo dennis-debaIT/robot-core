@@ -3662,7 +3662,8 @@
     const body = { entity_id, service };
     if (brightness_pct !== undefined && brightness_pct !== null) body.brightness_pct = brightness_pct;
     if (colorData?.rgb_color) body.rgb_color = colorData.rgb_color;
-    if (colorData?.color_temp) body.color_temp = colorData.color_temp;
+    if (colorData?.color_temp_kelvin) body.color_temp_kelvin = colorData.color_temp_kelvin;
+    else if (colorData?.color_temp) body.color_temp = colorData.color_temp;
     try {
       await fetch('/ha/lights/control', {
         method: 'POST',
