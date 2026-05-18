@@ -1075,6 +1075,7 @@
   }
 
   async function showNewsCenter() {
+    if (!_enabledModules.news) return;
     const cp = document.getElementById('center-panel');
     cp.classList.add('news-mode');
     let nc = document.getElementById('news-center');
@@ -1920,7 +1921,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { lights: false, vehicles: false, robots: false, cameras: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false };
   })();
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
@@ -1940,6 +1941,7 @@
 
   function applyModuleVisibility(modules) {
     _enabledModules = {
+      news:     modules?.news     === true,
       lights:   modules?.lights   === true,
       vehicles: modules?.vehicles === true,
       robots:   modules?.robots   === true,

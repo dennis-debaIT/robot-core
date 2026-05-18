@@ -39,9 +39,9 @@ class IntegrationConfigService:
             "lights": {"enabled": True, "selected_entities": []},
             "robots": {"enabled": True, "selected_entities": [], "state_mappings": {}, "vacuum_configs": {}},
             "news": {
-                "enabled": True,
+                "enabled": False,
                 "lookback_hours": 6,
-                "selected_sources": news_feeds.default_selected_source_ids(),
+                "selected_sources": [],
                 "default_collapsed": False,
                 "collapsed_count": 3,
             },
@@ -416,12 +416,10 @@ class IntegrationConfigService:
 
     @staticmethod
     def _sanitize_news_selected_sources(value: Any) -> list[str]:
-        defaults = NewsFeedService().default_selected_source_ids()
         if not isinstance(value, list):
-            return defaults
+            return []
         allowed = {feed["id"] for feed in NewsFeedService().list_catalog()}
-        selected = [str(item) for item in value if str(item) in allowed]
-        return selected or defaults
+        return [str(item) for item in value if str(item) in allowed]
 
     @staticmethod
     def _sanitize_fuel_types(value: Any) -> list[str]:

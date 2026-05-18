@@ -175,7 +175,12 @@ def get_display_state() -> dict[str, Any]:
             for v in items
         )
 
+    def _has_news() -> bool:
+        news = config.get("news") or {}
+        return bool(news.get("enabled")) and bool(news.get("selected_sources"))
+
     modules = {
+        "news":     _has_news(),
         "lights":   bool((config.get("lights")   or {}).get("enabled", True)) and _has_entities("lights"),
         "vehicles": bool((config.get("vehicles") or {}).get("enabled", True)) and _has_vehicles(),
         "robots":   bool((config.get("robots")   or {}).get("enabled", True)) and _has_entities("robots"),
