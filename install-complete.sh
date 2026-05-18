@@ -5,9 +5,14 @@ set -e
 # Robot-Core (Backend) + Display-Kiosk auf einer Maschine
 #
 #   curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install-complete.sh | bash
+#   oder: curl -fsSL ... -o /tmp/install.sh && sudo bash /tmp/install.sh
 # ──────────────────────────────────────────────────────────
 
-[ "$EUID" -eq 0 ] || exec sudo bash "$0" "$@"
+if [ "$EUID" -ne 0 ]; then
+    _TMP=$(mktemp /tmp/erika-install-XXXXX.sh)
+    curl -fsSL "https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install-complete.sh" -o "$_TMP"
+    exec sudo bash "$_TMP" "$@"
+fi
 
 REAL_USER="${SUDO_USER:-$USER}"
 REAL_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
