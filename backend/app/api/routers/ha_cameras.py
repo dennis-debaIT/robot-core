@@ -45,14 +45,20 @@ def get_ha_cameras() -> dict[str, Any]:
 
 
 @router.get("/ha/cameras/detect-ring")
-def detect_ring_cameras() -> dict[str, Any]:
+async def detect_ring_cameras() -> dict[str, Any]:
     from app.search.providers.homeassistant import HomeAssistantProvider
+    from app.services.ha_websocket_service import get_ring_camera_id_map
 
     ha = HomeAssistantProvider()
     ha_config = HomeAssistantRuntimeConfigService.get_config()
     ha_host = ha_config.get("host", "")
+    ha_token = ha_config.get("token", "")
+    ha_url = HomeAssistantRuntimeConfigService.build_base_url(ha_config)
 
-    # go2rtc-Streams abfragen (läuft meist auf Port 1984 am HA-Host)
+    # Ring-IDs via HA WebSocket Device-Registry ermitteln
+    ring_id_map = await get_ring_camera_id_map(ha_url, ha_token)
+
+    # Fallback: go2rtc REST API (Port 1984)
     go2rtc_ids: list[str] = []
     try:
         with _req.urlopen(f"http://{ha_host}:1984/api/streams", timeout=3) as resp:
@@ -71,9 +77,10 @@ def detect_ring_cameras() -> dict[str, Any]:
         if not entity_id.startswith("camera."):
             continue
         attrs = state.get("attributes", {})
-        ring_device_id = ""
-        stream_source = str(attrs.get("stream_source") or "")
-        if stream_source:
+        # Aus WebSocket-Registry oder stream_source-Attribut
+        ring_device_id = ring_id_map.get(entity_id, "")
+        if not ring_device_id:
+            stream_source = str(attrs.get("stream_source") or "")
             m = re.search(r"/([a-f0-9]{10,16})_live", stream_source)
             if m:
                 ring_device_id = m.group(1)
@@ -84,7 +91,7 @@ def detect_ring_cameras() -> dict[str, Any]:
             "state": state.get("state", "unknown"),
             "type": cam_type,
             "ring_device_id": ring_device_id,
-            "has_stream_source": bool(stream_source),
+            "detected_via_registry": entity_id in ring_id_map,
         })
     cameras.sort(key=lambda c: c["name"].lower())
     return {"cameras": cameras, "go2rtc_ids": go2rtc_ids}

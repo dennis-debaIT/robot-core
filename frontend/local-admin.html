@@ -737,6 +737,7 @@
         });
         syncSummary();
         const liveCount = detected.filter((c) => c.type === 'live').length;
+        const autoIds = detected.filter((c) => c.detected_via_registry && c.ring_device_id).length;
         const go2rtcIds = data.go2rtc_ids || [];
         if (go2rtcIds.length && !filled) {
           // go2rtc meldet Streams, aber kein auto-match — als Hinweis anzeigen
@@ -746,8 +747,9 @@
             hint.style.display = 'block';
           }
         }
-        btn.textContent = `✓ ${liveCount} Live-Kameras${filled ? `, ${filled} IDs` : ''}`;
-        setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2500);
+        const idInfo = autoIds ? `, ${autoIds} IDs auto` : (filled ? `, ${filled} IDs` : '');
+        btn.textContent = `✓ ${liveCount} Live-Kameras${idInfo}`;
+        setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
       } catch (e) {
         btn.textContent = '✗ Fehler';
         setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2000);
