@@ -316,20 +316,35 @@ fun boot_progress_cb(duration, progress) {
 Plymouth.SetBootProgressFunction(boot_progress_cb);
 EOF
 
-    if plymouth-set-default-theme erika 2>/dev/null; then
-        # GRUB: quiet splash aktivieren damit Plymouth angezeigt wird
-        if [ -f /etc/default/grub ]; then
-            sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
-            # Falls die Zeile noch nicht existiert, ergänzen
-            grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub \
-                || echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"' >> /etc/default/grub
-            update-grub > /dev/null 2>&1 || true
-        fi
-        update-initramfs -u -k all > /dev/null 2>&1 || true
-        success "Boot-Screen 'Erika' aktiviert (quiet splash gesetzt)"
-    else
-        warn "Boot-Screen konnte nicht gesetzt werden"
+    # Theme direkt in Plymouth-Konfiguration erzwingen
+    mkdir -p /etc/plymouth
+    cat > /etc/plymouth/plymouthd.conf << 'EOF'
+[Daemon]
+Theme=erika
+ShowDelay=0
+EOF
+
+    # update-alternatives mit hoher Priorität (überschreibt ubuntu-logo etc.)
+    update-alternatives --install \
+        /usr/share/plymouth/themes/default.plymouth \
+        default.plymouth \
+        "$THEME_DIR/erika.plymouth" 200 2>/dev/null || true
+    update-alternatives --set \
+        default.plymouth \
+        "$THEME_DIR/erika.plymouth" 2>/dev/null || true
+
+    plymouth-set-default-theme erika 2>/dev/null || true
+
+    # GRUB: quiet splash aktivieren
+    if [ -f /etc/default/grub ]; then
+        sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+        grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub \
+            || echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"' >> /etc/default/grub
+        update-grub > /dev/null 2>&1 || true
     fi
+
+    update-initramfs -u -k all > /dev/null 2>&1 || true
+    success "Boot-Screen 'Erika' aktiviert"
 else
     warn "Plymouth nicht verfügbar — kein benutzerdefinierter Boot-Screen"
 fi
