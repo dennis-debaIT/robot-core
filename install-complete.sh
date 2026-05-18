@@ -289,6 +289,10 @@ EOF
 cat > "$KIOSK_HOME/start-kiosk.sh" << SCRIPT
 #!/bin/bash
 
+# X11-Authorisierung für Snap-Browser freigeben
+export XAUTHORITY="\$HOME/.Xauthority"
+xhost +local: 2>/dev/null || true
+
 # Bildschirm: nie aus
 xset s off
 xset s noblank
