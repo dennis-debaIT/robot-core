@@ -1901,7 +1901,7 @@
     let _updateExpectedHash = null;
     let _updateStartVersion = null;
     let _updateStartTime = null;
-    let _updateLogCountBefore = 0;
+    let _updateAbgeschlossenBefore = 0;
     const _UPDATE_TIMEOUT_MS = 5 * 60 * 1000;
 
     async function installUpdate() {
@@ -1911,10 +1911,10 @@
         _updateExpectedHash = s.latest_hash || null;
         _updateStartVersion = s.current_version || null;
       } catch {}
-      // Anzahl Log-Zeilen vor dem Update merken
+      // Anzahl "Abgeschlossen"-Zeilen vor dem Update merken (nicht Gesamt-Zeilen — API liefert immer max. 40)
       try {
         const l = await fetch('/system/update/log').then(r => r.json());
-        _updateLogCountBefore = (l.lines || []).length;
+        _updateAbgeschlossenBefore = (l.lines || []).filter(line => line.includes('Abgeschlossen')).length;
       } catch {}
 
       try {
@@ -1956,41 +1956,48 @@
       }
 
       // Log lesen und Phase erkennen
-      let logLines = [];
       let newAbgeschlossen = false;
       try {
         const d = await fetch('/system/update/log').then(r => r.json());
-        logLines = d.lines || [];
+        const logLines = d.lines || [];
         const logBox = document.getElementById('update-log-box');
         const phaseEl = document.getElementById('update-phase');
         if (logBox) {
           logBox.textContent = logLines.slice(-14).join('\n') || '(warte auf Log…)';
           logBox.scrollTop = logBox.scrollHeight;
         }
-        // Neue "Abgeschlossen"-Einträge seit Start erkennen
-        const newLines = logLines.slice(_updateLogCountBefore);
-        const newText = newLines.join(' ');
-        newAbgeschlossen = newLines.some(l => l.includes('Abgeschlossen'));
+        // Mehr "Abgeschlossen"-Zeilen als vor dem Start → neuer Run fertig
+        const currentCount = logLines.filter(l => l.includes('Abgeschlossen')).length;
+        newAbgeschlossen = currentCount > _updateAbgeschlossenBefore;
         if (phaseEl) {
-          if (newAbgeschlossen)                                    phaseEl.textContent = 'Container startet neu…';
-          else if (newText.includes('Build startet') || newText.includes('Recreate')) phaseEl.textContent = 'Container wird gebaut…';
-          else if (newText.includes('HEAD is now') || newText.includes('Fetch via'))  phaseEl.textContent = 'Code wird geladen…';
-          else if (newText.includes('Starte Update'))              phaseEl.textContent = 'Update gestartet…';
+          const tail = logLines.slice(-6).join(' ');
+          if (newAbgeschlossen)                                                 phaseEl.textContent = 'Container startet neu…';
+          else if (tail.includes('Build startet') || tail.includes('Recreate')) phaseEl.textContent = 'Container wird gebaut…';
+          else if (tail.includes('HEAD is now') || tail.includes('Fetch via'))  phaseEl.textContent = 'Code wird geladen…';
+          else if (tail.includes('Starte Update'))                              phaseEl.textContent = 'Update gestartet…';
         }
       } catch {}
 
-      // Fertig-Erkennung: Hash ODER geänderte Version ODER neues "Abgeschlossen" + kurze Wartezeit
+      // Log-Erkennung: unabhaengig von Status-API (greift auch wenn Container kurz offline)
+      if (newAbgeschlossen && elapsed > 15000) {
+        clearInterval(_updatePollInterval);
+        let version = '?';
+        try { version = (await fetch('/system/update/status').then(r => r.json())).current_version || '?'; } catch {}
+        _showUpdateSuccess(version);
+        return;
+      }
+
+      // Zusaetzlich: Hash oder Versions-Aenderung ueber Status-API
       try {
         const s = await fetch('/system/update/status').then(r => r.json());
         const hashMatch = _updateExpectedHash &&
           (s.current_hash || '').startsWith(_updateExpectedHash.substring(0, 8));
         const versionChanged = _updateStartVersion && s.current_version !== _updateStartVersion;
-        const logDone = newAbgeschlossen && elapsed > 15000; // mind. 15s vergangen
-        if (hashMatch || versionChanged || logDone) {
+        if (hashMatch || versionChanged) {
           clearInterval(_updatePollInterval);
           _showUpdateSuccess(s.current_version || '?');
         }
-      } catch {} // API offline → Container startet → weiterpolling
+      } catch {}
     }
 
     function _showUpdateSuccess(version) {
