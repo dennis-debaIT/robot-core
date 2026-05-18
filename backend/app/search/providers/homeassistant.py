@@ -99,8 +99,11 @@ class HomeAssistantProvider:
                 "color_mode": attrs.get("color_mode"),
                 "rgb_color": attrs.get("rgb_color"),
                 "color_temp": attrs.get("color_temp"),
+                "color_temp_kelvin": attrs.get("color_temp_kelvin"),
                 "min_mireds": attrs.get("min_mireds"),
                 "max_mireds": attrs.get("max_mireds"),
+                "min_color_temp_kelvin": attrs.get("min_color_temp_kelvin"),
+                "max_color_temp_kelvin": attrs.get("max_color_temp_kelvin"),
             })
         # Gruppen zuerst, dann Einzellampen alphabetisch
         lights.sort(key=lambda x: (not x["is_group"], x["name"].lower()))

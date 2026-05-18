@@ -3784,11 +3784,11 @@
     return html;
   }
 
-  // white:true → Weißton; RGB-Werte entsprechen IKEA Warmweiß-Preset exakt
+  // white:true → Weißton; kelvin = Zielwert (wird auf Lampen-Range geclampt)
   const _COLOR_PRESETS = [
-    { label:'Warmweiß',   white:true,  ct:370, rgb:[255,174,91],  bg:'#ffae5b' },
-    { label:'Neutralweiß',white:true,  ct:250, rgb:[255,228,150], bg:'#ffe496' },
-    { label:'Kaltweiß',   white:true,  ct:154, rgb:[200,220,255], bg:'#c8dcff' },
+    { label:'Warmweiß',   white:true,  kelvin:2700, ct:370, rgb:[255,174,91],  bg:'#ffae5b' },
+    { label:'Neutralweiß',white:true,  kelvin:4000, ct:250, rgb:[255,228,150], bg:'#ffe496' },
+    { label:'Kaltweiß',   white:true,  kelvin:6500, ct:154, rgb:[200,220,255], bg:'#c8dcff' },
     { label:'Rot',        white:false, ct:null, rgb:[255,0,0],    bg:'#ff2020' },
     { label:'Orange',     white:false, ct:null, rgb:[255,100,0],  bg:'#ff6400' },
     { label:'Gelb',       white:false, ct:null, rgb:[255,220,0],  bg:'#ffdc00' },
@@ -3843,14 +3843,24 @@
     for (const c of _COLOR_PRESETS) {
       if (c.white  && !light.supports_color_temp && !light.supports_color) continue;
       if (!c.white && !light.supports_color) continue;
-      // Weißtöne immer per RGB (IKEA nutzt HS-Modus, kein color_temp)
-      const colorArg = '{rgb_color:[' + c.rgb.join(',') + ']}';
-      // Aktiv-Erkennung via RGB (Toleranz 50 pro Kanal)
-      let active = false;
-      if (light.rgb_color)
-        active = Math.abs(light.rgb_color[0]-c.rgb[0]) < 50
-              && Math.abs(light.rgb_color[1]-c.rgb[1]) < 50
-              && Math.abs(light.rgb_color[2]-c.rgb[2]) < 50;
+
+      let colorArg, active = false;
+      if (c.white && light.supports_color_temp) {
+        // Lampe versteht color_temp → Kelvin-Wert verwenden, auf Lampen-Range clampen
+        const minK = light.min_color_temp_kelvin || 2000;
+        const maxK = light.max_color_temp_kelvin || 6500;
+        const k = Math.max(minK, Math.min(maxK, c.kelvin));
+        colorArg = '{color_temp_kelvin:' + k + '}';
+        if (light.color_mode === 'color_temp' && light.color_temp_kelvin)
+          active = Math.abs(light.color_temp_kelvin - k) < 200;
+      } else {
+        // Nur HS/RGB (z.B. IKEA Tradfri) → weiter per RGB
+        colorArg = '{rgb_color:[' + c.rgb.join(',') + ']}';
+        if (light.rgb_color)
+          active = Math.abs(light.rgb_color[0]-c.rgb[0]) < 50
+                && Math.abs(light.rgb_color[1]-c.rgb[1]) < 50
+                && Math.abs(light.rgb_color[2]-c.rgb[2]) < 50;
+      }
       const bdr = active ? '3px solid #fff'                    : '3px solid transparent';
       const shd = active ? '0 0 0 2px rgba(255,255,255,0.7)'  : '0 0 0 1px rgba(255,255,255,0.15)';
       dots += '<div onclick="callLightService(\'' + eid + '\',\'turn_on\',null,' + colorArg + ')"'
