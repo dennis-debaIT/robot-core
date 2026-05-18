@@ -9,6 +9,14 @@ INSTALL_DIR="$HOME/robot-core"
 LOG="$INSTALL_DIR/update.log"
 cd "$INSTALL_DIR"
 
+# Lock-Datei: verhindert parallele Runs (z.B. durch Cron + manuellem Aufruf)
+LOCKFILE="/tmp/robot-core-update.lock"
+if ! mkdir "$LOCKFILE" 2>/dev/null; then
+    echo "[update] Bereits aktiv, ueberspringe: $(date)" >> "$LOG"
+    exit 0
+fi
+trap "rmdir '$LOCKFILE' 2>/dev/null || true" EXIT
+
 echo "[update] Starte Update: $(date)" | tee -a "$LOG"
 # SSH-Fetch (falls Key vorhanden), Fallback auf HTTPS (Public Repo, kein Token nötig)
 if git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>>"$LOG"; then
