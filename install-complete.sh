@@ -214,26 +214,40 @@ EndSection
 EOF
 
 # ── 10. Google Chrome ─────────────────────────────────────
-step "Browser installieren"
+step "Browser installieren (Chromium via Snap)"
 CHROME_BIN=""
-if ! command -v google-chrome-stable &>/dev/null && ! command -v google-chrome &>/dev/null; then
-    info "Lade Google Chrome..."
+
+# Chromium via Snap (empfohlen für Ubuntu 24.04 — keine Sandbox-Probleme)
+if ! command -v chromium &>/dev/null && ! command -v chromium-browser &>/dev/null; then
+    info "Installiere Chromium..."
+    if command -v snap &>/dev/null; then
+        snap install chromium > /dev/null 2>&1 && success "Chromium (Snap) installiert" \
+        || {
+            warn "Snap fehlgeschlagen — versuche apt..."
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                chromium-browser > /dev/null 2>&1 || true
+        }
+    else
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            chromium-browser > /dev/null 2>&1 || true
+    fi
+fi
+
+# Falls kein Chromium: Google Chrome als Fallback
+if ! command -v chromium &>/dev/null && ! command -v chromium-browser &>/dev/null; then
+    warn "Chromium nicht verfügbar — lade Google Chrome..."
     if wget -q -O /tmp/chrome.deb \
         "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
         DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/chrome.deb > /dev/null 2>&1 \
             || apt-get install -f -y > /dev/null
         rm -f /tmp/chrome.deb
-        success "Google Chrome installiert"
-    else
-        warn "Chrome nicht verfügbar — installiere Chromium"
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            chromium-browser > /dev/null 2>&1 || true
     fi
 fi
-CHROME_BIN="$(command -v google-chrome-stable 2>/dev/null \
-           || command -v google-chrome 2>/dev/null \
+
+CHROME_BIN="$(command -v chromium 2>/dev/null \
            || command -v chromium-browser 2>/dev/null \
-           || command -v chromium 2>/dev/null)"
+           || command -v google-chrome-stable 2>/dev/null \
+           || command -v google-chrome 2>/dev/null)"
 [ -n "$CHROME_BIN" ] || error "Kein Browser gefunden."
 success "Browser: $CHROME_BIN"
 
