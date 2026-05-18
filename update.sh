@@ -28,10 +28,13 @@ else
 fi
 git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 
-# Flag-Dateien sicherstellen (werden durch git reset ggf. gelöscht, da in .gitignore)
+# Flag-Dateien sicherstellen — Verzeichnisse (fälschlich von Docker angelegt) entfernen
+for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json; do
+    [ -d "$_f" ] && rm -rf "$_f" || true
+done
 touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
-[ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
-[ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt 2>/dev/null || touch host-ip.txt
+[ -s wifi-scan.json ]  || echo '{"networks":[]}' > wifi-scan.json
+hostname -I | awk '{print $1}' > host-ip.txt 2>/dev/null || true
 mkdir -p ha_config
 
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)
