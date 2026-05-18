@@ -14,20 +14,20 @@ class VehicleService:
     @staticmethod
     def default_vehicle() -> dict[str, Any]:
         return {
-            "id": "dacia_spring",
-            "label": "Dacia Spring",
+            "id": "fahrzeug_1",
+            "label": "Fahrzeug 1",
             "enabled": True,
-            "location_entity": "device_tracker.standort",
-            "odometer_entity": "sensor.kilometerstand",
-            "activity_entity": "sensor.ladezustand",
-            "ev_profile_enabled": True,
-            "battery_entity": "sensor.batterie",
-            "range_entity": "sensor.batteriereichweite",
+            "location_entity": "",
+            "odometer_entity": "",
+            "activity_entity": "",
+            "ev_profile_enabled": False,
+            "battery_entity": "",
+            "range_entity": "",
             "fuel_level_entity": "",
             "adblue_level_entity": "",
-            "charging_entity": "binary_sensor.ladestatus",
-            "remaining_charge_time_entity": "sensor.verbleibende_ladezeit",
-            "stop_charging_button_entity": "button.ladevorgang_stoppen",
+            "charging_entity": "",
+            "remaining_charge_time_entity": "",
+            "stop_charging_button_entity": "",
             "climate_button_entity": "",
         }
 

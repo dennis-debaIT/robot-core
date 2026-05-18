@@ -165,11 +165,21 @@ def get_weather_display(location: str | None = None) -> dict[str, Any]:
 def get_display_state() -> dict[str, Any]:
     config = IntegrationConfigService().get_config()
     config_version = config.get("meta", {}).get("version", 1)
+    def _has_entities(key: str) -> bool:
+        return bool((config.get(key) or {}).get("selected_entities"))
+
+    def _has_vehicles() -> bool:
+        items = (config.get("vehicles") or {}).get("items") or []
+        return any(
+            v.get("location_entity") or v.get("battery_entity") or v.get("odometer_entity")
+            for v in items
+        )
+
     modules = {
-        "lights": bool((config.get("lights") or {}).get("enabled", True)),
-        "vehicles": bool((config.get("vehicles") or {}).get("enabled", True)),
-        "robots": bool((config.get("robots") or {}).get("enabled", True)),
-        "cameras": bool((config.get("cameras") or {}).get("enabled", True)),
+        "lights":   bool((config.get("lights")   or {}).get("enabled", True)) and _has_entities("lights"),
+        "vehicles": bool((config.get("vehicles") or {}).get("enabled", True)) and _has_vehicles(),
+        "robots":   bool((config.get("robots")   or {}).get("enabled", True)) and _has_entities("robots"),
+        "cameras":  bool((config.get("cameras")  or {}).get("enabled", True)) and _has_entities("cameras"),
     }
     with get_connection() as conn:
         raw = read_state(conn, "display_intent")

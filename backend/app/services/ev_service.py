@@ -20,13 +20,13 @@ class EvService:
     @staticmethod
     def default_vehicle() -> dict[str, Any]:
         return {
-            "id": "dacia_spring",
-            "label": "Dacia Spring",
-            "battery_entity": "sensor.batterie",
-            "range_entity": "sensor.batteriereichweite",
-            "charging_entity": "binary_sensor.ladestatus",
-            "remaining_charge_time_entity": "sensor.verbleibende_ladezeit",
-            "stop_charging_button_entity": "button.ladevorgang_stoppen",
+            "id": "fahrzeug_1",
+            "label": "Fahrzeug 1",
+            "battery_entity": "",
+            "range_entity": "",
+            "charging_entity": "",
+            "remaining_charge_time_entity": "",
+            "stop_charging_button_entity": "",
         }
 
     def entity_options(self) -> list[dict[str, Any]]:

@@ -70,13 +70,13 @@ class IntegrationConfigService:
             },
             "ev": {
                 "enabled": True,
-                "vehicles": [EvService.default_vehicle()],
+                "vehicles": [],
             },
             "vehicles": {
                 "enabled": True,
                 "location_history_days": 14,
                 "poll_seconds": 30,
-                "items": [VehicleService.default_vehicle()],
+                "items": [],
             },
             "cameras": {"enabled": True, "selected_entities": [], "camera_configs": {}},
             "meta": {
@@ -129,7 +129,7 @@ class IntegrationConfigService:
         vehicles["enabled"] = bool(vehicles.get("enabled", True))
         vehicles["location_history_days"] = self._sanitize_vehicle_history_days(vehicles.get("location_history_days", 14))
         vehicles["poll_seconds"] = self._sanitize_vehicle_poll_seconds(vehicles.get("poll_seconds", 30))
-        if not current_vehicle_items:
+        if not current_vehicle_items and ev["vehicles"]:
             vehicles["items"] = [VehicleService.from_ev_vehicle(item) for item in ev["vehicles"]]
         vehicles["items"] = self._sanitize_vehicles(vehicles.get("items"), ev["vehicles"])
         cameras_config = merged.setdefault("cameras", {})
@@ -573,9 +573,8 @@ class IntegrationConfigService:
 
     @staticmethod
     def _sanitize_ev_vehicles(value: Any) -> list[dict[str, Any]]:
-        default_vehicle = EvService.default_vehicle()
         if not isinstance(value, list):
-            return [default_vehicle]
+            return []
 
         vehicles: list[dict[str, Any]] = []
         for index, item in enumerate(value):
@@ -602,13 +601,13 @@ class IntegrationConfigService:
         if not isinstance(value, list):
             if ev_vehicles:
                 return [VehicleService.from_ev_vehicle(item) for item in ev_vehicles]
-            return [VehicleService.default_vehicle()]
+            return []
         vehicles = [
             VehicleService.sanitize_vehicle(item, index)
             for index, item in enumerate(value)
             if isinstance(item, dict)
         ]
-        return vehicles or [VehicleService.default_vehicle()]
+        return vehicles
 
     @staticmethod
     def _sanitize_vehicle_history_days(value: Any) -> int:
