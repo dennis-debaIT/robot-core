@@ -2476,13 +2476,12 @@
 
   let _camGridMode = (() => { try { return localStorage.getItem('cam_grid_mode') || 'auto'; } catch { return 'auto'; } })();
 
-  function toggleCamGrid() {
-    _camGridMode = _camGridMode === 'auto' ? 'grid2' : 'auto';
-    try { localStorage.setItem('cam_grid_mode', _camGridMode); } catch {}
+  function setCamGrid(mode) {
+    _camGridMode = mode;
+    try { localStorage.setItem('cam_grid_mode', mode); } catch {}
     const grid = document.querySelector('.cam-tile-grid');
-    const btn  = document.querySelector('.cam-grid-toggle');
-    if (grid) grid.classList.toggle('grid2', _camGridMode === 'grid2');
-    if (btn)  { btn.classList.toggle('active', _camGridMode === 'grid2'); btn.textContent = _camGridMode === 'grid2' ? '⊞ 2-Spalten' : '⊟ Auto'; }
+    if (grid) grid.classList.toggle('grid2', mode === 'grid2');
+    document.querySelectorAll('.cam-grid-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   }
 
   function renderCameraTiles(cameras) {
@@ -2490,7 +2489,10 @@
     if (!live.length) return '<div class="cal-placeholder">Keine Kameras verfügbar</div>';
     const grid2 = _camGridMode === 'grid2';
     return `<div class="cam-tile-wrap">
-      <button class="cam-grid-toggle${grid2 ? ' active' : ''}" onclick="toggleCamGrid()">${grid2 ? '⊞ 2-Spalten' : '⊟ Auto'}</button>
+      <div class="cam-grid-bar">
+        <button class="cam-grid-btn${!grid2 ? ' active' : ''}" data-mode="auto" onclick="setCamGrid('auto')">⊟ Auto</button>
+        <button class="cam-grid-btn${grid2  ? ' active' : ''}" data-mode="grid2" onclick="setCamGrid('grid2')">⊞ 2-Spalten</button>
+      </div>
       <div class="cam-tile-grid${grid2 ? ' grid2' : ''}">${live.map(c => `
         <div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
           <img src="${_snapUrl(c.entity_id)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block;">

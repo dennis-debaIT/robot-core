@@ -854,29 +854,44 @@
       gap: 10px;
       padding: 10px;
       overflow-y: auto;
-      height: 100%;
+      align-content: start;
+      align-items: start;
     }
     .cam-tile-grid.grid2 {
       grid-template-columns: 1fr 1fr;
     }
-    .cam-grid-toggle {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      z-index: 10;
-      background: rgba(7,9,19,0.75);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 5px 10px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: var(--muted);
-      cursor: pointer;
-      letter-spacing: 0.05em;
-      transition: color 0.15s, border-color 0.15s;
+    .cam-tile-wrap {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
     }
-    .cam-grid-toggle:hover, .cam-grid-toggle.active { color: var(--accent); border-color: var(--accent); }
-    .cam-tile-wrap { position: relative; height: 100%; overflow: hidden; }
+    .cam-tile-wrap .cam-tile-grid { flex: 1; }
+    .cam-grid-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px 6px;
+      flex-shrink: 0;
+    }
+    .cam-grid-btn {
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: none;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .cam-grid-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .cam-grid-btn.active {
+      background: rgba(0,200,255,0.12);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
     .cam-tile {
       background: var(--surface2);
       border: 1px solid var(--border);
