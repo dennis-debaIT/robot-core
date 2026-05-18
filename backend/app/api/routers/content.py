@@ -10,7 +10,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.api.deps import DISPLAY_CSS, DISPLAY_INDEX
 from app.database.db import get_connection, read_state
@@ -203,7 +203,11 @@ def get_display_state() -> dict[str, Any]:
 
 
 @router.get("/display")
-def display_panel() -> FileResponse:
+def display_panel() -> FileResponse | RedirectResponse:
+    with get_connection() as conn:
+        state = read_state(conn, "setup_state", {}) or {}
+    if not state.get("completed"):
+        return RedirectResponse(url="/setup", status_code=302)
     return FileResponse(
         DISPLAY_INDEX,
         headers={

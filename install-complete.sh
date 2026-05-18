@@ -138,22 +138,28 @@ step "Update-System einrichten"
 touch update.flag update.log
 chmod +x update.sh
 
+# Setup-Flag-Dateien anlegen (leer = noch nicht benutzt)
+touch timezone.flag hostname.flag wlan.flag ha-install.flag components.flag reboot.flag
+[ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
+mkdir -p ha_config
+
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
 CRON_REBOOT="@reboot bash $INSTALL_DIR/reboot-watcher.sh >> $INSTALL_DIR/reboot.log 2>&1 &"
+CRON_SETUP="@reboot bash $INSTALL_DIR/setup-watcher.sh >> $INSTALL_DIR/setup-watcher.log 2>&1 &"
 _CRON_TMP=$(mktemp)
-(echo "HOME=$REAL_HOME"; echo "PATH=$_CRON_PATH"; echo "$CRON_DAILY"; echo "$CRON_FLAG"; echo "$CRON_REBOOT") > "$_CRON_TMP"
+(echo "HOME=$REAL_HOME"; echo "PATH=$_CRON_PATH"; echo "$CRON_DAILY"; echo "$CRON_FLAG"; echo "$CRON_REBOOT"; echo "$CRON_SETUP") > "$_CRON_TMP"
 crontab -u "$REAL_USER" - < "$_CRON_TMP"
 rm -f "$_CRON_TMP"
 # Neustart ohne sudo-Passwort erlauben
 echo "$REAL_USER ALL=(ALL) NOPASSWD: /sbin/reboot" > /etc/sudoers.d/erika-reboot
 chmod 440 /etc/sudoers.d/erika-reboot
-# reboot.flag erstellen + Watcher starten
-touch "$INSTALL_DIR/reboot.flag"
-chmod +x "$INSTALL_DIR/reboot-watcher.sh" 2>/dev/null || true
+# Watcher starten
+chmod +x "$INSTALL_DIR/reboot-watcher.sh" "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
 nohup bash "$INSTALL_DIR/reboot-watcher.sh" >> "$INSTALL_DIR/reboot.log" 2>&1 &
-success "Cron-Jobs eingerichtet (inkl. Neustart-Trigger)"
+nohup bash "$INSTALL_DIR/setup-watcher.sh" >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
+success "Cron-Jobs eingerichtet (inkl. Neustart-, Setup- und Update-Trigger)"
 
 # ── 7. Container bauen und starten ────────────────────────
 step "Container bauen und starten"
@@ -466,7 +472,8 @@ echo -e "${BOLD}  Erika ist einsatzbereit!${NC}"
 echo ""
 echo -e "  Web-Interface:   ${CYAN}https://${IP}:8000${NC}"
 echo -e "  Admin-Panel:     ${CYAN}https://${IP}:8000/local-admin${NC}"
-echo -e "  Display-Kiosk:   ${CYAN}https://localhost:8000/display${NC} (startet automatisch)"
+echo -e "  Setup-Wizard:    ${CYAN}https://localhost:8000/setup${NC} (erscheint beim ersten Start)"
+echo -e "  Display-Kiosk:   ${CYAN}https://localhost:8000/display${NC} (nach Setup automatisch)"
 echo -e "  Browser:         ${CYAN}${CHROME_BIN}${NC}"
 echo -e "  VM-Typ:          ${CYAN}${VIRT}${NC}"
 echo ""

@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Erika · Einrichtung</title>
+  <style>
+    :root {
+      --bg: #050611; --panel: #0b0b17; --line: #24284a;
+      --ink: #f4f7ff; --muted: #7f8dcb; --accent: #00c8ff;
+      --success: #00e676; --warning: #ffab00; --danger: #ff4f5f;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--ink); font-family: system-ui, sans-serif; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 0 0 180px; }
+
+    /* ── HEADER ── */
+    .header { width: 100%; padding: 28px 40px 0; display: flex; align-items: center; gap: 16px; }
+    .logo { font-size: 1.6rem; font-weight: 900; letter-spacing: 0.15em; color: var(--accent); }
+    .header-sub { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── PROGRESS ── */
+    .progress-bar { width: 100%; max-width: 680px; margin: 24px auto 0; padding: 0 40px; }
+    .steps { display: flex; gap: 0; }
+    .step-dot { flex: 1; text-align: center; position: relative; }
+    .step-dot::before { content: ''; display: block; height: 3px; background: var(--line); position: absolute; top: 14px; left: 50%; right: -50%; z-index: 0; }
+    .step-dot:last-child::before { display: none; }
+    .step-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); background: var(--bg); display: inline-flex; align-items: center; justify-content: center; font-size: 0.72rem; font-weight: 700; position: relative; z-index: 1; transition: all 0.3s; }
+    .step-dot.active .step-circle { border-color: var(--accent); color: var(--accent); }
+    .step-dot.done .step-circle { border-color: var(--success); background: var(--success); color: #000; }
+    .step-dot.done::before { background: var(--success); }
+    .step-label { font-size: 0.65rem; color: var(--muted); margin-top: 5px; }
+    .step-dot.active .step-label { color: var(--accent); }
+
+    /* ── CARD ── */
+    .card { width: 100%; max-width: 680px; margin: 28px auto 0; padding: 28px 32px; background: var(--panel); border: 1px solid var(--line); border-radius: 20px; }
+    .card-title { font-size: 1.3rem; font-weight: 800; margin-bottom: 6px; }
+    .card-sub { font-size: 0.84rem; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+
+    /* ── FIELD ── */
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+    .field input, .field select { width: 100%; padding: 12px 14px; background: rgba(7,9,19,0.8); border: 1px solid var(--line); border-radius: 10px; color: var(--ink); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    .field input:focus, .field select:focus { border-color: var(--accent); }
+    .field input[type=password] { letter-spacing: 0.1em; }
+    .field-row { display: flex; gap: 12px; }
+    .field-row .field { flex: 1; }
+
+    /* ── RADIO CARDS ── */
+    .radio-cards { display: flex; gap: 12px; margin-bottom: 20px; }
+    .radio-card { flex: 1; border: 2px solid var(--line); border-radius: 14px; padding: 18px; cursor: pointer; transition: all 0.2s; }
+    .radio-card.active { border-color: var(--accent); background: rgba(0,200,255,0.06); }
+    .radio-card h3 { font-size: 1rem; font-weight: 800; margin-bottom: 4px; }
+    .radio-card p { font-size: 0.78rem; color: var(--muted); line-height: 1.4; }
+    .radio-card .rc-icon { font-size: 1.8rem; margin-bottom: 10px; }
+
+    /* ── CHECKBOXES ── */
+    .check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .check-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; transition: all 0.2s; }
+    .check-card.checked { border-color: var(--accent); background: rgba(0,200,255,0.05); }
+    .check-card input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+    .check-card .cc-body h4 { font-size: 0.88rem; font-weight: 700; margin-bottom: 3px; }
+    .check-card .cc-body p { font-size: 0.72rem; color: var(--muted); line-height: 1.4; }
+    .check-badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 10px; font-weight: 700; margin-left: 6px; }
+    .badge-hacs { background: rgba(0,200,255,0.15); color: var(--accent); }
+    .badge-std { background: rgba(0,230,118,0.15); color: var(--success); }
+
+    /* ── BUTTONS ── */
+    .btn-row { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+    button { padding: 13px 28px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.15s; border: none; }
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-primary:disabled { opacity: 0.4; cursor: default; }
+    .btn-secondary { background: none; border: 1px solid var(--line); color: var(--muted); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── INFO BOX ── */
+    .info-box { background: rgba(0,200,255,0.06); border: 1px solid rgba(0,200,255,0.2); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: var(--muted); margin-bottom: 18px; }
+    .info-box strong { color: var(--ink); }
+    .ip-badge { display: inline-block; background: rgba(0,200,255,0.1); border: 1px solid rgba(0,200,255,0.3); border-radius: 8px; padding: 6px 14px; font-family: monospace; font-size: 1rem; color: var(--accent); margin-top: 6px; }
+
+    /* ── SUCCESS STEP ── */
+    .success-center { text-align: center; padding: 20px 0; }
+    .success-icon { font-size: 3rem; margin-bottom: 14px; }
+    .check-list { text-align: left; margin: 20px 0; }
+    .check-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.88rem; }
+    .check-item .ci-icon { font-size: 1.1rem; width: 24px; text-align: center; }
+    .check-item.pending .ci-icon { animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    /* ── VIRTUAL KEYBOARD ── */
+    #vkb { position: fixed; bottom: 0; left: 0; right: 0; background: #0d0e1f; border-top: 1px solid var(--line); padding: 10px 8px 14px; z-index: 999; display: none; user-select: none; }
+    .vkb-row { display: flex; justify-content: center; gap: 5px; margin-bottom: 5px; }
+    .vkb-key { min-width: 42px; height: 46px; border-radius: 8px; background: #1a1c30; border: 1px solid var(--line); color: var(--ink); font-size: 0.9rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.1s; flex: 1; max-width: 52px; }
+    .vkb-key:active, .vkb-key.pressed { background: rgba(0,200,255,0.2); border-color: var(--accent); }
+    .vkb-key.wide { max-width: 90px; flex: 2; font-size: 0.75rem; }
+    .vkb-key.space { max-width: 260px; flex: 5; }
+    .vkb-key.shift-active { color: var(--accent); border-color: var(--accent); }
+    .vkb-close { position: absolute; top: 10px; right: 12px; width: 32px; height: 32px; border-radius: 8px; background: rgba(255,79,95,0.15); border: 1px solid var(--danger); color: var(--danger); font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .field input.has-vkb:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,200,255,0.15); }
+
+    /* ── TIMEZONE SEARCH ── */
+    .tz-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 6px; display: none; background: var(--panel); }
+    .tz-list.open { display: block; }
+    .tz-item { padding: 10px 14px; cursor: pointer; font-size: 0.88rem; border-bottom: 1px solid rgba(36,40,74,0.5); }
+    .tz-item:hover, .tz-item.selected { background: rgba(0,200,255,0.08); color: var(--accent); }
+
+    /* ── WIFI LIST ── */
+    .wifi-list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 8px; }
+    .wifi-item { padding: 11px 14px; cursor: pointer; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(36,40,74,0.5); font-size: 0.88rem; transition: background 0.15s; }
+    .wifi-item:hover { background: rgba(0,200,255,0.06); }
+    .wifi-item.selected { background: rgba(0,200,255,0.1); }
+    .wifi-signal { font-size: 0.7rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">ERIKA</div>
+    <div class="header-sub">Ersteinrichtung</div>
+  </div>
+</div>
+
+<div class="progress-bar">
+  <div class="steps" id="steps">
+    <div class="step-dot active" data-step="1"><div class="step-circle">1</div><div class="step-label">Netzwerk</div></div>
+    <div class="step-dot" data-step="2"><div class="step-circle">2</div><div class="step-label">Zeitzone</div></div>
+    <div class="step-dot" data-step="3"><div class="step-circle">3</div><div class="step-label">Home Assistant</div></div>
+    <div class="step-dot" data-step="4"><div class="step-circle">4</div><div class="step-label">Komponenten</div></div>
+    <div class="step-dot" data-step="5"><div class="step-circle">5</div><div class="step-label">Fertig</div></div>
+  </div>
+</div>
+
+<!-- ── STEP 1: NETZWERK ── -->
+<div class="card" id="step-1">
+  <div class="card-title">Netzwerk</div>
+  <div class="card-sub">Richte das Netzwerk und den Gerätenamen ein. Aktuelle IP-Adresse:</div>
+  <div class="info-box">
+    <strong>Aktuelle IP:</strong><br>
+    <span class="ip-badge" id="current-ip">wird geladen…</span>
+    <span style="margin-left:12px;font-size:0.78rem;color:var(--muted);">Hostname: <strong id="current-hostname">…</strong></span>
+  </div>
+
+  <div class="radio-cards">
+    <div class="radio-card active" id="rc-lan" onclick="selectNetwork('lan')">
+      <div class="rc-icon">🔌</div>
+      <h3>LAN</h3>
+      <p>Netzwerkkabel angeschlossen — keine weitere Konfiguration nötig.</p>
+    </div>
+    <div class="radio-card" id="rc-wlan" onclick="selectNetwork('wlan')">
+      <div class="rc-icon">📶</div>
+      <h3>WLAN</h3>
+      <p>Verbindung über WLAN herstellen.</p>
+    </div>
+  </div>
+
+  <div id="wlan-fields" style="display:none;">
+    <div class="field">
+      <label>WLAN-Netzwerk (SSID)</label>
+      <input class="has-vkb" id="ssid" type="text" placeholder="Netzwerkname" autocomplete="off">
+      <div class="wifi-list" id="wifi-list" style="display:none;"></div>
+    </div>
+    <div class="field">
+      <label>Passwort</label>
+      <input class="has-vkb" id="wlan-pass" type="password" placeholder="WLAN-Passwort">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Gerätename (Hostname)</label>
+    <input class="has-vkb" id="hostname" type="text" placeholder="erika" value="erika">
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-primary" onclick="step1Next()">Weiter →</button>
+  </div>
+</div>
+
+<!-- ── STEP 2: ZEITZONE ── -->
+<div class="card" id="step-2" style="display:none;">
+  <div class="card-title">Zeitzone</div>
+  <div class="card-sub">Wähle die Zeitzone des Geräts. Die Zeit wird direkt übernommen.</div>
+  <div class="field">
+    <label>Zeitzone suchen</label>
+    <input class="has-vkb" id="tz-search" type="text" placeholder="z.B. Europe/Berlin" autocomplete="off">
+    <div class="tz-list" id="tz-list"></div>
+  </div>
+  <div class="info-box" id="tz-preview" style="display:none;">
+    Gewählt: <strong id="tz-selected-label">–</strong>
+  </div>
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="goStep(1)">← Zurück</button>
+    <button class="btn-primary" onclick="step2Next()" id="btn-step2">Weiter →</button>
+  </div>
+</div>
+
+<!-- ── STEP 3: HOME ASSISTANT ── -->
+<div class="card" id="step-3" style="display:none;">
+  <div class="card-title">Home Assistant</div>
+  <div class="card-sub">Verbinde Erika mit Home Assistant — entweder einem vorhandenen System oder einer Neuinstallation.</div>
+
+  <div class="radio-cards">
+    <div class="radio-card active" id="rc-ha-existing" onclick="selectHA('existing')">
+      <div class="rc-icon">🏠</div>
+      <h3>Bereits vorhanden</h3>
+      <p>Home Assistant läuft bereits im Netzwerk.</p>
+    </div>
+    <div class="radio-card" id="rc-ha-install" onclick="selectHA('install')">
+      <div class="rc-icon">⬇️</div>
+      <h3>Neu installieren</h3>
+      <p>Home Assistant wird auf diesem Gerät installiert (Docker).</p>
+    </div>
+  </div>
+
+  <div id="ha-existing-fields">
+    <div class="field-row">
+      <div class="field" style="flex:2;">
+        <label>HA IP-Adresse</label>
+        <input class="has-vkb" id="ha-ip" type="text" placeholder="192.168.1.100">
+      </div>
+      <div class="field" style="flex:1;">
+        <label>Port</label>
+        <input class="has-vkb" id="ha-port" type="text" placeholder="8123" value="8123">
+      </div>
+    </div>
+    <div class="field">
+      <label>Long-Lived Access Token <span style="font-weight:400;text-transform:none;">(HA → Profil → Token erstellen)</span></label>
+      <input class="has-vkb" id="ha-token" type="password" placeholder="eyJ0eXAiOiJKV1Q…">
+    </div>
+  </div>
+
+  <div id="ha-install-info" style="display:none;">
+    <div class="info-box">
+      Home Assistant wird nach dem Setup automatisch als Docker-Container installiert und ist danach unter <strong>http://[deine-IP]:8123</strong> erreichbar. Im nächsten Schritt kannst du weitere Integrationen vorinstallieren.
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="goStep(2)">← Zurück</button>
+    <button class="btn-primary" onclick="step3Next()">Weiter →</button>
+  </div>
+</div>
+
+<!-- ── STEP 4: KOMPONENTEN ── -->
+<div class="card" id="step-4" style="display:none;">
+  <div class="card-title">Integrationen & Komponenten</div>
+  <div class="card-sub">Wähle aus welche Home-Assistant-Integrationen vorinstalliert werden sollen. Alle können später über HACS nachinstalliert werden.</div>
+
+  <div class="check-grid">
+    <label class="check-card checked" onclick="toggleComp(this,'ring_mqtt')">
+      <input type="checkbox" checked>
+      <div class="cc-body">
+        <h4>Ring / ring-mqtt <span class="check-badge badge-hacs">HACS</span></h4>
+        <p>Türklingeln, Kameras und Sensoren über ring-mqtt</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'mqtt')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>MQTT (Mosquitto) <span class="check-badge badge-std">Standard</span></h4>
+        <p>MQTT-Broker für ring-mqtt und andere Integrationen</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'dreame_vacuum')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>Dreame Vacuum <span class="check-badge badge-hacs">HACS</span></h4>
+        <p>Saugroboter von Dreame (Tasshack)</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'worxlandroid')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>Worx Landroid <span class="check-badge badge-hacs">HACS</span></h4>
+        <p>Worx-Mähroboter (Rasenmäher)</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'tankerkoenig')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>Tankerkönig <span class="check-badge badge-std">Standard</span></h4>
+        <p>Kraftstoffpreise aus Tankerkönig-API</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'renault')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>Renault <span class="check-badge badge-std">Standard</span></h4>
+        <p>Renault/Dacia Fahrzeuge (Akkustand, Reichweite)</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'volkswagen_we_connect')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>Volkswagen WeConnect <span class="check-badge badge-hacs">HACS</span></h4>
+        <p>VW-Fahrzeuge (ID.x, Golf, Passat etc.)</p>
+      </div>
+    </label>
+    <label class="check-card" onclick="toggleComp(this,'frigate')">
+      <input type="checkbox">
+      <div class="cc-body">
+        <h4>Frigate NVR <span class="check-badge badge-hacs">HACS</span></h4>
+        <p>Lokale KI-basierte Videoüberwachung</p>
+      </div>
+    </label>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn-secondary" onclick="goStep(3)">← Zurück</button>
+    <button class="btn-primary" onclick="step4Next()">Setup abschließen →</button>
+  </div>
+</div>
+
+<!-- ── STEP 5: FERTIG ── -->
+<div class="card" id="step-5" style="display:none;">
+  <div class="success-center">
+    <div class="success-icon" id="final-icon">⚙️</div>
+    <div class="card-title" id="final-title">Einrichtung läuft…</div>
+    <div class="card-sub" id="final-sub">Einstellungen werden angewendet. Bitte einen Moment warten.</div>
+  </div>
+  <div class="check-list" id="check-list"></div>
+  <div class="btn-row" id="final-btn-row" style="display:none;justify-content:center;">
+    <button class="btn-primary" onclick="window.location.href='/display'">Zu Erika →</button>
+  </div>
+</div>
+
+<!-- ── VIRTUAL KEYBOARD ── -->
+<div id="vkb">
+  <div class="vkb-close" onclick="hideKeyboard()">✕</div>
+  <div class="vkb-row" id="vkb-row-1"></div>
+  <div class="vkb-row" id="vkb-row-2"></div>
+  <div class="vkb-row" id="vkb-row-3"></div>
+  <div class="vkb-row" id="vkb-row-4"></div>
+</div>
+
+<script>
+// ── VIRTUAL KEYBOARD ──────────────────────────────────────
+const ROWS_LOWER = [
+  ['1','2','3','4','5','6','7','8','9','0','-','.'],
+  ['q','w','e','r','t','z','u','i','o','p','ü'],
+  ['a','s','d','f','g','h','j','k','l','ö','ä'],
+  ['⇧','y','x','c','v','b','n','m','@','_','⌫'],
+];
+const ROWS_UPPER = [
+  ['1','2','3','4','5','6','7','8','9','0','-','.'],
+  ['Q','W','E','R','T','Z','U','I','O','P','Ü'],
+  ['A','S','D','F','G','H','J','K','L','Ö','Ä'],
+  ['⇧','Y','X','C','V','B','N','M','@','_','⌫'],
+];
+
+let _vkbShift = false;
+let _vkbTarget = null;
+
+function _buildKeyboard() {
+  const rows = _vkbShift ? ROWS_UPPER : ROWS_LOWER;
+  [1,2,3,4].forEach((r,i) => {
+    const el = document.getElementById(`vkb-row-${r}`);
+    el.innerHTML = '';
+    rows[i].forEach(k => {
+      const btn = document.createElement('button');
+      btn.className = 'vkb-key' + (k === '⇧' && _vkbShift ? ' shift-active' : '');
+      btn.textContent = k;
+      btn.onpointerdown = (e) => { e.preventDefault(); _vkbPress(k); };
+      el.appendChild(btn);
+    });
+    if (r === 4) {
+      const sp = document.createElement('button');
+      sp.className = 'vkb-key space';
+      sp.textContent = 'Leerzeichen';
+      sp.onpointerdown = (e) => { e.preventDefault(); _vkbPress(' '); };
+      el.appendChild(sp);
+    }
+  });
+}
+
+function _vkbPress(key) {
+  if (!_vkbTarget) return;
+  if (key === '⇧') { _vkbShift = !_vkbShift; _buildKeyboard(); return; }
+  if (key === '⌫') {
+    const v = _vkbTarget.value;
+    _vkbTarget.value = v.slice(0, -1);
+  } else {
+    _vkbTarget.value += key;
+    if (_vkbShift) { _vkbShift = false; _buildKeyboard(); }
+  }
+  _vkbTarget.dispatchEvent(new Event('input'));
+}
+
+function showKeyboard(input) {
+  _vkbTarget = input;
+  _vkbShift = false;
+  _buildKeyboard();
+  document.getElementById('vkb').style.display = 'block';
+  document.body.style.paddingBottom = '220px';
+}
+
+function hideKeyboard() {
+  document.getElementById('vkb').style.display = 'none';
+  document.body.style.paddingBottom = '40px';
+  _vkbTarget = null;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  _buildKeyboard();
+  document.querySelectorAll('input.has-vkb').forEach(inp => {
+    inp.addEventListener('focus', () => showKeyboard(inp));
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('#vkb') && !e.target.closest('input.has-vkb')) hideKeyboard();
+  });
+});
+
+// ── TIMEZONE SEARCH ───────────────────────────────────────
+let _allTimezones = [];
+let _selectedTz = '';
+
+async function loadTimezones() {
+  const r = await fetch('/setup/timezones');
+  const d = await r.json();
+  _allTimezones = d.timezones || [];
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadTimezones();
+  const search = document.getElementById('tz-search');
+  const list   = document.getElementById('tz-list');
+  search?.addEventListener('input', () => {
+    const q = search.value.toLowerCase();
+    const filtered = _allTimezones.filter(t => t.toLowerCase().includes(q)).slice(0,30);
+    list.innerHTML = filtered.map(t =>
+      `<div class="tz-item${t===_selectedTz?' selected':''}" onclick="selectTz('${t}')">${t}</div>`
+    ).join('');
+    list.classList.toggle('open', filtered.length > 0 && q.length > 0);
+  });
+});
+
+function selectTz(tz) {
+  _selectedTz = tz;
+  document.getElementById('tz-search').value = tz;
+  document.getElementById('tz-list').classList.remove('open');
+  document.getElementById('tz-preview').style.display = 'block';
+  document.getElementById('tz-selected-label').textContent = tz;
+}
+
+// ── WIFI ──────────────────────────────────────────────────
+let _useWlan = false;
+
+function selectNetwork(mode) {
+  _useWlan = mode === 'wlan';
+  document.getElementById('rc-lan').classList.toggle('active', !_useWlan);
+  document.getElementById('rc-wlan').classList.toggle('active', _useWlan);
+  document.getElementById('wlan-fields').style.display = _useWlan ? 'block' : 'none';
+  if (_useWlan) loadWifiNetworks();
+}
+
+async function loadWifiNetworks() {
+  const r = await fetch('/setup/wifi/scan').catch(() => null);
+  if (!r || !r.ok) return;
+  const d = await r.json();
+  const networks = d.networks || [];
+  const list = document.getElementById('wifi-list');
+  if (!networks.length) return;
+  list.style.display = 'block';
+  list.innerHTML = networks.map(n =>
+    `<div class="wifi-item" onclick="selectWifi('${n.ssid}')">
+      <span>📶</span>
+      <span style="flex:1">${n.ssid}</span>
+      <span class="wifi-signal">${n.signal}%${n.security?` · ${n.security}`:''}</span>
+     </div>`
+  ).join('');
+}
+
+function selectWifi(ssid) {
+  document.getElementById('ssid').value = ssid;
+  document.querySelectorAll('.wifi-item').forEach(el => el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+}
+
+// ── HA MODE ───────────────────────────────────────────────
+let _haMode = 'existing';
+
+function selectHA(mode) {
+  _haMode = mode;
+  document.getElementById('rc-ha-existing').classList.toggle('active', mode === 'existing');
+  document.getElementById('rc-ha-install').classList.toggle('active', mode === 'install');
+  document.getElementById('ha-existing-fields').style.display = mode === 'existing' ? 'block' : 'none';
+  document.getElementById('ha-install-info').style.display   = mode === 'install'  ? 'block' : 'none';
+}
+
+// ── COMPONENTS ────────────────────────────────────────────
+const _selectedComps = new Set(['ring_mqtt']);
+
+function toggleComp(el, comp) {
+  const cb = el.querySelector('input[type=checkbox]');
+  const checked = !cb.checked;
+  cb.checked = checked;
+  el.classList.toggle('checked', checked);
+  if (checked) _selectedComps.add(comp); else _selectedComps.delete(comp);
+}
+
+// ── STEP NAVIGATION ───────────────────────────────────────
+let _currentStep = 1;
+
+function goStep(n) {
+  document.getElementById(`step-${_currentStep}`).style.display = 'none';
+  document.getElementById(`step-${n}`).style.display = 'block';
+  _currentStep = n;
+  document.querySelectorAll('.step-dot').forEach(d => {
+    const s = parseInt(d.dataset.step);
+    d.classList.toggle('active', s === n);
+    d.classList.toggle('done', s < n);
+  });
+  window.scrollTo(0, 0);
+  hideKeyboard();
+}
+
+async function step1Next() {
+  const hostname = document.getElementById('hostname').value.trim() || 'erika';
+  const ssid     = _useWlan ? document.getElementById('ssid').value.trim() : '';
+  const password = _useWlan ? document.getElementById('wlan-pass').value : '';
+
+  await fetch('/setup/network', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ hostname, use_wlan: _useWlan, ssid, password }),
+  });
+  goStep(2);
+}
+
+async function step2Next() {
+  if (!_selectedTz) { alert('Bitte eine Zeitzone wählen'); return; }
+  await fetch('/setup/timezone', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ timezone: _selectedTz }),
+  });
+  goStep(3);
+}
+
+async function step3Next() {
+  const haUrl   = _haMode === 'existing'
+    ? `http://${document.getElementById('ha-ip').value.trim()}:${document.getElementById('ha-port').value.trim()||8123}`
+    : '';
+  const haToken = document.getElementById('ha-token')?.value?.trim() || '';
+  await fetch('/setup/ha', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ mode: _haMode, ha_url: haUrl, ha_token: haToken }),
+  });
+  // Komponenten-Schritt nur bei HA-Installation relevant
+  if (_haMode === 'install') {
+    goStep(4);
+  } else {
+    await runFinalStep([]);
+    goStep(5);
+  }
+}
+
+async function step4Next() {
+  const comps = Array.from(_selectedComps);
+  await fetch('/setup/components', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ components: comps }),
+  });
+  await runFinalStep(comps);
+  goStep(5);
+}
+
+async function runFinalStep(comps) {
+  await fetch('/setup/complete', { method: 'POST' });
+  const list = document.getElementById('check-list');
+  const items = [
+    { label: 'Netzwerk konfiguriert',       done: true },
+    { label: 'Zeitzone gesetzt',             done: true },
+    { label: 'Home Assistant verknüpft',     done: true },
+    ...(comps.length ? [{ label: `${comps.length} Komponente(n) werden installiert…`, done: false }] : []),
+  ];
+  list.innerHTML = items.map(i => `
+    <div class="check-item ${i.done?'':'pending'}">
+      <span class="ci-icon">${i.done ? '✅' : '⚙️'}</span>
+      <span>${i.label}</span>
+    </div>`).join('');
+
+  setTimeout(() => {
+    document.getElementById('final-icon').textContent = '✅';
+    document.getElementById('final-title').textContent = 'Einrichtung abgeschlossen!';
+    document.getElementById('final-sub').textContent = 'Erika ist bereit. Klicke auf "Zu Erika" um fortzufahren.';
+    document.getElementById('final-btn-row').style.display = 'flex';
+    list.querySelectorAll('.check-item.pending').forEach(el => {
+      el.classList.remove('pending');
+      el.querySelector('.ci-icon').textContent = '🔄';
+    });
+  }, 2000);
+}
+
+// ── INIT ──────────────────────────────────────────────────
+async function init() {
+  const r = await fetch('/setup/status');
+  const d = await r.json();
+  if (d.completed) { window.location.href = '/display'; return; }
+  document.getElementById('current-ip').textContent = d.host_ip || '–';
+  document.getElementById('current-hostname').textContent = d.hostname || 'erika';
+  document.getElementById('hostname').value = d.hostname || 'erika';
+  if (d.timezone) {
+    _selectedTz = d.timezone;
+    document.getElementById('tz-search').value = d.timezone;
+  }
+  if (d.step && d.step > 1) goStep(d.step);
+}
+
+init();
+</script>
+</body>
+</html>

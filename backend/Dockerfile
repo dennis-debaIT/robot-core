@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git open
 
 ARG GIT_HASH=unknown
 ENV GIT_HASH=$GIT_HASH
+RUN git config --global --add safe.directory /app
 
 WORKDIR /app
 

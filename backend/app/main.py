@@ -19,6 +19,7 @@ from app.api.routers import (
     memory,
     people,
     personality_audio,
+    setup,
     simulation,
     system,
 )
@@ -97,6 +98,7 @@ app.include_router(ha_cameras.router)
 app.include_router(ha_robots.router)
 app.include_router(ha_lights.router)
 app.include_router(local_admin.router)
+app.include_router(setup.router)
 app.include_router(simulation.router)
 app.include_router(personality_audio.router)
 app.include_router(people.router)
