@@ -114,20 +114,25 @@ fi
 
 # ── 7. Update-Hilfsdateien ────────────────────────────────────
 step "Update-System einrichten"
-touch update.flag
+touch update.flag reboot.flag
 chmod +x update.sh
+# Neustart ohne sudo-Passwort erlauben (für Reboot-Flag-Cron)
+echo "$USER_NAME ALL=(ALL) NOPASSWD: /sbin/reboot" > /etc/sudoers.d/erika-reboot
+chmod 440 /etc/sudoers.d/erika-reboot
 
 # Cron-Jobs einrichten (HOME + fester kurzer PATH, kein $PATH der in SSH-Sessions sehr lang wird)
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
+CRON_REBOOT="* * * * * grep -q requested_at $INSTALL_DIR/reboot.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/reboot.flag && sudo /sbin/reboot || true"
 
 # Bestehende robot-core Eintraege entfernen und neu schreiben (atomar ueber temp-Datei)
 _CRON_TMP=$(mktemp)
 (echo "HOME=$HOME"; \
  echo "PATH=$_CRON_PATH"; \
  echo "$CRON_DAILY"; \
- echo "$CRON_FLAG") > "$_CRON_TMP"
+ echo "$CRON_FLAG"; \
+ echo "$CRON_REBOOT") > "$_CRON_TMP"
 crontab - < "$_CRON_TMP"
 rm -f "$_CRON_TMP"
 success "Cron-Jobs eingerichtet (täglich 03:00 + Install-Trigger)"

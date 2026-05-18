@@ -17,6 +17,7 @@ router = APIRouter()
 
 _GIT_DIR = "/app"
 _UPDATE_FLAG = "/data/update.flag"
+_REBOOT_FLAG = "/data/reboot.flag"
 _SSH_CMD = "ssh -o StrictHostKeyChecking=no -o BatchMode=yes"
 _VERSION_FILE = "/app/VERSION"
 
@@ -138,6 +139,16 @@ def trigger_install() -> dict[str, Any]:
             cached["update_available"] = False
             cached["installing"] = True
             write_state(conn, "git_update_status", cached)
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/system/reboot")
+def trigger_reboot() -> dict[str, Any]:
+    try:
+        with open(_REBOOT_FLAG, "w") as f:
+            json.dump({"requested_at": datetime.now(timezone.utc).isoformat()}, f)
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

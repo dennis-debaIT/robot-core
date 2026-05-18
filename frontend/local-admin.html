@@ -476,6 +476,19 @@
             </div>
           </section>
 
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">System</div>
+              <p>Das gesamte Gerät neu starten. Erika und der Kiosk-Browser starten danach automatisch wieder.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <button type="button" id="reboot-btn" onclick="rebootSystem()" style="background:rgba(255,79,95,0.12);border:1px solid var(--danger);color:var(--danger);padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;">
+                🔄 System neu starten
+              </button>
+              <span id="reboot-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+          </section>
+
           <section class="module-card weather-legacy-hidden">
             <div class="section-copy">
               <div class="section-title">Wetteranzeige</div>
@@ -2041,6 +2054,24 @@
 
     // Beim Laden aktuellen Update-Status zeigen
     fetch('/system/update/status').then(r => r.ok ? r.json() : null).then(d => { if (d?.checked_at) renderUpdateStatus(d); }).catch(() => {});
+
+    async function rebootSystem() {
+      if (!confirm('System jetzt neu starten?\nErika und der Kiosk starten danach automatisch wieder.')) return;
+      const btn = document.getElementById('reboot-btn');
+      const status = document.getElementById('reboot-status');
+      btn.disabled = true;
+      status.textContent = '⏳ Neustart wird eingeleitet…';
+      try {
+        const r = await fetch('/system/reboot', { method: 'POST' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        status.textContent = '✓ Neustart läuft — Seite wird in Kürze nicht mehr erreichbar sein.';
+        status.style.color = 'var(--warning)';
+      } catch (e) {
+        status.textContent = '✗ Fehler: ' + e.message;
+        status.style.color = 'var(--danger)';
+        btn.disabled = false;
+      }
+    }
   </script>
 </body>
 </html>
