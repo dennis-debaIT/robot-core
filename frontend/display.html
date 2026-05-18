@@ -2474,16 +2474,30 @@
     return `<video data-cam-id="${entityId}" autoplay muted playsinline></video>`;
   }
 
+  let _camGridMode = (() => { try { return localStorage.getItem('cam_grid_mode') || 'auto'; } catch { return 'auto'; } })();
+
+  function toggleCamGrid() {
+    _camGridMode = _camGridMode === 'auto' ? 'grid2' : 'auto';
+    try { localStorage.setItem('cam_grid_mode', _camGridMode); } catch {}
+    const grid = document.querySelector('.cam-tile-grid');
+    const btn  = document.querySelector('.cam-grid-toggle');
+    if (grid) grid.classList.toggle('grid2', _camGridMode === 'grid2');
+    if (btn)  { btn.classList.toggle('active', _camGridMode === 'grid2'); btn.textContent = _camGridMode === 'grid2' ? '⊞ 2-Spalten' : '⊟ Auto'; }
+  }
+
   function renderCameraTiles(cameras) {
     const live = _liveCameras(cameras);
     if (!live.length) return '<div class="cal-placeholder">Keine Kameras verfügbar</div>';
-    return `<div class="cam-tile-grid">${live.map(c => `
-      <div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
-        ${_isSnapshotCam(c.entity_id)
-          ? `<img src="${_snapUrl(c.entity_id)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block;">`
-          : _camVideo(c.entity_id)}
-        <div class="cam-tile-label">${c.name}</div>
-      </div>`).join('')}</div>`;
+    const grid2 = _camGridMode === 'grid2';
+    return `<div class="cam-tile-wrap">
+      <button class="cam-grid-toggle${grid2 ? ' active' : ''}" onclick="toggleCamGrid()">${grid2 ? '⊞ 2-Spalten' : '⊟ Auto'}</button>
+      <div class="cam-tile-grid${grid2 ? ' grid2' : ''}">${live.map(c => `
+        <div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
+          <img src="${_snapUrl(c.entity_id)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block;">
+          <div class="cam-tile-label">${c.name}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
   }
 
   function renderCameraDetail(camera) {

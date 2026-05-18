@@ -856,6 +856,27 @@
       overflow-y: auto;
       height: 100%;
     }
+    .cam-tile-grid.grid2 {
+      grid-template-columns: 1fr 1fr;
+    }
+    .cam-grid-toggle {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+      background: rgba(7,9,19,0.75);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .cam-grid-toggle:hover, .cam-grid-toggle.active { color: var(--accent); border-color: var(--accent); }
+    .cam-tile-wrap { position: relative; height: 100%; overflow: hidden; }
     .cam-tile {
       background: var(--surface2);
       border: 1px solid var(--border);
