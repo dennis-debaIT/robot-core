@@ -296,6 +296,10 @@ while true; do
         --no-first-run \\
         --no-default-browser-check \\
         --ignore-certificate-errors \\
+        --no-sandbox \\
+        --disable-gpu \\
+        --disable-dev-shm-usage \\
+        --disable-crash-reporter \\
         --disable-translate \\
         --disable-features=TranslateUI \\
         --disable-sync \\
