@@ -239,6 +239,13 @@ success "Browser: $CHROME_BIN"
 
 # ── 11. Openbox-Konfiguration ─────────────────────────────
 step "Kiosk konfigurieren"
+# Ubuntu 24.04+: AppArmor-Einschränkung für User-Namespaces aufheben (Chrome-Voraussetzung)
+if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+    echo "kernel.apparmor_restrict_unprivileged_userns = 0" \
+        > /etc/sysctl.d/10-allow-userns.conf
+    sysctl --system > /dev/null 2>&1 || true
+    success "AppArmor User-Namespaces freigegeben (Ubuntu 24.04+)"
+fi
 mkdir -p "$KIOSK_HOME/.config/openbox"
 
 tee /etc/X11/xorg.conf.d/20-resolution.conf > /dev/null << 'EOF'
@@ -296,10 +303,6 @@ while true; do
         --no-first-run \\
         --no-default-browser-check \\
         --ignore-certificate-errors \\
-        --no-sandbox \\
-        --disable-gpu \\
-        --disable-dev-shm-usage \\
-        --disable-crash-reporter \\
         --disable-translate \\
         --disable-features=TranslateUI \\
         --disable-sync \\
