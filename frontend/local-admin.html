@@ -394,6 +394,23 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">Geräteinformationen</div>
+            </div>
+            <div class="field-grid">
+              <div class="field-block">
+                <span class="field-label">Eigene IP-Adresse</span>
+                <span id="device-ip-display" style="font-size:0.95rem;font-weight:600;color:var(--color-accent,#4f8cff);">–</span>
+              </div>
+              <div class="field-block">
+                <span class="field-label">Home Assistant</span>
+                <a id="ha-link-display" href="#" target="_blank" rel="noopener"
+                   style="font-size:0.95rem;font-weight:600;color:var(--color-accent,#4f8cff);text-decoration:none;word-break:break-all;">–</a>
+              </div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Home-Assistant-Verbindung</div>
               <p>Diese Verbindung wird vom lokalen System für Kalender, Entitäten, Kameras und weitere Module verwendet. Host, Port und Token sollten hier statt hart im System gepflegt werden.</p>
             </div>
@@ -1628,6 +1645,7 @@
       haHostEl.value = haConfig.host || '';
       haPortEl.value = haConfig.port || 8123;
       haTokenEl.value = haConfig.token || '';
+      updateHaLinkDisplay();
       haUsernameEl.value = haConfig.username || '';
       haPasswordEl.value = haConfig.password || '';
       siteLocationEl.value = siteConfig.location || data?.catalog?.entities?.system?.site?.default_location || 'Ostenfeld';
@@ -2055,6 +2073,28 @@
 
     // Beim Laden aktuellen Update-Status zeigen
     fetch('/system/update/status').then(r => r.ok ? r.json() : null).then(d => { if (d?.checked_at) renderUpdateStatus(d); }).catch(() => {});
+
+    function updateHaLinkDisplay() {
+      const scheme = haSchemeEl.value || 'http';
+      const host   = (haHostEl.value || '').trim();
+      const port   = (haPortEl.value || '8123').toString().trim();
+      const el     = document.getElementById('ha-link-display');
+      if (!el) return;
+      if (!host) { el.textContent = 'nicht konfiguriert'; el.removeAttribute('href'); return; }
+      const url = `${scheme}://${host}:${port}`;
+      el.textContent = url;
+      el.href = url;
+    }
+
+    // HA-Link bei Feldänderungen aktualisieren
+    [haSchemeEl, haHostEl, haPortEl].forEach(el => el?.addEventListener('change', updateHaLinkDisplay));
+    haHostEl?.addEventListener('input', updateHaLinkDisplay);
+
+    // Eigene IP laden
+    fetch('/setup/status').then(r => r.ok ? r.json() : null).then(d => {
+      const el = document.getElementById('device-ip-display');
+      if (el && d?.host_ip) el.textContent = d.host_ip;
+    }).catch(() => {});
 
     async function rebootSystem() {
       if (!confirm('System jetzt neu starten?\nErika und der Kiosk starten danach automatisch wieder.')) return;
