@@ -354,6 +354,8 @@ EOF
 cat > "$KIOSK_HOME/.bash_profile" << 'EOF'
 [[ -z $DISPLAY && $(tty) == /dev/tty1 ]] && exec startx 2>/dev/null
 EOF
+# Login-Meldungen (MOTD) unterdrücken
+touch "$KIOSK_HOME/.hushlogin"
 success "Kiosk konfiguriert → $KIOSK_URL"
 
 # ── 12. TTY1 Auto-Login ───────────────────────────────────
