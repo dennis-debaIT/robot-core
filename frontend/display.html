@@ -3506,13 +3506,13 @@
 
   // ── KLINGEL-ERKENNUNG (Doorbell → Kamera im Home-Screen) ──
   let _doorbellTimer = null;
-  let _lastDoorbellChanged = null;  // null = noch nicht initialisiert
+  let _lastDoorbellChanged = null;
+  let _doorbellLiveEntity = null;
 
   async function pollDoorbellState() {
     if (_navMode !== 'home' || currentMode !== 'idle') return;
     try {
       const d = await fetch('/ha/doorbell').then(r => r.json());
-      // Beim ersten Poll: Ist-Zustand merken, NICHT triggern (verhindert Fehlalarm beim Laden)
       if (_lastDoorbellChanged === null) {
         _lastDoorbellChanged = (d.doorbells || []).map(s => s.last_changed).join('|');
         return;
@@ -3526,30 +3526,94 @@
   }
 
   async function _showDoorbellCamera(doorbellEntityId) {
-    // Kamera-Entity aus Sensor-ID ableiten: haustur_ding → camera.*haustur*
     const base = doorbellEntityId.replace('binary_sensor.', '').replace(/_ding$/, '');
-    const cameras = _camerasData || (await loadCamerasData()) || [];
-    const cam = cameras.find(c => c.entity_id.includes(base))
-             || cameras.find(c => c.entity_id === `camera.${base}_live_ansicht`)
-             || cameras.find(c => c.entity_id.startsWith('camera.haustur'))
-             || cameras[0];
+
+    // Kamera suchen: zuerst in geladenen Daten, dann direkt aus HA
+    let cameras = (_camerasData && _camerasData.length) ? _camerasData : (await loadCamerasData()) || [];
+    let cam = cameras.find(c => c.entity_id.includes(base))
+           || cameras.find(c => c.entity_id === `camera.${base}_live_ansicht`)
+           || cameras.find(c => c.entity_id.startsWith('camera.haustur'));
+
+    // Fallback: Kamera-Entity direkt aus Sensor-ID ableiten (auch wenn Modul nicht konfiguriert)
+    if (!cam) {
+      cam = { entity_id: `camera.${base}_live_ansicht`, has_live_stream: true };
+    }
 
     const overlay = document.getElementById('doorbell-overlay');
-    const img     = document.getElementById('doorbell-cam-img');
-    if (!overlay || !cam) return;
+    if (!overlay) return;
 
-    img.dataset.snapId = cam.entity_id;
-    img.src = _snapUrl(cam.entity_id);
+    const entityId = cam.entity_id;
+    _doorbellLiveEntity = entityId;
+
+    // Snapshot sofort zeigen
+    const img = document.getElementById('doorbell-cam-img');
+    if (img) { img.src = _snapUrl(entityId); img.style.display = 'block'; }
     overlay.classList.add('active');
-    _startSnapRefresh();
 
-    // Auto-Return nach 30s
+    // Auto-Schließen nach 30s
     clearTimeout(_doorbellTimer);
-    _doorbellTimer = setTimeout(() => {
-      overlay.classList.remove('active');
+    _doorbellTimer = setTimeout(() => _closeDoorbellOverlay(), 30000);
+
+    // Live-Stream starten
+    if (cam.has_live_stream !== false) {
+      _startDoorbellLive(entityId);
+    }
+  }
+
+  async function _startDoorbellLive(entityId) {
+    try {
+      const r = await fetch(`/ha/cameras/${entityId}/live/start`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const { m3u8_url } = await r.json();
+
+      // Overlay noch aktiv?
+      const overlay = document.getElementById('doorbell-overlay');
+      if (!overlay || !overlay.classList.contains('active')) {
+        fetch(`/ha/cameras/${entityId}/live/stop`, { method: 'POST' }).catch(() => {});
+        return;
+      }
+
+      // img durch video ersetzen
+      const img = document.getElementById('doorbell-cam-img');
+      if (!img) return;
+      const video = document.createElement('video');
+      video.id = 'doorbell-cam-video';
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:10px;display:block;';
+      img.replaceWith(video);
+      _attachHls(video, entityId);
+      video.play().catch(() => {});
+    } catch {
+      // Snapshot bleibt sichtbar — kein Fehler anzeigen
+    }
+  }
+
+  function _closeDoorbellOverlay() {
+    clearTimeout(_doorbellTimer);
+    _doorbellTimer = null;
+    const overlay = document.getElementById('doorbell-overlay');
+    if (overlay) overlay.classList.remove('active');
+
+    // Video aufräumen, img wiederherstellen
+    const video = document.getElementById('doorbell-cam-video');
+    if (video) {
+      if (video._hls) { video._hls.destroy(); video._hls = null; }
+      const img = document.createElement('img');
+      img.id = 'doorbell-cam-img';
+      img.alt = 'Kamera';
       img.src = '';
-      _stopSnapRefresh();
-    }, 30000);
+      video.replaceWith(img);
+    } else {
+      const img = document.getElementById('doorbell-cam-img');
+      if (img) img.src = '';
+    }
+
+    if (_doorbellLiveEntity) {
+      fetch(`/ha/cameras/${_doorbellLiveEntity}/live/stop`, { method: 'POST' }).catch(() => {});
+      _doorbellLiveEntity = null;
+    }
   }
 
   // ── LIGHT CONTROL ─────────────────────────────────────────
