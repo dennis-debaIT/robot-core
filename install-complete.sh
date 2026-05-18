@@ -303,7 +303,7 @@ OUTPUT=\$(xrandr 2>/dev/null | grep " connected" | head -1 | awk '{print \$1}')
 [ -n "\$OUTPUT" ] && xrandr --output "\$OUTPUT" --mode 1280x800 2>/dev/null || true
 
 # Cursor ausblenden
-unclutter -idle 0.1 -root &
+unclutter -idle 3 -root &
 
 # Warte bis robot-core bereit ist
 for i in \$(seq 1 60); do
@@ -345,7 +345,7 @@ EOF
 
 # .bash_profile: startx automatisch auf TTY1
 cat > "$KIOSK_HOME/.bash_profile" << 'EOF'
-[[ -z $DISPLAY && $(tty) == /dev/tty1 ]] && exec startx -- -nocursor 2>/dev/null
+[[ -z $DISPLAY && $(tty) == /dev/tty1 ]] && exec startx 2>/dev/null
 EOF
 success "Kiosk konfiguriert → $KIOSK_URL"
 
