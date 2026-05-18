@@ -28,6 +28,18 @@ _HA_FLAG       = "/ha-install.flag"
 def _get_setup_state() -> dict[str, Any]:
     with get_connection() as conn:
         state = read_state(conn, _SETUP_KEY, {}) or {}
+    if not state.get("completed"):
+        # Bestehende Installation erkennen: HA-Host bereits gesetzt → Setup überspringen
+        try:
+            from app.services.integration_config_service import IntegrationConfigService
+            cfg = IntegrationConfigService().get_config()
+            ha_host = (cfg.get("system") or {}).get("home_assistant", {}).get("host", "")
+            if ha_host:
+                state["completed"] = True
+                state.setdefault("step", 5)
+                _save_setup_state(state)
+        except Exception:
+            pass
     return state
 
 
