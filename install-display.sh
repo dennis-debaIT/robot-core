@@ -2,7 +2,7 @@
 set -e
 
 # ── Erika Display Kiosk Installations-Script ───────────────
-# Für frisches Ubuntu 22.04 / 24.04 LTS
+# Für frisches Ubuntu 22.04 / 24.04 LTS (Server oder Desktop)
 #
 # Schnellstart:
 #   curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install-display.sh | sudo bash
@@ -30,17 +30,16 @@ echo "  ╚══════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═�
 echo -e "${NC}  Display Kiosk Installations-Script"
 echo ""
 
-# Root-Check
 [ "$EUID" -eq 0 ] || error "Bitte mit sudo ausführen: sudo bash install-display.sh"
 
-# URL ermitteln: Env-Variable > erika.local (mDNS, automatisch) > manuelle Eingabe
+# ── URL ermitteln ─────────────────────────────────────────
 if [ -z "$ERIKA_URL" ]; then
     info "Suche Erika im Netzwerk via erika.local…"
     if curl -sk --max-time 5 "https://erika.local:8000/health" &>/dev/null; then
         ERIKA_URL="https://erika.local:8000/display"
         success "Erika gefunden → ${ERIKA_URL}"
     else
-        warn "erika.local nicht erreichbar — bitte IP manuell eingeben."
+        warn "erika.local nicht erreichbar — bitte IP eingeben."
         echo -n "  Erika-Adresse (z.B. https://192.168.1.10:8000/display): "
         read -r ERIKA_URL
         [ -n "$ERIKA_URL" ] || error "Keine Erika-Adresse angegeben."
@@ -54,49 +53,92 @@ echo ""
 echo -e "  Ziel: ${CYAN}${ERIKA_URL}${NC}"
 echo ""
 
-# ── 1. System-Pakete ──────────────────────────────────────
+# ── 1. Pakete ─────────────────────────────────────────────
 step "System-Pakete installieren"
 apt-get update -qq
-apt-get install -y --no-install-recommends \
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     curl wget gnupg2 ca-certificates \
-    xorg x11-xserver-utils \
+    xserver-xorg xinit x11-xserver-utils \
+    xserver-xorg-video-all xserver-xorg-input-all \
     openbox \
-    lightdm \
-    plymouth plymouth-themes \
-    unclutter \
     avahi-daemon libnss-mdns \
+    unclutter \
     > /dev/null
+success "Basis-Pakete installiert"
 
-# mDNS aktivieren damit erika.local aufgelöst werden kann
-systemctl enable --now avahi-daemon > /dev/null 2>&1 || true
-success "Basis-Pakete installiert (mDNS aktiv)"
+# ── 2. VM-Treiber erkennen und installieren ───────────────
+step "VM-Grafiktreiber ermitteln"
+VIRT="$(systemd-detect-virt 2>/dev/null || echo none)"
+info "Virtualisierung: $VIRT"
+case "$VIRT" in
+    oracle)
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            virtualbox-guest-x11 virtualbox-guest-utils > /dev/null 2>&1 \
+            && success "VirtualBox-Gast-Treiber installiert" \
+            || warn "VirtualBox-Treiber nicht verfügbar – modesetting wird genutzt"
+        ;;
+    vmware)
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            open-vm-tools-desktop > /dev/null 2>&1 \
+            && success "VMware-Gast-Treiber installiert" \
+            || warn "VMware-Treiber nicht verfügbar – modesetting wird genutzt"
+        ;;
+    kvm|qemu)
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            spice-vdagent > /dev/null 2>&1 \
+            && success "QEMU/KVM SPICE-Agent installiert" \
+            || warn "SPICE-Agent nicht verfügbar – modesetting wird genutzt"
+        ;;
+    microsoft)
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            hyperv-daemons > /dev/null 2>&1 \
+            && success "Hyper-V-Treiber installiert" \
+            || warn "Hyper-V-Treiber nicht verfügbar – modesetting wird genutzt"
+        ;;
+    *)
+        success "Kein spezifischer VM-Treiber nötig (oder Bare-Metal)"
+        ;;
+esac
 
-# ── 2. Google Chrome ──────────────────────────────────────
+# Generische Xorg-Konfiguration mit modesetting als Fallback
+mkdir -p /etc/X11/xorg.conf.d
+cat > /etc/X11/xorg.conf.d/10-display.conf << 'EOF'
+Section "Device"
+    Identifier "Default Device"
+    Driver     "modesetting"
+EndSection
+
+Section "ServerFlags"
+    Option "BlankTime"   "0"
+    Option "StandbyTime" "0"
+    Option "SuspendTime" "0"
+    Option "OffTime"     "0"
+EndSection
+EOF
+success "Xorg-Konfiguration gesetzt"
+
+# ── 3. Google Chrome ──────────────────────────────────────
 step "Browser installieren"
 CHROME_BIN=""
 
-# 2a. Google Chrome (bevorzugt — echter deb, kein snap)
 if ! command -v google-chrome-stable &>/dev/null && ! command -v google-chrome &>/dev/null; then
-    info "Lade Google Chrome herunter…"
-    if wget -q --show-progress -O /tmp/chrome.deb \
+    info "Lade Google Chrome…"
+    if wget -q -O /tmp/chrome.deb \
         "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"; then
-        apt-get install -y /tmp/chrome.deb > /dev/null 2>&1 || apt-get install -f -y > /dev/null
+        DEBIAN_FRONTEND=noninteractive apt-get install -y /tmp/chrome.deb > /dev/null 2>&1 \
+            || apt-get install -f -y > /dev/null
         rm -f /tmp/chrome.deb
         success "Google Chrome installiert"
     else
-        warn "Chrome-Download fehlgeschlagen — versuche Chromium…"
+        warn "Chrome-Download fehlgeschlagen – installiere Chromium"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            chromium-browser > /dev/null 2>&1 \
+            || snap install chromium 2>/dev/null \
+            || error "Kein Browser installierbar."
+        success "Chromium installiert"
     fi
 fi
 
-# 2b. Chromium als Fallback
-if ! command -v google-chrome-stable &>/dev/null && ! command -v google-chrome &>/dev/null; then
-    apt-get install -y --no-install-recommends chromium-browser 2>/dev/null \
-        || snap install chromium 2>/dev/null \
-        || error "Kein Browser installierbar. Netzwerk prüfen."
-    success "Chromium installiert"
-fi
-
-# Browser-Binary ermitteln
 CHROME_BIN="$(command -v google-chrome-stable 2>/dev/null \
            || command -v google-chrome 2>/dev/null \
            || command -v chromium-browser 2>/dev/null \
@@ -104,7 +146,7 @@ CHROME_BIN="$(command -v google-chrome-stable 2>/dev/null \
 [ -n "$CHROME_BIN" ] || error "Browser-Binary nicht gefunden."
 success "Browser: $CHROME_BIN"
 
-# ── 3. Kiosk-Benutzer ────────────────────────────────────
+# ── 4. Kiosk-Benutzer ────────────────────────────────────
 step "Kiosk-Benutzer einrichten"
 if ! id "$KIOSK_USER" &>/dev/null; then
     useradd -m -s /bin/bash "$KIOSK_USER"
@@ -113,84 +155,42 @@ else
     success "Benutzer '$KIOSK_USER' bereits vorhanden"
 fi
 
-# ── 4. LightDM Auto-Login ─────────────────────────────────
-step "Auto-Login konfigurieren"
-mkdir -p /etc/lightdm
-cat > /etc/lightdm/lightdm.conf << EOF
-[Seat:*]
-autologin-user=$KIOSK_USER
-autologin-user-timeout=0
-user-session=openbox
-xserver-command=X -s 0 -dpms
-EOF
-
-# Openbox als X-Session registrieren
-mkdir -p /usr/share/xsessions
-cat > /usr/share/xsessions/openbox.desktop << 'EOF'
-[Desktop Entry]
-Name=Openbox
-Comment=Openbox Kiosk Session
-Exec=openbox-session
-Type=Application
-EOF
-success "LightDM Auto-Login → $KIOSK_USER"
-
 # ── 5. Openbox-Konfiguration ──────────────────────────────
-step "Openbox einrichten"
+step "Kiosk konfigurieren"
 mkdir -p "$KIOSK_HOME/.config/openbox"
 
-# Kein Fensterrahmen, alle Apps maximiert
+# Kein Fensterrahmen, maximiert
 cat > "$KIOSK_HOME/.config/openbox/rc.xml" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
-  <resistance><strength>10</strength><screen_edge_strength>20</screen_edge_strength></resistance>
-  <focus><focusNew>yes</focusNew><followMouse>no</followMouse></focus>
-  <placement><policy>Smart</policy></placement>
-  <theme>
-    <name>Bear2</name>
-    <titleLayout>NLIMC</titleLayout>
-    <keepBorder>yes</keepBorder>
-    <animateIconify>yes</animateIconify>
-  </theme>
-  <desktops><number>1</number><firstdesk>1</firstdesk></desktops>
-  <keyboard>
-    <chainQuitKey>C-g</chainQuitKey>
-    <keybind key="A-F4"><action name="Close"/></keybind>
-  </keyboard>
   <applications>
     <application class="*">
       <decor>no</decor>
-      <shade>no</shade>
       <maximized>yes</maximized>
-      <fullscreen>no</fullscreen>
     </application>
   </applications>
 </openbox_config>
 EOF
 
-success "Openbox konfiguriert"
-
-# ── 6. Kiosk-Start-Script ─────────────────────────────────
-step "Kiosk-Start-Script erstellen"
+# Kiosk-Start-Script
 cat > "$KIOSK_HOME/start-kiosk.sh" << SCRIPT
 #!/bin/bash
 
-# Warte bis Erika erreichbar ist (max. 120s)
-echo "Warte auf Erika…"
+# Bildschirm: nie aus
+xset s off
+xset s noblank
+xset -dpms
+
+# Maus-Cursor ausblenden
+unclutter -idle 0.1 -root &
+
+# Warte bis Erika erreichbar (max. 2 Minuten)
 for i in \$(seq 1 60); do
     curl -sk --max-time 3 "${ERIKA_URL}" &>/dev/null && break
     sleep 2
 done
 
-# Bildschirm-Einstellungen
-xset s off
-xset s noblank
-xset -dpms
-
-# Maus-Cursor verstecken
-unclutter -idle 0.1 -root &
-
-# Kiosk-Schleife: Chrome bei Absturz automatisch neu starten
+# Chrome im Kiosk-Modus – Neustart bei Absturz
 while true; do
     "${CHROME_BIN}" \\
         --kiosk \\
@@ -203,60 +203,73 @@ while true; do
         --disable-translate \\
         --disable-features=TranslateUI \\
         --disable-sync \\
+        --disable-extensions \\
         --disable-background-networking \\
         --metrics-recording-only \\
-        --disable-extensions \\
         --disk-cache-dir=/tmp/chrome-cache \\
         --user-data-dir=/tmp/chrome-user \\
         "${ERIKA_URL}" 2>/dev/null
-    echo "Chrome beendet – starte neu in 3s…"
     sleep 3
 done
 SCRIPT
 chmod +x "$KIOSK_HOME/start-kiosk.sh"
 
-# Autostart über Openbox
+# Openbox startet das Kiosk-Script
 cat > "$KIOSK_HOME/.config/openbox/autostart" << EOF
 $KIOSK_HOME/start-kiosk.sh &
 EOF
 
-chown -R "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME"
-success "Kiosk-Script → $KIOSK_HOME/start-kiosk.sh"
-
-# ── 7. Bildschirm-Timeout deaktivieren ───────────────────
-step "Bildschirm-Timeout deaktivieren"
-
-# Xorg: kein Blanking
-mkdir -p /etc/X11/xorg.conf.d
-cat > /etc/X11/xorg.conf.d/10-no-blanking.conf << 'EOF'
-Section "ServerFlags"
-    Option "BlankTime"    "0"
-    Option "StandbyTime"  "0"
-    Option "SuspendTime"  "0"
-    Option "OffTime"      "0"
-    Option "NoPM"         "true"
-EndSection
+# xinitrc: Openbox starten
+cat > "$KIOSK_HOME/.xinitrc" << 'EOF'
+exec openbox-session
 EOF
 
-# Systemd: kein Sleep / Suspend
+# .bash_profile: startx automatisch auf TTY1
+cat > "$KIOSK_HOME/.bash_profile" << 'EOF'
+[[ -z $DISPLAY && $(tty) == /dev/tty1 ]] && exec startx -- -nocursor 2>/dev/null
+EOF
+
+chown -R "$KIOSK_USER:$KIOSK_USER" "$KIOSK_HOME"
+success "Kiosk konfiguriert"
+
+# ── 6. TTY1 Auto-Login (kein LightDM nötig) ──────────────
+step "Auto-Login auf TTY1 einrichten"
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ${KIOSK_USER} --noclear %I \$TERM
+Type=simple
+EOF
+systemctl daemon-reload
+systemctl enable getty@tty1
+success "Auto-Login → $KIOSK_USER auf TTY1"
+
+# LightDM deaktivieren falls vorhanden
+systemctl disable lightdm 2>/dev/null || true
+systemctl set-default multi-user.target
+
+# ── 7. Energiesparmodus deaktivieren ─────────────────────
+step "Bildschirm-Timeout deaktivieren"
 mkdir -p /etc/systemd/logind.conf.d
 cat > /etc/systemd/logind.conf.d/kiosk.conf << 'EOF'
 [Login]
 IdleAction=ignore
-IdleActionSec=0
 HandleLidSwitch=ignore
 HandleSuspendKey=ignore
 HandleHibernateKey=ignore
-HandlePowerKey=poweroff
 EOF
 success "Bildschirm-Timeout deaktiviert"
 
 # ── 8. Plymouth Boot-Screen ───────────────────────────────
 step "Erika Boot-Screen installieren"
-THEME_DIR="/usr/share/plymouth/themes/erika"
-mkdir -p "$THEME_DIR"
+if DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    plymouth plymouth-themes > /dev/null 2>&1; then
 
-cat > "$THEME_DIR/erika.plymouth" << 'EOF'
+    THEME_DIR="/usr/share/plymouth/themes/erika"
+    mkdir -p "$THEME_DIR"
+
+    cat > "$THEME_DIR/erika.plymouth" << 'EOF'
 [Plymouth Theme]
 Name=Erika
 Description=Erika Display Boot Screen
@@ -267,76 +280,64 @@ ImageDir=/usr/share/plymouth/themes/erika
 ScriptFile=/usr/share/plymouth/themes/erika/erika.script
 EOF
 
-cat > "$THEME_DIR/erika.script" << 'EOF'
-# Dunkler Hintergrund (Erika-Farbschema)
+    cat > "$THEME_DIR/erika.script" << 'EOF'
 Window.SetBackgroundTopColor(0.02, 0.02, 0.07);
 Window.SetBackgroundBottomColor(0.03, 0.03, 0.15);
 
 sw = Window.GetWidth();
 sh = Window.GetHeight();
 
-# Titel "ERIKA"
 title_img = Image.Text("ERIKA", 1.0, 1.0, 1.0, 1.0, "Sans Bold 54");
 title_spr = Sprite(title_img);
 title_spr.SetX(sw / 2 - title_img.GetWidth() / 2);
 title_spr.SetY(sh / 2 - title_img.GetHeight() / 2 - 50);
 
-# Untertitel
 sub_img = Image.Text("Display wird gestartet …", 0.4, 0.7, 1.0, 1.0, "Sans 17");
 sub_spr = Sprite(sub_img);
 sub_spr.SetX(sw / 2 - sub_img.GetWidth() / 2);
 sub_spr.SetY(sh / 2 + 20);
 
-# Fortschrittsbalken
-bar_w = 320;  bar_h = 5;
+bar_w = 320; bar_h = 5;
 bar_x = sw / 2 - bar_w / 2;
 bar_y = sh / 2 + 72;
 
 bg_img = Image(bar_w, bar_h);
 bg_img.Fill(0.08, 0.08, 0.20, 1.0);
-bg_spr = Sprite(bg_img);
-bg_spr.SetX(bar_x);
-bg_spr.SetY(bar_y);
+bg_spr = Sprite(bg_img); bg_spr.SetX(bar_x); bg_spr.SetY(bar_y);
 
 fun boot_progress_cb(duration, progress) {
     w = Math.Int(bar_w * progress);
     if (w < 3) { w = 3; }
     bar_img = Image(w, bar_h);
     bar_img.Fill(0.0, 0.78, 1.0, 1.0);
-    bar_spr = Sprite(bar_img);
-    bar_spr.SetX(bar_x);
-    bar_spr.SetY(bar_y);
+    bar_spr = Sprite(bar_img); bar_spr.SetX(bar_x); bar_spr.SetY(bar_y);
 }
-
 Plymouth.SetBootProgressFunction(boot_progress_cb);
 EOF
 
-# Plymouth-Theme aktivieren
-if plymouth-set-default-theme erika 2>/dev/null; then
-    info "Aktualisiere initramfs…"
-    update-initramfs -u -k all > /dev/null 2>&1 || true
-    success "Boot-Screen 'Erika' aktiviert"
+    if plymouth-set-default-theme erika 2>/dev/null; then
+        update-initramfs -u -k all > /dev/null 2>&1 || true
+        success "Boot-Screen 'Erika' aktiviert"
+    else
+        warn "Boot-Screen konnte nicht gesetzt werden"
+    fi
 else
-    warn "Plymouth-Theme konnte nicht gesetzt werden — übersprungen"
+    warn "Plymouth nicht verfügbar — kein benutzerdefinierter Boot-Screen"
 fi
 
-# ── 9. Dienste aktivieren ─────────────────────────────────
-step "Systemdienste konfigurieren"
-systemctl enable lightdm > /dev/null 2>&1 || true
-systemctl set-default graphical.target
-hostnamectl set-hostname erika-display 2>/dev/null || true
-success "LightDM aktiviert (graphical.target)"
+# ── Avahi mDNS ────────────────────────────────────────────
+systemctl enable --now avahi-daemon > /dev/null 2>&1 || true
 
 # ── Fertig ────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}  Erika Display ist einsatzbereit! 🖥️${NC}"
+echo -e "${BOLD}  Erika Display ist einsatzbereit!${NC}"
 echo ""
 echo -e "  Kiosk-URL:  ${CYAN}${ERIKA_URL}${NC}"
 echo -e "  Benutzer:   ${CYAN}${KIOSK_USER}${NC}"
 echo -e "  Browser:    ${CYAN}${CHROME_BIN}${NC}"
+echo -e "  VM-Typ:     ${CYAN}${VIRT}${NC}"
 echo ""
-echo -e "  ${YELLOW}Jetzt neu starten:${NC}"
-echo -e "  ${BOLD}sudo reboot${NC}"
+echo -e "  ${YELLOW}Jetzt neu starten:${NC}  ${BOLD}sudo reboot${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
