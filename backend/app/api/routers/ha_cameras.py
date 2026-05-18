@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import urllib.request as _req
 from typing import Any
@@ -32,7 +33,15 @@ def get_ha_cameras() -> dict[str, Any]:
 
     all_cams = HomeAssistantProvider().get_cameras()
     ring_ids = CameraStreamService.ring_ids()
-    return {"cameras": [cam for cam in all_cams if cam["entity_id"] in ring_ids]}
+    camera_configs = CameraStreamService._get_cameras_db_config().get("camera_configs") or {}
+    result = []
+    for cam in all_cams:
+        if cam["entity_id"] not in ring_ids:
+            continue
+        cfg = camera_configs.get(cam["entity_id"]) or {}
+        cam["has_live_stream"] = bool(cfg.get("ring_device_id", "").strip()) and bool(cfg.get("has_live_stream", True))
+        result.append(cam)
+    return {"cameras": result}
 
 
 @router.get("/ha/cameras/detect-ring")
@@ -40,6 +49,21 @@ def detect_ring_cameras() -> dict[str, Any]:
     from app.search.providers.homeassistant import HomeAssistantProvider
 
     ha = HomeAssistantProvider()
+    ha_config = HomeAssistantRuntimeConfigService.get_config()
+    ha_host = ha_config.get("host", "")
+
+    # go2rtc-Streams abfragen (läuft meist auf Port 1984 am HA-Host)
+    go2rtc_ids: list[str] = []
+    try:
+        with _req.urlopen(f"http://{ha_host}:1984/api/streams", timeout=3) as resp:
+            streams = json.loads(resp.read())
+        go2rtc_ids = [
+            name for name in streams
+            if re.match(r"^[a-f0-9]{10,16}(_live)?$", name, re.IGNORECASE)
+        ]
+    except Exception:
+        pass
+
     states = ha._get("/states") or []
     cameras: list[dict[str, Any]] = []
     for state in states:
@@ -63,7 +87,7 @@ def detect_ring_cameras() -> dict[str, Any]:
             "has_stream_source": bool(stream_source),
         })
     cameras.sort(key=lambda c: c["name"].lower())
-    return {"cameras": cameras}
+    return {"cameras": cameras, "go2rtc_ids": go2rtc_ids}
 
 
 @router.get("/ha/cameras/{entity_id}/snapshot")

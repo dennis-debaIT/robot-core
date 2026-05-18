@@ -378,6 +378,7 @@
                 Snapshots &amp; Maps ausblenden
               </label>
             </div>
+            <div id="camera-go2rtc-hint" style="display:none;font-size:12px;color:var(--muted);padding:8px 0 4px;"></div>
             <div id="camera-entity-grid"></div>
           </section>
         </article>
@@ -736,6 +737,15 @@
         });
         syncSummary();
         const liveCount = detected.filter((c) => c.type === 'live').length;
+        const go2rtcIds = data.go2rtc_ids || [];
+        if (go2rtcIds.length && !filled) {
+          // go2rtc meldet Streams, aber kein auto-match — als Hinweis anzeigen
+          const hint = document.getElementById('camera-go2rtc-hint');
+          if (hint) {
+            hint.textContent = `go2rtc Streams: ${go2rtcIds.join(', ')}`;
+            hint.style.display = 'block';
+          }
+        }
         btn.textContent = `✓ ${liveCount} Live-Kameras${filled ? `, ${filled} IDs` : ''}`;
         setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 2500);
       } catch (e) {
