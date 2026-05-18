@@ -736,13 +736,15 @@
       });
     }
 
-    const vehicleHtml = renderEV(vehicles);
-    if (vehicleHtml) {
-      modules.push({
-        key: 'vehicles',
-        label: 'Fahrzeuge',
-        html: `<section class="home-left-module home-left-module-vehicles">${vehicleHtml}</section>`,
-      });
+    if (_enabledModules.vehicles) {
+      const vehicleHtml = renderEV(vehicles);
+      if (vehicleHtml) {
+        modules.push({
+          key: 'vehicles',
+          label: 'Fahrzeuge',
+          html: `<section class="home-left-module home-left-module-vehicles">${vehicleHtml}</section>`,
+        });
+      }
     }
     return modules;
   }
