@@ -91,6 +91,7 @@ else
     sudo -u "$USER_NAME" git clone "$REPO" "$INSTALL_DIR"
     success "Repository geklont nach $INSTALL_DIR"
 fi
+chown -R "$REAL_USER:$REAL_USER" "$INSTALL_DIR"
 cd "$INSTALL_DIR"
 
 # ── 4. SSL-Zertifikat ─────────────────────────────────────
@@ -138,10 +139,10 @@ step "Update-System einrichten"
 touch update.flag update.log
 chmod +x update.sh
 
-# Setup-Flag-Dateien anlegen (leer = noch nicht benutzt)
-touch timezone.flag hostname.flag wlan.flag ha-install.flag components.flag reboot.flag
-[ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
-mkdir -p ha_config
+# Setup-Flag-Dateien anlegen (als Nutzer, nicht als root — sonst Permission-Fehler)
+sudo -u "$REAL_USER" touch timezone.flag hostname.flag wlan.flag ha-install.flag components.flag reboot.flag update.flag
+[ -f wifi-scan.json ] || sudo -u "$REAL_USER" bash -c 'echo '"'"'{"networks":[]}'"'"' > wifi-scan.json'
+sudo -u "$REAL_USER" mkdir -p ha_config
 
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"

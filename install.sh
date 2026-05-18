@@ -115,8 +115,8 @@ fi
 # ── 7. Update-Hilfsdateien ────────────────────────────────────
 step "Update-System einrichten"
 touch update.flag reboot.flag
-# Setup-Flag-Dateien anlegen
-touch timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
+# Setup-Flag-Dateien anlegen (als Nutzer, nicht als root)
+touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
 [ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
 mkdir -p ha_config
 chmod +x update.sh reboot-watcher.sh setup-watcher.sh
