@@ -27,6 +27,10 @@ _last_wifi_scan=0
 while true; do
     now=$(date +%s)
 
+    # Host-IP für den Container bereitstellen
+    _host_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    [ -n "$_host_ip" ] && echo "$_host_ip" > "$INSTALL_DIR/host-ip.txt" 2>/dev/null || true
+
     # WiFi-Scan alle 15s
     if [ $((now - _last_wifi_scan)) -ge 15 ]; then
         _wifi_scan

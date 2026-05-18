@@ -33,4 +33,5 @@ wlan.flag
 ha-install.flag
 components.flag
 wifi-scan.json
+host-ip.txt
 ha_config/

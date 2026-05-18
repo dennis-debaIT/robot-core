@@ -31,6 +31,7 @@ git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 # Flag-Dateien sicherstellen (werden durch git reset ggf. gelöscht, da in .gitignore)
 touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
 [ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
+[ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt 2>/dev/null || touch host-ip.txt
 mkdir -p ha_config
 
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)

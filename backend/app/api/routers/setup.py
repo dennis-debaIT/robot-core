@@ -38,6 +38,12 @@ def _save_setup_state(state: dict[str, Any]) -> None:
 
 def _host_ip() -> str:
     try:
+        ip = Path("/host-ip.txt").read_text().strip()
+        if ip:
+            return ip
+    except Exception:
+        pass
+    try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
