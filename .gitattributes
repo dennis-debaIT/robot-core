@@ -1,0 +1,12 @@
+# Alle Text-Dateien mit LF speichern (kein CRLF – Shell-Scripts auf Linux)
+* text=auto eol=lf
+
+# Explizit Binär-Dateien
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.db  binary
+*.db-shm binary
+*.db-wal binary
