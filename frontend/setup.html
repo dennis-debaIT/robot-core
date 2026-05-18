@@ -98,11 +98,13 @@
     .vkb-close { position: absolute; top: 10px; right: 12px; width: 32px; height: 32px; border-radius: 8px; background: rgba(255,79,95,0.15); border: 1px solid var(--danger); color: var(--danger); font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
     .field input.has-vkb:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,200,255,0.15); }
 
-    /* ── TIMEZONE SEARCH ── */
-    .tz-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 6px; display: none; background: var(--panel); }
-    .tz-list.open { display: block; }
-    .tz-item { padding: 10px 14px; cursor: pointer; font-size: 0.88rem; border-bottom: 1px solid rgba(36,40,74,0.5); }
-    .tz-item:hover, .tz-item.selected { background: rgba(0,200,255,0.08); color: var(--accent); }
+    /* ── TIMEZONE LIST ── */
+    .tz-list { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; background: var(--panel); }
+    .tz-item { padding: 11px 14px; cursor: pointer; font-size: 0.88rem; border-bottom: 1px solid rgba(36,40,74,0.5); transition: background 0.15s; }
+    .tz-item:last-child { border-bottom: none; }
+    .tz-item:hover { background: rgba(0,200,255,0.06); }
+    .tz-item.selected { background: rgba(0,200,255,0.12); color: var(--accent); font-weight: 700; }
+    .tz-empty { padding: 14px; color: var(--muted); font-size: 0.85rem; text-align: center; }
 
     /* ── WIFI LIST ── */
     .wifi-list { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 8px; }
@@ -181,12 +183,9 @@
   <div class="card-title">Zeitzone</div>
   <div class="card-sub">Wähle die Zeitzone des Geräts. Die Zeit wird direkt übernommen.</div>
   <div class="field">
-    <label>Zeitzone suchen</label>
-    <input class="has-vkb" id="tz-search" type="text" placeholder="z.B. Europe/Berlin" autocomplete="off">
+    <label>Suchen</label>
+    <input class="has-vkb" id="tz-search" type="text" placeholder="z.B. Berlin, Paris, UTC …" autocomplete="off">
     <div class="tz-list" id="tz-list"></div>
-  </div>
-  <div class="info-box" id="tz-preview" style="display:none;">
-    Gewählt: <strong id="tz-selected-label">–</strong>
   </div>
   <div class="btn-row">
     <button class="btn-secondary" onclick="goStep(1)">← Zurück</button>
@@ -410,7 +409,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ── TIMEZONE SEARCH ───────────────────────────────────────
+// ── TIMEZONE LIST ─────────────────────────────────────────
 let _allTimezones = [];
 let _selectedTz = '';
 
@@ -418,28 +417,36 @@ async function loadTimezones() {
   const r = await fetch('/setup/timezones');
   const d = await r.json();
   _allTimezones = d.timezones || [];
+  renderTzList('');
+}
+
+function renderTzList(q) {
+  const list = document.getElementById('tz-list');
+  const lower = q.toLowerCase();
+  const filtered = q
+    ? _allTimezones.filter(t => t.toLowerCase().includes(lower)).slice(0, 60)
+    : _allTimezones.slice(0, 60);
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="tz-empty">Keine Ergebnisse</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(t =>
+    `<div class="tz-item${t === _selectedTz ? ' selected' : ''}" onclick="selectTz('${t}')">${t}</div>`
+  ).join('');
+  const sel = list.querySelector('.selected');
+  if (sel) sel.scrollIntoView({ block: 'nearest' });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   loadTimezones();
-  const search = document.getElementById('tz-search');
-  const list   = document.getElementById('tz-list');
-  search?.addEventListener('input', () => {
-    const q = search.value.toLowerCase();
-    const filtered = _allTimezones.filter(t => t.toLowerCase().includes(q)).slice(0,30);
-    list.innerHTML = filtered.map(t =>
-      `<div class="tz-item${t===_selectedTz?' selected':''}" onclick="selectTz('${t}')">${t}</div>`
-    ).join('');
-    list.classList.toggle('open', filtered.length > 0 && q.length > 0);
+  document.getElementById('tz-search')?.addEventListener('input', e => {
+    renderTzList(e.target.value);
   });
 });
 
 function selectTz(tz) {
   _selectedTz = tz;
-  document.getElementById('tz-search').value = tz;
-  document.getElementById('tz-list').classList.remove('open');
-  document.getElementById('tz-preview').style.display = 'block';
-  document.getElementById('tz-selected-label').textContent = tz;
+  renderTzList(document.getElementById('tz-search').value);
 }
 
 // ── WIFI ──────────────────────────────────────────────────
@@ -600,7 +607,6 @@ async function init() {
   document.getElementById('hostname').value = d.hostname || 'erika';
   if (d.timezone) {
     _selectedTz = d.timezone;
-    document.getElementById('tz-search').value = d.timezone;
   }
   if (d.step && d.step > 1) goStep(d.step);
 }
