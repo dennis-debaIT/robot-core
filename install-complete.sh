@@ -141,18 +141,23 @@ fi
 
 # ── 6. Update-System einrichten ───────────────────────────
 step "Update-System einrichten"
-touch update.flag update.log
-chmod +x update.sh
+cd "$INSTALL_DIR"
+chmod +x update.sh reboot-watcher.sh setup-watcher.sh 2>/dev/null || true
 
 # Falsch angelegte Verzeichnisse (Docker-Artefakte) entfernen
-for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json; do
+for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json update.log; do
     [ -d "$INSTALL_DIR/$_f" ] && rm -rf "$INSTALL_DIR/$_f" || true
 done
-# Flag-Dateien als REAL_USER anlegen (nicht als root — sonst Permission-Fehler)
-sudo -u "$REAL_USER" touch timezone.flag hostname.flag wlan.flag ha-install.flag components.flag reboot.flag update.flag
-[ -s wifi-scan.json ] || sudo -u "$REAL_USER" bash -c 'echo '"'"'{"networks":[]}'"'"' > wifi-scan.json'
-sudo -u "$REAL_USER" bash -c "hostname -I | awk '{print \$1}' > host-ip.txt"
-sudo -u "$REAL_USER" mkdir -p ha_config
+# Flag-Dateien und Logs als REAL_USER anlegen (nicht als root)
+sudo -u "$REAL_USER" touch \
+    "$INSTALL_DIR/update.flag" "$INSTALL_DIR/update.log" \
+    "$INSTALL_DIR/reboot.flag" "$INSTALL_DIR/timezone.flag" \
+    "$INSTALL_DIR/hostname.flag" "$INSTALL_DIR/wlan.flag" \
+    "$INSTALL_DIR/ha-install.flag" "$INSTALL_DIR/components.flag"
+[ -s "$INSTALL_DIR/wifi-scan.json" ] || \
+    sudo -u "$REAL_USER" bash -c 'echo '"'"'{"networks":[]}'"'"' > '"\"$INSTALL_DIR/wifi-scan.json\""
+sudo -u "$REAL_USER" bash -c "hostname -I | awk '{print \$1}' > \"$INSTALL_DIR/host-ip.txt\""
+sudo -u "$REAL_USER" mkdir -p "$INSTALL_DIR/ha_config"
 
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
