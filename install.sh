@@ -105,11 +105,13 @@ step "Update-System einrichten"
 touch update.flag
 chmod +x update.sh
 
-# Cron-Jobs einrichten
+# Cron-Jobs einrichten (HOME + PATH explizit setzen, sonst findet cron docker/git nicht)
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
-CRON_FLAG="* * * * * [ -f $INSTALL_DIR/update.flag ] && cat $INSTALL_DIR/update.flag | grep -q requested_at && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
+CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
 
-(crontab -l 2>/dev/null | grep -v "robot-core/update"; \
+(crontab -l 2>/dev/null | grep -v "robot-core/update" | grep -v "^HOME=" | grep -v "^PATH="; \
+ echo "HOME=$HOME"; \
+ echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"; \
  echo "$CRON_DAILY"; \
  echo "$CRON_FLAG") | crontab -
 success "Cron-Jobs eingerichtet (täglich 03:00 + Install-Trigger)"
