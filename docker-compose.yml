@@ -51,8 +51,8 @@ services:
       - ./ssl:/ssl:ro
       - ./.git:/app/.git
       - ${SSH_DIR:-/home/dennis/.ssh}:/root/.ssh:ro
-      - ./update.flag:/data/update.flag
-      - ./update.log:/data/update.log
+      - ./update.flag:/update.flag
+      - ./update.log:/update.log
       - ./reboot.flag:/reboot.flag
       - ./timezone.flag:/timezone.flag
       - ./hostname.flag:/hostname.flag

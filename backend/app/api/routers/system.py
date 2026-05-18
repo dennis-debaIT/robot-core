@@ -16,7 +16,7 @@ from app.database.db import get_connection, read_state, write_state
 router = APIRouter()
 
 _GIT_DIR = "/app"
-_UPDATE_FLAG = "/data/update.flag"
+_UPDATE_FLAG = "/update.flag"
 _REBOOT_FLAG = "/reboot.flag"
 _SSH_CMD = "ssh -o StrictHostKeyChecking=no -o BatchMode=yes"
 _VERSION_FILE = "/app/VERSION"
@@ -117,7 +117,7 @@ def check_for_update() -> dict[str, Any]:
 
 @router.get("/system/update/log")
 def get_update_log() -> dict[str, Any]:
-    log_path = "/data/update.log"  # bind-mounted von ~/robot-core/update.log
+    log_path = "/update.log"
     try:
         with open(log_path) as f:
             lines = f.readlines()
