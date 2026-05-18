@@ -860,6 +860,11 @@
     .cam-tile-grid.single {
       grid-template-columns: 1fr;
     }
+    .cam-tile-grid.single .cam-tile img,
+    .cam-tile-grid.single .cam-tile video {
+      aspect-ratio: unset;
+      height: 170px;
+    }
     .cam-tile-wrap {
       display: flex;
       flex-direction: column;
