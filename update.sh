@@ -40,4 +40,10 @@ mkdir -p ha_config
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)
 echo "[update] Build startet (GIT_HASH=$GIT_HASH)..." | tee -a "$LOG"
 docker compose up -d --build robot-core 2>&1 | tail -4 | tee -a "$LOG"
+
+# Watcher neu starten falls nicht aktiv
+chmod +x "$INSTALL_DIR/reboot-watcher.sh" "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
+pgrep -f reboot-watcher.sh  > /dev/null || nohup bash "$INSTALL_DIR/reboot-watcher.sh"  >> "$INSTALL_DIR/reboot.log"  2>&1 &
+pgrep -f setup-watcher.sh   > /dev/null || nohup bash "$INSTALL_DIR/setup-watcher.sh"   >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
+
 echo "[update] Abgeschlossen: $(date)" | tee -a "$LOG"
