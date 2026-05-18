@@ -22,7 +22,14 @@ if ! crontab -l 2>/dev/null | grep -q "^HOME="; then
 fi
 
 echo "[update] Starte Update: $(date)" | tee -a "$LOG"
-git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1 | tee -a "$LOG"
+# SSH-Fetch (falls Key vorhanden), Fallback auf HTTPS (Public Repo, kein Token nötig)
+if git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>>"$LOG"; then
+    echo "[update] Fetch via SSH" | tee -a "$LOG"
+else
+    echo "[update] SSH nicht verfügbar, versuche HTTPS..." | tee -a "$LOG"
+    GIT_TERMINAL_PROMPT=0 git -c safe.directory=. -c credential.helper= \
+        fetch https://github.com/dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1 | tee -a "$LOG"
+fi
 git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)

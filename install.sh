@@ -82,7 +82,7 @@ fi
 # ── 6. .env erstellen (minimal) ───────────────────────────────
 step ".env Konfiguration"
 if [ ! -f .env ]; then
-    cat > .env << 'EOF'
+    cat > .env << EOF
 # Home Assistant (kann auch im Admin-Panel eingetragen werden)
 ROBOT_HA_URL=
 ROBOT_HA_TOKEN=
@@ -94,10 +94,21 @@ LLM_MODEL=
 
 # TTS
 ROBOT_TTS_PROVIDER=disabled
+
+# SSH-Verzeichnis des Benutzers (für git-Fetch im Container)
+SSH_DIR=$HOME/.ssh
 EOF
     success ".env angelegt (HA-Konfiguration im Admin-Panel unter System)"
 else
-    success ".env bereits vorhanden — unverändert"
+    # SSH_DIR nachträglich eintragen falls fehlend
+    if ! grep -q "SSH_DIR" .env; then
+        echo "" >> .env
+        echo "# SSH-Verzeichnis des Benutzers (für git-Fetch im Container)" >> .env
+        echo "SSH_DIR=$HOME/.ssh" >> .env
+        success ".env: SSH_DIR ergänzt"
+    else
+        success ".env bereits vorhanden — unverändert"
+    fi
 fi
 
 # ── 7. Update-Hilfsdateien ────────────────────────────────────
