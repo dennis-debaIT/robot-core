@@ -317,8 +317,16 @@ Plymouth.SetBootProgressFunction(boot_progress_cb);
 EOF
 
     if plymouth-set-default-theme erika 2>/dev/null; then
+        # GRUB: quiet splash aktivieren damit Plymouth angezeigt wird
+        if [ -f /etc/default/grub ]; then
+            sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT=.*/GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"/' /etc/default/grub
+            # Falls die Zeile noch nicht existiert, ergänzen
+            grep -q "GRUB_CMDLINE_LINUX_DEFAULT" /etc/default/grub \
+                || echo 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash"' >> /etc/default/grub
+            update-grub > /dev/null 2>&1 || true
+        fi
         update-initramfs -u -k all > /dev/null 2>&1 || true
-        success "Boot-Screen 'Erika' aktiviert"
+        success "Boot-Screen 'Erika' aktiviert (quiet splash gesetzt)"
     else
         warn "Boot-Screen konnte nicht gesetzt werden"
     fi
