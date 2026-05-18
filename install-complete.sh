@@ -132,8 +132,9 @@ success "Cron-Jobs eingerichtet"
 step "Container bauen und starten"
 info "Dies kann einige Minuten dauern..."
 GIT_HASH=$(git rev-parse HEAD)
-docker compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
-docker compose up -d robot-core
+# sudo nötig da docker-Gruppe erst nach Re-Login aktiv ist
+sudo docker compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
+sudo docker compose up -d robot-core
 success "Container gestartet"
 
 sudo systemctl enable docker > /dev/null 2>&1 || true
