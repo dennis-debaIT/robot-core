@@ -124,12 +124,12 @@ LLM_MODEL=
 ROBOT_TTS_PROVIDER=disabled
 
 # SSH-Verzeichnis (für git-Fetch im Container)
-SSH_DIR=$HOME/.ssh
+SSH_DIR=$REAL_HOME/.ssh
 EOF
     success ".env angelegt"
 else
     if ! grep -q "SSH_DIR" .env; then
-        echo -e "\nSSH_DIR=$HOME/.ssh" >> .env
+        echo -e "\nSSH_DIR=$REAL_HOME/.ssh" >> .env
     fi
     success ".env bereits vorhanden — unverändert"
 fi
@@ -139,9 +139,14 @@ step "Update-System einrichten"
 touch update.flag update.log
 chmod +x update.sh
 
-# Setup-Flag-Dateien anlegen (als Nutzer, nicht als root — sonst Permission-Fehler)
+# Falsch angelegte Verzeichnisse (Docker-Artefakte) entfernen
+for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json; do
+    [ -d "$INSTALL_DIR/$_f" ] && rm -rf "$INSTALL_DIR/$_f" || true
+done
+# Flag-Dateien als REAL_USER anlegen (nicht als root — sonst Permission-Fehler)
 sudo -u "$REAL_USER" touch timezone.flag hostname.flag wlan.flag ha-install.flag components.flag reboot.flag update.flag
-[ -f wifi-scan.json ] || sudo -u "$REAL_USER" bash -c 'echo '"'"'{"networks":[]}'"'"' > wifi-scan.json'
+[ -s wifi-scan.json ] || sudo -u "$REAL_USER" bash -c 'echo '"'"'{"networks":[]}'"'"' > wifi-scan.json'
+sudo -u "$REAL_USER" bash -c "hostname -I | awk '{print \$1}' > host-ip.txt"
 sudo -u "$REAL_USER" mkdir -p ha_config
 
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
