@@ -29,10 +29,10 @@ fi
 git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 
 # Flag-Dateien sicherstellen — Verzeichnisse (fälschlich von Docker angelegt) entfernen
-for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json; do
+for _f in update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json; do
     [ -d "$_f" ] && rm -rf "$_f" || true
 done
-touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
+touch update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
 [ -s wifi-scan.json ]  || echo '{"networks":[]}' > wifi-scan.json
 hostname -I | awk '{print $1}' > host-ip.txt 2>/dev/null || true
 mkdir -p ha_config
