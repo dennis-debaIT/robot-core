@@ -33,23 +33,18 @@ echo ""
 # Root-Check
 [ "$EUID" -eq 0 ] || error "Bitte mit sudo ausführen: sudo bash install-display.sh"
 
-# URL ermitteln: Env-Variable > erika.local (mDNS) > manuelle Eingabe
+# URL ermitteln: Env-Variable > erika.local (mDNS, automatisch) > manuelle Eingabe
 if [ -z "$ERIKA_URL" ]; then
-    # Versuche erika.local automatisch zu erreichen
-    DEFAULT_URL=""
-    if curl -sk --max-time 3 "https://erika.local:8000/health" &>/dev/null; then
-        DEFAULT_URL="https://erika.local:8000/display"
-        info "Erika gefunden unter erika.local"
-    fi
-
-    if [ -n "$DEFAULT_URL" ]; then
-        echo -n "  Erika-Adresse [${DEFAULT_URL}]: "
+    info "Suche Erika im Netzwerk via erika.local…"
+    if curl -sk --max-time 5 "https://erika.local:8000/health" &>/dev/null; then
+        ERIKA_URL="https://erika.local:8000/display"
+        success "Erika gefunden → ${ERIKA_URL}"
     else
+        warn "erika.local nicht erreichbar — bitte IP manuell eingeben."
         echo -n "  Erika-Adresse (z.B. https://192.168.1.10:8000/display): "
+        read -r ERIKA_URL
+        [ -n "$ERIKA_URL" ] || error "Keine Erika-Adresse angegeben."
     fi
-    read -r ERIKA_URL
-    ERIKA_URL="${ERIKA_URL:-$DEFAULT_URL}"
-    [ -n "$ERIKA_URL" ] || error "Keine Erika-Adresse angegeben."
 fi
 
 KIOSK_USER="erika-display"
@@ -69,8 +64,12 @@ apt-get install -y --no-install-recommends \
     lightdm \
     plymouth plymouth-themes \
     unclutter \
+    avahi-daemon libnss-mdns \
     > /dev/null
-success "Basis-Pakete installiert"
+
+# mDNS aktivieren damit erika.local aufgelöst werden kann
+systemctl enable --now avahi-daemon > /dev/null 2>&1 || true
+success "Basis-Pakete installiert (mDNS aktiv)"
 
 # ── 2. Google Chrome ──────────────────────────────────────
 step "Browser installieren"
