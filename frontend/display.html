@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Erika Display</title>
-  <link rel="stylesheet" href="/display.css">
+  <link rel="stylesheet" href="/display.css?v=76">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <!-- HLS.js für go2rtc Live-Streams -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
@@ -1914,7 +1914,14 @@
 
   // ── NAVIGATION ────────────────────────────────────────────
   let _navMode = 'home';
-  let _enabledModules = { lights: true, vehicles: true, robots: true, cameras: true };
+  // Letzten bekannten Modul-Zustand aus localStorage laden (kein Flash beim Navigieren)
+  let _enabledModules = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
+      if (saved && typeof saved === 'object') return saved;
+    } catch {}
+    return { lights: false, vehicles: false, robots: false, cameras: false };
+  })();
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
   let _vehiclesData = [];
@@ -1933,11 +1940,12 @@
 
   function applyModuleVisibility(modules) {
     _enabledModules = {
-      lights: modules?.lights !== false,
-      vehicles: modules?.vehicles !== false,
-      robots: modules?.robots !== false,
-      cameras: modules?.cameras !== false,
+      lights:   modules?.lights   === true,
+      vehicles: modules?.vehicles === true,
+      robots:   modules?.robots   === true,
+      cameras:  modules?.cameras  === true,
     };
+    try { localStorage.setItem('erika_modules', JSON.stringify(_enabledModules)); } catch {}
     const lightsBtn = document.getElementById('nav-lights');
     const vehiclesBtn = document.getElementById('nav-vehicles');
     const robotsBtn = document.getElementById('nav-robots');
