@@ -288,6 +288,8 @@ EOF
 # Kiosk Start-Script
 cat > "$KIOSK_HOME/start-kiosk.sh" << SCRIPT
 #!/bin/bash
+# Snap-Binaries in PATH aufnehmen (Chromium liegt in /snap/bin)
+export PATH="/snap/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:\$PATH"
 
 # X11-Authorisierung für Snap-Browser freigeben
 export XAUTHORITY="\$HOME/.Xauthority"
@@ -302,7 +304,7 @@ xset -dpms
 OUTPUT=\$(xrandr 2>/dev/null | grep " connected" | head -1 | awk '{print \$1}')
 [ -n "\$OUTPUT" ] && xrandr --output "\$OUTPUT" --mode 1280x800 2>/dev/null || true
 
-# Cursor ausblenden
+# Cursor: verstecken nach 3s Inaktivität (erscheint wieder beim Bewegen)
 unclutter -idle 3 -root &
 
 # Warte bis robot-core bereit ist
@@ -311,22 +313,19 @@ for i in \$(seq 1 60); do
     sleep 2
 done
 
-# Chrome im Kiosk-Modus – Neustart bei Absturz
+# Chromium im Kiosk-Modus – Neustart bei Absturz
 while true; do
-    "${CHROME_BIN}" \\
+    rm -rf /tmp/chrome-user /tmp/chrome-cache
+    mkdir -p /tmp/chrome-user /tmp/chrome-cache
+    /snap/bin/chromium \\
         --kiosk \\
         --noerrdialogs \\
         --disable-infobars \\
-        --disable-session-crashed-bubble \\
         --no-first-run \\
         --no-default-browser-check \\
         --ignore-certificate-errors \\
         --disable-translate \\
-        --disable-features=TranslateUI \\
         --disable-sync \\
-        --disable-extensions \\
-        --disable-background-networking \\
-        --metrics-recording-only \\
         --disk-cache-dir=/tmp/chrome-cache \\
         --user-data-dir=/tmp/chrome-user \\
         "${KIOSK_URL}" 2>/dev/null
