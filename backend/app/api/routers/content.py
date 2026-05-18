@@ -202,7 +202,7 @@ def get_display_state() -> dict[str, Any]:
         return {"mode": "idle", "config_version": config_version, "modules": modules}
 
 
-@router.get("/display")
+@router.get("/display", response_model=None)
 def display_panel() -> FileResponse | RedirectResponse:
     with get_connection() as conn:
         state = read_state(conn, "setup_state", {}) or {}
