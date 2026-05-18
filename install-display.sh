@@ -215,8 +215,16 @@ done
 SCRIPT
 chmod +x "$KIOSK_HOME/start-kiosk.sh"
 
-# Openbox startet das Kiosk-Script
+# Openbox startet das Kiosk-Script (mit Auflösungs-Erzwingung via xrandr)
 cat > "$KIOSK_HOME/.config/openbox/autostart" << EOF
+# Auflösung auf 1280x800 setzen (funktioniert in VMs zuverlässiger als Xorg-Config)
+OUTPUT=\$(xrandr 2>/dev/null | grep " connected" | head -1 | awk '{print \$1}')
+if [ -n "\$OUTPUT" ]; then
+    xrandr --output "\$OUTPUT" --mode 1280x800 2>/dev/null \\
+    || xrandr --output "\$OUTPUT" --preferred 2>/dev/null \\
+    || true
+fi
+
 $KIOSK_HOME/start-kiosk.sh &
 EOF
 
@@ -343,8 +351,13 @@ EOF
         update-grub > /dev/null 2>&1 || true
     fi
 
-    # Veralteten copymods-Hook entfernen falls vorhanden
+    # Veraltetes copymods dracut-Modul deaktivieren (verhindert Boot-Warnung)
     rm -f /usr/share/initramfs-tools/hooks/copymods 2>/dev/null || true
+    if [ -d /usr/lib/dracut/modules.d/50copymods ]; then
+        mkdir -p /etc/dracut.conf.d
+        echo 'omit_dracutmodules+=" copymods"' > /etc/dracut.conf.d/no-copymods.conf
+        dracut --force > /dev/null 2>&1 || true
+    fi
 
     update-initramfs -u -k all > /dev/null 2>&1 || true
     success "Boot-Screen 'Erika' aktiviert"
