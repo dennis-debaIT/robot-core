@@ -116,15 +116,19 @@ step "Update-System einrichten"
 touch update.flag
 chmod +x update.sh
 
-# Cron-Jobs einrichten (HOME + PATH explizit setzen, sonst findet cron docker/git nicht)
+# Cron-Jobs einrichten (HOME + fester kurzer PATH, kein $PATH der in SSH-Sessions sehr lang wird)
+_CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
 
-(crontab -l 2>/dev/null | grep -v "robot-core/update" | grep -v "^HOME=" | grep -v "^PATH="; \
- echo "HOME=$HOME"; \
- echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"; \
+# Bestehende robot-core Eintraege entfernen und neu schreiben (atomar ueber temp-Datei)
+_CRON_TMP=$(mktemp)
+(echo "HOME=$HOME"; \
+ echo "PATH=$_CRON_PATH"; \
  echo "$CRON_DAILY"; \
- echo "$CRON_FLAG") | crontab -
+ echo "$CRON_FLAG") > "$_CRON_TMP"
+crontab - < "$_CRON_TMP"
+rm -f "$_CRON_TMP"
 success "Cron-Jobs eingerichtet (täglich 03:00 + Install-Trigger)"
 
 # ── 8. Container bauen und starten ───────────────────────────
