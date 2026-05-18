@@ -160,8 +160,8 @@ sudo -u "$REAL_USER" bash -c "hostname -I | awk '{print \$1}' > \"$INSTALL_DIR/h
 sudo -u "$REAL_USER" mkdir -p "$INSTALL_DIR/ha_config"
 
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
-CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
+CRON_DAILY="0 3 * * * bash $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
+CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && bash $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
 CRON_REBOOT="@reboot bash $INSTALL_DIR/reboot-watcher.sh >> $INSTALL_DIR/reboot.log 2>&1 &"
 CRON_SETUP="@reboot bash $INSTALL_DIR/setup-watcher.sh >> $INSTALL_DIR/setup-watcher.log 2>&1 &"
 _CRON_TMP=$(mktemp)
