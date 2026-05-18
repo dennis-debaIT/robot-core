@@ -142,8 +142,8 @@ _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
 _CRON_TMP=$(mktemp)
-(echo "HOME=$HOME"; echo "PATH=$_CRON_PATH"; echo "$CRON_DAILY"; echo "$CRON_FLAG") > "$_CRON_TMP"
-crontab - < "$_CRON_TMP"
+(echo "HOME=$REAL_HOME"; echo "PATH=$_CRON_PATH"; echo "$CRON_DAILY"; echo "$CRON_FLAG") > "$_CRON_TMP"
+crontab -u "$REAL_USER" - < "$_CRON_TMP"
 rm -f "$_CRON_TMP"
 success "Cron-Jobs eingerichtet"
 
