@@ -32,8 +32,9 @@ echo -e "${NC}  Robot-Core Installations-Script\n"
 step "System aktualisieren"
 sudo apt-get update -qq
 sudo apt-get install -y --no-install-recommends \
-    curl git ca-certificates gnupg lsb-release openssh-client openssl sqlite3 > /dev/null
-success "Pakete installiert"
+    curl git ca-certificates gnupg lsb-release openssh-client openssl sqlite3 avahi-daemon > /dev/null
+sudo systemctl enable --now avahi-daemon > /dev/null 2>&1 || true
+success "Pakete installiert (erreichbar als erika.local)"
 
 # ── 2. Docker ─────────────────────────────────────────────────
 step "Docker installieren"

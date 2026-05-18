@@ -33,11 +33,23 @@ echo ""
 # Root-Check
 [ "$EUID" -eq 0 ] || error "Bitte mit sudo ausführen: sudo bash install-display.sh"
 
-# URL abfragen wenn nicht gesetzt
+# URL ermitteln: Env-Variable > erika.local (mDNS) > manuelle Eingabe
 if [ -z "$ERIKA_URL" ]; then
-    echo -n "  Erika-Adresse [https://192.168.1.243:8000/display]: "
+    # Versuche erika.local automatisch zu erreichen
+    DEFAULT_URL=""
+    if curl -sk --max-time 3 "https://erika.local:8000/health" &>/dev/null; then
+        DEFAULT_URL="https://erika.local:8000/display"
+        info "Erika gefunden unter erika.local"
+    fi
+
+    if [ -n "$DEFAULT_URL" ]; then
+        echo -n "  Erika-Adresse [${DEFAULT_URL}]: "
+    else
+        echo -n "  Erika-Adresse (z.B. https://192.168.1.10:8000/display): "
+    fi
     read -r ERIKA_URL
-    ERIKA_URL="${ERIKA_URL:-https://192.168.1.243:8000/display}"
+    ERIKA_URL="${ERIKA_URL:-$DEFAULT_URL}"
+    [ -n "$ERIKA_URL" ] || error "Keine Erika-Adresse angegeben."
 fi
 
 KIOSK_USER="erika-display"
