@@ -1065,7 +1065,12 @@
   function renderPrinterOverlayContent(box, p) {
     const pct = p.progress != null ? Math.round(p.progress) : 0;
     const filename = (p.filename || '').replace(/\.gcode$/i, '');
-    const snap = p.snapshot_url ? `<img src="${p.snapshot_url}" style="width:100%;border-radius:10px;margin-bottom:12px;max-height:160px;object-fit:cover;" onerror="this.style.display='none'">` : '';
+    const snapTs = `?_t=${Date.now()}`;
+    const snap = p.snapshot_url
+      ? `<img src="${p.snapshot_url}${snapTs}" onclick="openSnapshotFullscreen('${p.snapshot_url}')"
+           style="width:100%;border-radius:10px;margin-bottom:12px;max-height:160px;object-fit:cover;cursor:zoom-in;"
+           onerror="this.style.display='none'" title="Klicken zum Vergrößern">`
+      : '';
     const _stateLabels = { printing:'Druckt', preheating:'Heizt auf', pausing:'Pausiert…', resuming:'Setzt fort…', paused:'Pausiert', busy:'Aktiv', free:'Bereit' };
     const stateLabel = _stateLabels[p.state] || p.state || '';
     const stateColor = ['printing','resuming'].includes(p.state) ? '#00e676' : ['pausing','paused'].includes(p.state) ? '#ffab00' : '#7f8dcb';
@@ -1111,6 +1116,19 @@
           <button onclick="printerControl('cancel')" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,79,95,0.4);background:rgba(255,79,95,0.08);color:#ff4f5f;font-size:1.2rem;cursor:pointer;" title="Abbrechen">⏹</button>
         </div>
       </div>`;
+  }
+
+  function openSnapshotFullscreen(url) {
+    let lb = document.getElementById('snapshot-lightbox');
+    if (!lb) {
+      lb = document.createElement('div');
+      lb.id = 'snapshot-lightbox';
+      lb.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+      lb.onclick = () => lb.style.display = 'none';
+      document.body.appendChild(lb);
+    }
+    lb.innerHTML = `<img src="${url}?_t=${Date.now()}" style="max-width:95vw;max-height:95vh;border-radius:12px;object-fit:contain;">`;
+    lb.style.display = 'flex';
   }
 
   function closePrinterOverlay() {

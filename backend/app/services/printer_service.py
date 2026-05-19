@@ -88,15 +88,10 @@ class PrinterService:
             except ValueError:
                 pass
 
-        # Snapshot-URL — via HA-Proxy damit Browser kein direkten HA-Zugriff braucht
+        # Snapshot über robot-core Proxy (verhindert Mixed-Content auf HTTPS)
         snap = _get("snapshot")
-        if snap:
-            attrs = snap.get("attributes") or {}
-            ep = attrs.get("entity_picture", "")
-            if ep:
-                from app.services.homeassistant_runtime_config_service import HomeAssistantRuntimeConfigService
-                ha_url = HomeAssistantRuntimeConfigService.build_base_url()
-                result["snapshot_url"] = f"{ha_url}{ep}"
+        if snap and (snap.get("attributes") or {}).get("entity_picture"):
+            result["snapshot_url"] = "/ha/printer/snapshot"
 
         return result
 
