@@ -997,6 +997,147 @@
     } catch { return null; }
   }
 
+  // ── PV STATISTIK OVERLAY ──────────────────────────────────
+  let _pvStatsView = 'today';
+
+  function _svgBar(labels, values, unit, w, h) {
+    const valid = values.map(v => v ?? 0);
+    const maxV  = Math.max(...valid, 0.01);
+    const pad   = { t: 10, r: 8, b: 32, l: 38 };
+    const cw    = w - pad.l - pad.r;
+    const ch    = h - pad.t - pad.b;
+    const bw    = Math.max(4, cw / Math.max(labels.length, 1) * 0.7);
+    const gap   = cw / Math.max(labels.length, 1);
+    let bars = '', lbls = '';
+    valid.forEach((v, i) => {
+      const bh = ch * (v / maxV);
+      const x  = pad.l + gap * i + (gap - bw) / 2;
+      const y  = pad.t + ch - bh;
+      const isToday = (i === valid.length - 1);
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,bh).toFixed(1)}"
+        fill="${isToday ? '#00c8ff' : 'rgba(0,200,255,0.35)'}" rx="3"
+        title="${labels[i]}: ${v} ${unit}"/>`;
+      if (i % Math.max(1, Math.floor(labels.length / 8)) === 0 || i === labels.length - 1)
+        lbls += `<text x="${(x + bw/2).toFixed(1)}" y="${(h - 6).toFixed(1)}" text-anchor="middle"
+          font-size="9" fill="rgba(127,141,203,0.9)">${labels[i]}</text>`;
+    });
+    const ySteps = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+      y: pad.t + ch * (1 - f), v: (maxV * f).toFixed(maxV < 10 ? 1 : 0),
+    }));
+    const yLines = ySteps.map(s =>
+      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
+       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${s.v}</text>`
+    ).join('');
+    return `<svg width="${w}" height="${h}" style="width:100%;max-width:${w}px;">
+      ${yLines}${bars}${lbls}
+    </svg>`;
+  }
+
+  function _svgLine(labels, values, unit, w, h) {
+    const valid = values.map(v => v ?? 0);
+    const maxV  = Math.max(...valid, 0.01);
+    const pad   = { t: 10, r: 8, b: 32, l: 46 };
+    const cw    = w - pad.l - pad.r;
+    const ch    = h - pad.t - pad.b;
+    const pts   = valid.map((v, i) => [
+      pad.l + (cw / Math.max(valid.length - 1, 1)) * i,
+      pad.t + ch - ch * (v / maxV),
+    ]);
+    const poly  = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const area  = `${pts[0][0].toFixed(1)},${(pad.t+ch).toFixed(1)} ` + poly
+                + ` ${pts[pts.length-1][0].toFixed(1)},${(pad.t+ch).toFixed(1)}`;
+    let lbls = '';
+    labels.forEach((l, i) => {
+      if (i % Math.max(1, Math.floor(labels.length / 8)) === 0)
+        lbls += `<text x="${pts[i][0].toFixed(1)}" y="${(h-6).toFixed(1)}" text-anchor="middle" font-size="9" fill="rgba(127,141,203,0.9)">${l}</text>`;
+    });
+    const ySteps = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+      y: pad.t + ch * (1 - f), v: (maxV * f).toFixed(maxV < 1000 ? 0 : 0),
+    }));
+    const yLines = ySteps.map(s =>
+      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
+       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${s.v}</text>`
+    ).join('');
+    return `<svg width="${w}" height="${h}" style="width:100%;max-width:${w}px;">
+      ${yLines}
+      <defs><linearGradient id="pvg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#00c8ff" stop-opacity="0.35"/>
+        <stop offset="100%" stop-color="#00c8ff" stop-opacity="0.03"/>
+      </linearGradient></defs>
+      <polygon points="${area}" fill="url(#pvg)"/>
+      <polyline points="${poly}" fill="none" stroke="#00c8ff" stroke-width="2" stroke-linejoin="round"/>
+      ${lbls}
+    </svg>`;
+  }
+
+  async function openPvStats() {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:800;background:rgba(5,6,17,0.92);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `<div id="pv-stats-box" style="background:#0b0b17;border:1px solid #24284a;border-radius:20px;width:740px;max-width:96vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px;">
+        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:#00c8ff;text-transform:uppercase;">PV-Statistik</div>
+        <button onclick="closePvStats()" style="background:none;border:none;color:#7f8dcb;font-size:1.4rem;cursor:pointer;line-height:1;padding:4px 8px;">×</button>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 24px 16px;">
+        ${['today','7days','month','year'].map(v =>
+          `<button onclick="loadPvStatsView('${v}')" id="pvtab-${v}"
+            style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid #24284a;background:${v===_pvStatsView?'rgba(0,200,255,0.12)':'transparent'};
+            color:${v===_pvStatsView?'#00c8ff':'#7f8dcb'};font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.2s;">
+            ${v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
+          </button>`
+        ).join('')}
+      </div>
+      <div id="pv-stats-content" style="flex:1;overflow-y:auto;padding:0 24px 24px;min-height:260px;">
+        <div style="color:#7f8dcb;font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>
+      </div>
+    </div>`;
+    loadPvStatsView(_pvStatsView);
+  }
+
+  function closePvStats() {
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; overlay.style.cssText = ''; }
+  }
+
+  async function loadPvStatsView(view) {
+    _pvStatsView = view;
+    ['today','7days','month','year'].forEach(v => {
+      const btn = document.getElementById(`pvtab-${v}`);
+      if (!btn) return;
+      btn.style.background = v === view ? 'rgba(0,200,255,0.12)' : 'transparent';
+      btn.style.color = v === view ? '#00c8ff' : '#7f8dcb';
+      btn.style.borderColor = v === view ? 'rgba(0,200,255,0.3)' : '#24284a';
+    });
+    const content = document.getElementById('pv-stats-content');
+    if (!content) return;
+    content.innerHTML = '<div style="color:#7f8dcb;font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>';
+    try {
+      const r = await fetch(`/ha/pv/history?view=${view}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      const labels = d.labels || [];
+      const values = d.values || [];
+      const unit   = d.unit || '';
+      const total  = d.total != null ? d.total : null;
+      const title  = view==='today'?'Heutige Leistung (W)':view==='7days'?'Ertrag letzte 7 Tage':view==='month'?'Ertrag diesen Monat':'Jahresertrag';
+      const chart  = labels.length
+        ? (view === 'today' ? _svgLine(labels, values, unit, 680, 220) : _svgBar(labels, values, unit, 680, 220))
+        : '<div style="color:#7f8dcb;text-align:center;padding:40px 0;font-size:0.85rem;">Keine Daten verfügbar</div>';
+      const totalHtml = total != null
+        ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:12px;border-top:1px solid #24284a;">
+             <span style="font-size:0.7rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+             <span style="font-size:1.2rem;font-weight:800;color:#00c8ff;">${typeof total==='number'?total.toLocaleString('de-DE',{maximumFractionDigits:1}):total} ${d.total_unit||unit}</span>
+           </div>` : '';
+      content.innerHTML = `
+        <div style="font-size:0.72rem;font-weight:700;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
+        ${chart}${totalHtml}`;
+    } catch(e) {
+      content.innerHTML = `<div style="color:#ff4f5f;font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
+    }
+  }
+
   function renderPvWidget(pv) {
     if (!pv) return '';
     const fmt = (v, unit) => {
@@ -1017,7 +1158,7 @@
       if (!isNaN(d.getTime())) lastUpdateStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     }
     const lastUpdate = lastUpdateStr ? `<div class="pv-footer">Aktualisiert: ${lastUpdateStr}</div>` : '';
-    return `<div class="pv-widget">${rows}${lastUpdate}</div>`;
+    return `<div class="pv-widget" onclick="openPvStats()" style="cursor:pointer;" title="Statistik anzeigen">${rows}${lastUpdate}</div>`;
   }
 
   async function showCalendarRight() {

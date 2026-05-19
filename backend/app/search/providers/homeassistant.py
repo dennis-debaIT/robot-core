@@ -53,6 +53,26 @@ class HomeAssistantProvider:
         except Exception:
             return None
 
+    def _post(self, path: str, payload: Any) -> Any | None:
+        if not self._token:
+            return None
+        url = f"{self._base_url}/api{path}"
+        try:
+            data = json.dumps(payload).encode()
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers={
+                    "Authorization": f"Bearer {self._token}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                return json.loads(resp.read().decode())
+        except Exception:
+            return None
+
     # ── Lichtsteuerung ───────────────────────────────────────
 
     def get_lights(self) -> list[dict]:
@@ -505,6 +525,27 @@ class HomeAssistantProvider:
             "next_event":  next_event,
             "total_count": total,
         }
+
+    # ── PV Statistiken ──────────────────────────────────────────
+
+    def get_pv_statistics(
+        self,
+        statistic_ids: list[str],
+        start: datetime,
+        end: datetime,
+        period: str,
+        types: list[str],
+    ) -> dict[str, list[dict]]:
+        fmt = "%Y-%m-%dT%H:%M:%S%z"
+        payload = {
+            "start_time": start.strftime(fmt),
+            "end_time":   end.strftime(fmt),
+            "statistic_ids": statistic_ids,
+            "period": period,
+            "types": types,
+        }
+        result = self._post("/statistics_during_period", payload)
+        return result if isinstance(result, dict) else {}
 
     # ── Kameras (Ring) ──────────────────────────────────────────
 
