@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -15,6 +17,11 @@ router = APIRouter()
 _DE_WEEKDAYS_SHORT = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 _DE_MONTHS_SHORT   = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
                        "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+
+try:
+    _LOCAL_TZ = ZoneInfo(os.environ.get("TZ", "Europe/Berlin"))
+except ZoneInfoNotFoundError:
+    _LOCAL_TZ = ZoneInfo("UTC")
 
 
 def _pv_sensors(config: dict) -> dict[str, str]:
@@ -30,10 +37,12 @@ def _safe_float(v: Any) -> float | None:
 
 
 def _to_local(raw: str) -> datetime | None:
-    """Parst ISO-Zeitstempel und konvertiert in lokale Zeit."""
+    """Parst ISO-Zeitstempel und konvertiert in lokale Zeit via zoneinfo."""
     try:
         dt = datetime.fromisoformat(raw)
-        return dt.astimezone().replace(tzinfo=None)  # lokale naive Zeit
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_LOCAL_TZ).replace(tzinfo=None)
     except Exception:
         return None
 
@@ -103,9 +112,9 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     power_id = sensors.get("power", "")
     daily_id = sensors.get("daily", "")
     ha      = HomeAssistantProvider()
-    now_loc = datetime.now().astimezone()              # tz-aware lokale Zeit
+    now_loc = datetime.now(_LOCAL_TZ)                  # korrekte lokale Zeit via zoneinfo
     now_utc = now_loc.astimezone(timezone.utc)
-    # Lokale Mitternacht → UTC (korrekt für beliebige Zeitzonen)
+    # Lokale Mitternacht → UTC
     start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     # ── Heute: 5-Minuten-Leistungskurve ──────────────────────
