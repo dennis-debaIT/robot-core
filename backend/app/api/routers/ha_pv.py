@@ -38,13 +38,13 @@ def _to_local(raw: str) -> datetime | None:
         return None
 
 
-def _history_to_5min_mean(states: list[dict]) -> tuple[list[str], list[float | None]]:
-    """Aggregiert Rohzustände zu 5-Minuten-Mittelwerten (lokale Zeit)."""
+def _history_to_5min_max(states: list[dict]) -> tuple[list[str], list[float | None]]:
+    """Aggregiert Rohzustände zu 5-Minuten-Maximalwerten (lokale Zeit)."""
     buckets: dict[str, list[float]] = defaultdict(list)
     for s in states:
         v = _safe_float(s.get("state"))
-        if v is None:
-            continue
+        if v is None or v <= 0:
+            continue  # Null-Meldungen ignorieren
         dt = _to_local(s.get("last_changed") or s.get("last_updated") or "")
         if not dt:
             continue
@@ -56,7 +56,7 @@ def _history_to_5min_mean(states: list[dict]) -> tuple[list[str], list[float | N
     for key in sorted(buckets):
         labels.append(key)
         vals = buckets[key]
-        values.append(round(sum(vals) / len(vals), 1) if vals else None)
+        values.append(round(max(vals), 1) if vals else None)
     return labels, values
 
 
@@ -114,7 +114,7 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             raise HTTPException(400, "Leistungs-Sensor nicht konfiguriert")
 
         # Primär: Statistics API (5-Minuten-Auflösung)
-        stats = ha.get_pv_statistics([power_id], start_utc, now_utc, "5minute", ["mean"])
+        stats = ha.get_pv_statistics([power_id], start_utc, now_utc, "5minute", ["max"])
         rows  = stats.get(power_id) or []
         if rows:
             labels, values = [], []
@@ -122,11 +122,11 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
                 dt = _to_local(row["start"])
                 if dt:
                     labels.append(f"{dt.hour:02d}:{dt.minute:02d}")
-                    values.append(_safe_float(row.get("mean")))
+                    values.append(_safe_float(row.get("max")))
         else:
-            # Fallback: History API → 5-Minuten-Buckets in lokaler Zeit
+            # Fallback: History API → 5-Minuten-Maximalwerte in lokaler Zeit
             states = ha.get_history(power_id, start_utc, now_utc)
-            labels, values = _history_to_5min_mean(states)
+            labels, values = _history_to_5min_max(states)
 
         # Tagesertrag: direkt aus aktuellem Sensorwert (zuverlässiger als Statistics)
         total = None
