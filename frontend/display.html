@@ -4093,6 +4093,14 @@
     if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
   }, TTL_15M);
 
+  // PV-Daten jede Minute aktualisieren (Leistungswerte sind zeitkritischer)
+  setInterval(async () => {
+    if (!_enabledModules.pv || currentMode !== 'idle' || !_isHome()) return;
+    const pv = await loadPvData();
+    const pvEl = document.getElementById('right-pv');
+    if (pvEl) pvEl.innerHTML = renderPvWidget(pv);
+  }, TTL_1M);
+
   // ── VIEWPORT SCALING (10"-Display = scale 1, iPad/Desktop skaliert proportional) ──
   function _scaleToFit() {
     const s = Math.min(window.innerWidth / 1280, window.innerHeight / 800);
