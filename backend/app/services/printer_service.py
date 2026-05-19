@@ -58,11 +58,11 @@ class PrinterService:
             s = _get(key)
             return _safe(s.get("state") if s else None, default) if s else default
 
-        # Druckerstatus
+        # Druckerstatus — "busy" deckt Aufheizen + Drucken ab
         printer_state = _val("state", "offline")
         print_state   = _val("print_state", "")
-        result["state"]      = print_state or printer_state
-        result["printing"]   = printer_state in ("busy",) or print_state in self.PRINTING_STATES
+        result["state"]    = print_state or printer_state
+        result["printing"] = printer_state == "busy"
 
         # Temperaturen
         result["nozzle_temp"]        = _val("nozzle")
