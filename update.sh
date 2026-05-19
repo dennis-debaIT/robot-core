@@ -28,6 +28,9 @@ else
 fi
 git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
 
+# .git-Verzeichnis dem aktuellen User gehören lassen (verhindert Permission-Fehler bei gemischten sudo/User-Runs)
+chown -R "$(id -u):$(id -g)" .git 2>/dev/null || true
+
 # Execute-Bit auf alle Scripts setzen (git reset kann es entfernen)
 chmod +x "$INSTALL_DIR/update.sh" \
          "$INSTALL_DIR/reboot-watcher.sh" \
