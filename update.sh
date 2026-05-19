@@ -34,7 +34,7 @@ chmod +x "$INSTALL_DIR/update.sh" \
          "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
 
 # Flag-Dateien sicherstellen — Verzeichnisse (fälschlich von Docker angelegt) entfernen
-for _f in update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json; do
+for _f in update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json printer-start.flag; do
     [ -d "$_f" ] && rm -rf "$_f" || true
 done
 touch update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
