@@ -1344,7 +1344,10 @@
       hasPrinter ? loadPrinterData()  : Promise.resolve(null),
     ]);
     const isPrinting = hasPrinter && printer?.printing;
-    const parts = [hasCal ? 'Kalender' : '', isPrinting ? '🖨' : '', hasPv ? 'PV' : ''].filter(Boolean);
+    const printerIcon = hasPrinter
+      ? `<span onclick="openPrinterOverlay()" title="Drucker-Details" style="cursor:pointer;opacity:${isPrinting?1:0.4};">🖨</span>`
+      : '';
+    const parts = [hasCal ? 'Kalender' : '', printerIcon, hasPv ? 'PV' : ''].filter(Boolean);
     const label = parts.join(' · ') || '';
     const calHtml      = hasCal     ? renderCalendarData(cal)    : '';
     const printerHtml  = isPrinting ? renderPrinterWidget(printer) : '';
@@ -1710,7 +1713,7 @@
     const contentEl = document.getElementById(side + '-content');
     contentEl.classList.add('fade-out');
     setTimeout(() => {
-      labelEl.textContent = label;
+      labelEl.innerHTML = label;
       contentEl.innerHTML = html;
       contentEl.classList.remove('fade-out');
     }, 300);
