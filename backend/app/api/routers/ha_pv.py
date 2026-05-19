@@ -29,22 +29,29 @@ def _safe_float(v: Any) -> float | None:
         return None
 
 
+def _to_local(raw: str) -> datetime | None:
+    """Parst ISO-Zeitstempel und konvertiert in lokale Zeit."""
+    try:
+        dt = datetime.fromisoformat(raw)
+        return dt.astimezone().replace(tzinfo=None)  # lokale naive Zeit
+    except Exception:
+        return None
+
+
 def _history_to_5min_mean(states: list[dict]) -> tuple[list[str], list[float | None]]:
-    """Aggregiert Rohzustände zu 5-Minuten-Mittelwerten."""
+    """Aggregiert Rohzustände zu 5-Minuten-Mittelwerten (lokale Zeit)."""
     buckets: dict[str, list[float]] = defaultdict(list)
     for s in states:
         v = _safe_float(s.get("state"))
         if v is None:
             continue
-        raw = s.get("last_changed") or s.get("last_updated") or ""
-        try:
-            dt = datetime.fromisoformat(raw[:19])
-            total_min = dt.hour * 60 + dt.minute
-            bucket = (total_min // 5) * 5
-            key = f"{bucket // 60:02d}:{bucket % 60:02d}"
-            buckets[key].append(v)
-        except Exception:
-            pass
+        dt = _to_local(s.get("last_changed") or s.get("last_updated") or "")
+        if not dt:
+            continue
+        total_min = dt.hour * 60 + dt.minute
+        bucket = (total_min // 5) * 5
+        key = f"{bucket // 60:02d}:{bucket % 60:02d}"
+        buckets[key].append(v)
     labels, values = [], []
     for key in sorted(buckets):
         labels.append(key)
@@ -54,18 +61,17 @@ def _history_to_5min_mean(states: list[dict]) -> tuple[list[str], list[float | N
 
 
 def _history_to_daily_max(states: list[dict]) -> dict[str, float]:
-    """Liefert {date_str: max_value} aus Rohzuständen."""
+    """Liefert {date_str: max_value} aus Rohzuständen (lokale Zeit)."""
     daily: dict[str, float] = {}
     for s in states:
         v = _safe_float(s.get("state"))
         if v is None:
             continue
-        raw = s.get("last_changed") or s.get("last_updated") or ""
-        try:
-            date_key = raw[:10]
-            daily[date_key] = max(daily.get(date_key, 0.0), v)
-        except Exception:
-            pass
+        dt = _to_local(s.get("last_changed") or s.get("last_updated") or "")
+        if not dt:
+            continue
+        date_key = dt.strftime("%Y-%m-%d")
+        daily[date_key] = max(daily.get(date_key, 0.0), v)
     return daily
 
 
@@ -96,38 +102,41 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     sensors = _pv_sensors(config)
     power_id = sensors.get("power", "")
     daily_id = sensors.get("daily", "")
-    ha  = HomeAssistantProvider()
-    now = datetime.now(timezone.utc)
+    ha       = HomeAssistantProvider()
+    now_loc  = datetime.now()                          # lokale Zeit (kein tz-aware)
+    now_utc  = datetime.now(timezone.utc)
+    start_loc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Für HA-API: lokale Mitternacht als UTC ausdrücken
+    import time as _time
+    tz_offset = _time.timezone if (_time.daylight == 0 or not _time.daylight) else _time.altzone
+    start_utc = start_loc.replace(tzinfo=timezone.utc) + timedelta(seconds=tz_offset)
 
-    # ── Heute: stündliche Leistungskurve ──────────────────────
+    # ── Heute: 5-Minuten-Leistungskurve ──────────────────────
     if view == "today":
         if not power_id:
             raise HTTPException(400, "Leistungs-Sensor nicht konfiguriert")
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Primär: Statistics API (5-Minuten-Auflösung)
-        stats = ha.get_pv_statistics([power_id], start, now, "5minute", ["mean"])
+        stats = ha.get_pv_statistics([power_id], start_utc, now_utc, "5minute", ["mean"])
         rows  = stats.get(power_id) or []
         if rows:
             labels, values = [], []
             for row in rows:
-                dt = datetime.fromisoformat(row["start"])
-                labels.append(f"{dt.hour:02d}:{dt.minute:02d}")
-                values.append(_safe_float(row.get("mean")))
+                dt = _to_local(row["start"])
+                if dt:
+                    labels.append(f"{dt.hour:02d}:{dt.minute:02d}")
+                    values.append(_safe_float(row.get("mean")))
         else:
-            # Fallback: History API → 5-Minuten-Buckets
-            states = ha.get_history(power_id, start, now)
+            # Fallback: History API → 5-Minuten-Buckets in lokaler Zeit
+            states = ha.get_history(power_id, start_utc, now_utc)
             labels, values = _history_to_5min_mean(states)
 
+        # Tagesertrag: direkt aus aktuellem Sensorwert (zuverlässiger als Statistics)
         total = None
         if daily_id:
-            s2   = ha.get_pv_statistics([daily_id], start, now, "hour", ["max"])
-            last = (s2.get(daily_id) or [{}])[-1]
-            total = _safe_float(last.get("max"))
-            if total is None:
-                states2 = ha.get_history(daily_id, start, now)
-                dm = _history_to_daily_max(states2)
-                total = max(dm.values()) if dm else None
+            daily_state = ha.get_state(daily_id)
+            if daily_state:
+                total = _safe_float(daily_state.get("state"))
 
         return {"view": "today", "labels": labels, "values": values,
                 "unit": "W", "total": total, "total_unit": "kWh"}
@@ -136,15 +145,19 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     if view == "7days":
         if not daily_id:
             raise HTTPException(400, "Tagesertrag-Sensor nicht konfiguriert")
-        start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        s7_utc = (start_utc - timedelta(days=6))
 
-        stats = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
+        stats = ha.get_pv_statistics([daily_id], s7_utc, now_utc, "day", ["max"])
         rows  = stats.get(daily_id) or []
         if rows:
-            labels = [_DE_WEEKDAYS_SHORT[datetime.fromisoformat(r["start"]).weekday()] for r in rows]
-            values = [_safe_float(r.get("max")) for r in rows]
+            labels, values = [], []
+            for r in rows:
+                dt = _to_local(r["start"])
+                if dt:
+                    labels.append(_DE_WEEKDAYS_SHORT[dt.weekday()])
+                    values.append(_safe_float(r.get("max")))
         else:
-            states = ha.get_history(daily_id, start, now)
+            states = ha.get_history(daily_id, s7_utc, now_utc)
             daily  = _history_to_daily_max(states)
             labels, values = [], []
             for date_key in sorted(daily):
@@ -160,15 +173,19 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     if view == "month":
         if not daily_id:
             raise HTTPException(400, "Tagesertrag-Sensor nicht konfiguriert")
-        start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        sm_utc = start_utc.replace(day=1)
 
-        stats = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
+        stats = ha.get_pv_statistics([daily_id], sm_utc, now_utc, "day", ["max"])
         rows  = stats.get(daily_id) or []
         if rows:
-            labels = [str(datetime.fromisoformat(r["start"]).day) for r in rows]
-            values = [_safe_float(r.get("max")) for r in rows]
+            labels, values = [], []
+            for r in rows:
+                dt = _to_local(r["start"])
+                if dt:
+                    labels.append(str(dt.day))
+                    values.append(_safe_float(r.get("max")))
         else:
-            states = ha.get_history(daily_id, start, now)
+            states = ha.get_history(daily_id, sm_utc, now_utc)
             daily  = _history_to_daily_max(states)
             labels, values = [], []
             for date_key in sorted(daily):
@@ -184,17 +201,19 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     if view == "year":
         if not daily_id:
             raise HTTPException(400, "Tagesertrag-Sensor nicht konfiguriert")
-        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        sy_utc = start_utc.replace(month=1, day=1)
 
-        # Primär: monthly statistics
-        stats = ha.get_pv_statistics([daily_id], start, now, "month", ["sum"])
+        stats = ha.get_pv_statistics([daily_id], sy_utc, now_utc, "month", ["sum"])
         rows  = stats.get(daily_id) or []
         if rows and any(r.get("sum") is not None for r in rows):
-            labels = [_DE_MONTHS_SHORT[datetime.fromisoformat(r["start"]).month - 1] for r in rows]
-            values = [_safe_float(r.get("sum")) for r in rows]
+            labels, values = [], []
+            for r in rows:
+                dt = _to_local(r["start"])
+                if dt:
+                    labels.append(_DE_MONTHS_SHORT[dt.month - 1])
+                    values.append(_safe_float(r.get("sum")))
         else:
-            # Fallback: tägliche History → nach Monat aggregieren
-            states = ha.get_history(daily_id, start, now)
+            states = ha.get_history(daily_id, sy_utc, now_utc)
             daily  = _history_to_daily_max(states)
             monthly: dict[int, float] = defaultdict(float)
             for date_key, v in daily.items():
