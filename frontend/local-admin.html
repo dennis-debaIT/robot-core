@@ -513,6 +513,14 @@
                 <span class="field-label">Drucker-IP</span>
                 <input id="printer-ip" class="field-input" type="text" placeholder="192.168.x.x">
               </label>
+              <label class="field-block">
+                <span class="field-label">MQTT-Benutzername</span>
+                <input id="printer-mqtt-user" class="field-input" type="text" placeholder="mqtt_user">
+              </label>
+              <label class="field-block">
+                <span class="field-label">MQTT-Passwort</span>
+                <input id="printer-mqtt-pass" class="field-input" type="password" placeholder="mqtt_passwort">
+              </label>
             </div>
             <div class="system-actions" style="margin-top:8px;">
               <button type="button" class="secondary" id="printer-start-btn" onclick="startPrinterBridge()">Bridge starten</button>
@@ -1926,6 +1934,8 @@
       const printerConfig = data?.config?.printer || {};
       printerEnabledEl.checked = !!printerConfig.enabled;
       printerIpEl.value = printerConfig.printer_ip || '';
+      document.getElementById('printer-mqtt-user').value = printerConfig.mqtt_user || '';
+      document.getElementById('printer-mqtt-pass').value = printerConfig.mqtt_pass || '';
       const pe = printerConfig.entities || {};
       document.getElementById('printer-ent-state').value   = pe.state   || '';
       document.getElementById('printer-ent-job').value     = pe.print_job || '';
@@ -2052,6 +2062,8 @@
             printer: {
               enabled: printerEnabledEl.checked,
               printer_ip: printerIpEl.value.trim(),
+              mqtt_user: document.getElementById('printer-mqtt-user').value.trim(),
+              mqtt_pass: document.getElementById('printer-mqtt-pass').value,
               entities: {
                 state:     document.getElementById('printer-ent-state').value.trim(),
                 print_job: document.getElementById('printer-ent-job').value.trim(),

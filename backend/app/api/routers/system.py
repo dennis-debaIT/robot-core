@@ -158,7 +158,9 @@ def start_printer_bridge() -> dict[str, Any]:
             "requested_at": datetime.now(timezone.utc).isoformat(),
             "printer_ip":   printer.get("printer_ip", ""),
             "mqtt_host":    ha_cfg.get("host", ""),
-            "mqtt_port":    1883,  # Mosquitto-Standard, unabhaengig vom HA-Web-Port
+            "mqtt_port":    1883,
+            "mqtt_user":    printer.get("mqtt_user", ""),
+            "mqtt_pass":    printer.get("mqtt_pass", ""),
         }
         flag_path = Path("/printer-start.flag")
         flag_path.write_text(json.dumps(payload))

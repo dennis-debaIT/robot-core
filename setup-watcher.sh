@@ -155,9 +155,13 @@ while true; do
                     echo "${key}=${val}" >> "$INSTALL_DIR/.env"
                 fi
             }
-            _set_env "ANYCUBIC_S1_IP"      "$_printer_ip"
-            _set_env "ANYCUBIC_MQTT_HOST"  "$_mqtt_host"
-            _set_env "ANYCUBIC_MQTT_PORT"  "$_mqtt_port"
+            _mqtt_user=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('mqtt_user',''))" < "$INSTALL_DIR/printer-start.flag" 2>/dev/null || true)
+            _mqtt_pass=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('mqtt_pass',''))" < "$INSTALL_DIR/printer-start.flag" 2>/dev/null || true)
+            _set_env "ANYCUBIC_S1_IP"       "$_printer_ip"
+            _set_env "ANYCUBIC_MQTT_HOST"   "$_mqtt_host"
+            _set_env "ANYCUBIC_MQTT_PORT"   "$_mqtt_port"
+            _set_env "ANYCUBIC_MQTT_USER"   "$_mqtt_user"
+            _set_env "ANYCUBIC_MQTT_PASS"   "$_mqtt_pass"
             cd "$INSTALL_DIR"
             docker compose --profile printer up -d anycubic-bridge >> "$INSTALL_DIR/setup-watcher.log" 2>&1 \
                 && log "Anycubic-Bridge gestartet" || log "Anycubic-Bridge fehlgeschlagen"

@@ -87,6 +87,8 @@ class IntegrationConfigService:
             "printer": {
                 "enabled": False,
                 "printer_ip": "",
+                "mqtt_user": "",
+                "mqtt_pass": "",
                 "entities": {
                     "state":      "",
                     "nozzle":     "",
@@ -172,6 +174,8 @@ class IntegrationConfigService:
         printer = merged.setdefault("printer", {})
         printer["enabled"] = bool(printer.get("enabled", False))
         printer["printer_ip"] = str(printer.get("printer_ip") or "").strip()
+        printer["mqtt_user"] = str(printer.get("mqtt_user") or "").strip()
+        printer["mqtt_pass"] = str(printer.get("mqtt_pass") or "")
         p_ent = printer.setdefault("entities", {})
         for _k in ("state", "nozzle", "hotbed", "print_job", "snapshot", "pause", "resume", "cancel"):
             p_ent[_k] = str(p_ent.get(_k) or "").strip()
@@ -235,6 +239,8 @@ class IntegrationConfigService:
         printer2 = updated.setdefault("printer", {})
         printer2["enabled"] = bool(printer2.get("enabled", False))
         printer2["printer_ip"] = str(printer2.get("printer_ip") or "").strip()
+        printer2["mqtt_user"] = str(printer2.get("mqtt_user") or "").strip()
+        printer2["mqtt_pass"] = str(printer2.get("mqtt_pass") or "")
         p_ent2 = printer2.setdefault("entities", {})
         for _k in ("state", "nozzle", "hotbed", "print_job", "snapshot", "pause", "resume", "cancel"):
             p_ent2[_k] = str(p_ent2.get(_k) or "").strip()
