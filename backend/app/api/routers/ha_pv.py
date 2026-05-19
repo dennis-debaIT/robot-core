@@ -116,12 +116,14 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         # History API (zuverlässiger als Statistics für Echtzeit-Daten)
         states = ha.get_history(power_id, start_utc, now_utc)
         labels, values = _history_to_5min_max(states)
-        # Aktuellen Live-Wert am Ende anhängen falls neuer als letzter Bucket
+        # Live-Wert als letzten Datenpunkt immer eintragen (überschreibt/ergänzt)
         live_state = ha.get_state(power_id)
         live_v = _safe_float((live_state or {}).get("state"))
         if live_v and live_v > 0:
             now_key = f"{now_loc.hour:02d}:{(now_loc.minute // 5) * 5:02d}"
-            if not labels or labels[-1] != now_key:
+            if labels and labels[-1] == now_key:
+                values[-1] = max(values[-1] or 0, live_v)  # letzten Bucket aktualisieren
+            else:
                 labels.append(now_key)
                 values.append(live_v)
 

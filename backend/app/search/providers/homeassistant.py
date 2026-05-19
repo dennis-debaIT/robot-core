@@ -550,12 +550,11 @@ class HomeAssistantProvider:
         return result if isinstance(result, dict) else {}
 
     def get_history(self, entity_id: str, start: datetime, end: datetime) -> list[dict]:
-        """Rohe Zustandshistorie eines Sensors (Fallback wenn Statistics API leer)."""
+        """Rohe Zustandshistorie eines Sensors."""
         fmt = "%Y-%m-%dT%H:%M:%S"
         params = urllib.parse.urlencode({
             "filter_entity_id": entity_id,
             "end_time": end.strftime(fmt),
-            "minimal_response": "true",
             "no_attributes": "true",
         })
         path = f"/history/period/{start.strftime(fmt)}?{params}"
