@@ -995,9 +995,16 @@
     const rows = [
       pv.power       && `<div class="pv-row"><span class="pv-icon">⚡</span><span class="pv-val">${fmt(pv.power.value, pv.power.unit)}</span><span class="pv-lbl">Aktuell</span></div>`,
       pv.daily       && `<div class="pv-row"><span class="pv-icon">☀</span><span class="pv-val">${fmt(pv.daily.value, pv.daily.unit)}</span><span class="pv-lbl">Heute</span></div>`,
-      pv.temperature && `<div class="pv-row"><span class="pv-icon">🌡</span><span class="pv-val">${fmt(pv.temperature.value, pv.temperature.unit)}</span><span class="pv-lbl">Wechselrichter</span></div>`,
+      pv.temperature && `<div class="pv-row"><span class="pv-icon">🌡</span><span class="pv-val">${fmt(pv.temperature.value, pv.temperature.unit)}</span><span class="pv-lbl">Temperatur</span></div>`,
     ].filter(Boolean).join('');
-    const lastUpdate = pv.last_update ? `<div class="pv-footer">Aktualisiert: ${String(pv.last_update.value || '').replace('T',' ').slice(0,16)}</div>` : '';
+    let lastUpdateStr = '';
+    if (pv.last_update?.value && pv.last_update.value !== 'unavailable' && pv.last_update.value !== 'unknown') {
+      const raw = String(pv.last_update.value);
+      const ts = Number(raw);
+      const d = isNaN(ts) ? new Date(raw) : new Date(ts * (raw.length <= 10 ? 1000 : 1));
+      if (!isNaN(d)) lastUpdateStr = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    }
+    const lastUpdate = lastUpdateStr ? `<div class="pv-footer">Aktualisiert: ${lastUpdateStr}</div>` : '';
     return `<div class="pv-widget">${rows}${lastUpdate}</div>`;
   }
 
@@ -1009,11 +1016,11 @@
       hasPv  ? loadPvData()   : Promise.resolve(null),
     ]);
     const label = hasCal && hasPv ? 'Kalender · PV' : hasCal ? 'Kalender' : hasPv ? 'PV-Anlage' : '';
-    let html = '';
-    if (hasCal) html += renderCalendarData(cal);
-    if (hasCal && hasPv) html += '<div class="pv-divider"></div>';
-    if (hasPv)  html += renderPvWidget(pv);
-    setPanel('right', label, html || '<div class="cal-placeholder">Kein Modul aktiv.</div>');
+    const calHtml = hasCal ? renderCalendarData(cal) : '';
+    const pvHtml  = hasPv  ? renderPvWidget(pv)      : '';
+    const html = `<div id="right-cal">${calHtml || (hasPv ? '' : '<div class="cal-placeholder">Kein Modul aktiv.</div>')}</div>`
+               + (pvHtml ? `<div id="right-pv">${pvHtml}</div>` : '');
+    setPanel('right', label, html);
   }
 
   // ── NEWS CENTER ───────────────────────────────────────────
