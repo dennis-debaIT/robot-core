@@ -1115,11 +1115,17 @@
       </div>
     </div>`;
     loadPvStatsView(_pvStatsView);
+    clearInterval(_pvStatsRefreshInterval);
+    _pvStatsRefreshInterval = setInterval(() => loadPvStatsView(_pvStatsView), 60000);
   }
+
+  let _pvStatsRefreshInterval = null;
 
   function closePvStats() {
     const box = document.getElementById('pv-stats-box');
     if (box) box.style.display = 'none';
+    clearInterval(_pvStatsRefreshInterval);
+    _pvStatsRefreshInterval = null;
   }
 
   async function loadPvStatsView(view) {
