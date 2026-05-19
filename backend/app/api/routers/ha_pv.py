@@ -122,9 +122,25 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         if not power_id:
             raise HTTPException(400, "Leistungs-Sensor nicht konfiguriert")
 
-        # History API (zuverlässiger als Statistics für Echtzeit-Daten)
-        states = ha.get_history(power_id, start_utc, now_utc)
-        labels, values = _history_to_5min_max(states)
+        # Erst Statistics API (5min-Aggregation, kompakte Antwort)
+        stats = ha.get_pv_statistics([power_id], start_utc, now_utc, "5minute", ["mean", "max"])
+        rows  = stats.get(power_id) or []
+        if rows:
+            labels, values = [], []
+            for row in rows:
+                dt = _to_local(row["start"])
+                if dt:
+                    labels.append(f"{dt.hour:02d}:{dt.minute:02d}")
+                    v = _safe_float(row.get("max")) or _safe_float(row.get("mean"))
+                    if v and v > 0:
+                        values.append(v)
+                    else:
+                        values.append(None)
+        else:
+            # Fallback: History der letzten 4h (begrenzt Datenmenge, vermeidet Truncation)
+            hist_start = now_utc - timedelta(hours=4)
+            states = ha.get_history(power_id, hist_start, now_utc)
+            labels, values = _history_to_5min_max(states)
         # Live-Wert als letzten Datenpunkt immer eintragen (überschreibt/ergänzt)
         live_state = ha.get_state(power_id)
         live_v = _safe_float((live_state or {}).get("state"))
