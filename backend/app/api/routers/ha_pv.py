@@ -29,9 +29,9 @@ def _safe_float(v: Any) -> float | None:
         return None
 
 
-def _history_to_hourly_mean(states: list[dict]) -> tuple[list[str], list[float | None]]:
-    """Aggregiert Rohzustände zu stündlichen Mittelwerten."""
-    hourly: dict[int, list[float]] = defaultdict(list)
+def _history_to_5min_mean(states: list[dict]) -> tuple[list[str], list[float | None]]:
+    """Aggregiert Rohzustände zu 5-Minuten-Mittelwerten."""
+    buckets: dict[str, list[float]] = defaultdict(list)
     for s in states:
         v = _safe_float(s.get("state"))
         if v is None:
@@ -39,13 +39,16 @@ def _history_to_hourly_mean(states: list[dict]) -> tuple[list[str], list[float |
         raw = s.get("last_changed") or s.get("last_updated") or ""
         try:
             dt = datetime.fromisoformat(raw[:19])
-            hourly[dt.hour].append(v)
+            total_min = dt.hour * 60 + dt.minute
+            bucket = (total_min // 5) * 5
+            key = f"{bucket // 60:02d}:{bucket % 60:02d}"
+            buckets[key].append(v)
         except Exception:
             pass
     labels, values = [], []
-    for h in sorted(hourly):
-        labels.append(f"{h:02d}:00")
-        vals = hourly[h]
+    for key in sorted(buckets):
+        labels.append(key)
+        vals = buckets[key]
         values.append(round(sum(vals) / len(vals), 1) if vals else None)
     return labels, values
 
@@ -102,19 +105,19 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             raise HTTPException(400, "Leistungs-Sensor nicht konfiguriert")
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Primär: Statistics API
-        stats = ha.get_pv_statistics([power_id], start, now, "hour", ["mean"])
+        # Primär: Statistics API (5-Minuten-Auflösung)
+        stats = ha.get_pv_statistics([power_id], start, now, "5minute", ["mean"])
         rows  = stats.get(power_id) or []
         if rows:
             labels, values = [], []
             for row in rows:
                 dt = datetime.fromisoformat(row["start"])
-                labels.append(f"{dt.hour:02d}:00")
+                labels.append(f"{dt.hour:02d}:{dt.minute:02d}")
                 values.append(_safe_float(row.get("mean")))
         else:
-            # Fallback: History API
+            # Fallback: History API → 5-Minuten-Buckets
             states = ha.get_history(power_id, start, now)
-            labels, values = _history_to_hourly_mean(states)
+            labels, values = _history_to_5min_mean(states)
 
         total = None
         if daily_id:
