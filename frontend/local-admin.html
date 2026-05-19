@@ -2125,7 +2125,7 @@
     const _UPDATE_TIMEOUT_MS = 5 * 60 * 1000;
 
     async function installUpdate() {
-      if (!confirm('Update jetzt installieren? Erika startet dabei neu.')) return;
+      if (!await showConfirm('Update jetzt installieren?\nErika lädt die neueste Version und startet danach neu.', 'Installieren')) return;
       try {
         const s = await fetch('/system/update/status').then(r => r.json());
         _updateExpectedHash = s.latest_hash || null;
@@ -2285,7 +2285,7 @@
     }).catch(() => {});
 
     async function rebootSystem() {
-      if (!confirm('System jetzt neu starten?\nErika und der Kiosk starten danach automatisch wieder.')) return;
+      if (!await showConfirm('System jetzt neu starten?\nErika und der Kiosk starten danach automatisch wieder.', 'Neu starten')) return;
       const btn = document.getElementById('reboot-btn');
       const status = document.getElementById('reboot-status');
       btn.disabled = true;
@@ -2301,6 +2301,76 @@
         btn.disabled = false;
       }
     }
+  // ── Confirm-Modal (Touch-freundlich) ─────────────────────
+  (function () {
+    const overlay = document.createElement('div');
+    overlay.id = 'confirm-overlay';
+    overlay.style.cssText = [
+      'display:none;position:fixed;inset:0;z-index:9999',
+      'background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)',
+      'align-items:center;justify-content:center;padding:24px',
+    ].join(';');
+
+    const box = document.createElement('div');
+    box.style.cssText = [
+      'background:#14162a;border:1px solid #2a2d55;border-radius:20px',
+      'padding:32px 28px;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.6)',
+      'font-family:system-ui,sans-serif;color:#f4f7ff',
+    ].join(';');
+
+    const msg  = document.createElement('p');
+    msg.style.cssText  = 'font-size:1rem;line-height:1.55;margin:0 0 28px;white-space:pre-line;';
+
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:12px;justify-content:flex-end;';
+
+    const btnCancel  = document.createElement('button');
+    btnCancel.textContent = 'Abbrechen';
+    btnCancel.style.cssText = [
+      'padding:14px 24px;border-radius:12px;border:1px solid #2a2d55',
+      'background:transparent;color:#7f8dcb;font-size:0.95rem;font-weight:600',
+      'cursor:pointer;min-width:120px;min-height:48px;',
+    ].join(';');
+
+    const btnOk = document.createElement('button');
+    btnOk.style.cssText = [
+      'padding:14px 24px;border-radius:12px;border:none',
+      'background:#00c8ff;color:#000;font-size:0.95rem;font-weight:700',
+      'cursor:pointer;min-width:120px;min-height:48px;',
+    ].join(';');
+
+    btns.append(btnCancel, btnOk);
+    box.append(msg, btns);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    let _resolve = null;
+
+    window.showConfirm = function (text, okLabel) {
+      return new Promise(resolve => {
+        _resolve = resolve;
+        msg.textContent = text;
+        btnOk.textContent = okLabel || 'Bestätigen';
+        overlay.style.display = 'flex';
+        btnOk.focus();
+      });
+    };
+
+    function close(result) {
+      overlay.style.display = 'none';
+      if (_resolve) { _resolve(result); _resolve = null; }
+    }
+
+    btnOk.addEventListener('click',     () => close(true));
+    btnCancel.addEventListener('click', () => close(false));
+    overlay.addEventListener('click', e => { if (e.target === overlay) close(false); });
+    document.addEventListener('keydown', e => {
+      if (overlay.style.display === 'flex') {
+        if (e.key === 'Enter')  close(true);
+        if (e.key === 'Escape') close(false);
+      }
+    });
+  })();
   </script>
 </body>
 </html>
