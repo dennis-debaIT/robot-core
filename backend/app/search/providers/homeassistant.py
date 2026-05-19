@@ -528,6 +528,9 @@ class HomeAssistantProvider:
 
     # ── PV Statistiken ──────────────────────────────────────────
 
+    def get_state(self, entity_id: str) -> dict | None:
+        return self._get(f"/states/{entity_id}")
+
     def get_pv_statistics(
         self,
         statistic_ids: list[str],
