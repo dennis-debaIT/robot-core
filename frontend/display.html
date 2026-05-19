@@ -341,6 +341,18 @@
     localStorage.setItem('display_config_version', current);
   }
 
+  function applyAppHash(hash) {
+    if (!hash || hash === 'dev') return;
+    const previous = localStorage.getItem('erika_app_hash');
+    if (previous && previous !== hash) {
+      // Neue App-Version nach Update → localStorage leeren (außer App-Hash selbst)
+      const keys = Object.keys(localStorage).filter(k => k !== 'erika_app_hash');
+      keys.forEach(k => localStorage.removeItem(k));
+      console.log('[erika] App-Version gewechselt — localStorage geleert');
+    }
+    localStorage.setItem('erika_app_hash', hash);
+  }
+
   const TTL_30M = 30 * 60 * 1000;
   const TTL_15M = 15 * 60 * 1000;
   const TTL_5M  =  5 * 60 * 1000;
@@ -1461,6 +1473,7 @@
   async function pollDisplayState() {
     try {
       const state = await fetch('/display/state', { cache: 'no-store' }).then(r => r.json());
+      applyAppHash(state.app_hash);
       applyModuleVisibility(state.modules);
       applyConfigVersion(state.config_version);
       if (state.mode === 'lights') {
@@ -1982,6 +1995,8 @@
   });
 
   function applyModuleVisibility(modules) {
+    const prevCal = _enabledModules.calendar !== false;
+    const prevPv  = _enabledModules.pv === true;
     _enabledModules = {
       news:     modules?.news     === true,
       lights:   modules?.lights   === true,
@@ -1991,6 +2006,11 @@
       calendar: modules?.calendar !== false,  // default true
       pv:       modules?.pv       === true,
     };
+    const calChanged = (_enabledModules.calendar !== false) !== prevCal;
+    const pvChanged  = (_enabledModules.pv === true) !== prevPv;
+    if ((calChanged || pvChanged) && currentMode === 'idle' && _navMode === 'home') {
+      showCalendarRight();
+    }
     try { localStorage.setItem('erika_modules', JSON.stringify(_enabledModules)); } catch {}
     const lightsBtn = document.getElementById('nav-lights');
     const vehiclesBtn = document.getElementById('nav-vehicles');

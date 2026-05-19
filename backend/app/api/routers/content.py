@@ -163,8 +163,10 @@ def get_weather_display(location: str | None = None) -> dict[str, Any]:
 
 @router.get("/display/state")
 def get_display_state() -> dict[str, Any]:
+    import os as _os
     config = IntegrationConfigService().get_config()
     config_version = config.get("meta", {}).get("version", 1)
+    app_hash = _os.environ.get("GIT_HASH", "").strip() or "dev"
     def _has_entities(key: str) -> bool:
         return bool((config.get(key) or {}).get("selected_entities"))
 
@@ -190,18 +192,20 @@ def get_display_state() -> dict[str, Any]:
     }
     with get_connection() as conn:
         raw = read_state(conn, "display_intent")
+    base = {"mode": "idle", "config_version": config_version, "modules": modules, "app_hash": app_hash}
     if not raw:
-        return {"mode": "idle", "config_version": config_version, "modules": modules}
+        return base
     try:
         intent = _json.loads(raw) if isinstance(raw, str) else raw
         intent["config_version"] = config_version
         intent["modules"] = modules
+        intent["app_hash"] = app_hash
         expires = intent.get("expires_at")
         if expires and datetime.now(timezone.utc) > datetime.fromisoformat(expires):
-            return {"mode": "idle", "config_version": config_version, "modules": modules}
+            return base
         return intent
     except Exception:
-        return {"mode": "idle", "config_version": config_version, "modules": modules}
+        return base
 
 
 @router.get("/display", response_model=None)
