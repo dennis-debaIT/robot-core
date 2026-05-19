@@ -1047,11 +1047,10 @@
     const area  = `${pts[0][0].toFixed(1)},${(pad.t+ch).toFixed(1)} ` + poly
                 + ` ${pts[pts.length-1][0].toFixed(1)},${(pad.t+ch).toFixed(1)}`;
     let lbls = '';
+    const _maxLbls = 7;
+    const _step = Math.max(1, Math.floor(labels.length / _maxLbls));
     labels.forEach((l, i) => {
-      // Bei 5-Min-Daten: nur volle Stunden (XX:00) labeln
-      const isHour = l.endsWith(':00');
-      const showEvery = Math.max(1, Math.floor(labels.length / 8));
-      if (isHour || (!labels.some(x => x.endsWith(':00')) && i % showEvery === 0))
+      if (i % _step === 0 || i === labels.length - 1)
         lbls += `<text x="${pts[i][0].toFixed(1)}" y="${(h-6).toFixed(1)}" text-anchor="middle" font-size="9" fill="rgba(127,141,203,0.9)">${l}</text>`;
     });
     const ySteps = [0, 0.25, 0.5, 0.75, 1].map(f => ({
@@ -1061,6 +1060,10 @@
       `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
        <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${s.v}</text>`
     ).join('');
+    const lastPt = pts[pts.length - 1];
+    const liveDot = lastPt
+      ? `<circle cx="${lastPt[0].toFixed(1)}" cy="${lastPt[1].toFixed(1)}" r="4" fill="#00c8ff" stroke="#050611" stroke-width="2"/>`
+      : '';
     return `<svg width="${w}" height="${h}" style="width:100%;max-width:${w}px;">
       ${yLines}
       <defs><linearGradient id="pvg" x1="0" y1="0" x2="0" y2="1">
@@ -1069,6 +1072,7 @@
       </linearGradient></defs>
       <polygon points="${area}" fill="url(#pvg)"/>
       <polyline points="${poly}" fill="none" stroke="#00c8ff" stroke-width="2" stroke-linejoin="round"/>
+      ${liveDot}
       ${lbls}
     </svg>`;
   }
