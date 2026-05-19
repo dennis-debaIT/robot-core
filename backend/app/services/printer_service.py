@@ -11,74 +11,94 @@ def _safe(val: Any, default: Any = None) -> Any:
     return val
 
 
+def _entities_from_prefix(prefix: str) -> dict[str, str]:
+    """Baut Entity-IDs aus dem Prefix (z.B. 'anycubic_kobra_s1')."""
+    # Button-Prefix weicht ab (anycubic_printer statt anycubic_kobra_s1)
+    btn_prefix = "anycubic_printer"
+    return {
+        "state":          f"sensor.{prefix}_printer_state",
+        "print_state":    f"sensor.{prefix}_print_state",
+        "nozzle":         f"sensor.{prefix}_nozzle_temperature",
+        "nozzle_target":  f"sensor.{prefix}_target_nozzle_temperature",
+        "hotbed":         f"sensor.{prefix}_hotbed_temperature",
+        "hotbed_target":  f"sensor.{prefix}_target_hotbed_temperature",
+        "filename":       f"sensor.{prefix}_print_filename",
+        "layer":          f"sensor.{prefix}_print_layer",
+        "progress":       f"sensor.{prefix}_print_progress",
+        "elapsed":        f"sensor.{prefix}_print_time_elapsed",
+        "remaining":      f"sensor.{prefix}_print_time_remaining",
+        "snapshot":       f"image.{prefix}_anycubic_snapshot",
+        "pause":          f"button.{btn_prefix}_pause_print",
+        "resume":         f"button.{btn_prefix}_resume_print",
+        "cancel":         f"button.{btn_prefix}_cancel_print",
+    }
+
+
 class PrinterService:
+    PRINTING_STATES = {"printing", "preheating", "busy", "paused", "pause"}
+
     def __init__(self, ha: HomeAssistantService | None = None) -> None:
         self.ha = ha or HomeAssistantService()
 
-    def get_state(self, entities: dict[str, str]) -> dict[str, Any]:
-        result: dict[str, Any] = {"printing": False}
+    def get_state(self, prefix: str, entity_overrides: dict[str, str] | None = None) -> dict[str, Any]:
+        ents = _entities_from_prefix(prefix)
+        if entity_overrides:
+            ents.update({k: v for k, v in entity_overrides.items() if v})
 
-        # Printer state
-        state_id = entities.get("state", "")
-        if state_id:
-            s = self.ha.get_state(state_id)
-            if s:
-                state_val = _safe(s.get("state"), "offline")
-                result["state"] = state_val
-                result["printing"] = state_val in ("printing", "busy")
-                attrs = s.get("attributes") or {}
-                # Some bridges embed print_job in state attributes
-                for key in ("filename", "layer", "total_layers", "progress",
-                            "elapsed_time", "remaining_time", "print_state"):
-                    if key in attrs:
-                        result[key] = _safe(attrs[key])
+        result: dict[str, Any] = {"printing": False, "state": "offline"}
 
-        # Temperatures
-        nozzle_id = entities.get("nozzle", "")
-        if nozzle_id:
-            s = self.ha.get_state(nozzle_id)
-            if s:
-                attrs = s.get("attributes") or {}
-                result["nozzle_temp"]        = _safe(s.get("state"))
-                result["nozzle_temp_target"] = _safe(attrs.get("target_temperature") or attrs.get("nozzle_target"))
-                result["nozzle_unit"]        = attrs.get("unit_of_measurement", "°C")
+        def _get(key: str) -> Any:
+            eid = ents.get(key, "")
+            if not eid:
+                return None
+            s = self.ha.get_state(eid)
+            return s if s else None
 
-        hotbed_id = entities.get("hotbed", "")
-        if hotbed_id:
-            s = self.ha.get_state(hotbed_id)
-            if s:
-                attrs = s.get("attributes") or {}
-                result["hotbed_temp"]        = _safe(s.get("state"))
-                result["hotbed_temp_target"] = _safe(attrs.get("target_temperature") or attrs.get("hotbed_target"))
-                result["hotbed_unit"]        = attrs.get("unit_of_measurement", "°C")
+        def _val(key: str, default: Any = None) -> Any:
+            s = _get(key)
+            return _safe(s.get("state") if s else None, default) if s else default
 
-        # Print job (if separate entity)
-        job_id = entities.get("print_job", "")
-        if job_id and job_id != entities.get("state", ""):
-            s = self.ha.get_state(job_id)
-            if s:
-                attrs = s.get("attributes") or {}
-                for key, attr_key in [
-                    ("filename",       "filename"),
-                    ("layer",          "layer"),
-                    ("total_layers",   "total_layers"),
-                    ("progress",       "progress"),
-                    ("elapsed_time",   "elapsed_time"),
-                    ("remaining_time", "remaining_time"),
-                ]:
-                    v = _safe(attrs.get(attr_key) or s.get("state") if attr_key == "progress" else attrs.get(attr_key))
-                    if v is not None:
-                        result[key] = v
+        # Druckerstatus
+        printer_state = _val("state", "offline")
+        print_state   = _val("print_state", "")
+        result["state"]      = print_state or printer_state
+        result["printing"]   = printer_state in ("busy",) or print_state in self.PRINTING_STATES
 
-        # Snapshot URL
-        snap_id = entities.get("snapshot", "")
-        if snap_id:
-            s = self.ha.get_state(snap_id)
-            if s:
-                attrs = s.get("attributes") or {}
-                result["snapshot_url"] = attrs.get("entity_picture") or attrs.get("url") or ""
+        # Temperaturen
+        result["nozzle_temp"]        = _val("nozzle")
+        result["nozzle_temp_target"] = _val("nozzle_target")
+        result["hotbed_temp"]        = _val("hotbed")
+        result["hotbed_temp_target"] = _val("hotbed_target")
+
+        # Druckdaten
+        result["filename"]  = _val("filename")
+        result["progress"]  = _val("progress")
+        result["elapsed"]   = _val("elapsed")
+        result["remaining"] = _val("remaining")
+
+        # Layer "13 / 1048" → layer + total_layers
+        layer_raw = _val("layer", "")
+        if layer_raw and "/" in str(layer_raw):
+            parts = str(layer_raw).split("/")
+            try:
+                result["layer"]        = int(parts[0].strip())
+                result["total_layers"] = int(parts[1].strip())
+            except ValueError:
+                pass
+
+        # Snapshot-URL
+        snap = _get("snapshot")
+        if snap:
+            attrs = snap.get("attributes") or {}
+            result["snapshot_url"] = attrs.get("entity_picture", "")
 
         return result
 
-    def press_button(self, entity_id: str) -> bool:
+    def press_button(self, prefix: str, action: str, entity_overrides: dict[str, str] | None = None) -> bool:
+        ents = _entities_from_prefix(prefix)
+        if entity_overrides:
+            ents.update({k: v for k, v in entity_overrides.items() if v})
+        entity_id = ents.get(action, "")
+        if not entity_id:
+            return False
         return self.ha.call_service("button", "press", {"entity_id": entity_id})

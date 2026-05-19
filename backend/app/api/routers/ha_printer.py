@@ -20,9 +20,9 @@ def get_printer_state() -> dict[str, Any]:
     cfg = _printer_cfg(config)
     if not cfg.get("enabled"):
         raise HTTPException(status_code=404, detail="Drucker-Modul nicht aktiv")
-    entities = cfg.get("entities") or {}
-    state = PrinterService().get_state(entities)
-    return state
+    prefix = cfg.get("entity_prefix", "anycubic_kobra_s1")
+    overrides = cfg.get("entity_overrides") or {}
+    return PrinterService().get_state(prefix, overrides)
 
 
 @router.post("/ha/printer/control/{action}")
@@ -33,8 +33,7 @@ def control_printer(action: str) -> dict[str, Any]:
     cfg = _printer_cfg(config)
     if not cfg.get("enabled"):
         raise HTTPException(status_code=404, detail="Drucker-Modul nicht aktiv")
-    entity_id = (cfg.get("entities") or {}).get(action, "")
-    if not entity_id:
-        raise HTTPException(status_code=400, detail=f"Entität für '{action}' nicht konfiguriert")
-    ok = PrinterService().press_button(entity_id)
+    prefix = cfg.get("entity_prefix", "anycubic_kobra_s1")
+    overrides = cfg.get("entity_overrides") or {}
+    ok = PrinterService().press_button(prefix, action, overrides)
     return {"ok": ok, "action": action}

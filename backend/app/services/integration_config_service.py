@@ -85,20 +85,12 @@ class IntegrationConfigService:
                 "selected_calendars": [],
             },
             "printer": {
-                "enabled": False,
-                "printer_ip": "",
-                "mqtt_user": "",
-                "mqtt_pass": "",
-                "entities": {
-                    "state":      "",
-                    "nozzle":     "",
-                    "hotbed":     "",
-                    "print_job":  "",
-                    "snapshot":   "",
-                    "pause":      "",
-                    "resume":     "",
-                    "cancel":     "",
-                },
+                "enabled":        False,
+                "printer_ip":     "",
+                "mqtt_user":      "",
+                "mqtt_pass":      "",
+                "entity_prefix":  "anycubic_kobra_s1",
+                "entity_overrides": {},
             },
             "pv": {
                 "enabled": False,
@@ -172,13 +164,12 @@ class IntegrationConfigService:
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
         printer = merged.setdefault("printer", {})
-        printer["enabled"] = bool(printer.get("enabled", False))
-        printer["printer_ip"] = str(printer.get("printer_ip") or "").strip()
-        printer["mqtt_user"] = str(printer.get("mqtt_user") or "").strip()
-        printer["mqtt_pass"] = str(printer.get("mqtt_pass") or "")
-        p_ent = printer.setdefault("entities", {})
-        for _k in ("state", "nozzle", "hotbed", "print_job", "snapshot", "pause", "resume", "cancel"):
-            p_ent[_k] = str(p_ent.get(_k) or "").strip()
+        printer["enabled"]       = bool(printer.get("enabled", False))
+        printer["printer_ip"]    = str(printer.get("printer_ip") or "").strip()
+        printer["mqtt_user"]     = str(printer.get("mqtt_user") or "").strip()
+        printer["mqtt_pass"]     = str(printer.get("mqtt_pass") or "")
+        printer["entity_prefix"] = str(printer.get("entity_prefix") or "anycubic_kobra_s1").strip()
+        printer.setdefault("entity_overrides", {})
         pv = merged.setdefault("pv", {})
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
@@ -237,13 +228,12 @@ class IntegrationConfigService:
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
         printer2 = updated.setdefault("printer", {})
-        printer2["enabled"] = bool(printer2.get("enabled", False))
-        printer2["printer_ip"] = str(printer2.get("printer_ip") or "").strip()
-        printer2["mqtt_user"] = str(printer2.get("mqtt_user") or "").strip()
-        printer2["mqtt_pass"] = str(printer2.get("mqtt_pass") or "")
-        p_ent2 = printer2.setdefault("entities", {})
-        for _k in ("state", "nozzle", "hotbed", "print_job", "snapshot", "pause", "resume", "cancel"):
-            p_ent2[_k] = str(p_ent2.get(_k) or "").strip()
+        printer2["enabled"]       = bool(printer2.get("enabled", False))
+        printer2["printer_ip"]    = str(printer2.get("printer_ip") or "").strip()
+        printer2["mqtt_user"]     = str(printer2.get("mqtt_user") or "").strip()
+        printer2["mqtt_pass"]     = str(printer2.get("mqtt_pass") or "")
+        printer2["entity_prefix"] = str(printer2.get("entity_prefix") or "anycubic_kobra_s1").strip()
+        printer2.setdefault("entity_overrides", {})
         pv = updated.setdefault("pv", {})
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()

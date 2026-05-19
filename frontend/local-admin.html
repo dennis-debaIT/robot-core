@@ -529,42 +529,17 @@
           </section>
           <section class="module-card">
             <div class="section-copy">
-              <div class="section-title">HA-Entitäten</div>
-              <p>Nachdem der Bridge läuft erscheinen die Entitäten automatisch in HA. Trage hier die Entitäts-IDs ein (z.B. <code>sensor.anycubic_s1</code>).</p>
+              <div class="section-title">Entitäts-Prefix</div>
+              <p>Der gemeinsame Namensteil aller Drucker-Entitäten in HA. Alle Sensoren werden automatisch daraus abgeleitet.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
-                <span class="field-label">Druckerstatus</span>
-                <input id="printer-ent-state" class="field-input" type="text" placeholder="sensor.anycubic_s1">
+                <span class="field-label">Entitäts-Prefix</span>
+                <input id="printer-entity-prefix" class="field-input" type="text" placeholder="anycubic_kobra_s1">
               </label>
-              <label class="field-block">
-                <span class="field-label">Druckauftrag</span>
-                <input id="printer-ent-job" class="field-input" type="text" placeholder="sensor.anycubic_s1_print_job">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Düsen-Temperatur</span>
-                <input id="printer-ent-nozzle" class="field-input" type="text" placeholder="sensor.anycubic_s1_nozzle_temperature">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Bett-Temperatur</span>
-                <input id="printer-ent-hotbed" class="field-input" type="text" placeholder="sensor.anycubic_s1_hotbed_temperature">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Snapshot (Image)</span>
-                <input id="printer-ent-snapshot" class="field-input" type="text" placeholder="image.anycubic_s1_snapshot">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Pause (Button)</span>
-                <input id="printer-ent-pause" class="field-input" type="text" placeholder="button.anycubic_s1_pause_print">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Fortsetzen (Button)</span>
-                <input id="printer-ent-resume" class="field-input" type="text" placeholder="button.anycubic_s1_resume_print">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Abbrechen (Button)</span>
-                <input id="printer-ent-cancel" class="field-input" type="text" placeholder="button.anycubic_s1_cancel_print">
-              </label>
+            </div>
+            <div style="margin-top:8px;padding:10px 12px;background:rgba(0,200,255,0.05);border:1px solid rgba(0,200,255,0.15);border-radius:8px;font-size:0.75rem;color:var(--color-muted,#7f8dcb);line-height:1.6;">
+              Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
             </div>
           </section>
         </article>
@@ -1937,14 +1912,7 @@
       document.getElementById('printer-mqtt-user').value = printerConfig.mqtt_user || '';
       document.getElementById('printer-mqtt-pass').value = printerConfig.mqtt_pass || '';
       const pe = printerConfig.entities || {};
-      document.getElementById('printer-ent-state').value   = pe.state   || '';
-      document.getElementById('printer-ent-job').value     = pe.print_job || '';
-      document.getElementById('printer-ent-nozzle').value  = pe.nozzle  || '';
-      document.getElementById('printer-ent-hotbed').value  = pe.hotbed  || '';
-      document.getElementById('printer-ent-snapshot').value= pe.snapshot|| '';
-      document.getElementById('printer-ent-pause').value   = pe.pause   || '';
-      document.getElementById('printer-ent-resume').value  = pe.resume  || '';
-      document.getElementById('printer-ent-cancel').value  = pe.cancel  || '';
+      document.getElementById('printer-entity-prefix').value = printerConfig.entity_prefix || 'anycubic_kobra_s1';
       pvEnabledEl.checked = !!pvConfig.enabled;
       pvProviderEl.value = pvConfig.provider || 'solarman';
       pvSensorPowerEl.value = pvConfig.sensors?.power || '';
@@ -2060,20 +2028,11 @@
               selected_calendars: getSelectedCalendarIds(),
             },
             printer: {
-              enabled: printerEnabledEl.checked,
-              printer_ip: printerIpEl.value.trim(),
-              mqtt_user: document.getElementById('printer-mqtt-user').value.trim(),
-              mqtt_pass: document.getElementById('printer-mqtt-pass').value,
-              entities: {
-                state:     document.getElementById('printer-ent-state').value.trim(),
-                print_job: document.getElementById('printer-ent-job').value.trim(),
-                nozzle:    document.getElementById('printer-ent-nozzle').value.trim(),
-                hotbed:    document.getElementById('printer-ent-hotbed').value.trim(),
-                snapshot:  document.getElementById('printer-ent-snapshot').value.trim(),
-                pause:     document.getElementById('printer-ent-pause').value.trim(),
-                resume:    document.getElementById('printer-ent-resume').value.trim(),
-                cancel:    document.getElementById('printer-ent-cancel').value.trim(),
-              },
+              enabled:        printerEnabledEl.checked,
+              printer_ip:     printerIpEl.value.trim(),
+              mqtt_user:      document.getElementById('printer-mqtt-user').value.trim(),
+              mqtt_pass:      document.getElementById('printer-mqtt-pass').value,
+              entity_prefix:  document.getElementById('printer-entity-prefix').value.trim() || 'anycubic_kobra_s1',
             },
             pv: {
               enabled: pvEnabledEl.checked,

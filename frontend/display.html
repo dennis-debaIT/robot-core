@@ -1020,7 +1020,7 @@
   }
 
   function renderPrinterWidget(p) {
-    if (!p || !p.printing) return '';
+    if (!p || (!p.printing && p.state === 'free')) return '';
     const filename = (p.filename || '').replace(/\.gcode$/i, '');
     const pct   = p.progress != null ? Math.round(p.progress) : 0;
     const bar   = '█'.repeat(Math.round(pct / 10)) + '░'.repeat(10 - Math.round(pct / 10));
