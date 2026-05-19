@@ -146,13 +146,18 @@ while true; do
         echo '{}' > "$INSTALL_DIR/printer-start.flag"
         if [ -n "$_printer_ip" ] && [ -n "$_mqtt_host" ]; then
             log "Starte Anycubic-Bridge (Drucker: $_printer_ip, MQTT: $_mqtt_host:$_mqtt_port)..."
-            # Env-Vars in .env setzen
-            sed -i "s|^ANYCUBIC_S1_IP=.*|ANYCUBIC_S1_IP=$_printer_ip|" "$INSTALL_DIR/.env" 2>/dev/null \
-                || echo "ANYCUBIC_S1_IP=$_printer_ip" >> "$INSTALL_DIR/.env"
-            sed -i "s|^ANYCUBIC_MQTT_HOST=.*|ANYCUBIC_MQTT_HOST=$_mqtt_host|" "$INSTALL_DIR/.env" 2>/dev/null \
-                || echo "ANYCUBIC_MQTT_HOST=$_mqtt_host" >> "$INSTALL_DIR/.env"
-            sed -i "s|^ANYCUBIC_MQTT_PORT=.*|ANYCUBIC_MQTT_PORT=$_mqtt_port|" "$INSTALL_DIR/.env" 2>/dev/null \
-                || echo "ANYCUBIC_MQTT_PORT=$_mqtt_port" >> "$INSTALL_DIR/.env"
+            # Env-Vars in .env setzen (grep prüft ob Zeile existiert, dann sed oder append)
+            _set_env() {
+                local key="$1" val="$2"
+                if grep -q "^${key}=" "$INSTALL_DIR/.env" 2>/dev/null; then
+                    sed -i "s|^${key}=.*|${key}=${val}|" "$INSTALL_DIR/.env"
+                else
+                    echo "${key}=${val}" >> "$INSTALL_DIR/.env"
+                fi
+            }
+            _set_env "ANYCUBIC_S1_IP"      "$_printer_ip"
+            _set_env "ANYCUBIC_MQTT_HOST"  "$_mqtt_host"
+            _set_env "ANYCUBIC_MQTT_PORT"  "$_mqtt_port"
             cd "$INSTALL_DIR"
             docker compose --profile printer up -d anycubic-bridge >> "$INSTALL_DIR/setup-watcher.log" 2>&1 \
                 && log "Anycubic-Bridge gestartet" || log "Anycubic-Bridge fehlgeschlagen"
