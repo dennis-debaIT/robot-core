@@ -1076,8 +1076,21 @@
   async function openPvStats() {
     const cp = document.getElementById('center-panel');
     if (!cp) return;
-    cp.classList.add('pv-stats-mode');
-    cp.innerHTML = `<div id="pv-stats-box" style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
+    // Overlay über dem center-panel — Inhalt bleibt erhalten
+    let box = document.getElementById('pv-stats-box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'pv-stats-box';
+      box.style.cssText = [
+        'position:absolute;inset:0;z-index:200',
+        'background:#050611;display:flex;flex-direction:column;',
+        'border-radius:inherit;overflow:hidden;',
+      ].join(';');
+      cp.style.position = 'relative';
+      cp.appendChild(box);
+    }
+    box.style.display = 'flex';
+    box.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px;">
         <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:#00c8ff;text-transform:uppercase;">PV-Statistik</div>
         <button onclick="closePvStats()" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
@@ -1099,13 +1112,8 @@
   }
 
   function closePvStats() {
-    const cp = document.getElementById('center-panel');
-    if (cp) {
-      cp.classList.remove('pv-stats-mode');
-      cp.innerHTML = '';
-    }
-    // News wieder anzeigen falls aktiv
-    if (_enabledModules.news) showNewsCenter();
+    const box = document.getElementById('pv-stats-box');
+    if (box) box.style.display = 'none';
   }
 
   async function loadPvStatsView(view) {
