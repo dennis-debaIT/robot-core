@@ -976,9 +976,44 @@
     return html;
   }
 
+  async function loadPvData() {
+    if (!_enabledModules.pv) return null;
+    try {
+      const r = await fetch('/ha/pv/state', { cache: 'no-store' });
+      if (!r.ok) return null;
+      return (await r.json()).state || null;
+    } catch { return null; }
+  }
+
+  function renderPvWidget(pv) {
+    if (!pv) return '';
+    const fmt = (v, unit) => {
+      if (v === undefined || v === null || v === 'unavailable' || v === 'unknown') return '–';
+      const n = parseFloat(v);
+      return isNaN(n) ? v : (n % 1 === 0 ? n.toLocaleString('de-DE') : n.toLocaleString('de-DE', {maximumFractionDigits: 1})) + (unit ? ' ' + unit : '');
+    };
+    const rows = [
+      pv.power       && `<div class="pv-row"><span class="pv-icon">⚡</span><span class="pv-val">${fmt(pv.power.value, pv.power.unit)}</span><span class="pv-lbl">Aktuell</span></div>`,
+      pv.daily       && `<div class="pv-row"><span class="pv-icon">☀</span><span class="pv-val">${fmt(pv.daily.value, pv.daily.unit)}</span><span class="pv-lbl">Heute</span></div>`,
+      pv.temperature && `<div class="pv-row"><span class="pv-icon">🌡</span><span class="pv-val">${fmt(pv.temperature.value, pv.temperature.unit)}</span><span class="pv-lbl">Wechselrichter</span></div>`,
+    ].filter(Boolean).join('');
+    const lastUpdate = pv.last_update ? `<div class="pv-footer">Aktualisiert: ${String(pv.last_update.value || '').replace('T',' ').slice(0,16)}</div>` : '';
+    return `<div class="pv-widget">${rows}${lastUpdate}</div>`;
+  }
+
   async function showCalendarRight() {
-    const cal = await loadCalendar();
-    setPanel('right', 'Kalender', renderCalendarData(cal));
+    const hasCal = _enabledModules.calendar;
+    const hasPv  = _enabledModules.pv;
+    const [cal, pv] = await Promise.all([
+      hasCal ? loadCalendar() : Promise.resolve(null),
+      hasPv  ? loadPvData()   : Promise.resolve(null),
+    ]);
+    const label = hasCal && hasPv ? 'Kalender · PV' : hasCal ? 'Kalender' : hasPv ? 'PV-Anlage' : '';
+    let html = '';
+    if (hasCal) html += renderCalendarData(cal);
+    if (hasCal && hasPv) html += '<div class="pv-divider"></div>';
+    if (hasPv)  html += renderPvWidget(pv);
+    setPanel('right', label, html || '<div class="cal-placeholder">Kein Modul aktiv.</div>');
   }
 
   // ── NEWS CENTER ───────────────────────────────────────────
@@ -1946,6 +1981,8 @@
       vehicles: modules?.vehicles === true,
       robots:   modules?.robots   === true,
       cameras:  modules?.cameras  === true,
+      calendar: modules?.calendar !== false,  // default true
+      pv:       modules?.pv       === true,
     };
     try { localStorage.setItem('erika_modules', JSON.stringify(_enabledModules)); } catch {}
     const lightsBtn = document.getElementById('nav-lights');

@@ -653,6 +653,15 @@
       padding: 24px 0;
     }
 
+    .pv-divider { height: 1px; background: var(--border); margin: 16px 0; }
+    .pv-widget { padding: 4px 0; }
+    .pv-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .pv-row:last-of-type { border-bottom: none; }
+    .pv-icon { font-size: 1.1rem; width: 22px; text-align: center; flex-shrink: 0; }
+    .pv-val  { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--ink); }
+    .pv-lbl  { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
+    .pv-footer { font-size: 0.68rem; color: var(--muted); margin-top: 10px; text-align: right; }
+
     /* â”€â”€ STATUS BAR (oben) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .status-bar {
       height: 52px;

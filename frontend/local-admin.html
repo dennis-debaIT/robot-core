@@ -24,6 +24,8 @@
       <button type="button" class="tab-button" data-tab-target="tab-robots">Roboter</button>
       <button type="button" class="tab-button" data-tab-target="tab-cameras">Kameras</button>
       <button type="button" class="tab-button" data-tab-target="tab-fuel">Kraftstoff</button>
+      <button type="button" class="tab-button" data-tab-target="tab-calendar">Kalender</button>
+      <button type="button" class="tab-button" data-tab-target="tab-pv">PV-Anlage</button>
       <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
     </nav>
 
@@ -384,6 +386,106 @@
           </section>
         </article>
 
+        <!-- ── KALENDER ─────────────────────────────────────── -->
+        <article id="tab-calendar" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Kalender</div>
+              <h2>Kalenderanzeige konfigurieren</h2>
+            </div>
+            <label class="switch-card">
+              <input id="calendar-enabled" type="checkbox" checked>
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Kalender im rechten Panel anzeigen</span>
+              </span>
+            </label>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Vorschau</div>
+              <p>Wie viele Tage sollen im Kalender-Widget angezeigt werden?</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Tage im Voraus</span>
+                <input id="calendar-days" class="field-input" type="number" min="1" max="30" value="7">
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Kalender auswählen</div>
+              <p>Welche HA-Kalender sollen angezeigt werden? Ohne Auswahl werden alle eingebundenen Kalender verwendet.</p>
+            </div>
+            <div class="stack-actions">
+              <button type="button" class="secondary" id="calendar-load-btn">Kalender aus HA laden</button>
+            </div>
+            <div id="calendar-entity-grid" class="entity-grid" style="margin-top:12px;"></div>
+          </section>
+        </article>
+
+        <!-- ── PV-ANLAGE ─────────────────────────────────────── -->
+        <article id="tab-pv" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">PV-Anlage</div>
+              <h2>Solar-Monitoring</h2>
+            </div>
+            <label class="switch-card">
+              <input id="pv-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">PV-Widget im rechten Panel anzeigen</span>
+              </span>
+            </label>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Anbieter / Integration</div>
+              <p>Wähle den Hersteller deiner Anlage. Die Sensor-IDs werden automatisch vorausgefüllt und können angepasst werden.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Anbieter</span>
+                <select id="pv-provider" class="field-select">
+                  <option value="solarman">Solarman</option>
+                  <option value="fronius">Fronius Solar.web</option>
+                  <option value="sma">SMA</option>
+                  <option value="enphase">Enphase</option>
+                  <option value="custom">Benutzerdefiniert</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Sensoren</div>
+              <p>HA-Entitäts-IDs der Sensoren. Leer lassen um einen Wert auszublenden.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Aktuelle Leistung (W)</span>
+                <input id="pv-sensor-power" class="field-input" type="text" placeholder="sensor.xxx_power">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Tagesertrag (kWh)</span>
+                <input id="pv-sensor-daily" class="field-input" type="text" placeholder="sensor.xxx_daily_production">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Temperatur (optional)</span>
+                <input id="pv-sensor-temperature" class="field-input" type="text" placeholder="sensor.xxx_temperature">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Letzte Aktualisierung (optional)</span>
+                <input id="pv-sensor-last-update" class="field-input" type="text" placeholder="sensor.xxx_last_update">
+              </label>
+            </div>
+          </section>
+        </article>
+
         <article id="tab-system" class="panel-card tab-panel">
           <header class="panel-header">
             <div>
@@ -613,6 +715,17 @@
     const cameraEntityGridEl = document.getElementById('camera-entity-grid');
     const camerasSelectAllBtn = document.getElementById('cameras-select-all-btn');
     const camerasClearBtn = document.getElementById('cameras-clear-btn');
+    const calendarEnabledEl = document.getElementById('calendar-enabled');
+    const calendarDaysEl = document.getElementById('calendar-days');
+    const calendarEntityGridEl = document.getElementById('calendar-entity-grid');
+    const pvEnabledEl = document.getElementById('pv-enabled');
+    const pvProviderEl = document.getElementById('pv-provider');
+    const pvSensorPowerEl = document.getElementById('pv-sensor-power');
+    const pvSensorDailyEl = document.getElementById('pv-sensor-daily');
+    const pvSensorTempEl = document.getElementById('pv-sensor-temperature');
+    const pvSensorLastEl = document.getElementById('pv-sensor-last-update');
+    let _pvProviders = {};
+    let _calendarEntities = [];
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
     const robotsSelectAllBtn = document.getElementById('robots-select-all-btn');
     const robotsClearBtn = document.getElementById('robots-clear-btn');
@@ -667,6 +780,52 @@
 
     function getSelectedCameraEntityIds() {
       return Array.from(document.querySelectorAll('input[name="camera-entity"]:checked')).map((input) => input.value);
+    }
+
+    function getSelectedCalendarIds() {
+      return Array.from(document.querySelectorAll('input[name="calendar-entity"]:checked')).map((i) => i.value);
+    }
+
+    async function loadPvProviders() {
+      try {
+        const r = await fetch('/ha/pv/providers');
+        if (!r.ok) return;
+        const d = await r.json();
+        _pvProviders = {};
+        (d.providers || []).forEach(p => { _pvProviders[p.id] = p; });
+      } catch {}
+    }
+
+    function applyPvProviderDefaults() {
+      const p = _pvProviders[pvProviderEl.value];
+      if (!p) return;
+      pvSensorPowerEl.value = p.sensors.power || '';
+      pvSensorDailyEl.value = p.sensors.daily || '';
+      pvSensorTempEl.value  = p.sensors.temperature || '';
+      pvSensorLastEl.value  = p.sensors.last_update || '';
+    }
+
+    async function loadCalendarEntities() {
+      calendarEntityGridEl.innerHTML = '<span style="color:var(--color-muted);font-size:0.82rem;">Lade…</span>';
+      try {
+        const r = await fetch('/ha/calendars');
+        if (!r.ok) throw new Error();
+        const d = await r.json();
+        const cals = d.calendars || [];
+        if (!cals.length) {
+          calendarEntityGridEl.innerHTML = '<span style="color:var(--color-muted);font-size:0.82rem;">Keine Kalender gefunden.</span>';
+          return;
+        }
+        calendarEntityGridEl.innerHTML = cals.map(c => {
+          const checked = !_calendarEntities.length || _calendarEntities.includes(c.entity_id) ? 'checked' : '';
+          return `<label class="entity-check-item">
+            <input type="checkbox" name="calendar-entity" value="${c.entity_id}" ${checked}>
+            <span>${c.name || c.entity_id}</span>
+          </label>`;
+        }).join('');
+      } catch {
+        calendarEntityGridEl.innerHTML = '<span style="color:var(--color-muted);font-size:0.82rem;">Fehler beim Laden.</span>';
+      }
     }
 
     function syncCameraConfigsFromDom() {
@@ -1630,6 +1789,8 @@
       const lightsConfig = data?.config?.lights || {};
       const robotsConfig = data?.config?.robots || {};
       const camerasConfig = data?.config?.cameras || {};
+      const calendarConfig = data?.config?.calendar || {};
+      const pvConfig = data?.config?.pv || {};
       robotStateMappings = robotsConfig.state_mappings || {};
       vacuumConfigs = robotsConfig.vacuum_configs || {};
 
@@ -1665,6 +1826,16 @@
       lightsEnabledEl.checked = lightsConfig.enabled !== false;
       robotsEnabledEl.checked = robotsConfig.enabled !== false;
       camerasEnabledEl.checked = camerasConfig.enabled !== false;
+      calendarEnabledEl.checked = calendarConfig.enabled !== false;
+      calendarDaysEl.value = calendarConfig.days_count || 7;
+      _calendarEntities = calendarConfig.selected_calendars || [];
+      pvEnabledEl.checked = !!pvConfig.enabled;
+      pvProviderEl.value = pvConfig.provider || 'solarman';
+      pvSensorPowerEl.value = pvConfig.sensors?.power || '';
+      pvSensorDailyEl.value = pvConfig.sensors?.daily || '';
+      pvSensorTempEl.value = pvConfig.sensors?.temperature || '';
+      pvSensorLastEl.value = pvConfig.sensors?.last_update || '';
+      loadPvProviders();
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
       renderSourceSelector(selectedSources);
@@ -1766,6 +1937,21 @@
               show_hourly_precip_probability: weatherHourlyPopEl.checked,
               show_hourly_precipitation: weatherHourlyRainEl.checked,
               show_hourly_wind: weatherHourlyWindEl.checked,
+            },
+            calendar: {
+              enabled: calendarEnabledEl.checked,
+              days_count: Math.max(1, Math.min(30, Number(calendarDaysEl.value) || 7)),
+              selected_calendars: getSelectedCalendarIds(),
+            },
+            pv: {
+              enabled: pvEnabledEl.checked,
+              provider: pvProviderEl.value,
+              sensors: {
+                power:       pvSensorPowerEl.value.trim(),
+                daily:       pvSensorDailyEl.value.trim(),
+                temperature: pvSensorTempEl.value.trim(),
+                last_update: pvSensorLastEl.value.trim(),
+              },
             },
             system: {
               home_assistant: {
@@ -1905,6 +2091,8 @@
       syncSummary();
     });
     document.getElementById('cameras-hide-non-live').addEventListener('change', _applyHideNonLive);
+    document.getElementById('calendar-load-btn').addEventListener('click', loadCalendarEntities);
+    pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
     saveBtn.addEventListener('click', saveConfig);
     reloadBtn.addEventListener('click', boot);

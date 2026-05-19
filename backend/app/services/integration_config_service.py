@@ -79,6 +79,21 @@ class IntegrationConfigService:
                 "items": [],
             },
             "cameras": {"enabled": True, "selected_entities": [], "camera_configs": {}},
+            "calendar": {
+                "enabled": True,
+                "days_count": 7,
+                "selected_calendars": [],
+            },
+            "pv": {
+                "enabled": False,
+                "provider": "solarman",
+                "sensors": {
+                    "power":       "sensor.solarman_total_ac_output_power_active",
+                    "daily":       "sensor.solarman_daily_production",
+                    "temperature": "sensor.solarman_radiator_temperature",
+                    "last_update": "sensor.solarman_status_lastupdate",
+                },
+            },
             "meta": {
                 "version": 1,
             },
@@ -136,6 +151,16 @@ class IntegrationConfigService:
         cameras_config["enabled"] = bool(cameras_config.get("enabled", True))
         cameras_config["selected_entities"] = self._sanitize_string_list(cameras_config.get("selected_entities"))
         cameras_config["camera_configs"] = self._sanitize_camera_configs(cameras_config.get("camera_configs"))
+        calendar = merged.setdefault("calendar", {})
+        calendar["enabled"] = bool(calendar.get("enabled", True))
+        calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
+        calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
+        pv = merged.setdefault("pv", {})
+        pv["enabled"] = bool(pv.get("enabled", False))
+        pv["provider"] = str(pv.get("provider") or "solarman").strip()
+        pv_sensors = pv.setdefault("sensors", {})
+        for _k in ("power", "daily", "temperature", "last_update"):
+            pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -183,6 +208,16 @@ class IntegrationConfigService:
         cameras_config["enabled"] = bool(cameras_config.get("enabled", True))
         cameras_config["selected_entities"] = self._sanitize_string_list(cameras_config.get("selected_entities"))
         cameras_config["camera_configs"] = self._sanitize_camera_configs(cameras_config.get("camera_configs"))
+        calendar = updated.setdefault("calendar", {})
+        calendar["enabled"] = bool(calendar.get("enabled", True))
+        calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
+        calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
+        pv = updated.setdefault("pv", {})
+        pv["enabled"] = bool(pv.get("enabled", False))
+        pv["provider"] = str(pv.get("provider") or "solarman").strip()
+        pv_sensors = pv.setdefault("sensors", {})
+        for _k in ("power", "daily", "temperature", "last_update"):
+            pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:

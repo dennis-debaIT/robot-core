@@ -231,11 +231,23 @@ def display_styles() -> FileResponse:
     )
 
 
+@router.get("/ha/calendars")
+def list_ha_calendars() -> dict[str, Any]:
+    from app.search.providers.homeassistant import HomeAssistantProvider
+    return {"calendars": HomeAssistantProvider().list_calendars()}
+
+
 @router.get("/calendar")
 def get_calendar() -> dict[str, Any]:
     from app.search.providers.homeassistant import HomeAssistantProvider
-
-    result = HomeAssistantProvider().get_display_data()
+    config = IntegrationConfigService().get_config()
+    cal_cfg = config.get("calendar") or {}
+    days = max(1, min(30, int(cal_cfg.get("days_count") or 7)))
+    selected = [s for s in (cal_cfg.get("selected_calendars") or []) if s]
+    result = HomeAssistantProvider().get_display_data(
+        days=days,
+        selected_calendars=selected if selected else None,
+    )
     if not result:
         raise HTTPException(status_code=503, detail="Kalender nicht verfügbar")
     return result

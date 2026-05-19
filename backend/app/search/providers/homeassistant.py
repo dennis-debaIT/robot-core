@@ -384,8 +384,12 @@ class HomeAssistantProvider:
         result = self._get("/calendars")
         return result if isinstance(result, list) else []
 
-    def get_events_upcoming(self, days: int = 7) -> list[dict]:
+    def get_events_upcoming(self, days: int = 7, selected_calendars: list[str] | None = None) -> list[dict]:
         calendars = self.list_calendars()
+        if not calendars:
+            return []
+        if selected_calendars:
+            calendars = [c for c in calendars if c.get("entity_id") in selected_calendars]
         if not calendars:
             return []
 
@@ -417,9 +421,9 @@ class HomeAssistantProvider:
         all_events.sort(key=sort_key)
         return all_events
 
-    def get_display_data(self) -> dict[str, Any] | None:
-        """Strukturierte Kalender-Daten für Display-Ausgabe (nächste 7 Tage)."""
-        events    = self.get_events_upcoming(days=7)
+    def get_display_data(self, days: int = 7, selected_calendars: list[str] | None = None) -> dict[str, Any] | None:
+        """Strukturierte Kalender-Daten für Display-Ausgabe."""
+        events    = self.get_events_upcoming(days=days, selected_calendars=selected_calendars)
         now_local = datetime.now()
         today     = now_local.date()
         tomorrow  = today + timedelta(days=1)
