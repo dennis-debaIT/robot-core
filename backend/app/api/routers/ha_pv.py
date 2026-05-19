@@ -102,14 +102,11 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     sensors = _pv_sensors(config)
     power_id = sensors.get("power", "")
     daily_id = sensors.get("daily", "")
-    ha       = HomeAssistantProvider()
-    now_loc  = datetime.now()                          # lokale Zeit (kein tz-aware)
-    now_utc  = datetime.now(timezone.utc)
-    start_loc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0)
-    # Für HA-API: lokale Mitternacht als UTC ausdrücken
-    import time as _time
-    tz_offset = _time.timezone if (_time.daylight == 0 or not _time.daylight) else _time.altzone
-    start_utc = start_loc.replace(tzinfo=timezone.utc) + timedelta(seconds=tz_offset)
+    ha      = HomeAssistantProvider()
+    now_loc = datetime.now().astimezone()              # tz-aware lokale Zeit
+    now_utc = now_loc.astimezone(timezone.utc)
+    # Lokale Mitternacht → UTC (korrekt für beliebige Zeitzonen)
+    start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     # ── Heute: 5-Minuten-Leistungskurve ──────────────────────
     if view == "today":
