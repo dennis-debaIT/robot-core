@@ -170,6 +170,7 @@ crontab -u "$REAL_USER" - < "$_CRON_TMP"
 rm -f "$_CRON_TMP"
 # Neustart ohne sudo-Passwort erlauben
 echo "$REAL_USER ALL=(ALL) NOPASSWD: /sbin/reboot" > /etc/sudoers.d/erika-reboot
+echo "$REAL_USER ALL=(ALL) NOPASSWD: /bin/rm -rf $INSTALL_DIR/*.flag, /bin/rm -rf $INSTALL_DIR/*.json, /bin/rm -rf $INSTALL_DIR/*.log, /bin/rm -rf $INSTALL_DIR/*.txt" >> /etc/sudoers.d/erika-reboot
 chmod 440 /etc/sudoers.d/erika-reboot
 # Watcher starten
 chmod +x "$INSTALL_DIR/reboot-watcher.sh" "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
