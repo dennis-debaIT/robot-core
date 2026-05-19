@@ -1059,6 +1059,7 @@
     }
     box.style.display = 'flex';
     renderPrinterOverlayContent(box, p);
+    _startPrinterOverlayRefresh(box);
   }
 
   function renderPrinterOverlayContent(box, p) {
@@ -1113,6 +1114,7 @@
   }
 
   function closePrinterOverlay() {
+    clearInterval(_printerOverlayRefresh);
     const box = document.getElementById('printer-overlay-box');
     if (box) box.style.display = 'none';
   }
@@ -1249,6 +1251,18 @@
     loadPvStatsView(_pvStatsView);
     clearInterval(_pvStatsRefreshInterval);
     _pvStatsRefreshInterval = setInterval(() => loadPvStatsView(_pvStatsView), 60000);
+  }
+
+  // Drucker-Overlay Auto-Refresh
+  let _printerOverlayRefresh = null;
+
+  function _startPrinterOverlayRefresh(box) {
+    clearInterval(_printerOverlayRefresh);
+    _printerOverlayRefresh = setInterval(async () => {
+      if (!box || box.style.display === 'none') { clearInterval(_printerOverlayRefresh); return; }
+      const p = await loadPrinterData();
+      if (p) renderPrinterOverlayContent(box, p);
+    }, 30000);
   }
 
   let _pvStatsRefreshInterval = null;
@@ -4422,13 +4436,27 @@
     if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
   }, TTL_15M);
 
-  // PV-Daten jede Minute aktualisieren (Leistungswerte sind zeitkritischer)
+  // PV-Daten jede Minute aktualisieren
   setInterval(async () => {
     if (!_enabledModules.pv || currentMode !== 'idle' || !_isHome()) return;
     const pv = await loadPvData();
     const pvEl = document.getElementById('right-pv');
     if (pvEl) pvEl.innerHTML = renderPvWidget(pv);
   }, TTL_1M);
+
+  // Drucker-Widget alle 30s aktualisieren
+  setInterval(async () => {
+    if (!_enabledModules.printer || currentMode !== 'idle' || !_isHome()) return;
+    const p = await loadPrinterData();
+    const prEl = document.getElementById('right-printer');
+    const html = renderPrinterWidget(p);
+    if (prEl) {
+      if (html) { prEl.innerHTML = html; }
+      else { prEl.innerHTML = ''; } // Drucker fertig → Widget weg
+    } else if (html) {
+      showCalendarRight(); // Neues Widget einblenden
+    }
+  }, 30000);
 
   // ── VIEWPORT SCALING (10"-Display = scale 1, iPad/Desktop skaliert proportional) ──
   function _scaleToFit() {
