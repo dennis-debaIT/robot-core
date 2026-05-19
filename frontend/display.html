@@ -1002,8 +1002,8 @@
   }
 
   async function showCalendarRight() {
-    const hasCal = _enabledModules.calendar;
-    const hasPv  = _enabledModules.pv;
+    const hasCal = _enabledModules.calendar !== false;
+    const hasPv  = _enabledModules.pv === true;
     const [cal, pv] = await Promise.all([
       hasCal ? loadCalendar() : Promise.resolve(null),
       hasPv  ? loadPvData()   : Promise.resolve(null),
@@ -1956,7 +1956,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false };
   })();
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
