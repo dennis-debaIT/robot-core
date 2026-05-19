@@ -140,11 +140,25 @@ while true; do
 
     # Drucker-Bridge starten
     if grep -q '"requested_at"' "$INSTALL_DIR/printer-start.flag" 2>/dev/null; then
+        _printer_ip=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('printer_ip',''))" < "$INSTALL_DIR/printer-start.flag" 2>/dev/null || true)
+        _mqtt_host=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('mqtt_host',''))" < "$INSTALL_DIR/printer-start.flag" 2>/dev/null || true)
+        _mqtt_port=$(python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('mqtt_port',1883))" < "$INSTALL_DIR/printer-start.flag" 2>/dev/null || true)
         echo '{}' > "$INSTALL_DIR/printer-start.flag"
-        log "Starte Anycubic-Bridge..."
-        cd "$INSTALL_DIR"
-        docker compose --profile printer up -d anycubic-bridge >> "$INSTALL_DIR/setup-watcher.log" 2>&1 \
-            && log "Anycubic-Bridge gestartet" || log "Anycubic-Bridge fehlgeschlagen"
+        if [ -n "$_printer_ip" ] && [ -n "$_mqtt_host" ]; then
+            log "Starte Anycubic-Bridge (Drucker: $_printer_ip, MQTT: $_mqtt_host:$_mqtt_port)..."
+            # Env-Vars in .env setzen
+            sed -i "s|^ANYCUBIC_S1_IP=.*|ANYCUBIC_S1_IP=$_printer_ip|" "$INSTALL_DIR/.env" 2>/dev/null \
+                || echo "ANYCUBIC_S1_IP=$_printer_ip" >> "$INSTALL_DIR/.env"
+            sed -i "s|^ANYCUBIC_MQTT_HOST=.*|ANYCUBIC_MQTT_HOST=$_mqtt_host|" "$INSTALL_DIR/.env" 2>/dev/null \
+                || echo "ANYCUBIC_MQTT_HOST=$_mqtt_host" >> "$INSTALL_DIR/.env"
+            sed -i "s|^ANYCUBIC_MQTT_PORT=.*|ANYCUBIC_MQTT_PORT=$_mqtt_port|" "$INSTALL_DIR/.env" 2>/dev/null \
+                || echo "ANYCUBIC_MQTT_PORT=$_mqtt_port" >> "$INSTALL_DIR/.env"
+            cd "$INSTALL_DIR"
+            docker compose --profile printer up -d anycubic-bridge >> "$INSTALL_DIR/setup-watcher.log" 2>&1 \
+                && log "Anycubic-Bridge gestartet" || log "Anycubic-Bridge fehlgeschlagen"
+        else
+            log "Anycubic-Bridge: Drucker-IP oder MQTT-Host fehlt"
+        fi
     fi
 
     sleep 3

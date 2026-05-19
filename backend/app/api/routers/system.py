@@ -147,10 +147,20 @@ def trigger_install() -> dict[str, Any]:
 @router.post("/system/printer/start")
 def start_printer_bridge() -> dict[str, Any]:
     """Startet den Anycubic MQTT-Bridge-Container (Profil 'printer')."""
+    from app.services.integration_config_service import IntegrationConfigService
+    from app.services.homeassistant_runtime_config_service import HomeAssistantRuntimeConfigService
     try:
-        Path("/printer-start.flag").write_text(
-            json.dumps({"requested_at": datetime.now(timezone.utc).isoformat()})
-        )
+        cfg     = IntegrationConfigService().get_config()
+        printer = cfg.get("printer") or {}
+        ha_cfg  = HomeAssistantRuntimeConfigService.get_config()
+        payload = {
+            "requested_at": datetime.now(timezone.utc).isoformat(),
+            "printer_ip":   printer.get("printer_ip", ""),
+            "mqtt_host":    ha_cfg.get("host", ""),
+            "mqtt_port":    ha_cfg.get("port", 1883),
+        }
+        flag_path = Path("/printer-start.flag")
+        flag_path.write_text(json.dumps(payload))
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
