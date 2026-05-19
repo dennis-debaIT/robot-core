@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -23,9 +24,46 @@ def _pv_sensors(config: dict) -> dict[str, str]:
 def _safe_float(v: Any) -> float | None:
     try:
         f = float(v)
-        return f if f == f else None  # NaN check
+        return None if f != f else f  # NaN → None
     except (TypeError, ValueError):
         return None
+
+
+def _history_to_hourly_mean(states: list[dict]) -> tuple[list[str], list[float | None]]:
+    """Aggregiert Rohzustände zu stündlichen Mittelwerten."""
+    hourly: dict[int, list[float]] = defaultdict(list)
+    for s in states:
+        v = _safe_float(s.get("state"))
+        if v is None:
+            continue
+        raw = s.get("last_changed") or s.get("last_updated") or ""
+        try:
+            dt = datetime.fromisoformat(raw[:19])
+            hourly[dt.hour].append(v)
+        except Exception:
+            pass
+    labels, values = [], []
+    for h in sorted(hourly):
+        labels.append(f"{h:02d}:00")
+        vals = hourly[h]
+        values.append(round(sum(vals) / len(vals), 1) if vals else None)
+    return labels, values
+
+
+def _history_to_daily_max(states: list[dict]) -> dict[str, float]:
+    """Liefert {date_str: max_value} aus Rohzuständen."""
+    daily: dict[str, float] = {}
+    for s in states:
+        v = _safe_float(s.get("state"))
+        if v is None:
+            continue
+        raw = s.get("last_changed") or s.get("last_updated") or ""
+        try:
+            date_key = raw[:10]
+            daily[date_key] = max(daily.get(date_key, 0.0), v)
+        except Exception:
+            pass
+    return daily
 
 
 @router.get("/ha/pv/providers")
@@ -55,84 +93,114 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     sensors = _pv_sensors(config)
     power_id = sensors.get("power", "")
     daily_id = sensors.get("daily", "")
-    ha = HomeAssistantProvider()
+    ha  = HomeAssistantProvider()
     now = datetime.now(timezone.utc)
 
+    # ── Heute: stündliche Leistungskurve ──────────────────────
     if view == "today":
         if not power_id:
             raise HTTPException(400, "Leistungs-Sensor nicht konfiguriert")
         start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Primär: Statistics API
         stats = ha.get_pv_statistics([power_id], start, now, "hour", ["mean"])
-        rows = stats.get(power_id) or []
-        labels, values = [], []
-        for row in rows:
-            dt = datetime.fromisoformat(row["start"])
-            labels.append(f"{dt.hour:02d}:00")
-            values.append(_safe_float(row.get("mean")))
+        rows  = stats.get(power_id) or []
+        if rows:
+            labels, values = [], []
+            for row in rows:
+                dt = datetime.fromisoformat(row["start"])
+                labels.append(f"{dt.hour:02d}:00")
+                values.append(_safe_float(row.get("mean")))
+        else:
+            # Fallback: History API
+            states = ha.get_history(power_id, start, now)
+            labels, values = _history_to_hourly_mean(states)
+
         total = None
         if daily_id:
-            s2 = ha.get_pv_statistics([daily_id], start, now, "hour", ["max"])
+            s2   = ha.get_pv_statistics([daily_id], start, now, "hour", ["max"])
             last = (s2.get(daily_id) or [{}])[-1]
             total = _safe_float(last.get("max"))
+            if total is None:
+                states2 = ha.get_history(daily_id, start, now)
+                dm = _history_to_daily_max(states2)
+                total = max(dm.values()) if dm else None
+
         return {"view": "today", "labels": labels, "values": values,
                 "unit": "W", "total": total, "total_unit": "kWh"}
 
+    # ── 7 Tage: Tagesertrag ───────────────────────────────────
     if view == "7days":
         if not daily_id:
             raise HTTPException(400, "Tagesertrag-Sensor nicht konfiguriert")
         start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-        stats = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
-        rows = stats.get(daily_id) or []
-        labels, values = [], []
-        for row in rows:
-            dt = datetime.fromisoformat(row["start"])
-            labels.append(_DE_WEEKDAYS_SHORT[dt.weekday()])
-            values.append(_safe_float(row.get("max")))
-        total = sum(v for v in values if v is not None)
-        return {"view": "7days", "labels": labels, "values": values,
-                "unit": "kWh", "total": round(total, 1), "total_unit": "kWh"}
 
+        stats = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
+        rows  = stats.get(daily_id) or []
+        if rows:
+            labels = [_DE_WEEKDAYS_SHORT[datetime.fromisoformat(r["start"]).weekday()] for r in rows]
+            values = [_safe_float(r.get("max")) for r in rows]
+        else:
+            states = ha.get_history(daily_id, start, now)
+            daily  = _history_to_daily_max(states)
+            labels, values = [], []
+            for date_key in sorted(daily):
+                dt = datetime.fromisoformat(date_key)
+                labels.append(_DE_WEEKDAYS_SHORT[dt.weekday()])
+                values.append(round(daily[date_key], 2))
+
+        total = round(sum(v for v in values if v is not None), 1)
+        return {"view": "7days", "labels": labels, "values": values,
+                "unit": "kWh", "total": total, "total_unit": "kWh"}
+
+    # ── Monat: alle Tage des Monats ───────────────────────────
     if view == "month":
         if not daily_id:
             raise HTTPException(400, "Tagesertrag-Sensor nicht konfiguriert")
         start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        stats = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
-        rows = stats.get(daily_id) or []
-        labels, values = [], []
-        for row in rows:
-            dt = datetime.fromisoformat(row["start"])
-            labels.append(str(dt.day))
-            values.append(_safe_float(row.get("max")))
-        total = sum(v for v in values if v is not None)
-        return {"view": "month", "labels": labels, "values": values,
-                "unit": "kWh", "total": round(total, 1), "total_unit": "kWh"}
 
+        stats = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
+        rows  = stats.get(daily_id) or []
+        if rows:
+            labels = [str(datetime.fromisoformat(r["start"]).day) for r in rows]
+            values = [_safe_float(r.get("max")) for r in rows]
+        else:
+            states = ha.get_history(daily_id, start, now)
+            daily  = _history_to_daily_max(states)
+            labels, values = [], []
+            for date_key in sorted(daily):
+                dt = datetime.fromisoformat(date_key)
+                labels.append(str(dt.day))
+                values.append(round(daily[date_key], 2))
+
+        total = round(sum(v for v in values if v is not None), 1)
+        return {"view": "month", "labels": labels, "values": values,
+                "unit": "kWh", "total": total, "total_unit": "kWh"}
+
+    # ── Jahr: Monatserträge ───────────────────────────────────
     if view == "year":
         if not daily_id:
             raise HTTPException(400, "Tagesertrag-Sensor nicht konfiguriert")
         start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Primär: monthly statistics
         stats = ha.get_pv_statistics([daily_id], start, now, "month", ["sum"])
-        rows = stats.get(daily_id) or []
-        # Fallback: aggregate daily if monthly sum unavailable
-        if not rows:
-            stats2 = ha.get_pv_statistics([daily_id], start, now, "day", ["max"])
-            from collections import defaultdict
+        rows  = stats.get(daily_id) or []
+        if rows and any(r.get("sum") is not None for r in rows):
+            labels = [_DE_MONTHS_SHORT[datetime.fromisoformat(r["start"]).month - 1] for r in rows]
+            values = [_safe_float(r.get("sum")) for r in rows]
+        else:
+            # Fallback: tägliche History → nach Monat aggregieren
+            states = ha.get_history(daily_id, start, now)
+            daily  = _history_to_daily_max(states)
             monthly: dict[int, float] = defaultdict(float)
-            for row in stats2.get(daily_id) or []:
-                dt = datetime.fromisoformat(row["start"])
-                v = _safe_float(row.get("max"))
-                if v is not None:
-                    monthly[dt.month] += v
+            for date_key, v in daily.items():
+                monthly[int(date_key[5:7])] += v
             labels = [_DE_MONTHS_SHORT[m - 1] for m in sorted(monthly)]
             values = [round(monthly[m], 1) for m in sorted(monthly)]
-        else:
-            labels, values = [], []
-            for row in rows:
-                dt = datetime.fromisoformat(row["start"])
-                labels.append(_DE_MONTHS_SHORT[dt.month - 1])
-                values.append(_safe_float(row.get("sum")))
-        total = sum(v for v in values if v is not None)
+
+        total = round(sum(v for v in values if v is not None), 1)
         return {"view": "year", "labels": labels, "values": values,
-                "unit": "kWh", "total": round(total, 1), "total_unit": "kWh"}
+                "unit": "kWh", "total": total, "total_unit": "kWh"}
 
     raise HTTPException(400, f"Unbekannte View: {view}")

@@ -536,16 +536,30 @@ class HomeAssistantProvider:
         period: str,
         types: list[str],
     ) -> dict[str, list[dict]]:
-        fmt = "%Y-%m-%dT%H:%M:%S%z"
         payload = {
-            "start_time": start.strftime(fmt),
-            "end_time":   end.strftime(fmt),
+            "start_time": start.isoformat(),
+            "end_time":   end.isoformat(),
             "statistic_ids": statistic_ids,
             "period": period,
             "types": types,
         }
         result = self._post("/statistics_during_period", payload)
         return result if isinstance(result, dict) else {}
+
+    def get_history(self, entity_id: str, start: datetime, end: datetime) -> list[dict]:
+        """Rohe Zustandshistorie eines Sensors (Fallback wenn Statistics API leer)."""
+        fmt = "%Y-%m-%dT%H:%M:%S"
+        params = urllib.parse.urlencode({
+            "filter_entity_id": entity_id,
+            "end_time": end.strftime(fmt),
+            "minimal_response": "true",
+            "no_attributes": "true",
+        })
+        path = f"/history/period/{start.strftime(fmt)}?{params}"
+        result = self._get(path)
+        if isinstance(result, list) and result:
+            return result[0] if isinstance(result[0], list) else result
+        return []
 
     # ── Kameras (Ring) ──────────────────────────────────────────
 
