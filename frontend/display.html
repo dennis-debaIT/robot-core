@@ -1045,7 +1045,7 @@
   }
 
   async function openPrinterOverlay() {
-    const p = _printerData || await loadPrinterData();
+    const p = await loadPrinterData();
     if (!p) return;
     const cp = document.getElementById('center-panel');
     if (!cp) return;
