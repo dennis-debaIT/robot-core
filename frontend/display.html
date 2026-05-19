@@ -1037,8 +1037,8 @@
         ${layer ? `<span class="printer-layer">${layer}</span>` : ''}
       </div>
       <div class="printer-row printer-times">
-        ${p.elapsed_time != null ? `<span>⏱ ${_fmtTime(p.elapsed_time)}</span>` : ''}
-        ${p.remaining_time != null ? `<span>noch ${_fmtTime(p.remaining_time)}</span>` : ''}
+        ${p.elapsed != null ? `<span>⏱ ${_fmtTime(p.elapsed)}</span>` : ''}
+        ${p.remaining != null ? `<span>noch ${_fmtTime(p.remaining)}</span>` : ''}
       </div>
       ${temps ? `<div class="printer-row printer-temps">🌡 ${temps}</div>` : ''}
     </div>`;
@@ -1095,8 +1095,8 @@
           ${[
             ['Layer', p.layer && p.total_layers ? `${p.layer} / ${p.total_layers}` : '–'],
             ['Fortschritt', pct + '%'],
-            ['Vergangen', _fmtTime(p.elapsed_time)],
-            ['Verbleibend', _fmtTime(p.remaining_time)],
+            ['Vergangen', _fmtTime(p.elapsed)],
+            ['Verbleibend', _fmtTime(p.remaining)],
             ['Düse', p.nozzle_temp != null ? Math.round(p.nozzle_temp) + '°C' : '–'],
             ['Bett', p.hotbed_temp != null ? Math.round(p.hotbed_temp) + '°C' : '–'],
           ].map(([label, val]) => `
