@@ -71,7 +71,9 @@ class PrinterService:
         result["hotbed_temp_target"] = _val("hotbed_target")
 
         # Druckdaten
-        result["filename"]  = _val("filename")
+        # Dateipfad-Prefix entfernen (.3mf_temp/ etc.)
+        raw_fn = _val("filename") or ""
+        result["filename"] = raw_fn.split("/")[-1] if "/" in raw_fn else raw_fn or None
         result["progress"]  = _val("progress")
         result["elapsed"]   = _val("elapsed")
         result["remaining"] = _val("remaining")
@@ -86,11 +88,15 @@ class PrinterService:
             except ValueError:
                 pass
 
-        # Snapshot-URL
+        # Snapshot-URL — via HA-Proxy damit Browser kein direkten HA-Zugriff braucht
         snap = _get("snapshot")
         if snap:
             attrs = snap.get("attributes") or {}
-            result["snapshot_url"] = attrs.get("entity_picture", "")
+            ep = attrs.get("entity_picture", "")
+            if ep:
+                from app.services.homeassistant_runtime_config_service import HomeAssistantRuntimeConfigService
+                ha_url = HomeAssistantRuntimeConfigService.build_base_url()
+                result["snapshot_url"] = f"{ha_url}{ep}"
 
         return result
 
