@@ -83,6 +83,7 @@ class IntegrationConfigService:
                 "enabled": True,
                 "days_count": 7,
                 "selected_calendars": [],
+                "colors": {},
             },
             "printer": {
                 "enabled":        False,
@@ -163,6 +164,7 @@ class IntegrationConfigService:
         calendar["enabled"] = bool(calendar.get("enabled", True))
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
+        calendar["colors"] = {k: str(v) for k, v in (calendar.get("colors") or {}).items()}
         printer = merged.setdefault("printer", {})
         printer["enabled"]       = bool(printer.get("enabled", False))
         printer["printer_ip"]    = str(printer.get("printer_ip") or "").strip()
@@ -227,6 +229,7 @@ class IntegrationConfigService:
         calendar["enabled"] = bool(calendar.get("enabled", True))
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
+        calendar["colors"] = {k: str(v) for k, v in (calendar.get("colors") or {}).items()}
         printer2 = updated.setdefault("printer", {})
         printer2["enabled"]       = bool(printer2.get("enabled", False))
         printer2["printer_ip"]    = str(printer2.get("printer_ip") or "").strip()

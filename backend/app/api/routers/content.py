@@ -238,6 +238,39 @@ def display_styles() -> FileResponse:
     )
 
 
+@router.get("/calendar/month")
+def get_calendar_month(year: int = 0, month: int = 0) -> dict[str, Any]:
+    from datetime import datetime as _dt
+    from app.search.providers.homeassistant import HomeAssistantProvider
+    config = IntegrationConfigService().get_config()
+    cal_cfg = config.get("calendar") or {}
+    selected = [s for s in (cal_cfg.get("selected_calendars") or []) if s]
+    colors   = cal_cfg.get("colors") or {}
+    now = _dt.now()
+    y = year  or now.year
+    m = month or now.month
+    events = HomeAssistantProvider().get_month_events(y, m, selected if selected else None)
+    # Gruppieren nach Datum
+    by_date: dict[str, list] = {}
+    for ev in events:
+        start_raw = ev.get("start", {})
+        is_allday  = "date" in start_raw and "dateTime" not in start_raw
+        date_key   = start_raw.get("date", "")[:10] if is_allday else start_raw.get("dateTime", "")[:10]
+        if not date_key:
+            continue
+        if date_key not in by_date:
+            by_date[date_key] = []
+        by_date[date_key].append({
+            "title":     ev.get("summary", "–"),
+            "calendar":  ev.get("_calendar", ""),
+            "entity_id": ev.get("_entity_id", ""),
+            "color":     colors.get(ev.get("_entity_id", ""), ""),
+            "is_allday": is_allday,
+            "time":      "" if is_allday else start_raw.get("dateTime", "")[11:16],
+        })
+    return {"year": y, "month": m, "events": by_date, "colors": colors}
+
+
 @router.get("/ha/calendars")
 def list_ha_calendars() -> dict[str, Any]:
     from app.search.providers.homeassistant import HomeAssistantProvider

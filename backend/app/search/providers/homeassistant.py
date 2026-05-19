@@ -441,6 +441,35 @@ class HomeAssistantProvider:
         all_events.sort(key=sort_key)
         return all_events
 
+    def get_month_events(self, year: int, month: int, selected_calendars: list[str] | None = None) -> list[dict]:
+        """Alle Ereignisse eines Kalendermonats."""
+        import calendar as _cal
+        calendars = self.list_calendars()
+        if not calendars:
+            return []
+        if selected_calendars:
+            calendars = [c for c in calendars if c.get("entity_id") in selected_calendars]
+        if not calendars:
+            return []
+        last_day = _cal.monthrange(year, month)[1]
+        start = datetime(year, month, 1, tzinfo=timezone.utc)
+        end   = datetime(year, month, last_day, 23, 59, 59, tzinfo=timezone.utc)
+        fmt   = "%Y-%m-%dT%H:%M:%S"
+        all_events: list[dict] = []
+        for cal in calendars:
+            entity = cal.get("entity_id", "")
+            if not entity:
+                continue
+            params = urllib.parse.urlencode({"start": start.strftime(fmt), "end": end.strftime(fmt)})
+            data = self._get(f"/calendars/{entity}?{params}")
+            if not isinstance(data, list):
+                continue
+            for ev in data:
+                ev["_calendar"] = cal.get("name", entity)
+                ev["_entity_id"] = entity
+                all_events.append(ev)
+        return all_events
+
     def get_display_data(self, days: int = 7, selected_calendars: list[str] | None = None) -> dict[str, Any] | None:
         """Strukturierte Kalender-Daten für Display-Ausgabe."""
         events    = self.get_events_upcoming(days=days, selected_calendars=selected_calendars)
