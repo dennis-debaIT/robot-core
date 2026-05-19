@@ -113,20 +113,17 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         if not power_id:
             raise HTTPException(400, "Leistungs-Sensor nicht konfiguriert")
 
-        # Primär: Statistics API (5-Minuten-Auflösung)
-        stats = ha.get_pv_statistics([power_id], start_utc, now_utc, "5minute", ["max"])
-        rows  = stats.get(power_id) or []
-        if rows:
-            labels, values = [], []
-            for row in rows:
-                dt = _to_local(row["start"])
-                if dt:
-                    labels.append(f"{dt.hour:02d}:{dt.minute:02d}")
-                    values.append(_safe_float(row.get("max")))
-        else:
-            # Fallback: History API → 5-Minuten-Maximalwerte in lokaler Zeit
-            states = ha.get_history(power_id, start_utc, now_utc)
-            labels, values = _history_to_5min_max(states)
+        # History API (zuverlässiger als Statistics für Echtzeit-Daten)
+        states = ha.get_history(power_id, start_utc, now_utc)
+        labels, values = _history_to_5min_max(states)
+        # Aktuellen Live-Wert am Ende anhängen falls neuer als letzter Bucket
+        live_state = ha.get_state(power_id)
+        live_v = _safe_float((live_state or {}).get("state"))
+        if live_v and live_v > 0:
+            now_key = f"{now_loc.hour:02d}:{(now_loc.minute // 5) * 5:02d}"
+            if not labels or labels[-1] != now_key:
+                labels.append(now_key)
+                values.append(live_v)
 
         # Tagesertrag: direkt aus aktuellem Sensorwert (zuverlässiger als Statistics)
         total = None
