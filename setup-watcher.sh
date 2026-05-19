@@ -138,5 +138,14 @@ while true; do
         log "Komponenten-Installation abgeschlossen"
     fi
 
+    # Drucker-Bridge starten
+    if grep -q '"requested_at"' "$INSTALL_DIR/printer-start.flag" 2>/dev/null; then
+        echo '{}' > "$INSTALL_DIR/printer-start.flag"
+        log "Starte Anycubic-Bridge..."
+        cd "$INSTALL_DIR"
+        docker compose --profile printer up -d anycubic-bridge >> "$INSTALL_DIR/setup-watcher.log" 2>&1 \
+            && log "Anycubic-Bridge gestartet" || log "Anycubic-Bridge fehlgeschlagen"
+    fi
+
     sleep 3
 done

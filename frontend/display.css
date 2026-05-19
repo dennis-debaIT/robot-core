@@ -653,6 +653,16 @@
       padding: 24px 0;
     }
 
+    .printer-widget { padding: 6px 0; cursor: pointer; }
+    .printer-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 0.8rem; }
+    .printer-icon { font-size: 1rem; flex-shrink: 0; }
+    .printer-filename { font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .printer-progress { font-family: monospace; }
+    .printer-bar { color: #00c8ff; letter-spacing: -1px; }
+    .printer-pct { font-weight: 700; color: #00c8ff; flex-shrink: 0; }
+    .printer-layer { color: var(--muted); font-size: 0.7rem; margin-left: auto; }
+    .printer-times { color: var(--muted); gap: 10px; font-size: 0.75rem; }
+    .printer-temps { color: var(--muted); font-size: 0.75rem; }
     .pv-divider { height: 1px; background: var(--border); margin: 16px 0; }
     .pv-widget { padding: 4px 0; }
     .pv-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }

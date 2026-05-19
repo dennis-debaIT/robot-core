@@ -144,6 +144,18 @@ def trigger_install() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.post("/system/printer/start")
+def start_printer_bridge() -> dict[str, Any]:
+    """Startet den Anycubic MQTT-Bridge-Container (Profil 'printer')."""
+    try:
+        Path("/printer-start.flag").write_text(
+            json.dumps({"requested_at": datetime.now(timezone.utc).isoformat()})
+        )
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
 @router.post("/system/reboot")
 def trigger_reboot() -> dict[str, Any]:
     try:

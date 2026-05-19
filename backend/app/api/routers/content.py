@@ -189,6 +189,7 @@ def get_display_state() -> dict[str, Any]:
         "cameras":  bool((config.get("cameras")  or {}).get("enabled", True)) and _has_entities("cameras"),
         "calendar": bool((config.get("calendar") or {}).get("enabled", True)),
         "pv":       bool((config.get("pv")       or {}).get("enabled", False)),
+        "printer":  bool((config.get("printer")  or {}).get("enabled", False)),
     }
     with get_connection() as conn:
         raw = read_state(conn, "display_intent")

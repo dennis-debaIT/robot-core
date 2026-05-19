@@ -14,6 +14,7 @@ from app.api.routers import (
     ha_cameras,
     ha_devices,
     ha_lights,
+    ha_printer,
     ha_pv,
     ha_robots,
     local_admin,
@@ -98,6 +99,7 @@ app.include_router(ha_devices.router)
 app.include_router(ha_cameras.router)
 app.include_router(ha_robots.router)
 app.include_router(ha_lights.router)
+app.include_router(ha_printer.router)
 app.include_router(ha_pv.router)
 app.include_router(local_admin.router)
 app.include_router(setup.router)

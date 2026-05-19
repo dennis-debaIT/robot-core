@@ -997,6 +997,136 @@
     } catch { return null; }
   }
 
+  // ── DRUCKER WIDGET + OVERLAY ──────────────────────────────
+
+  let _printerData = null;
+
+  async function loadPrinterData() {
+    if (!_enabledModules.printer) return null;
+    try {
+      const r = await fetch('/ha/printer/state', { cache: 'no-store' });
+      if (!r.ok) return null;
+      _printerData = await r.json();
+      return _printerData;
+    } catch { return null; }
+  }
+
+  function _fmtTime(val) {
+    if (!val && val !== 0) return '–';
+    const n = parseInt(val);
+    if (isNaN(n)) return String(val);
+    if (n < 60) return n + ' min';
+    return Math.floor(n / 60) + 'h ' + (n % 60) + 'min';
+  }
+
+  function renderPrinterWidget(p) {
+    if (!p || !p.printing) return '';
+    const filename = (p.filename || '').replace(/\.gcode$/i, '');
+    const pct   = p.progress != null ? Math.round(p.progress) : 0;
+    const bar   = '█'.repeat(Math.round(pct / 10)) + '░'.repeat(10 - Math.round(pct / 10));
+    const layer = p.layer && p.total_layers ? `Layer ${p.layer}/${p.total_layers}` : '';
+    const temps = [
+      p.nozzle_temp ? `Düse ${Math.round(p.nozzle_temp)}°C` : '',
+      p.hotbed_temp ? `Bett ${Math.round(p.hotbed_temp)}°C` : '',
+    ].filter(Boolean).join(' · ');
+    return `<div class="printer-widget" onclick="openPrinterOverlay()" style="cursor:pointer;" title="Drucker-Details">
+      <div class="printer-row"><span class="printer-icon">🖨</span><span class="printer-filename">${filename || 'Druckt…'}</span></div>
+      <div class="printer-row printer-progress">
+        <span class="printer-bar">${bar}</span>
+        <span class="printer-pct">${pct}%</span>
+        ${layer ? `<span class="printer-layer">${layer}</span>` : ''}
+      </div>
+      <div class="printer-row printer-times">
+        ${p.elapsed_time != null ? `<span>⏱ ${_fmtTime(p.elapsed_time)}</span>` : ''}
+        ${p.remaining_time != null ? `<span>noch ${_fmtTime(p.remaining_time)}</span>` : ''}
+      </div>
+      ${temps ? `<div class="printer-row printer-temps">🌡 ${temps}</div>` : ''}
+    </div>`;
+  }
+
+  async function openPrinterOverlay() {
+    const p = _printerData || await loadPrinterData();
+    if (!p) return;
+    const cp = document.getElementById('center-panel');
+    if (!cp) return;
+    let box = document.getElementById('printer-overlay-box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'printer-overlay-box';
+      box.style.cssText = 'position:absolute;inset:0;z-index:201;background:#050611;display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
+      cp.style.position = 'relative';
+      cp.appendChild(box);
+    }
+    box.style.display = 'flex';
+    renderPrinterOverlayContent(box, p);
+  }
+
+  function renderPrinterOverlayContent(box, p) {
+    const pct = p.progress != null ? Math.round(p.progress) : 0;
+    const filename = (p.filename || '').replace(/\.gcode$/i, '');
+    const snap = p.snapshot_url ? `<img src="${p.snapshot_url}" style="width:100%;border-radius:10px;margin-bottom:12px;max-height:160px;object-fit:cover;" onerror="this.style.display='none'">` : '';
+    const stateColor = p.state === 'printing' ? '#00e676' : p.state === 'paused' ? '#ffab00' : '#7f8dcb';
+    const hasPause  = !!((window._printerEntities||{}).pause);
+    const hasResume = !!((window._printerEntities||{}).resume);
+    const hasCancel = !!((window._printerEntities||{}).cancel);
+    box.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 8px;">
+        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:#00c8ff;text-transform:uppercase;">3D-Drucker</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:0.72rem;font-weight:700;color:${stateColor};">${(p.state||'').toUpperCase()}</span>
+          <button onclick="closePrinterOverlay()" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:0.78rem;font-weight:700;cursor:pointer;padding:5px 12px;">SCHLIESSEN</button>
+        </div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
+        ${snap}
+        ${filename ? `<div style="font-size:0.78rem;color:#7f8dcb;margin-bottom:12px;word-break:break-all;">📄 ${filename}.gcode</div>` : ''}
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:#7f8dcb;margin-bottom:4px;">
+            <span>Fortschritt</span><span style="color:#00c8ff;font-weight:700;">${pct}%</span>
+          </div>
+          <div style="height:6px;background:#24284a;border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:#00c8ff;border-radius:3px;transition:width 0.5s;"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+          ${[
+            ['Layer', p.layer && p.total_layers ? `${p.layer} / ${p.total_layers}` : '–'],
+            ['Fortschritt', pct + '%'],
+            ['Vergangen', _fmtTime(p.elapsed_time)],
+            ['Verbleibend', _fmtTime(p.remaining_time)],
+            ['Düse', p.nozzle_temp != null ? Math.round(p.nozzle_temp) + '°C' : '–'],
+            ['Bett', p.hotbed_temp != null ? Math.round(p.hotbed_temp) + '°C' : '–'],
+          ].map(([label, val]) => `
+            <div style="background:#0b0b17;border:1px solid #24284a;border-radius:10px;padding:10px 12px;">
+              <div style="font-size:0.65rem;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;">${label}</div>
+              <div style="font-size:1rem;font-weight:700;margin-top:3px;">${val}</div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button onclick="printerControl('pause')" style="flex:1;padding:12px;border-radius:12px;border:1px solid #24284a;background:#0b0b17;color:#ffab00;font-size:1.2rem;cursor:pointer;" title="Pause">⏸</button>
+          <button onclick="printerControl('resume')" style="flex:1;padding:12px;border-radius:12px;border:1px solid #24284a;background:#0b0b17;color:#00e676;font-size:1.2rem;cursor:pointer;" title="Fortsetzen">▶</button>
+          <button onclick="printerControl('cancel')" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,79,95,0.4);background:rgba(255,79,95,0.08);color:#ff4f5f;font-size:1.2rem;cursor:pointer;" title="Abbrechen">⏹</button>
+        </div>
+      </div>`;
+  }
+
+  function closePrinterOverlay() {
+    const box = document.getElementById('printer-overlay-box');
+    if (box) box.style.display = 'none';
+  }
+
+  async function printerControl(action) {
+    if (action === 'cancel' && !confirm('Druck wirklich abbrechen?')) return;
+    try {
+      await fetch(`/ha/printer/control/${action}`, { method: 'POST' });
+      setTimeout(async () => {
+        const p = await loadPrinterData();
+        const box = document.getElementById('printer-overlay-box');
+        if (box && box.style.display !== 'none') renderPrinterOverlayContent(box, p || {});
+      }, 2000);
+    } catch {}
+  }
+
   // ── PV STATISTIK OVERLAY ──────────────────────────────────
   let _pvStatsView = 'today';
 
@@ -1189,16 +1319,24 @@
   }
 
   async function showCalendarRight() {
-    const hasCal = _enabledModules.calendar !== false;
-    const hasPv  = _enabledModules.pv === true;
-    const [cal, pv] = await Promise.all([
-      hasCal ? loadCalendar() : Promise.resolve(null),
-      hasPv  ? loadPvData()   : Promise.resolve(null),
+    const hasCal     = _enabledModules.calendar !== false;
+    const hasPv      = _enabledModules.pv      === true;
+    const hasPrinter = _enabledModules.printer === true;
+    const [cal, pv, printer] = await Promise.all([
+      hasCal     ? loadCalendar()     : Promise.resolve(null),
+      hasPv      ? loadPvData()       : Promise.resolve(null),
+      hasPrinter ? loadPrinterData()  : Promise.resolve(null),
     ]);
-    const label = hasCal && hasPv ? 'Kalender · PV' : hasCal ? 'Kalender' : hasPv ? 'PV-Anlage' : '';
-    const calHtml = hasCal ? renderCalendarData(cal) : '';
-    const pvHtml  = hasPv  ? renderPvWidget(pv)      : '';
-    const html = `<div id="right-cal">${calHtml || (hasPv ? '' : '<div class="cal-placeholder">Kein Modul aktiv.</div>')}</div>`
+    const isPrinting = hasPrinter && printer?.printing;
+    const parts = [hasCal ? 'Kalender' : '', isPrinting ? '🖨' : '', hasPv ? 'PV' : ''].filter(Boolean);
+    const label = parts.join(' · ') || '';
+    const calHtml      = hasCal     ? renderCalendarData(cal)    : '';
+    const printerHtml  = isPrinting ? renderPrinterWidget(printer) : '';
+    const pvHtml       = hasPv      ? renderPvWidget(pv)          : '';
+    const hasBottom = printerHtml || pvHtml;
+    const html = `<div id="right-cal">${calHtml || (hasBottom ? '' : '<div class="cal-placeholder">Kein Modul aktiv.</div>')}</div>`
+               + (printerHtml ? `<div id="right-printer">${printerHtml}</div>` : '')
+               + (printerHtml && pvHtml ? '<div class="pv-divider"></div>' : '')
                + (pvHtml ? `<div id="right-pv">${pvHtml}</div>` : '');
     setPanel('right', label, html);
   }
@@ -2144,7 +2282,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false };
   })();
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
@@ -2173,6 +2311,7 @@
       cameras:  modules?.cameras  === true,
       calendar: modules?.calendar !== false,  // default true
       pv:       modules?.pv       === true,
+      printer:  modules?.printer  === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;

@@ -26,6 +26,7 @@
       <button type="button" class="tab-button" data-tab-target="tab-fuel">Kraftstoff</button>
       <button type="button" class="tab-button" data-tab-target="tab-calendar">Kalender</button>
       <button type="button" class="tab-button" data-tab-target="tab-pv">PV-Anlage</button>
+      <button type="button" class="tab-button" data-tab-target="tab-printer">3D-Drucker</button>
       <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
     </nav>
 
@@ -486,6 +487,80 @@
           </section>
         </article>
 
+        <!-- ── 3D-DRUCKER ─────────────────────────────────────── -->
+        <article id="tab-printer" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">3D-Drucker</div>
+              <h2>Anycubic S1 – MQTT-Bridge</h2>
+            </div>
+            <label class="switch-card">
+              <input id="printer-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Drucker-Widget anzeigen (nur beim Drucken)</span>
+              </span>
+            </label>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Drucker-Verbindung</div>
+              <p>IP-Adresse des Anycubic S1. Der MQTT-Bridge-Container läuft auf Erika und verbindet sich mit dem HAOS-Mosquitto-Broker.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Drucker-IP</span>
+                <input id="printer-ip" class="field-input" type="text" placeholder="192.168.x.x">
+              </label>
+            </div>
+            <div class="system-actions" style="margin-top:8px;">
+              <button type="button" class="secondary" id="printer-start-btn" onclick="startPrinterBridge()">Bridge starten</button>
+              <div id="printer-start-status" class="inline-status"></div>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">HA-Entitäten</div>
+              <p>Nachdem der Bridge läuft erscheinen die Entitäten automatisch in HA. Trage hier die Entitäts-IDs ein (z.B. <code>sensor.anycubic_s1</code>).</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Druckerstatus</span>
+                <input id="printer-ent-state" class="field-input" type="text" placeholder="sensor.anycubic_s1">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Druckauftrag</span>
+                <input id="printer-ent-job" class="field-input" type="text" placeholder="sensor.anycubic_s1_print_job">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Düsen-Temperatur</span>
+                <input id="printer-ent-nozzle" class="field-input" type="text" placeholder="sensor.anycubic_s1_nozzle_temperature">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Bett-Temperatur</span>
+                <input id="printer-ent-hotbed" class="field-input" type="text" placeholder="sensor.anycubic_s1_hotbed_temperature">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Snapshot (Image)</span>
+                <input id="printer-ent-snapshot" class="field-input" type="text" placeholder="image.anycubic_s1_snapshot">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Pause (Button)</span>
+                <input id="printer-ent-pause" class="field-input" type="text" placeholder="button.anycubic_s1_pause_print">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Fortsetzen (Button)</span>
+                <input id="printer-ent-resume" class="field-input" type="text" placeholder="button.anycubic_s1_resume_print">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Abbrechen (Button)</span>
+                <input id="printer-ent-cancel" class="field-input" type="text" placeholder="button.anycubic_s1_cancel_print">
+              </label>
+            </div>
+          </section>
+        </article>
+
         <article id="tab-system" class="panel-card tab-panel">
           <header class="panel-header">
             <div>
@@ -718,6 +793,8 @@
     const calendarEnabledEl = document.getElementById('calendar-enabled');
     const calendarDaysEl = document.getElementById('calendar-days');
     const calendarEntityGridEl = document.getElementById('calendar-entity-grid');
+    const printerEnabledEl = document.getElementById('printer-enabled');
+    const printerIpEl = document.getElementById('printer-ip');
     const pvEnabledEl = document.getElementById('pv-enabled');
     const pvProviderEl = document.getElementById('pv-provider');
     const pvSensorPowerEl = document.getElementById('pv-sensor-power');
@@ -794,6 +871,23 @@
         _pvProviders = {};
         (d.providers || []).forEach(p => { _pvProviders[p.id] = p; });
       } catch {}
+    }
+
+    async function startPrinterBridge() {
+      const btn = document.getElementById('printer-start-btn');
+      const status = document.getElementById('printer-start-status');
+      btn.disabled = true;
+      status.textContent = 'Starte…';
+      try {
+        await saveConfig();
+        const r = await fetch('/system/printer/start', { method: 'POST' });
+        status.textContent = r.ok ? 'Bridge gestartet' : 'Fehler beim Starten';
+        status.style.color = r.ok ? 'var(--color-success, #4caf50)' : 'var(--color-danger, #f44)';
+      } catch {
+        status.textContent = 'Fehler';
+        status.style.color = 'var(--color-danger, #f44)';
+      }
+      btn.disabled = false;
     }
 
     function applyPvProviderDefaults() {
@@ -1829,6 +1923,18 @@
       calendarEnabledEl.checked = calendarConfig.enabled !== false;
       calendarDaysEl.value = calendarConfig.days_count || 7;
       _calendarEntities = calendarConfig.selected_calendars || [];
+      const printerConfig = data?.config?.printer || {};
+      printerEnabledEl.checked = !!printerConfig.enabled;
+      printerIpEl.value = printerConfig.printer_ip || '';
+      const pe = printerConfig.entities || {};
+      document.getElementById('printer-ent-state').value   = pe.state   || '';
+      document.getElementById('printer-ent-job').value     = pe.print_job || '';
+      document.getElementById('printer-ent-nozzle').value  = pe.nozzle  || '';
+      document.getElementById('printer-ent-hotbed').value  = pe.hotbed  || '';
+      document.getElementById('printer-ent-snapshot').value= pe.snapshot|| '';
+      document.getElementById('printer-ent-pause').value   = pe.pause   || '';
+      document.getElementById('printer-ent-resume').value  = pe.resume  || '';
+      document.getElementById('printer-ent-cancel').value  = pe.cancel  || '';
       pvEnabledEl.checked = !!pvConfig.enabled;
       pvProviderEl.value = pvConfig.provider || 'solarman';
       pvSensorPowerEl.value = pvConfig.sensors?.power || '';
@@ -1942,6 +2048,20 @@
               enabled: calendarEnabledEl.checked,
               days_count: Math.max(1, Math.min(30, Number(calendarDaysEl.value) || 7)),
               selected_calendars: getSelectedCalendarIds(),
+            },
+            printer: {
+              enabled: printerEnabledEl.checked,
+              printer_ip: printerIpEl.value.trim(),
+              entities: {
+                state:     document.getElementById('printer-ent-state').value.trim(),
+                print_job: document.getElementById('printer-ent-job').value.trim(),
+                nozzle:    document.getElementById('printer-ent-nozzle').value.trim(),
+                hotbed:    document.getElementById('printer-ent-hotbed').value.trim(),
+                snapshot:  document.getElementById('printer-ent-snapshot').value.trim(),
+                pause:     document.getElementById('printer-ent-pause').value.trim(),
+                resume:    document.getElementById('printer-ent-resume').value.trim(),
+                cancel:    document.getElementById('printer-ent-cancel').value.trim(),
+              },
             },
             pv: {
               enabled: pvEnabledEl.checked,

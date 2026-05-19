@@ -84,6 +84,20 @@ class IntegrationConfigService:
                 "days_count": 7,
                 "selected_calendars": [],
             },
+            "printer": {
+                "enabled": False,
+                "printer_ip": "",
+                "entities": {
+                    "state":      "",
+                    "nozzle":     "",
+                    "hotbed":     "",
+                    "print_job":  "",
+                    "snapshot":   "",
+                    "pause":      "",
+                    "resume":     "",
+                    "cancel":     "",
+                },
+            },
             "pv": {
                 "enabled": False,
                 "provider": "solarman",
@@ -155,6 +169,12 @@ class IntegrationConfigService:
         calendar["enabled"] = bool(calendar.get("enabled", True))
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
+        printer = merged.setdefault("printer", {})
+        printer["enabled"] = bool(printer.get("enabled", False))
+        printer["printer_ip"] = str(printer.get("printer_ip") or "").strip()
+        p_ent = printer.setdefault("entities", {})
+        for _k in ("state", "nozzle", "hotbed", "print_job", "snapshot", "pause", "resume", "cancel"):
+            p_ent[_k] = str(p_ent.get(_k) or "").strip()
         pv = merged.setdefault("pv", {})
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
@@ -212,6 +232,12 @@ class IntegrationConfigService:
         calendar["enabled"] = bool(calendar.get("enabled", True))
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
+        printer2 = updated.setdefault("printer", {})
+        printer2["enabled"] = bool(printer2.get("enabled", False))
+        printer2["printer_ip"] = str(printer2.get("printer_ip") or "").strip()
+        p_ent2 = printer2.setdefault("entities", {})
+        for _k in ("state", "nozzle", "hotbed", "print_job", "snapshot", "pause", "resume", "cancel"):
+            p_ent2[_k] = str(p_ent2.get(_k) or "").strip()
         pv = updated.setdefault("pv", {})
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
