@@ -550,18 +550,25 @@ class HomeAssistantProvider:
         return result if isinstance(result, dict) else {}
 
     def get_history(self, entity_id: str, start: datetime, end: datetime) -> list[dict]:
-        """Rohe Zustandshistorie eines Sensors."""
-        fmt = "%Y-%m-%dT%H:%M:%S"
-        params = urllib.parse.urlencode({
-            "filter_entity_id": entity_id,
-            "end_time": end.strftime(fmt),
-            "no_attributes": "true",
-        })
-        path = f"/history/period/{start.strftime(fmt)}?{params}"
-        result = self._get(path)
-        if isinstance(result, list) and result:
-            return result[0] if isinstance(result[0], list) else result
-        return []
+        """Rohe Zustandshistorie eines Sensors — in 2h-Chunks um Truncation zu vermeiden."""
+        fmt = "%Y-%m-%dT%H:%M:%S%z"
+        all_states: list[dict] = []
+        chunk_start = start
+        chunk_hours = 2
+        while chunk_start < end:
+            chunk_end = min(chunk_start + timedelta(hours=chunk_hours), end)
+            params = urllib.parse.urlencode({
+                "filter_entity_id": entity_id,
+                "end_time": chunk_end.strftime(fmt),
+                "no_attributes": "true",
+            })
+            path = f"/history/period/{chunk_start.strftime(fmt)}?{params}"
+            result = self._get(path)
+            if isinstance(result, list) and result:
+                chunk = result[0] if isinstance(result[0], list) else result
+                all_states.extend(chunk)
+            chunk_start = chunk_end
+        return all_states
 
     # ── Kameras (Ring) ──────────────────────────────────────────
 
