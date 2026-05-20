@@ -245,8 +245,10 @@ class WeatherProvider:
         forecast_days  = [_day_entry(i, _DE_WEEKDAYS[_dt.strptime(d_times[i], "%Y-%m-%d").weekday()])
                           for i in range(2, min(7, len(d_times)))]
 
+        coat = self._fetch_coat_of_arms(name)
         return {
             "location": name,
+            "coat_of_arms_url": coat,
             "current": {
                 "temperature": round(current.get("temperature_2m", 0)),
                 "feels_like": round(current.get("apparent_temperature", 0)),
@@ -354,13 +356,66 @@ class WeatherProvider:
         if precip is not None and float(precip) > 0:
             parts.append(f"Niederschlag: {precip} mm.")
 
+        coat = self._fetch_coat_of_arms(resolved_name)
         return {
             "snippet": " ".join(parts),
             "title": f"Wetter {resolved_name}",
             "url": "https://open-meteo.com/",
             "is_stable": False,
             "resolved_name": resolved_name,
+            "coat_of_arms_url": coat,
         }
+
+    # ── Stadtwappen via Wikidata ─────────────────────────────────────────────
+
+    _coat_cache: dict[str, str | None] = {}
+
+    def _fetch_coat_of_arms(self, city: str) -> str | None:
+        """Lädt das Stadtwappen-URL von Wikidata (P94). Ergebnis wird gecacht."""
+        key = city.lower().strip()
+        if key in self._coat_cache:
+            return self._coat_cache[key]
+        url = None
+        try:
+            # 1. Wikidata-Entity für Stadt suchen
+            search_url = (
+                "https://www.wikidata.org/w/api.php?action=wbsearchentities"
+                f"&search={urllib.parse.quote(city)}&language=de&type=item&format=json&limit=1"
+            )
+            req = urllib.request.Request(search_url, headers={"User-Agent": "robot-core/0.2"})
+            with urllib.request.urlopen(req, timeout=5) as r:
+                results = json.loads(r.read().decode()).get("search", [])
+            if not results:
+                self._coat_cache[key] = None
+                return None
+            qid = results[0]["id"]
+
+            # 2. Entity-Daten laden und P94 (coat of arms) extrahieren
+            entity_url = f"https://www.wikidata.org/wiki/Special:EntityData/{qid}.json"
+            req2 = urllib.request.Request(entity_url, headers={"User-Agent": "robot-core/0.2"})
+            with urllib.request.urlopen(req2, timeout=5) as r2:
+                entity = json.loads(r2.read().decode())
+            claims = entity.get("entities", {}).get(qid, {}).get("claims", {})
+            p94 = claims.get("P94", [])
+            if not p94:
+                self._coat_cache[key] = None
+                return None
+            filename = (
+                p94[0].get("mainsnak", {})
+                .get("datavalue", {})
+                .get("value", "")
+            )
+            if not filename:
+                self._coat_cache[key] = None
+                return None
+
+            # 3. Wikimedia Commons URL aufbauen
+            filename_encoded = urllib.parse.quote(filename.replace(" ", "_"))
+            url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{filename_encoded}?width=120"
+        except Exception:
+            url = None
+        self._coat_cache[key] = url
+        return url
 
     # ── Interne Hilfsmethoden ────────────────────────────────────────────────
 

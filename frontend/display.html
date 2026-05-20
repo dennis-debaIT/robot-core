@@ -470,14 +470,19 @@
     if (settings.show_wind !== false) stats.push(['Wind', `${c.windspeed} km/h${c.winddirection != null ? ' ' + windDir(c.winddirection) : ''}`]);
     if (settings.show_humidity !== false) stats.push(['Luftfeuchtigkeit', `${c.humidity}%`]);
     if (settings.show_precipitation !== false) stats.push(['Niederschlag', `${c.precipitation} mm`]);
+    const coatUrl = w.coat_of_arms_url || null;
+    const coatHtml = coatUrl
+      ? `<img src="${coatUrl}" alt="Wappen" style="height:32px;width:auto;object-fit:contain;opacity:0.85;flex-shrink:0;" onerror="this.style.display='none'">`
+      : '';
     return `
       <div class="weather-click-target" onclick="openWeatherOverview()" title="Wetterbericht anzeigen">
       <div class="weather-main">
         <div class="weather-icon">${wmoIcon(c.weathercode)}</div>
-        <div>
+        <div style="flex:1;">
           <div class="weather-temp">${c.temperature}&deg;</div>
           <div class="weather-desc">${c.description}</div>
         </div>
+        ${coatHtml}
       </div>
       ${stats.length ? `<div class="weather-grid">
         ${stats.map(([label, value]) => `
@@ -1796,9 +1801,12 @@
     return `
       <div class="weather-overview">
         <div class="weather-overview-head">
-          <div>
-            <div class="weather-overview-kicker">Wetterbericht</div>
-            <div class="weather-overview-title">${escapeHTML(w.location || 'Standort')} ${String.fromCharCode(183)} Nächste 7 Tage</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            ${w.coat_of_arms_url ? `<img src="${w.coat_of_arms_url}" alt="Wappen" style="height:36px;width:auto;object-fit:contain;opacity:0.9;" onerror="this.style.display='none'">` : ''}
+            <div>
+              <div class="weather-overview-kicker">Wetterbericht</div>
+              <div class="weather-overview-title">${escapeHTML(w.location || 'Standort')} ${String.fromCharCode(183)} Nächste 7 Tage</div>
+            </div>
           </div>
           <button class="weather-overview-close" onclick="closeWeatherOverview()">Schliessen</button>
         </div>
