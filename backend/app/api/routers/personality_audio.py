@@ -16,7 +16,9 @@ router = APIRouter()
 
 @router.get("/personality")
 def get_personality() -> dict[str, Any]:
-    return get_core().personality.get()
+    data = dict(get_core().personality.get())
+    data["relationship_state"] = get_core().relationship.get_global_state()
+    return data
 
 
 @router.patch("/personality")

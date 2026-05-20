@@ -42,6 +42,7 @@
 
         <div class="sidebar-group">
           <div class="sidebar-group-label">Konfiguration</div>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-erika"><span class="si-icon">🤖</span><span>Erika</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-llm"><span class="si-icon">🧠</span><span>KI / LLM</span></button>
         </div>
@@ -605,6 +606,44 @@
             <div style="margin-top:8px;padding:10px 12px;background:rgba(0,200,255,0.05);border:1px solid rgba(0,200,255,0.15);border-radius:8px;font-size:0.75rem;color:var(--color-muted,#7f8dcb);line-height:1.6;">
               Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
             </div>
+          </section>
+        </article>
+
+        <!-- ── ERIKA ─────────────────────────────────────────── -->
+        <article id="tab-erika" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Charakter</div>
+              <h2>Erkas Persönlichkeit</h2>
+            </div>
+            <button type="button" onclick="resetPersonality()" style="padding:7px 16px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.82rem;background:rgba(255,171,0,0.1);border:1px solid var(--warning);color:var(--warning);">
+              ↺ Zurücksetzen
+            </button>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Persönlichkeits-Werte</div>
+              <p>Diese Werte beeinflussen wie Erika antwortet — Ton, Ausführlichkeit und Humor. Änderungen gelten sofort.</p>
+            </div>
+            <div id="personality-sliders" style="display:flex;flex-direction:column;gap:16px;margin-top:8px;"></div>
+            <div style="margin-top:16px;display:flex;gap:10px;">
+              <button type="button" onclick="savePersonality()" style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                💾 Speichern
+              </button>
+              <span id="personality-status" style="font-size:0.8rem;color:var(--muted);align-self:center;"></span>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Globaler Beziehungsstatus</div>
+              <p>Wie Erika generell auf alle Personen reagiert — beeinflusst durch vergangene Gespräche.</p>
+            </div>
+            <div id="global-relationship" style="margin-top:8px;"></div>
+            <button type="button" onclick="resetGlobalRelationship()" style="margin-top:12px;padding:6px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">
+              ↺ Globalen Status zurücksetzen
+            </button>
           </section>
         </article>
 
@@ -2493,6 +2532,113 @@
 
     boot();
 
+    // ── Erika Persönlichkeit ──────────────────────────────────
+    const _PERSONALITY_FIELDS = [
+      { key: 'humor',         label: 'Humor',          desc: 'Wie witzig und locker Erika antwortet' },
+      { key: 'curiosity',     label: 'Neugier',         desc: 'Interesse an Themen und Nachfragen' },
+      { key: 'talkativeness', label: 'Gesprächigkeit',  desc: 'Wie ausführlich Erika antwortet' },
+      { key: 'directness',    label: 'Direktheit',      desc: 'Sachlich und knapp vs. einfühlsam' },
+      { key: 'sarcasm',       label: 'Sarkasmus',       desc: 'Ironischer Unterton (niedrig empfohlen)' },
+      { key: 'patience',      label: 'Geduld',          desc: 'Wie ruhig Erika auf Wiederholungen reagiert' },
+    ];
+    let _personalityData = {};
+
+    async function loadPersonality() {
+      try {
+        _personalityData = await fetch('/personality').then(r => r.json());
+        _renderPersonalitySliders();
+        _renderGlobalRelationship();
+      } catch {}
+    }
+
+    function _renderPersonalitySliders() {
+      const el = document.getElementById('personality-sliders');
+      if (!el) return;
+      el.innerHTML = _PERSONALITY_FIELDS.map(f => {
+        const val = typeof _personalityData[f.key] === 'number' ? _personalityData[f.key] : 0.5;
+        const pct = Math.round(val * 100);
+        return `
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+              <span style="font-size:0.82rem;font-weight:700;">${f.label}</span>
+              <span id="pval-${f.key}" style="font-size:0.78rem;color:var(--accent);font-weight:700;">${pct}%</span>
+            </div>
+            <div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px;">${f.desc}</div>
+            <input type="range" min="0" max="100" value="${pct}" data-key="${f.key}"
+              class="personality-slider"
+              style="width:100%;accent-color:var(--accent);"
+              oninput="document.getElementById('pval-'+this.dataset.key).textContent=this.value+'%'">
+          </div>`;
+      }).join('');
+    }
+
+    async function savePersonality() {
+      const status = document.getElementById('personality-status');
+      const patch = {};
+      document.querySelectorAll('.personality-slider').forEach(el => {
+        patch[el.dataset.key] = parseInt(el.value) / 100;
+      });
+      try {
+        const r = await fetch('/personality', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        _personalityData = await r.json();
+        if (status) status.textContent = '✓ Gespeichert';
+        setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+      } catch (e) {
+        if (status) status.textContent = '✗ ' + e.message;
+      }
+    }
+
+    async function resetPersonality() {
+      if (!await showConfirm('Persönlichkeit auf Standardwerte zurücksetzen?', 'Zurücksetzen')) return;
+      const status = document.getElementById('personality-status');
+      try {
+        const r = await fetch('/personality/reset', { method: 'POST' });
+        _personalityData = await r.json();
+        _renderPersonalitySliders();
+        if (status) status.textContent = '✓ Zurückgesetzt';
+        setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+      } catch (e) {
+        if (status) status.textContent = '✗ ' + e.message;
+      }
+    }
+
+    function _renderGlobalRelationship() {
+      const el = document.getElementById('global-relationship');
+      if (!el) return;
+      const rel = _personalityData.relationship_state || {};
+      const warmth  = parseFloat(rel.warmth  ?? 0);
+      const tension = parseFloat(rel.tension  ?? 0);
+      const _bar = (val, maxVal, color) => {
+        const pct = Math.round(Math.abs(val) / maxVal * 100);
+        return `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex:1;">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div>`;
+      };
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:0.78rem;min-width:90px;color:var(--muted);">Wärme</span>
+          ${_bar(warmth, 1, '#4caf50')}
+          <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right;color:${warmth >= 0 ? '#4caf50' : '#ff3d3d'};">${warmth >= 0 ? '+' : ''}${warmth.toFixed(2)}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:0.78rem;min-width:90px;color:var(--muted);">Anspannung</span>
+          ${_bar(tension, 1, '#ff3d3d')}
+          <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right;color:${tension > 0.3 ? '#ff3d3d' : 'var(--muted)'};">${tension.toFixed(2)}</span>
+        </div>`;
+    }
+
+    async function resetGlobalRelationship() {
+      if (!await showConfirm('Globalen Beziehungsstatus zurücksetzen?', 'Zurücksetzen')) return;
+      await fetch('/personality/reset', { method: 'POST' });
+      await loadPersonality();
+    }
+
+    document.querySelector('[data-tab-target="tab-erika"]')?.addEventListener('click', loadPersonality);
+
     // ── Personen ──────────────────────────────────────────────
     let _personsData = [];
     let _expandedPersonId = null;
@@ -2573,11 +2719,15 @@
       const el = document.getElementById(`person-detail-${id}`);
       if (!el) return;
       try {
-        const ws = await fetch(`/profiles/${id}/workspace`).then(r => r.json());
-        const facts   = ws.person?.facts || [];
+        const [ws, prefs] = await Promise.all([
+          fetch(`/profiles/${id}/workspace`).then(r => r.json()),
+          fetch(`/profiles/${id}/preferences`).then(r => r.json()).catch(() => ({})),
+        ]);
+        const facts    = ws.person?.facts || [];
         const approved = (ws.memories || []).filter(m => m.status === 'approved');
         const pending  = (ws.memories || []).filter(m => m.status === 'pending');
-        const total = facts.length + approved.length + pending.length;
+        const relState = ws.relationship_state || {};
+        const total    = facts.length + approved.length + pending.length;
 
         if (!total) {
           el.innerHTML = '<div style="font-size:0.78rem;color:var(--muted);padding:8px 0;">Noch nichts bekannt.</div>';
@@ -2619,17 +2769,78 @@
           </div>`;
         }).join('');
 
+        // Beziehungsstatus
+        const warmth  = parseFloat(relState.warmth  ?? 0);
+        const tension = parseFloat(relState.tension  ?? 0);
+        const _miniBar = (val, color) => {
+          const pct = Math.round(Math.min(1, Math.abs(val)) * 100);
+          return `<div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div>`;
+        };
+        const relHtml = `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
+            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Beziehungsstatus</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+              <span style="font-size:0.72rem;color:var(--muted);min-width:80px;">Wärme</span>
+              ${_miniBar(warmth, '#4caf50')}
+              <span style="font-size:0.72rem;font-weight:700;color:${warmth >= 0 ? '#4caf50' : '#ff3d3d'};min-width:36px;text-align:right;">${warmth >= 0 ? '+' : ''}${warmth.toFixed(2)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="font-size:0.72rem;color:var(--muted);min-width:80px;">Anspannung</span>
+              ${_miniBar(tension, '#ff3d3d')}
+              <span style="font-size:0.72rem;font-weight:700;color:${tension > 0.3 ? '#ff3d3d' : 'var(--muted)'};min-width:36px;text-align:right;">${tension.toFixed(2)}</span>
+            </div>
+            <button onclick="resetPersonRelationship(${id})" style="padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>
+          </div>`;
+
+        // Vorlieben der Person
+        const prefData = prefs.preferences || [];
+        const prefHtml = prefData.length ? `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
+            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Reaktions-Vorlieben</div>
+            ${prefData.map(p => {
+              const _PREF_OPTIONS = {
+                response_humor_preference: [{v:'higher',l:'Mehr Humor'},{v:'lower',l:'Weniger Humor'},{v:'default',l:'Standard'}],
+                response_style_preference: [{v:'sachlich',l:'Sachlich'},{v:'locker',l:'Locker'},{v:'default',l:'Standard'}],
+                response_length_preference: [{v:'short',l:'Kürzer'},{v:'detailed',l:'Ausführlicher'},{v:'default',l:'Standard'}],
+              };
+              const opts = _PREF_OPTIONS[p.trait_type] || [];
+              const label = {response_humor_preference:'Humor',response_style_preference:'Stil',response_length_preference:'Länge'}[p.trait_type] || p.trait_type;
+              return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+                <span style="font-size:0.72rem;color:var(--muted);min-width:60px;">${label}</span>
+                <select onchange="savePersonPref(${id},'${p.trait_type}',this.value)" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:3px 6px;font-size:0.72rem;">
+                  ${opts.map(o => `<option value="${o.v}" ${p.value===o.v?'selected':''}>${o.l}</option>`).join('')}
+                </select>
+              </div>`;
+            }).join('')}
+          </div>` : '';
+
         const header = `<div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">
           Was Erika über diese Person weiß · ${total} Einträge
         </div>`;
 
-        el.innerHTML = header
+        el.innerHTML = relHtml + prefHtml + header
           + (pendingRows ? `<div style="margin-bottom:6px;">${pendingRows}</div>` : '')
           + factRows
           + (memRows ? `<div style="margin-top:4px;">${memRows}</div>` : '');
       } catch {
         el.innerHTML = '<div style="color:var(--danger);font-size:0.78rem;">Fehler beim Laden.</div>';
       }
+    }
+
+    async function resetPersonRelationship(personId) {
+      if (!await showConfirm('Beziehungsstatus für diese Person zurücksetzen?', 'Zurücksetzen')) return;
+      await fetch(`/profiles/${personId}/persona/reset`, { method: 'POST' });
+      await loadPersonDetail(personId);
+      await loadPersons();
+    }
+
+    async function savePersonPref(personId, traitType, value) {
+      await fetch(`/profiles/${personId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [traitType]: value }),
+      });
     }
 
     async function deleteMemory(memoryId, personId) {
