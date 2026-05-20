@@ -2360,14 +2360,23 @@
         const tWords    = t.split(/\s+/).filter(Boolean).length;
         const bestWords = _bestFinal.split(/\s+/).filter(Boolean).length;
 
+        const tLow = t.toLowerCase();
+        const bLow = _bestFinal.toLowerCase();
+
         if (tWords > bestWords) {
-          // Mehr Wörter als bisher → kumulatives Ergebnis, ersetzt alles
+          // Mehr Wörter → kumulativ/vollständiger, ersetzt alles
           _bestFinal = t;
         } else if (tWords <= 2 && bestWords > 0) {
-          // Kurzes neues Ergebnis nach längerem Text → inkrementelles neues Wort
-          _bestFinal = _bestFinal + ' ' + t;
+          // Kurzes Ergebnis: nur anfügen wenn es NICHT bereits am Anfang
+          // von _bestFinal steht (= Restart-Duplikat von Android)
+          const isDuplicate = bLow === tLow
+            || bLow.startsWith(tLow + ' ')
+            || bLow.endsWith(' ' + tLow);
+          if (!isDuplicate) {
+            _bestFinal = _bestFinal + ' ' + t;
+          }
         }
-        // Gleiches oder weniger Wörter ohne klare Indikation → ignorieren
+        // Gleiches oder weniger Wörter, kein klarer Kontext → ignorieren
       }
 
       _interimText = _bestFinal;
