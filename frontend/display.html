@@ -3834,8 +3834,33 @@
     }
   }
 
-  function _startMapRefresh(_slug) {
-    // HA aktualisiert die Kamera-Entity selbst — kein eigener Refresh nötig
+  // ── Double-Buffer Karten-Refresh ─────────────────────────
+  function _smoothImgUpdate(imgId, newUrl) {
+    const img = document.getElementById(imgId);
+    if (!img) return;
+    const preload = new window.Image();
+    preload.onload  = () => { img.src = newUrl; };
+    preload.onerror = () => {};  // altes Bild bleibt bei Fehler
+    preload.src = newUrl;
+  }
+
+  let _mapRefreshTimer = null;
+
+  function _startMapRefresh(slug) {
+    clearInterval(_mapRefreshTimer);
+    _mapRefreshTimer = setInterval(() => {
+      const robot = (_robotsData || []).find(r => _robotNameSlug(r.entity_id) === slug);
+      if (!robot) return;
+      const camId = _robotVacuumCfg(robot).mapCamera || `camera.${slug}_map`;
+      const url = `/ha/cameras/${camId}/snapshot?_t=${Date.now()}`;
+      _smoothImgUpdate('vac-map', url);
+      _smoothImgUpdate('vac-map-expanded', url);
+    }, 5000);
+  }
+
+  function _stopMapRefresh() {
+    clearInterval(_mapRefreshTimer);
+    _mapRefreshTimer = null;
   }
 
   async function _updateVacuumDetail(entityId, slug) {
@@ -4074,8 +4099,25 @@
     if (!overlay || !robot) return;
 
     if (_vacuumMapExpandedFor && _vacuumMapExpandedFor === robot.entity_id && robot.domain === 'vacuum') {
+      // Karte bereits sichtbar → nur Stats aktualisieren, Bild per Double-Buffer tauschen
       const slug = _robotNameSlug(robot.entity_id);
-      overlay.innerHTML = _renderVacuumMapExpanded(slug, robot);
+      const camId = _robotVacuumCfg(robot).mapCamera || `camera.${slug}_map`;
+      _smoothImgUpdate('vac-map-expanded', `/ha/cameras/${camId}/snapshot?_t=${Date.now()}`);
+      // Stats aktualisieren ohne Overlay neu zu rendern
+      const statsEl = overlay.querySelector('.vac-map-overlay-side');
+      if (statsEl && robot.extras) {
+        const _bad = new Set(['unavailable','unknown','']);
+        const e = robot.extras || {};
+        const rows = [];
+        const tS = e['total_cleaning_time'];
+        const aS = e['total_cleaned_area'];
+        if (tS?.state && !_bad.has(tS.state))
+          rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gesamtreinigungszeit</span><span class="robot-sensor-value">${_formatCleaningTime(tS.state)}</span></div>`);
+        if (aS?.state && !_bad.has(aS.state))
+          rows.push(`<div class="robot-sensor-row"><span class="robot-sensor-label">Gereinigte Fläche gesamt</span><span class="robot-sensor-value">${parseFloat(aS.state).toFixed(1)} ${aS.unit || 'm²'}</span></div>`);
+        const statsDiv = statsEl.querySelector('#vac-map-stats');
+        if (statsDiv && rows.length) statsDiv.innerHTML = rows.join('');
+      }
       overlay.classList.add('active', 'vac-map-expanded');
       return;
     }
@@ -4175,6 +4217,7 @@
   function clearRobotsView() {
     clearInterval(_robotsInterval);
     clearInterval(_mapTimer);
+    _stopMapRefresh();
     _robotsInterval = null;
     _mapTimer = null;
     _selectedRobot = null;
