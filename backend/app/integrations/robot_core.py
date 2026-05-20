@@ -783,6 +783,10 @@ class RobotCore:
         # Interessen
         (r'\bich\s+interessiere\s+mich\s+(?:sehr\s+)?für\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$)', 'interest'),
         (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+ist\s+mein\s+(?:lieblingsverein|lieblingsklub)\b', 'interest'),
+        # Wohnort / Herkunft
+        (r'\bich\s+(?:wohne|lebe)\s+in\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$)', 'residence'),
+        (r'\bich\s+komme\s+(?:aus|ursprünglich\s+aus)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$)', 'hometown'),
+        (r'\bmein(?:e)?\s+(?:heimat(?:ort)?|heimatstadt)\s+ist\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$)', 'hometown'),
         # Name (Spitzname)
         (r'\bnenн mich\s+(.+?)(?:\.|,|$)', 'nickname'),
         (r'\bich\s+heiße\s+(?:eigentlich\s+)?(.+?)(?:\.|,|$)', 'nickname'),
@@ -1050,6 +1054,32 @@ class RobotCore:
                 search_result = self.search.search(query)
                 if search_result:
                     search_context = self.search.format_prompt_block(search_result)
+
+            # Affirmations-Handler: "ja" nach Wetter-/Kalender-Angebot
+            _AFFIRM = re.compile(
+                r"^\s*(ja|jo|ok|gerne|bitte|klar|super|natürlich|genau|stimmt|"
+                r"ja\s+gerne|ja\s+bitte|ja\s+klar|sehr\s+gerne|"
+                r"klingt\s+gut|mach\s+das)\s*[!.?]?\s*$", re.IGNORECASE
+            )
+            if not search_result and _AFFIRM.match(captured.strip()):
+                try:
+                    with get_connection() as conn:
+                        row = conn.execute(
+                            "SELECT message FROM conversation_messages "
+                            "WHERE role = 'assistant' ORDER BY created_at DESC LIMIT 1"
+                        ).fetchone()
+                    last_reply = (row["message"] if row else "").lower()
+                    forced: str | None = None
+                    if any(w in last_reply for w in ("wetter", "vorhersage", "temperatur", "grad", "regen")):
+                        forced = "wetter heute"
+                    elif any(w in last_reply for w in ("termin", "kalender", "liegt an", "steht an", "veranstaltung")):
+                        forced = "was liegt heute an"
+                    if forced:
+                        search_result = self.search.search(forced)
+                        if search_result:
+                            search_context = self.search.format_prompt_block(search_result)
+                except Exception:
+                    pass
             payload = self.preview_chat_prompt(captured, person_name, search_context=search_context)
             self._record_direct_chat_input(captured, person_name)
 
