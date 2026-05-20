@@ -3776,9 +3776,9 @@
       : `<div id="vac-map-stats"></div>`;
     return `<div style="padding:10px;">
       <img id="vac-map" class="vacuum-map-img clickable"
-        src="/ha/cameras/${camId}/snapshot?_t=${Date.now()}"
+        src="${_mapUrl(camId)}"
         onclick="openVacuumMapOverlay('${robot.entity_id}')"
-        onerror="this.style.minHeight='120px';this.alt='Keine Karte';">
+        onerror="this.src='/ha/cameras/${camId}/snapshot?_t=${Date.now()}';this.style.minHeight='120px';">
       ${statsHtml}
     </div>`;
   }
@@ -3793,8 +3793,8 @@
       </div>
       <div class="vac-map-overlay-body">
         <div class="vac-map-overlay-media">
-          <img id="vac-map-expanded" src="/ha/cameras/${camId}/snapshot?_t=${Date.now()}"
-            onerror="this.alt='Keine Karte verfügbar';">
+          <img id="vac-map-expanded" src="${_mapUrl(camId)}"
+            onerror="this.src='/ha/cameras/${camId}/snapshot?_t=${Date.now()}'">
         </div>
         <div class="vac-map-overlay-side">
           <div class="panel-label">Details</div>
@@ -3834,30 +3834,24 @@
     }
   }
 
-  // ── Double-Buffer Karten-Refresh ─────────────────────────
+  // ── Karten-Refresh via MJPEG-Stream ──────────────────────
+  // Der Browser hält die Verbindung offen und aktualisiert das Bild
+  // intern ohne DOM-Manipulation → kein Flackern (wie HA selbst).
+  function _mapUrl(camId) {
+    return `/ha/cameras/${camId}/mjpeg`;
+  }
+
   function _smoothImgUpdate(imgId, newUrl) {
     const img = document.getElementById(imgId);
-    if (!img) return;
+    if (!img || img.src.endsWith(newUrl)) return;
     const preload = new window.Image();
     preload.onload  = () => { img.src = newUrl; };
-    preload.onerror = () => {};  // altes Bild bleibt bei Fehler
+    preload.onerror = () => {};
     preload.src = newUrl;
   }
 
   let _mapRefreshTimer = null;
-
-  function _startMapRefresh(slug) {
-    clearInterval(_mapRefreshTimer);
-    _mapRefreshTimer = setInterval(() => {
-      const robot = (_robotsData || []).find(r => _robotNameSlug(r.entity_id) === slug);
-      if (!robot) return;
-      const camId = _robotVacuumCfg(robot).mapCamera || `camera.${slug}_map`;
-      const url = `/ha/cameras/${camId}/snapshot?_t=${Date.now()}`;
-      _smoothImgUpdate('vac-map', url);
-      _smoothImgUpdate('vac-map-expanded', url);
-    }, 5000);
-  }
-
+  function _startMapRefresh(_slug) {}   // kein Polling nötig — MJPEG ist live
   function _stopMapRefresh() {
     clearInterval(_mapRefreshTimer);
     _mapRefreshTimer = null;
@@ -4101,8 +4095,7 @@
     if (_vacuumMapExpandedFor && _vacuumMapExpandedFor === robot.entity_id && robot.domain === 'vacuum') {
       // Karte bereits sichtbar → nur Stats aktualisieren, Bild per Double-Buffer tauschen
       const slug = _robotNameSlug(robot.entity_id);
-      const camId = _robotVacuumCfg(robot).mapCamera || `camera.${slug}_map`;
-      _smoothImgUpdate('vac-map-expanded', `/ha/cameras/${camId}/snapshot?_t=${Date.now()}`);
+      // MJPEG-Stream aktualisiert sich selbst — kein manueller Refresh nötig
       // Stats aktualisieren ohne Overlay neu zu rendern
       const statsEl = overlay.querySelector('.vac-map-overlay-side');
       if (statsEl && robot.extras) {
