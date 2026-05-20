@@ -792,6 +792,56 @@ class RobotCore:
         (r'\bich\s+heiße\s+(?:eigentlich\s+)?(.+?)(?:\.|,|$)', 'nickname'),
     ]
 
+    def _build_search_query_from_context(
+        self,
+        llm_reply: str,
+        user_message: str,
+        person_name: str | None,
+    ) -> str:
+        """
+        Baut einen sinnvollen Suchbegriff aus dem LLM-Reply + User-Nachricht.
+        Strategie:
+        1. Eigennamen/Entitäten aus LLM-Reply extrahieren (z.B. 'SV Darmstadt')
+        2. Persönliche Pronomen in User-Nachricht durch Profil-Fakten ersetzen
+        3. Fallback: User-Nachricht bereinigt
+        """
+        import re as _re
+
+        # 1. Entitäten aus LLM-Reply extrahieren
+        # Sucht nach "über X", "zu X", "von X" gefolgt von Eigenname
+        entity_match = _re.search(
+            r'(?:über|zu|von|bei|für)\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß0-9\s\.\-]{2,40}?)(?:\.|,|\?|!|$|\s+(?:weiß|habe|kann|soll))',
+            llm_reply, _re.IGNORECASE
+        )
+        entity = entity_match.group(1).strip() if entity_match else ""
+
+        # 2. Persönliche Referenzen in User-Nachricht durch Profil-Fakten ersetzen
+        query = user_message
+        if person_name:
+            person = self.profile.get_person(person_name)
+            facts = {f["trait_type"]: f["value"] for f in (person.get("facts") or [])} if person else {}
+
+            _PERSONAL_REPLACEMENTS = [
+                (_re.compile(r'\bmein(?:en?)?\s+lieblingsverein\b', _re.I), facts.get("interest", "")),
+                (_re.compile(r'\bmein(?:e)?\s+lieblingsfarbe\b', _re.I), facts.get("favorite_color", "")),
+                (_re.compile(r'\bmein(?:en?)?\s+lieblingsessen\b', _re.I), facts.get("favorite_food", "")),
+                (_re.compile(r'\bmein(?:e)?\s+vorliebe\b', _re.I), facts.get("preference", "")),
+                (_re.compile(r'\bmein(?:e)?\s+(?:hobby|interesse)\b', _re.I), facts.get("interest", "")),
+                (_re.compile(r'\bmeinen?\s+verein\b', _re.I), facts.get("interest", "")),
+                (_re.compile(r'\bich\b', _re.I), person_name or ""),
+            ]
+            for pattern, replacement in _PERSONAL_REPLACEMENTS:
+                if replacement:
+                    query = pattern.sub(replacement, query)
+
+        # 3. Bestes Ergebnis wählen: Eigenname > ersetzte Query > Original
+        if entity and len(entity) > 3:
+            return entity
+        query = query.strip()
+        if query and not _re.match(r'^(was|wie|wer|wo|wann|welche[rs]?)\s+weißt\b', query, _re.I):
+            return query
+        return user_message.strip()
+
     def _try_extract_fact_update(self, message: str, person_name: str) -> None:
         import re as _re
         for pattern, trait_type in self._FACT_PATTERNS:
@@ -1088,15 +1138,19 @@ class RobotCore:
                         "suchen", "schauen", "herausfind", "informationen",
                         "nachsehen", "im netz", "online",
                     )):
-                        # Ursprüngliche Frage als Such-Query verwenden
+                        # Suchbegriff aus LLM-Antwort extrahieren (z.B. "SV Darmstadt")
+                        # oder Profil-Fakten als Kontext nutzen
                         original_query = prev_user_row["message"].strip() if prev_user_row else ""
-                        if original_query:
+                        search_query = self._build_search_query_from_context(
+                            last_reply, original_query, person_name
+                        )
+                        if search_query:
                             from app.search.providers.web import WebProvider
-                            web_raw = WebProvider().search(original_query)
+                            web_raw = WebProvider().search(search_query)
                             if web_raw:
                                 from app.search.service import SearchResult
                                 search_result = SearchResult(
-                                    query=original_query,
+                                    query=search_query,
                                     snippet=web_raw["snippet"],
                                     title=web_raw["title"],
                                     url=web_raw.get("url", ""),
