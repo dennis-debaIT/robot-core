@@ -45,6 +45,7 @@ class ExternalLLMClient:
             float(db["temperature"]) if db.get("temperature") is not None
             else self._read_float_env("LLM_TEMPERATURE", 0.4)
         )
+        self.max_tokens = int(db["max_tokens"]) if db.get("max_tokens") is not None else self._read_int_env("LLM_MAX_TOKENS", 220)
 
     @staticmethod
     def _temperature_from_personality() -> float | None:
@@ -52,14 +53,13 @@ class ExternalLLMClient:
             from app.database.db import get_connection, read_state
             with get_connection() as conn:
                 p = read_state(conn, "personality", {}) or {}
-            humor        = float(p.get("humor",        0.5))
-            curiosity    = float(p.get("curiosity",    0.5))
+            humor         = float(p.get("humor",         0.5))
+            curiosity     = float(p.get("curiosity",     0.5))
             talkativeness = float(p.get("talkativeness", 0.5))
             temp = round(0.20 + humor * 0.25 + curiosity * 0.20 + talkativeness * 0.10, 3)
             return max(0.1, min(1.5, temp))
         except Exception:
             return None
-        self.max_tokens  = int(db["max_tokens"])    if db.get("max_tokens")   is not None else self._read_int_env("LLM_MAX_TOKENS", 220)
 
     @staticmethod
     def _load_db_config() -> dict[str, Any]:
