@@ -142,7 +142,11 @@ class ExternalLLMClient:
         try:
             return request.urlopen(req, timeout=timeout_seconds)
         except error.HTTPError as exc:
-            if self._supports_only_user_and_assistant(exc):
+            try:
+                error_body = exc.read().decode("utf-8")
+            except Exception:
+                error_body = ""
+            if self._supports_only_user_and_assistant(error_body):
                 fallback_body = self._merge_system_into_first_user(body)
                 fallback_req = request.Request(
                     self.api_url,
@@ -151,13 +155,13 @@ class ExternalLLMClient:
                     method="POST",
                 )
                 return request.urlopen(fallback_req, timeout=timeout_seconds)
-            raise
+            raise error.HTTPError(
+                exc.url, exc.code,
+                f"{exc.reason} — {error_body[:300]}" if error_body else exc.reason,
+                exc.headers, None,
+            )
 
-    def _supports_only_user_and_assistant(self, exc: error.HTTPError) -> bool:
-        try:
-            error_body = exc.read().decode("utf-8")
-        except Exception:
-            return False
+    def _supports_only_user_and_assistant(self, error_body: str) -> bool:
         return 'Only user and assistant roles are supported' in error_body
 
     def _merge_system_into_first_user(self, body: dict[str, Any]) -> dict[str, Any]:
