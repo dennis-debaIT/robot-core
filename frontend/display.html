@@ -1178,6 +1178,36 @@
     } catch {}
   }
 
+  // ── STADTWAPPEN IM CENTER-PANEL ───────────────────────────
+  function _showCoatOfArms(url) {
+    const faceWrap = document.querySelector('.face-wrap');
+    let overlay = document.getElementById('coat-of-arms-overlay');
+    if (!url) {
+      if (overlay) overlay.remove();
+      if (faceWrap) faceWrap.style.opacity = '';
+      return;
+    }
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'coat-of-arms-overlay';
+      overlay.style.cssText = [
+        'position:absolute;inset:0;display:flex;align-items:center;',
+        'justify-content:center;z-index:50;',
+        'background:radial-gradient(circle,rgba(5,6,17,0.0) 30%,rgba(5,6,17,0.7) 100%);',
+        'pointer-events:none;',
+      ].join('');
+      const cp = document.getElementById('center-panel');
+      if (cp) cp.appendChild(overlay);
+    }
+    overlay.innerHTML = `<img src="${url}" alt="Stadtwappen"
+      style="max-height:260px;max-width:260px;object-fit:contain;
+             filter:drop-shadow(0 0 24px rgba(0,200,255,0.15));
+             opacity:0;transition:opacity 0.6s ease;"
+      onload="this.style.opacity=1"
+      onerror="document.getElementById('coat-of-arms-overlay')?.remove()">`;
+    if (faceWrap) faceWrap.style.opacity = '0.08';
+  }
+
   // ── MONATSKALENDER OVERLAY ────────────────────────────────
   const _DE_MONTHS_FULL = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
   const _DE_DAYS_SHORT  = ['Mo','Di','Mi','Do','Fr','Sa','So'];
@@ -1896,6 +1926,7 @@
     clearTimeout(contextTimer);
 
     if (mode === 'idle') {
+      _showCoatOfArms(null);
       clearCalendarCenter();
       showWeatherLeft();
       showCalendarRight();
@@ -1952,6 +1983,9 @@
       const locParam = loc ? `&location=${encodeURIComponent(loc)}` : '';
       const resp = await fetch(`/weather?_=${Date.now()}${locParam}`, { cache: 'no-store' });
       const w = resp.ok ? await resp.json() : _lastWeatherData;
+      // Wappen anzeigen wenn verfügbar (aus State oder Weather-Response)
+      const coatUrl = data?.coat_of_arms_url || w?.coat_of_arms_url || null;
+      _showCoatOfArms(coatUrl);
       if (submode === 'tomorrow' && w?.tomorrow) {
         setPanel('left',  'Morgen · ' + (w.location || ''), renderWeatherDay(w.tomorrow, true));
         setPanel('right', 'Nächste Tage', renderWeatherForecast(w));

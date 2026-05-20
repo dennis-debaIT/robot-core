@@ -1678,8 +1678,10 @@ class RobotCore:
                              "donnerstag", "freitag", "samstag", "sonntag", "wochenende")
             submode = "tomorrow" if any(w in q for w in _future_words) else "current"
             weather_location = meta.get("resolved_name") or None
+            coat_url = meta.get("coat_of_arms_url") or None
             intent = {"mode": "weather_detail", "submode": submode,
-                      "location": weather_location, "expires_at": expires}
+                      "location": weather_location, "coat_of_arms_url": coat_url,
+                      "expires_at": expires}
         elif meta.get("provider") == "calendar" or any(
             w in q for w in ("termin", "kalender", "verabredung", "geburtstag")
         ) or _re.search(r"\b(ansteh\w+|liegt\s+\w+\s*an|steht\s+\w+\s*an)\b", q):
