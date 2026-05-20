@@ -2280,6 +2280,7 @@
 
   let _listening = false;
   let _interimText = '';
+  let _bestFinal   = '';
 
   function startInput() {
     unlockAudio();  // iOS: Audio während User-Geste entsperren
@@ -2345,8 +2346,6 @@
 
     // Stille-Timer sofort starten (falls Nutzer nichts sagt)
     resetSilenceTimer();
-
-    let _bestFinal = '';  // bestes (längstes/vollständigstes) Ergebnis dieser Session
 
     rec.onresult = (e) => {
       let interim = '';

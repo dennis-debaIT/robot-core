@@ -750,8 +750,12 @@
                 <input id="llm-max-tokens" class="field-input" type="number" min="50" max="4096" value="220">
               </label>
               <label class="field-block">
-                <span class="field-label">Temperatur (0 = präzise, 2 = kreativ)</span>
-                <input id="llm-temperature" class="field-input" type="number" min="0" max="2" step="0.1" value="0.4">
+                <span class="field-label">Temperatur</span>
+                <div id="llm-temperature-info" style="font-size:0.75rem;color:var(--muted);padding:8px 10px;background:var(--panel-soft);border-radius:8px;border:1px solid var(--border);">
+                  Wird automatisch aus der Persönlichkeit berechnet<br>
+                  <span style="color:var(--accent);" id="llm-temperature-calc">–</span>
+                </div>
+                <input id="llm-temperature" type="hidden" value="0.4">
               </label>
             </div>
           </section>
@@ -2548,7 +2552,23 @@
         _personalityData = await fetch('/personality').then(r => r.json());
         _renderPersonalitySliders();
         _renderGlobalRelationship();
+        setTimeout(_updateTempCalc, 50);
       } catch {}
+    }
+
+    function _calcTemperature() {
+      const get = key => {
+        const el = document.querySelector(`.personality-slider[data-key="${key}"]`);
+        return el ? parseInt(el.value) / 100 : 0.5;
+      };
+      return Math.max(0.1, Math.min(1.5,
+        0.20 + get('humor') * 0.25 + get('curiosity') * 0.20 + get('talkativeness') * 0.10
+      )).toFixed(2);
+    }
+
+    function _updateTempCalc() {
+      const el = document.getElementById('llm-temperature-calc');
+      if (el) el.textContent = `Aktuell: ${_calcTemperature()} (Humor + Neugier + Gesprächigkeit)`;
     }
 
     function _renderPersonalitySliders() {
@@ -2567,7 +2587,7 @@
             <input type="range" min="0" max="100" value="${pct}" data-key="${f.key}"
               class="personality-slider"
               style="width:100%;accent-color:var(--accent);"
-              oninput="document.getElementById('pval-'+this.dataset.key).textContent=this.value+'%'">
+              oninput="document.getElementById('pval-'+this.dataset.key).textContent=this.value+'%';_updateTempCalc()">
           </div>`;
       }).join('');
     }
