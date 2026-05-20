@@ -91,6 +91,11 @@ class ConversationService:
         "geboren", "gestorben", "bekannt", "berühmt", "wichtig",
         "groß", "kleine", "neue", "alten", "letzten", "erste",
         "richtig", "falsch", "möglich", "nötig", "fertig",
+        # Testwörter / Meta-Konversation
+        "test", "teste", "testen", "probiere", "probier", "ausprobieren",
+        "danach", "danke", "okay", "alles", "nochmal", "weisst", "weißt",
+        "eigentlich", "genau", "stimmt", "richtig", "falsch", "echt", "wirklich",
+        "nochmal", "nochmals", "wieder", "immer", "noch", "schon", "bereits",
         # Erika-spezifisch — System/Roboter-Begriffe sind nie echte Interessen
         "erika", "interessiere",
         "roboter", "system", "backend", "docker", "container", "server",
