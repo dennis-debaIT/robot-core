@@ -52,3 +52,11 @@ def update_memory(memory_id: int, payload: FactUpdateRequest) -> dict[str, Any]:
     if not result:
         raise HTTPException(status_code=404, detail="Memory not found")
     return result
+
+
+@router.delete("/memory/{memory_id}")
+def delete_memory(memory_id: int) -> dict[str, Any]:
+    result = get_core().memory.delete(memory_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return {"ok": True}

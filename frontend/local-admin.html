@@ -2487,7 +2487,7 @@
               </div>
               <div>
                 <div style="font-weight:700;font-size:0.92rem;">${escapeHtml(p.name||'–')}</div>
-                <div style="font-size:0.72rem;color:var(--muted);">${p.facts_count ?? 0} Eigenschaften · ${p.memory_count ?? 0} Erinnerungen</div>
+                <div style="font-size:0.72rem;color:var(--muted);">${p.facts_count ?? (p.facts?.length ?? 0)} Eigenschaften · ${p.memory_count ?? 0} Erinnerungen${(p.pending_count ?? 0) > 0 ? ` · <span style="color:var(--warning);">${p.pending_count} ausstehend</span>` : ''}</div>
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -2518,51 +2518,83 @@
       }
     }
 
+    const _personSectionOpen = {};
+
+    function _toggleSection(personId, section) {
+      const key = `${personId}_${section}`;
+      _personSectionOpen[key] = !(_personSectionOpen[key] !== false);
+      const el = document.getElementById(`psec-${personId}-${section}`);
+      const arrow = document.getElementById(`parrow-${personId}-${section}`);
+      if (el) el.style.display = _personSectionOpen[key] ? 'block' : 'none';
+      if (arrow) arrow.textContent = _personSectionOpen[key] ? '▲' : '▼';
+    }
+
+    function _sectionOpen(personId, section) {
+      const key = `${personId}_${section}`;
+      return _personSectionOpen[key] !== false; // default open
+    }
+
     async function loadPersonDetail(id) {
       const el = document.getElementById(`person-detail-${id}`);
       if (!el) return;
       try {
-        const [ws, prefs] = await Promise.all([
-          fetch(`/profiles/${id}/workspace`).then(r => r.json()),
-          fetch(`/profiles/${id}/preferences`).then(r => r.json()),
-        ]);
+        const ws = await fetch(`/profiles/${id}/workspace`).then(r => r.json());
         const facts = ws.person?.facts || [];
         const memories = (ws.memories || []).filter(m => m.status === 'approved');
         const pending  = (ws.memories || []).filter(m => m.status === 'pending');
 
-        const factsHtml = facts.length ? `
-          <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Eigenschaften</div>
-          ${facts.map(f => `
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;background:var(--panel-soft);border-radius:8px;padding:6px 10px;">
-              <span style="font-size:0.72rem;color:var(--muted);min-width:100px;">${escapeHtml(f.trait_type||'')}</span>
-              <span style="flex:1;font-size:0.82rem;">${escapeHtml(String(f.value||''))}</span>
-              <button onclick="deletePersonFact(${id},${f.id})"
+        const _sectionHeader = (personId, section, label, count, colorVar) => `
+          <div onclick="_toggleSection(${personId},'${section}')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:6px 0;border-top:1px solid var(--border);margin-top:10px;user-select:none;">
+            <span style="font-size:0.72rem;font-weight:700;color:${colorVar || 'var(--muted)'};letter-spacing:0.08em;text-transform:uppercase;">${label} (${count})</span>
+            <span id="parrow-${personId}-${section}" style="font-size:0.68rem;color:var(--muted);">${_sectionOpen(personId, section) ? '▲' : '▼'}</span>
+          </div>
+          <div id="psec-${personId}-${section}" style="display:${_sectionOpen(personId, section) ? 'block' : 'none'};margin-top:4px;">`;
+
+        const factsHtml = _sectionHeader(id, 'facts', 'Eigenschaften', facts.length, 'var(--muted)')
+          + (facts.length ? facts.map(f => `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;background:var(--panel-soft);border-radius:8px;padding:5px 10px;">
+              <span style="font-size:0.7rem;color:var(--muted);min-width:110px;">${escapeHtml(f.trait_type||'')}</span>
+              <span style="flex:1;font-size:0.8rem;">${escapeHtml(String(f.value||''))}</span>
+              <button onclick="deletePersonFact(${id},${f.id})" title="Löschen"
                 style="padding:2px 8px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">✕</button>
-            </div>`).join('')}` : '<div style="font-size:0.78rem;color:var(--muted);">Keine Eigenschaften bekannt.</div>';
+            </div>`).join('')
+          : '<div style="font-size:0.75rem;color:var(--muted);padding:4px 0;">Keine Eigenschaften bekannt.</div>')
+          + '</div>';
 
-        const memoriesHtml = memories.length ? `
-          <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin:12px 0 6px;">Erinnerungen (${memories.length})</div>
-          ${memories.slice(0,10).map(m => `
-            <div style="background:var(--panel-soft);border-radius:8px;padding:6px 10px;margin-bottom:4px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+        const memoriesHtml = _sectionHeader(id, 'memories', 'Erinnerungen', memories.length, 'var(--muted)')
+          + (memories.length ? memories.map(m => `
+            <div style="background:var(--panel-soft);border-radius:8px;padding:5px 10px;margin-bottom:3px;font-size:0.76rem;display:flex;align-items:flex-start;gap:8px;">
               <span style="flex:1;">${escapeHtml(m.content||'')}</span>
-              <span style="font-size:0.65rem;color:var(--muted);white-space:nowrap;">${m.category||''}</span>
-            </div>`).join('')}` : '';
+              <span style="font-size:0.62rem;color:var(--muted);white-space:nowrap;flex-shrink:0;">${m.category||''}</span>
+              <button onclick="deleteMemory(${m.id},${id})" title="Löschen"
+                style="padding:2px 7px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);flex-shrink:0;">✕</button>
+            </div>`).join('')
+          : '<div style="font-size:0.75rem;color:var(--muted);padding:4px 0;">Keine Erinnerungen.</div>')
+          + '</div>';
 
-        const pendingHtml = pending.length ? `
-          <div style="font-size:0.72rem;font-weight:700;color:var(--warning);letter-spacing:0.08em;text-transform:uppercase;margin:12px 0 6px;">Ausstehend (${pending.length})</div>
-          ${pending.slice(0,5).map(m => `
-            <div style="background:rgba(255,171,0,0.07);border:1px solid rgba(255,171,0,0.2);border-radius:8px;padding:6px 10px;margin-bottom:4px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        const pendingHtml = pending.length
+          ? _sectionHeader(id, 'pending', 'Ausstehend', pending.length, 'var(--warning)')
+            + pending.map(m => `
+            <div style="background:rgba(255,171,0,0.07);border:1px solid rgba(255,171,0,0.2);border-radius:8px;padding:5px 10px;margin-bottom:3px;font-size:0.76rem;display:flex;align-items:center;gap:8px;">
               <span style="flex:1;">${escapeHtml(m.content||'')}</span>
-              <div style="display:flex;gap:6px;flex-shrink:0;">
+              <div style="display:flex;gap:5px;flex-shrink:0;">
                 <button onclick="approveMemory(${m.id},${id})" style="padding:2px 8px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:rgba(0,200,100,0.1);border:1px solid rgba(0,200,100,0.4);color:#4caf50;">✓</button>
                 <button onclick="rejectMemory(${m.id},${id})" style="padding:2px 8px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">✕</button>
               </div>
-            </div>`).join('')}` : '';
+            </div>`).join('') + '</div>'
+          : '';
 
         el.innerHTML = factsHtml + memoriesHtml + pendingHtml;
       } catch {
         el.innerHTML = '<div style="color:var(--danger);font-size:0.78rem;">Fehler beim Laden der Details.</div>';
       }
+    }
+
+    async function deleteMemory(memoryId, personId) {
+      if (!await showConfirm('Erinnerung wirklich löschen?', 'Löschen')) return;
+      await fetch(`/memory/${memoryId}`, { method: 'DELETE' });
+      await loadPersonDetail(personId);
+      await loadPersons();
     }
 
     async function deletePersonFact(personId, factId) {

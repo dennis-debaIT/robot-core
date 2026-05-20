@@ -421,6 +421,10 @@ class RobotCore:
         people = self.profile.list_people()
         for item in people:
             item["relationship_state"] = self.relationship.get_person_state(item["id"])
+            item["facts_count"] = len(item.get("facts") or [])
+            memories = self.memory.list_memories(subject=item["name"])
+            item["memory_count"] = sum(1 for m in memories if m.get("status") == "approved")
+            item["pending_count"] = sum(1 for m in memories if m.get("status") == "pending")
         return people
 
     def get_person_workspace(self, person_id: int) -> dict[str, Any] | None:
@@ -646,8 +650,20 @@ class RobotCore:
                     "nacht", "tschüss", "okay", "danke", "soll", "sollte",
                     "machen", "macht", "welchen", "welche", "letzten", "ersten",
                     "nächsten", "wurde", "werden", "haben", "sein",
+                    # Verben / Partizipien
+                    "gespielt", "gemacht", "gesagt", "geworden", "gegeben",
+                    "gesehen", "gehört", "gefunden", "gesucht", "gefragt",
+                    "steht", "stehen", "liegt", "liegen", "läuft", "sitzt",
+                    "passiert", "existiert", "geboren", "gestorben",
+                    # Generische Nomen
+                    "platz", "stelle", "ort", "punkt", "lage", "fall",
+                    "schritt", "teil", "form", "grund", "tage", "wochen",
+                    "monat", "jahr", "uhr", "zeit", "zahl", "wert", "name",
+                    # Adjektive
+                    "bekannt", "berühmt", "wichtig", "richtig", "falsch",
+                    "möglich", "nötig", "fertig", "klein", "groß", "neu", "alt",
                 }
-                if topic_label and topic_label.lower() not in _NO_PROMOTE and len(topic_label) >= 4:
+                if topic_label and topic_label.lower() not in _NO_PROMOTE and len(topic_label) >= 5:
                     promoted = self.profile.upsert_fact_if_missing(
                         person_name=person_name,
                         trait_type="interest",
@@ -718,14 +734,18 @@ class RobotCore:
         self.conversation.record_user_topics(person_name, captured)
         with get_connection() as conn:
             write_state(conn, "display_status", "listening")
-            write_state(conn, "active_person_name", person_name)
+            if person_name is not None:
+                write_state(conn, "active_person_name", person_name)
 
     def _finalize_chat(self, reply: str, person_name: str | None) -> None:
         sanitized_reply = self._sanitize_reply_text(reply)
         with get_connection() as conn:
             write_state(conn, "display_status", "responding")
             write_state(conn, "last_conversation_at", now_iso())
-            write_state(conn, "active_person_name", None)
+            # Manuelle Personenauswahl (Dropdown) nicht überschreiben —
+            # nur löschen wenn die Person für diesen Chat explizit gesetzt war
+            if person_name is not None:
+                write_state(conn, "active_person_name", None)
 
         self._log_message("assistant", sanitized_reply, person_name)
         self._log_event("display_status", {"status": "responding"})

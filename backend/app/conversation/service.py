@@ -69,6 +69,28 @@ class ConversationService:
         "letzten", "letzter", "letztes", "letztem", "letzte",
         "ersten", "erster", "erstes", "erstem", "erste",
         "nächsten", "nächster", "nächstes", "nächstem", "nächste",
+        # Verben (Partizip Perfekt & häufige Verbformen) — nie Interessen
+        "gespielt", "gemacht", "gesagt", "geworden", "gegeben", "gegangen",
+        "gekommen", "gestellt", "gestanden", "gelegen", "gefahren", "geflogen",
+        "gesehen", "gehört", "gefunden", "gelesen", "geschrieben", "gedacht",
+        "gezeigt", "gehört", "gesucht", "gefragt", "geöffnet", "geschlossen",
+        "gestartet", "gestoppt", "geladen", "gesendet", "gespeichert",
+        "steht", "stehen", "stand", "stände", "stünde",
+        "liegt", "liegen", "läuft", "laufen", "lief",
+        "sitzt", "sitzen", "saß", "stellt", "stellt",
+        "passiert", "passieren", "existiert", "existieren",
+        # Zu generische Einzelnomen — kein sinnvolles Interesse
+        "platz", "stelle", "ort", "punkt", "lage", "bereich",
+        "fall", "fälle", "schritt", "teil", "teile",
+        "art", "weise", "form", "grund", "gründe",
+        "tage", "wochen", "monat", "monate", "jahr", "jahre",
+        "uhr", "zeit", "stunde", "stunden", "minute", "minuten",
+        "zahl", "zahlen", "wert", "werte", "anzahl", "menge",
+        "name", "namen", "titel",
+        # Partizipien & Adjektive (generisch)
+        "geboren", "gestorben", "bekannt", "berühmt", "wichtig",
+        "groß", "kleine", "neue", "alten", "letzten", "erste",
+        "richtig", "falsch", "möglich", "nötig", "fertig",
         # Erika-spezifisch — System/Roboter-Begriffe sind nie echte Interessen
         "erika", "interessiere",
         "roboter", "system", "backend", "docker", "container", "server",

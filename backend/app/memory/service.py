@@ -42,6 +42,13 @@ class MemoryService:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def delete(self, memory_id: int) -> bool:
+        with get_connection() as conn:
+            rowcount = conn.execute(
+                "DELETE FROM memory_entries WHERE id = ?", (memory_id,)
+            ).rowcount
+        return rowcount > 0
+
     def delete_by_subject(self, subject: str) -> int:
         with get_connection() as conn:
             return conn.execute(
