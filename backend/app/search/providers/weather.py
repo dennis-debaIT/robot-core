@@ -106,8 +106,8 @@ class WeatherProvider:
 
     # Ortsnamen aus Anfragen extrahieren
     _LOCATION_PATTERN = re.compile(
-        r"\bin\s+([A-ZÄÖÜ][a-zA-ZÄÖÜäöüß\s]{2,20}?)(?:\s+(?:ist|sind|war|wird|das|heute|aktuell|gerade))?\b"
-        r"|\bfür\s+([A-ZÄÖÜ][a-zA-ZÄÖÜäöüß\s]{2,20}?)(?:\s+(?:ist|das|heute))?\b",
+        r"\bin\s+([A-Za-zÄÖÜäöüß][a-zA-ZÄÖÜäöüß\s\-]{2,20}?)(?:\s+(?:ist|sind|war|wird|das|heute|aktuell|gerade))?\b"
+        r"|\bfür\s+([A-Za-zÄÖÜäöüß][a-zA-ZÄÖÜäöüß\s\-]{2,20}?)(?:\s+(?:ist|das|heute))?\b",
     )
 
     def can_handle(self, query: str) -> bool:
@@ -373,17 +373,21 @@ class WeatherProvider:
     ])
 
     def _extract_location(self, query: str) -> str | None:
-        # 1. Regex: "in X" oder "für X"
+        # 1. Regex: "in X" oder "für X" (jetzt case-insensitiv)
         m = self._LOCATION_PATTERN.search(query)
         if m:
             loc = (m.group(1) or m.group(2) or "").strip()
-            if len(loc) >= 3:
-                return loc
-        # 2. Fallback: letztes großgeschriebenes Wort das kein Stopwort ist
+            if len(loc) >= 3 and loc.lower() not in self._LOCATION_STOPWORDS:
+                return loc.capitalize()
+        # 2. Letztes großgeschriebenes Wort
         words = re.sub(r"[^\w\s]", "", query).split()
         for word in reversed(words):
             if len(word) >= 3 and word[0].isupper() and word.lower() not in self._LOCATION_STOPWORDS:
                 return word
+        # 3. Fallback: letztes Wort ≥ 3 Zeichen das kein Stopwort ist
+        for word in reversed(words):
+            if len(word) >= 3 and word.lower() not in self._LOCATION_STOPWORDS:
+                return word.capitalize()
         return None
 
     def _geocode(self, location: str) -> tuple[float, float, str] | None:
