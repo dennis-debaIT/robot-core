@@ -2297,8 +2297,7 @@
   }
 
   function stopSpeech() {
-    // stop() statt abort() → Browser verarbeitet noch vorhandenen Audio-Puffer
-    // und feuert onresult mit isFinal=true, dann onend
+    _listening = false;  // ZUERST setzen, damit onend nicht erneut startet
     if (_recognition) { try { _recognition.stop(); } catch {} }
   }
 
@@ -2364,14 +2363,18 @@
 
       r.onend = () => {
         if (_listening) {
-          // Session natürlich beendet → sofort neue Session für nächste Äußerung
-          try {
-            const next = _makeRec();
-            _recognition = next;
-            next.start();
-          } catch {}
+          // Session natürlich beendet (Pause) → kurz warten dann neue Session
+          // Das erlaubt dem Nutzer eine natürliche Sprechpause ohne sofort zu senden
+          setTimeout(() => {
+            if (!_listening) return;  // stopSpeech() wurde inzwischen aufgerufen
+            try {
+              const next = _makeRec();
+              _recognition = next;
+              next.start();
+            } catch {}
+          }, 100);
         } else {
-          // stopSpeech() wurde aufgerufen → finalisieren
+          // stopSpeech() wurde aufgerufen → finalisieren und senden
           clearTimeout(_silenceTimer);
           finishListening();
           const text = _interimText.trim();
