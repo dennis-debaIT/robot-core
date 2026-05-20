@@ -4523,10 +4523,12 @@
 
   // Lampen-Icon mit optionaler Farbe aus rgb_color / color_temp_kelvin
   function _lightColor(light) {
+    // Gibt Hex-Farbe (#rrggbb) zurück — kompatibel mit Hex-Alpha-Suffix (#rrggbbaa)
+    const _toHex = (r, g, b) => '#' + [r,g,b].map(v => Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
     if (!light || light.state !== 'on') return null;
     if (light.rgb_color) {
       const [r, g, b] = light.rgb_color;
-      return `rgb(${r},${g},${b})`;
+      return _toHex(r, g, b);
     }
     if (light.color_temp_kelvin) {
       const t = light.color_temp_kelvin / 100;
@@ -4534,7 +4536,7 @@
       const cg = t <= 66 ? Math.min(255,Math.max(0,Math.round(99.47*Math.log(t)-161.12)))
                          : Math.min(255,Math.max(0,Math.round(288.1*Math.pow(t-60,-0.076))));
       const cb = t >= 66 ? 255 : (t <= 19 ? 0 : Math.min(255,Math.max(0,Math.round(138.5*Math.log(t-10)-305.0))));
-      return `rgb(${cr},${cg},${cb})`;
+      return _toHex(cr, cg, cb);
     }
     return null;
   }
