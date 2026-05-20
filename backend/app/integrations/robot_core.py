@@ -728,6 +728,42 @@ class RobotCore:
 
         return captured, payload, proposed_memories, decision, search_result
 
+    # ── Fakten-Extraktion aus User-Nachrichten ───────────────
+    _FACT_PATTERNS: list[tuple[str, str]] = [
+        # Alter
+        (r'\bich\s+bin\s+(?:jetzt\s+)?(\d{1,3})\s*(?:jahre?\s+alt)?\b', 'age'),
+        (r'\b(\d{1,3})\s+jahre?\s+alt\b', 'age'),
+        (r'\bmein\s+alter\s+(?:ist|beträgt|war)\s+(\d{1,3})\b', 'age'),
+        (r'\bich\s+bin\s+(\d{2})\b(?!\s*uhr)', 'age'),
+        (r'\bich\s+wurde\s+(\d{1,3})\b', 'age'),
+        # Lieblingsfarbe
+        (r'\bmeine?\s+lieblingsfarbe\s+ist\s+(\w+)', 'favorite_color'),
+        (r'\bich\s+mag\s+(?:die\s+farbe\s+)?(\w+)\s+am\s+liebsten', 'favorite_color'),
+        # Name (Spitzname)
+        (r'\bnenн mich\s+(.+?)(?:\.|,|$)', 'nickname'),
+        (r'\bich\s+heiße\s+(?:eigentlich\s+)?(.+?)(?:\.|,|$)', 'nickname'),
+    ]
+
+    def _try_extract_fact_update(self, message: str, person_name: str) -> None:
+        import re as _re
+        for pattern, trait_type in self._FACT_PATTERNS:
+            m = _re.search(pattern, message, _re.IGNORECASE)
+            if m:
+                value = m.group(1).strip().rstrip('.,!?')
+                if not value:
+                    continue
+                try:
+                    self.profile.upsert_fact(
+                        person_name=person_name,
+                        trait_type=trait_type,
+                        value=value,
+                        source_memory_id=None,
+                        confidence=0.95,
+                    )
+                except Exception:
+                    pass
+                break  # nur ein Fakt pro Nachricht
+
     def _record_direct_chat_input(self, captured: str, person_name: str | None) -> None:
         self._log_event("speech_input", {"text": captured, "person_name": person_name})
         self._log_message("user", captured, person_name)
@@ -742,10 +778,8 @@ class RobotCore:
         with get_connection() as conn:
             write_state(conn, "display_status", "responding")
             write_state(conn, "last_conversation_at", now_iso())
-            # Manuelle Personenauswahl (Dropdown) nicht überschreiben —
-            # nur löschen wenn die Person für diesen Chat explizit gesetzt war
-            if person_name is not None:
-                write_state(conn, "active_person_name", None)
+            # active_person_name wird hier NICHT geändert — wird nur über
+            # das Display-Dropdown oder Kamera-Erkennung gesetzt/gelöscht
 
         self._log_message("assistant", sanitized_reply, person_name)
         self._log_event("display_status", {"status": "responding"})
@@ -913,6 +947,8 @@ class RobotCore:
         settings = self.settings.get_effective()
         captured = self.microphone.capture_text(message)
         self._learn_from_interaction(person_name, captured)
+        if person_name:
+            self._try_extract_fact_update(captured, person_name)
         direct_reply = self._try_answer_runtime_question(captured)
         if direct_reply is None:
             direct_reply = self._try_answer_person_knowledge_question(captured)

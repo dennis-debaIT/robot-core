@@ -2409,7 +2409,7 @@
     _chatBusy = true;
     resetTts();
 
-    const personName = (document.getElementById('sb-person')?.textContent?.trim()) || 'Dennis';
+    const personName = _activePersonName || null;
     showReplyText('🎤 ' + text, false);
 
     try {
