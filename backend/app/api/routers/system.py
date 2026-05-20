@@ -455,6 +455,34 @@ def test_llm_config() -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@router.get("/llm/usage")
+def get_llm_usage() -> dict[str, Any]:
+    with get_connection() as conn:
+        data = read_state(conn, "llm_rate_limit", {}) or {}
+    return data
+
+
+@router.post("/llm/usage/refresh")
+def refresh_llm_usage() -> dict[str, Any]:
+    """Macht einen Minimal-Request um aktuelle Rate-Limit-Header zu lesen."""
+    from app.brain.llm_client import ExternalLLMClient
+    client = ExternalLLMClient()
+    if not client.is_configured():
+        raise HTTPException(status_code=400, detail="Kein LLM konfiguriert")
+    try:
+        client.generate({
+            "message": "1",
+            "messages": [{"role": "user", "content": "1"}],
+            "personality": {"directness": 1.0, "humor": 0.0},
+            "llm_max_tokens": 1,
+        }, timeout_seconds=8)
+    except Exception:
+        pass  # Headers wurden trotzdem gespeichert
+    with get_connection() as conn:
+        data = read_state(conn, "llm_rate_limit", {}) or {}
+    return data
+
+
 @router.get("/device/identity")
 def get_device_identity() -> dict[str, Any]:
     return get_core().get_device_identity()

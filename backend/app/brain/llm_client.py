@@ -78,6 +78,7 @@ class ExternalLLMClient:
             emitted_fragment = False
             response = self._open_request(body, timeout_seconds=timeout_seconds)
             with response:
+                self._save_rate_limit_headers(response.headers)
                 for raw_line in response:
                     line = raw_line.decode("utf-8").strip()
                     if not line or not line.startswith("data: "):
@@ -135,7 +136,34 @@ class ExternalLLMClient:
 
     def _post_json(self, body: dict[str, Any], timeout_seconds: int) -> dict[str, Any]:
         with self._open_request(body, timeout_seconds=timeout_seconds) as response:
-            return json.loads(response.read().decode("utf-8"))
+            data = json.loads(response.read().decode("utf-8"))
+            self._save_rate_limit_headers(response.headers)
+            return data
+
+    @staticmethod
+    def _save_rate_limit_headers(headers: Any) -> None:
+        try:
+            from app.database.db import get_connection, write_state
+            remaining = headers.get("x-ratelimit-remaining-requests")
+            limit      = headers.get("x-ratelimit-limit-requests")
+            reset_req  = headers.get("x-ratelimit-reset-requests")
+            rem_tokens = headers.get("x-ratelimit-remaining-tokens")
+            lim_tokens = headers.get("x-ratelimit-limit-tokens")
+            if remaining is None:
+                return
+            from datetime import datetime, timezone
+            payload = {
+                "remaining_requests": int(remaining) if remaining else None,
+                "limit_requests":     int(limit)     if limit     else None,
+                "reset_requests":     reset_req,
+                "remaining_tokens":   int(rem_tokens) if rem_tokens else None,
+                "limit_tokens":       int(lim_tokens) if lim_tokens else None,
+                "updated_at":         datetime.now(timezone.utc).isoformat(),
+            }
+            with get_connection() as conn:
+                write_state(conn, "llm_rate_limit", payload)
+        except Exception:
+            pass
 
     def _open_request(self, body: dict[str, Any], timeout_seconds: int):
         req = request.Request(

@@ -711,6 +711,33 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">API-Auslastung</div>
+              <p>Wird nach jedem Gespräch automatisch aktualisiert. "Aktualisieren" macht einen Minimal-Request.</p>
+            </div>
+            <div id="llm-usage-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:10px;">
+              <div class="sysres-card">
+                <div class="sysres-label">Anfragen übrig</div>
+                <div class="sysres-value" id="llm-usage-rem-req">–</div>
+                <div class="sysres-bar-bg"><div class="sysres-bar-fill" id="llm-usage-rem-req-bar" style="width:0%"></div></div>
+                <div class="sysres-sub" id="llm-usage-rem-req-sub"></div>
+              </div>
+              <div class="sysres-card">
+                <div class="sysres-label">Tokens übrig</div>
+                <div class="sysres-value" id="llm-usage-rem-tok">–</div>
+                <div class="sysres-bar-bg"><div class="sysres-bar-fill" id="llm-usage-rem-tok-bar" style="width:0%"></div></div>
+                <div class="sysres-sub" id="llm-usage-rem-tok-sub"></div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <button type="button" onclick="refreshLlmUsage()" style="padding:6px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;background:var(--panel-soft);border:1px solid var(--border);color:var(--muted);">
+                ↻ Aktualisieren
+              </button>
+              <span id="llm-usage-updated" style="font-size:0.72rem;color:var(--muted);"></span>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Test & Speichern</div>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
@@ -2656,6 +2683,63 @@
     // ── LLM Konfiguration ─────────────────────────────────────
     let _llmProviders = {};
 
+    async function loadLlmUsage() {
+      try {
+        const d = await fetch('/llm/usage').then(r => r.json());
+        _renderLlmUsage(d);
+      } catch {}
+    }
+
+    async function refreshLlmUsage() {
+      document.getElementById('llm-usage-updated').textContent = 'Aktualisiere…';
+      try {
+        const d = await fetch('/llm/usage/refresh', { method: 'POST' }).then(r => r.json());
+        _renderLlmUsage(d);
+      } catch (e) {
+        document.getElementById('llm-usage-updated').textContent = '✗ Fehler';
+      }
+    }
+
+    function _renderLlmUsage(d) {
+      const remReq  = d.remaining_requests;
+      const limReq  = d.limit_requests;
+      const remTok  = d.remaining_tokens;
+      const limTok  = d.limit_tokens;
+      const updated = d.updated_at;
+
+      const reqEl  = document.getElementById('llm-usage-rem-req');
+      const reqBar = document.getElementById('llm-usage-rem-req-bar');
+      const reqSub = document.getElementById('llm-usage-rem-req-sub');
+      const tokEl  = document.getElementById('llm-usage-rem-tok');
+      const tokBar = document.getElementById('llm-usage-rem-tok-bar');
+      const tokSub = document.getElementById('llm-usage-rem-tok-sub');
+      const updEl  = document.getElementById('llm-usage-updated');
+
+      if (remReq != null) {
+        const pct = limReq ? Math.round(remReq / limReq * 100) : 100;
+        if (reqEl)  reqEl.textContent  = remReq.toLocaleString('de-DE');
+        if (reqSub) reqSub.textContent = limReq ? `von ${limReq.toLocaleString('de-DE')} gesamt` : '';
+        if (reqBar) { reqBar.style.width = pct + '%'; reqBar.style.background = pct > 30 ? 'var(--accent)' : pct > 10 ? '#ffab00' : '#ff3d3d'; }
+      }
+      if (remTok != null) {
+        const pct = limTok ? Math.round(remTok / limTok * 100) : 100;
+        if (tokEl)  tokEl.textContent  = remTok.toLocaleString('de-DE');
+        if (tokSub) tokSub.textContent = limTok ? `von ${limTok.toLocaleString('de-DE')} gesamt` : '';
+        if (tokBar) { tokBar.style.width = pct + '%'; tokBar.style.background = pct > 30 ? 'var(--accent)' : pct > 10 ? '#ffab00' : '#ff3d3d'; }
+      }
+      if (updated && updEl) {
+        try {
+          const dt = new Date(updated);
+          updEl.textContent = 'Stand: ' + dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        } catch { updEl.textContent = ''; }
+      }
+    }
+
+    document.querySelector('[data-tab-target="tab-llm"]')?.addEventListener('click', () => {
+      loadLlmConfig();
+      loadLlmUsage();
+    });
+
     async function loadLlmConfig() {
       try {
         const d = await fetch('/llm/config').then(r => r.json());
@@ -2740,8 +2824,6 @@
         if (status) status.textContent = '✗ Fehler: ' + e.message;
       }
     }
-
-    document.querySelector('[data-tab-target="tab-llm"]')?.addEventListener('click', loadLlmConfig);
 
     // ── Systemauslastung ──────────────────────────────────────
     let _sysresInterval = null;
