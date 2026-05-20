@@ -772,6 +772,17 @@ class RobotCore:
         # Lieblingsfarbe
         (r'\bmeine?\s+lieblingsfarbe\s+ist\s+(\w+)', 'favorite_color'),
         (r'\bich\s+mag\s+(?:die\s+farbe\s+)?(\w+)\s+am\s+liebsten', 'favorite_color'),
+        # Vorlieben (preference) — explizite Mögen-Aussagen
+        (r'\bich\s+liebe\s+(?:es\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$|\s+sehr|\s+wirklich)', 'preference'),
+        (r'\bich\s+mag\s+(?:sehr\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\s+sehr)?(?:\.|,|$)', 'preference'),
+        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+(?:esse|trinke|mag)\s+ich\s+(?:sehr\s+)?gerne?\b', 'preference'),
+        # Abneigungen (dislike)
+        (r'\bich\s+mag\s+(?:kein|keine|keinen)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
+        (r'\bich\s+(?:hasse|verabscheue)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
+        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+mag\s+ich\s+(?:gar\s+)?nicht\b', 'dislike'),
+        # Interessen
+        (r'\bich\s+interessiere\s+mich\s+(?:sehr\s+)?für\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$)', 'interest'),
+        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+ist\s+mein\s+(?:lieblingsverein|lieblingsklub)\b', 'interest'),
         # Name (Spitzname)
         (r'\bnenн mich\s+(.+?)(?:\.|,|$)', 'nickname'),
         (r'\bich\s+heiße\s+(?:eigentlich\s+)?(.+?)(?:\.|,|$)', 'nickname'),
@@ -782,9 +793,10 @@ class RobotCore:
         for pattern, trait_type in self._FACT_PATTERNS:
             m = _re.search(pattern, message, _re.IGNORECASE)
             if m:
-                value = m.group(1).strip().rstrip('.,!?')
-                if not value:
+                value = m.group(1).strip().rstrip('.,!? ')
+                if not value or len(value) < 2:
                     continue
+                value = value[0].upper() + value[1:]
                 try:
                     self.profile.upsert_fact(
                         person_name=person_name,
@@ -1040,7 +1052,29 @@ class RobotCore:
                     search_context = self.search.format_prompt_block(search_result)
             payload = self.preview_chat_prompt(captured, person_name, search_context=search_context)
             self._record_direct_chat_input(captured, person_name)
+
+            # Interest-Signal erkennen und als Vorschlag speichern
             proposed_memories: list[dict] = []
+            if person_name:
+                interest_signal = self.conversation.detect_interest_signal(
+                    person_name=person_name,
+                    text=captured,
+                    threshold=settings.topic_interest_threshold,
+                    window_days=settings.topic_interest_window_days,
+                )
+                if interest_signal:
+                    mem = self.memory.propose(
+                        content=interest_signal["content"],
+                        category=interest_signal["category"],
+                        subject=interest_signal["subject"],
+                        source="chat_auto",
+                        dedupe_statuses=("pending", "approved"),
+                        candidate_kind="memory",
+                        decision_reason=interest_signal["reason"],
+                        confidence=interest_signal["confidence"],
+                    )
+                    if mem:
+                        proposed_memories.append(mem)
 
             def llm_generate() -> Any:
                 yield self._sse_event("meta", {
