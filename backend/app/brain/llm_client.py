@@ -120,6 +120,7 @@ class ExternalLLMClient:
     def _request_headers(self) -> dict[str, str]:
         return {
             "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0",
             **({"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}),
         }
 
