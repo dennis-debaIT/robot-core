@@ -2305,14 +2305,9 @@
   function startSpeech() {
     if (_recognition) { try { _recognition.abort(); } catch {} _recognition = null; }
 
-    const rec = new _SR();
-    rec.lang = 'de-DE';
-    rec.continuous = true;    // true → Browser stoppt nicht selbst, wir steuern manuell
-    rec.interimResults = true;
-    _recognition = rec;
-    _listening = true;
+    _listening  = true;
     _interimText = '';
-    _bestFinal = '';
+    _bestFinal   = '';
 
     const micBtn  = document.getElementById('nav-mic');
     const micIcon = document.getElementById('mic-icon');
@@ -2321,7 +2316,6 @@
     micIcon.textContent = '⏹';
     micLbl.textContent  = 'Tippen = Stop';
 
-    // Waveform-Animation im Statusbar-Bereich
     const wave = document.createElement('div');
     wave.id = 'wave-indicator';
     wave.style.cssText = 'position:fixed;bottom:64px;left:50%;transform:translateX(-50%);' +
@@ -2335,89 +2329,83 @@
     ).join('') + '<span style="font-size:0.8rem;color:var(--danger);margin-left:10px;font-weight:700;">Höre zu …</span>';
     document.body.appendChild(wave);
 
-    let gotResult = false;
     let _silenceTimer = null;
-    const SILENCE_MS = 2500;  // 2,5s Stille → automatisch stoppen
+    const SILENCE_MS  = 3000;
 
     const resetSilenceTimer = () => {
       clearTimeout(_silenceTimer);
       _silenceTimer = setTimeout(() => { if (_listening) stopSpeech(); }, SILENCE_MS);
     };
-
-    // Stille-Timer sofort starten (falls Nutzer nichts sagt)
     resetSilenceTimer();
 
-    rec.onresult = (e) => {
-      let interim = '';
+    // Erstellt eine neue Recognition-Instanz und startet sie.
+    // continuous: false → eine Äußerung = ein sauberes Ergebnis, wie native Android STT.
+    // onend startet sofort neu solange _listening = true.
+    function _makeRec() {
+      const r = new _SR();
+      r.lang = 'de-DE';
+      r.continuous     = false;
+      r.interimResults = true;
 
-      for (let i = 0; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript.trim();
-        if (!e.results[i].isFinal) {
-          interim = t;
-          continue;
-        }
-        gotResult = true;
-        const tWords    = t.split(/\s+/).filter(Boolean).length;
-        const bestWords = _bestFinal.split(/\s+/).filter(Boolean).length;
-
-        const tLow = t.toLowerCase();
-        const bLow = _bestFinal.toLowerCase();
-
-        if (tWords > bestWords) {
-          // Mehr Wörter → kumulativ/vollständiger, ersetzt alles
-          _bestFinal = t;
-        } else if (tWords <= 2 && bestWords > 0) {
-          // Kurzes Ergebnis: nur anfügen wenn es NICHT bereits am Anfang
-          // von _bestFinal steht (= Restart-Duplikat von Android)
-          const isDuplicate = bLow === tLow
-            || bLow.startsWith(tLow + ' ')
-            || bLow.endsWith(' ' + tLow);
-          if (!isDuplicate) {
-            _bestFinal = _bestFinal + ' ' + t;
+      r.onresult = (e) => {
+        let interim = '';
+        for (let i = 0; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript.trim();
+          if (e.results[i].isFinal) {
+            if (t) _interimText = (_interimText ? _interimText + ' ' : '') + t;
+          } else {
+            interim = t;
           }
         }
-        // Gleiches oder weniger Wörter, kein klarer Kontext → ignorieren
-      }
+        const display = (_interimText + (interim ? ' ' + interim : '')).trim();
+        if (display) showReplyText('🎤 ' + display, false);
+        resetSilenceTimer();
+      };
 
-      _interimText = _bestFinal;
-      const display = (_bestFinal + (interim ? ' ' + interim : '')).trim();
-      if (display) showReplyText('🎤 ' + display, false);
-      resetSilenceTimer();
-    };
-
-    rec.onspeechend = () => {
-      // Browser erkennt Ende des Sprachsignals → sofort stoppen
-      clearTimeout(_silenceTimer);
-      if (_listening) stopSpeech();
-    };
-
-    rec.onerror = (e) => {
-      finishListening();
-      if (e.error === 'not-allowed') {
-        openTextOverlay('Kein Mikrofon-Zugriff.');
-      } else if (e.error !== 'aborted') {
-        // Bei anderen Fehlern: wenn wir schon Text haben → senden, sonst Texteingabe
-        if (_interimText.trim()) {
-          sendToDisplay(_interimText.trim());
+      r.onend = () => {
+        if (_listening) {
+          // Session natürlich beendet → sofort neue Session für nächste Äußerung
+          try {
+            const next = _makeRec();
+            _recognition = next;
+            next.start();
+          } catch {}
         } else {
-          openTextOverlay('Fehler: ' + e.error);
+          // stopSpeech() wurde aufgerufen → finalisieren
+          clearTimeout(_silenceTimer);
+          finishListening();
+          const text = _interimText.trim();
+          if (text) {
+            sendToDisplay(text);
+          } else {
+            openTextOverlay('Nichts erkannt — bitte Text eingeben.');
+          }
         }
-      }
-    };
+      };
 
-    rec.onend = () => {
-      const text = _interimText.trim();
-      finishListening();
-      if (text) {
-        sendToDisplay(text);  // Zwischentext reicht als finale Eingabe
-      } else {
-        openTextOverlay('Nichts erkannt — bitte Text eingeben.');
-      }
-    };
+      r.onerror = (e) => {
+        if (e.error === 'no-speech') return;  // normal, onend startet neu
+        if (e.error === 'not-allowed') {
+          _listening = false;
+          finishListening();
+          openTextOverlay('Kein Mikrofon-Zugriff.');
+        } else if (e.error !== 'aborted') {
+          _listening = false;
+          clearTimeout(_silenceTimer);
+          finishListening();
+          if (_interimText.trim()) sendToDisplay(_interimText.trim());
+          else openTextOverlay('Fehler: ' + e.error);
+        }
+      };
+
+      return r;
+    }
 
     try {
-      rec.start();
-    } catch (e) {
+      const first = _makeRec();
+      _recognition = first;
+      first.start();
+    } catch {
       finishListening();
       openTextOverlay('Mikrofon nicht verfügbar.');
     }
