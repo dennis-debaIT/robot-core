@@ -4522,24 +4522,28 @@
   }
 
   // Lampen-Icon mit optionaler Farbe aus rgb_color / color_temp_kelvin
-  function _bulbIcon(light, size = '1.3rem') {
-    if (!light || light.state !== 'on') {
-      return `<span style="font-size:${size};opacity:0.25;filter:grayscale(1);">💡</span>`;
-    }
-    // Farbe ermitteln
-    let color = null;
-    if (light.rgb_color && light.color_mode !== 'color_temp') {
+  function _lightColor(light) {
+    if (!light || light.state !== 'on') return null;
+    if (light.rgb_color) {
       const [r, g, b] = light.rgb_color;
-      color = `rgb(${r},${g},${b})`;
-    } else if (light.color_temp_kelvin && light.color_mode === 'color_temp') {
-      // Kelvin → Farbe (vereinfacht)
+      return `rgb(${r},${g},${b})`;
+    }
+    if (light.color_temp_kelvin) {
       const t = light.color_temp_kelvin / 100;
       const cr = t <= 66 ? 255 : Math.min(255, Math.max(0, Math.round(329.7 * Math.pow(t-60, -0.133))));
       const cg = t <= 66 ? Math.min(255,Math.max(0,Math.round(99.47*Math.log(t)-161.12)))
                          : Math.min(255,Math.max(0,Math.round(288.1*Math.pow(t-60,-0.076))));
       const cb = t >= 66 ? 255 : (t <= 19 ? 0 : Math.min(255,Math.max(0,Math.round(138.5*Math.log(t-10)-305.0))));
-      color = `rgb(${cr},${cg},${cb})`;
+      return `rgb(${cr},${cg},${cb})`;
     }
+    return null;
+  }
+
+  function _bulbIcon(light, size = '1.3rem') {
+    if (!light || light.state !== 'on') {
+      return `<span style="font-size:${size};opacity:0.25;filter:grayscale(1);">💡</span>`;
+    }
+    const color = _lightColor(light);
     if (color) {
       const sz = parseFloat(size) * 1.55;
       return `<span style="
@@ -4547,8 +4551,8 @@
         width:${sz}${size.replace(/[\d.]/g,'')};height:${sz}${size.replace(/[\d.]/g,'')};
         border-radius:50%;flex-shrink:0;
         background:${color}55;
-        box-shadow:0 0 8px 3px ${color}99, 0 0 16px 5px ${color}44;
-        font-size:${size};" title="Aktuelle Farbe">💡</span>`;
+        box-shadow:0 0 10px 4px ${color}bb, 0 0 20px 8px ${color}55;
+        font-size:${size};">💡</span>`;
     }
     return `<span style="font-size:${size};">💡</span>`;
   }
@@ -4805,15 +4809,17 @@
   function renderLightCenter(light) {
     if (!light) return '<div class="cal-placeholder">Kein Raum gewählt</div>';
     const isOn = light.state === 'on';
-    // Slider-Wert: aktuell Helligkeit wenn an, 0 wenn aus
     const sliderVal = isOn ? (light.brightness_pct || 100) : 0;
     const sliderLabel = isOn ? sliderVal + '%' : 'Aus';
+    const lc = isOn ? _lightColor(light) : null;
+    const lcStyle = lc ? `box-shadow:0 0 30px 10px ${lc}99, 0 0 60px 20px ${lc}44, inset 0 0 20px ${lc}22;border-color:${lc}88;` : '';
     return `
       <div style="text-align:center;padding:20px 0 10px;">
         <div style="font-size:0.65rem;color:var(--accent);letter-spacing:0.13em;margin-bottom:14px;">
           ${light.name.toUpperCase()}
         </div>
         <div class="light-onoff-btn ${isOn?'on':''}"
+             style="${lcStyle}"
              onclick="callLightService('${light.entity_id}','toggle')">
           ${isOn ? '💡' : '<span style="opacity:0.3;filter:grayscale(1);">💡</span>'}
         </div>
