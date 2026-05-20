@@ -1055,7 +1055,7 @@ class RobotCore:
                 if search_result:
                     search_context = self.search.format_prompt_block(search_result)
 
-            # Affirmations-Handler: "ja" nach Wetter-/Kalender-Angebot
+            # Affirmations-Handler: "ja" nach Angebot des LLM
             _AFFIRM = re.compile(
                 r"^\s*(ja|jo|ok|gerne|bitte|klar|super|natürlich|genau|stimmt|"
                 r"ja\s+gerne|ja\s+bitte|ja\s+klar|sehr\s+gerne|"
@@ -1064,16 +1064,45 @@ class RobotCore:
             if not search_result and _AFFIRM.match(captured.strip()):
                 try:
                     with get_connection() as conn:
-                        row = conn.execute(
+                        last_assistant_row = conn.execute(
                             "SELECT message FROM conversation_messages "
                             "WHERE role = 'assistant' ORDER BY created_at DESC LIMIT 1"
                         ).fetchone()
-                    last_reply = (row["message"] if row else "").lower()
+                        # Letzte User-Nachricht vor "ja" = die eigentliche Frage
+                        prev_user_row = conn.execute(
+                            "SELECT message FROM conversation_messages "
+                            "WHERE role = 'user' ORDER BY created_at DESC LIMIT 1"
+                        ).fetchone()
+                    last_reply = (last_assistant_row["message"] if last_assistant_row else "").lower()
                     forced: str | None = None
+
+                    # Szenario 1: LLM hat Wetter angeboten
                     if any(w in last_reply for w in ("wetter", "vorhersage", "temperatur", "grad", "regen")):
                         forced = "wetter heute"
+                    # Szenario 2: LLM hat Kalender angeboten
                     elif any(w in last_reply for w in ("termin", "kalender", "liegt an", "steht an", "veranstaltung")):
                         forced = "was liegt heute an"
+                    # Szenario 3: LLM hat Internet-Suche angeboten
+                    elif any(w in last_reply for w in (
+                        "internet", "nachschauen", "nachschau", "recherch",
+                        "suchen", "schauen", "herausfind", "informationen",
+                        "nachsehen", "im netz", "online",
+                    )):
+                        # Ursprüngliche Frage als Such-Query verwenden
+                        original_query = prev_user_row["message"].strip() if prev_user_row else ""
+                        if original_query:
+                            from app.search.providers.web import WebProvider
+                            web_raw = WebProvider().search(original_query)
+                            if web_raw:
+                                from app.search.service import SearchResult
+                                search_result = SearchResult(
+                                    query=original_query,
+                                    snippet=web_raw["snippet"],
+                                    title=web_raw["title"],
+                                    url=web_raw.get("url", ""),
+                                )
+                                search_context = self.search.format_prompt_block(search_result)
+
                     if forced:
                         search_result = self.search.search(forced)
                         if search_result:
