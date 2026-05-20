@@ -4670,16 +4670,16 @@
 
   // white:true → Weißton; kelvin = Zielwert (wird auf Lampen-Range geclampt)
   const _COLOR_PRESETS = [
-    { label:'Warmweiß',   white:true,  kelvin:2700, ct:370, rgb:[255,174,91],  bg:'#ffae5b' },
-    { label:'Neutralweiß',white:true,  kelvin:4000, ct:250, rgb:[255,228,150], bg:'#ffe496' },
-    { label:'Kaltweiß',   white:true,  kelvin:6500, ct:154, rgb:[200,220,255], bg:'#c8dcff' },
-    { label:'Rot',        white:false, ct:null, rgb:[255,0,0],    bg:'#ff2020' },
-    { label:'Orange',     white:false, ct:null, rgb:[255,100,0],  bg:'#ff6400' },
-    { label:'Gelb',       white:false, ct:null, rgb:[255,220,0],  bg:'#ffdc00' },
-    { label:'Grün',       white:false, ct:null, rgb:[0,200,50],   bg:'#00c832' },
-    { label:'Blau',       white:false, ct:null, rgb:[0,100,255],  bg:'#0064ff' },
-    { label:'Lila',       white:false, ct:null, rgb:[150,0,255],  bg:'#9600ff' },
-    { label:'Rosa',       white:false, ct:null, rgb:[255,50,180], bg:'#ff32b4' },
+    { label:'Warmweiß',   white:true,  kelvin:2700, ct:370, rgb:[255,174,91]  },
+    { label:'Neutralweiß',white:true,  kelvin:4000, ct:250, rgb:[255,228,150] },
+    { label:'Kaltweiß',   white:true,  kelvin:6500, ct:154, rgb:[200,220,255] },
+    { label:'Rot',        white:false, ct:null,     rgb:[255,0,0]    },
+    { label:'Orange',     white:false, ct:null,     rgb:[255,100,0]  },
+    { label:'Gelb',       white:false, ct:null,     rgb:[255,220,0]  },
+    { label:'Grün',       white:false, ct:null,     rgb:[0,200,50]   },
+    { label:'Blau',       white:false, ct:null,     rgb:[0,100,255]  },
+    { label:'Lila',       white:false, ct:null,     rgb:[150,0,255]  },
+    { label:'Rosa',       white:false, ct:null,     rgb:[255,50,180] },
   ];
 
   function _rgbToHex(rgb) {
@@ -4749,7 +4749,7 @@
       const shd = active ? '0 0 0 2px rgba(255,255,255,0.7)'  : '0 0 0 1px rgba(255,255,255,0.15)';
       dots += '<div onclick="callLightService(\'' + eid + '\',\'turn_on\',null,' + colorArg + ')"'
             + ' title="' + c.label + '"'
-            + ' style="width:38px;height:38px;border-radius:50%;background:' + c.bg + ';cursor:pointer;'
+            + ' style="width:38px;height:38px;border-radius:50%;background:' + _rgbToHex(c.rgb) + ';cursor:pointer;'
             + 'flex-shrink:0;border:' + bdr + ';box-shadow:' + shd + ';transition:transform 0.1s;"'
             + ' onmouseover="this.style.transform=\'scale(1.12)\'"'
             + ' onmouseout="this.style.transform=\'scale(1)\'"></div>';
