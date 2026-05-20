@@ -394,15 +394,16 @@ def get_llm_config() -> dict[str, Any]:
     key = cfg.get("api_key", "")
     masked = ("•" * (len(key) - 4) + key[-4:]) if len(key) > 4 else ("•" * len(key))
     return {
-        "api_provider": cfg.get("api_provider", ""),
-        "api_url":      cfg.get("api_url", ""),
+        "api_provider":   cfg.get("api_provider", ""),
+        "api_url":        cfg.get("api_url", ""),
         "api_key_masked": masked,
-        "api_key_set":  bool(key),
-        "model":        cfg.get("model", ""),
-        "max_tokens":   cfg.get("max_tokens", 220),
-        "temperature":  cfg.get("temperature", 0.4),
-        "enabled":      bool(cfg.get("api_url")),
-        "providers":    _LLM_PROVIDERS,
+        "api_key_set":    bool(key),
+        "model":          cfg.get("model", ""),
+        "fallback_model": cfg.get("fallback_model", ""),
+        "max_tokens":     cfg.get("max_tokens", 220),
+        "temperature":    cfg.get("temperature", 0.4),
+        "enabled":        bool(cfg.get("api_url")),
+        "providers":      _LLM_PROVIDERS,
     }
 
 
@@ -422,16 +423,66 @@ def save_llm_config(payload: dict[str, Any]) -> dict[str, Any]:
     except (TypeError, ValueError):
         temperature = 0.4
     cfg = {
-        "api_provider": str(payload.get("api_provider", "custom")).strip(),
-        "api_url":      str(payload.get("api_url", "")).strip(),
-        "api_key":      api_key,
-        "model":        str(payload.get("model", "")).strip(),
-        "max_tokens":   max_tokens,
-        "temperature":  temperature,
+        "api_provider":   str(payload.get("api_provider", "custom")).strip(),
+        "api_url":        str(payload.get("api_url", "")).strip(),
+        "api_key":        api_key,
+        "model":          str(payload.get("model", "")).strip(),
+        "fallback_model": str(payload.get("fallback_model", "")).strip(),
+        "max_tokens":     max_tokens,
+        "temperature":    temperature,
     }
     with get_connection() as conn:
         write_state(conn, "llm_config", cfg)
     return {"ok": True}
+
+
+_models_cache: dict[str, Any] = {"models": [], "fetched_at": 0.0}
+_MODELS_TTL = 3600  # 1 Stunde
+
+# Modelle die für Konversations-KI ungeeignet sind
+_NON_CHAT_IDS = frozenset({"whisper", "guard", "safeguard", "embedding", "tts", "moderation"})
+
+
+@router.get("/llm/models")
+def get_llm_models() -> dict[str, Any]:
+    import time as _time
+    from app.brain.llm_client import ExternalLLMClient
+    import urllib.request as _req
+    import urllib.error as _err
+
+    now = _time.time()
+    if now - _models_cache["fetched_at"] < _MODELS_TTL and _models_cache["models"]:
+        return {"models": _models_cache["models"], "cached": True}
+
+    client = ExternalLLMClient()
+    if not client.api_key:
+        return {"models": [], "error": "Kein API-Key konfiguriert"}
+
+    # Basis-URL aus api_url ableiten (alles bis /v1/)
+    base = (client.api_url or "").split("/v1/")[0] if "/v1/" in (client.api_url or "") else ""
+    if not base:
+        return {"models": [], "error": "API-URL ungültig"}
+
+    try:
+        req = _req.Request(
+            f"{base}/v1/models",
+            headers={"Authorization": f"Bearer {client.api_key}", "User-Agent": "Mozilla/5.0"},
+        )
+        import json as _json
+        with _req.urlopen(req, timeout=8) as resp:
+            data = _json.loads(resp.read().decode())
+        raw = data.get("data", [])
+        models = [
+            {"id": m["id"], "owned_by": m.get("owned_by", "")}
+            for m in raw
+            if not any(kw in m["id"].lower() for kw in _NON_CHAT_IDS)
+        ]
+        models.sort(key=lambda m: m["id"])
+        _models_cache["models"] = models
+        _models_cache["fetched_at"] = now
+        return {"models": models, "cached": False}
+    except Exception as exc:
+        return {"models": _models_cache.get("models", []), "error": str(exc)}
 
 
 @router.post("/llm/test")

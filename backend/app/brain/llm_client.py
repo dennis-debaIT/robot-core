@@ -30,12 +30,16 @@ class MockLLMClient:
         yield result["reply"]
 
 
+class RateLimitError(RuntimeError):
+    """Wird ausgelöst wenn der LLM-Provider einen 429 zurückgibt."""
+
+
 class ExternalLLMClient:
-    def __init__(self) -> None:
+    def __init__(self, model_override: str | None = None) -> None:
         db = self._load_db_config()
         self.api_url     = db.get("api_url")  or os.getenv("LLM_API_URL")
         self.api_key     = db.get("api_key")  or os.getenv("LLM_API_KEY")
-        self.model       = db.get("model")    or os.getenv("LLM_MODEL", "").strip()
+        self.model       = model_override or db.get("model") or os.getenv("LLM_MODEL", "").strip()
         self.provider    = "openai_compat"
         self.temperature = float(db["temperature"]) if db.get("temperature") is not None else self._read_float_env("LLM_TEMPERATURE", 0.4)
         self.max_tokens  = int(db["max_tokens"])    if db.get("max_tokens")   is not None else self._read_int_env("LLM_MAX_TOKENS", 220)
@@ -179,6 +183,8 @@ class ExternalLLMClient:
                 error_body = exc.read().decode("utf-8")
             except Exception:
                 error_body = ""
+            if exc.code == 429:
+                raise RateLimitError(f"Rate limit erreicht (429): {error_body[:200]}") from exc
             if self._supports_only_user_and_assistant(error_body):
                 fallback_body = self._merge_system_into_first_user(body)
                 fallback_req = request.Request(
@@ -296,11 +302,28 @@ class LLMRouter:
     def __init__(self) -> None:
         self.mock = MockLLMClient()
 
+    @staticmethod
+    def _fallback_model() -> str | None:
+        try:
+            from app.database.db import get_connection, read_state
+            with get_connection() as conn:
+                cfg = read_state(conn, "llm_config", {}) or {}
+            return cfg.get("fallback_model") or None
+        except Exception:
+            return None
+
     def generate(self, payload: dict[str, Any], timeout_seconds: int = 15) -> dict[str, Any]:
         external = ExternalLLMClient()
         if external.is_configured():
             try:
                 return external.generate(payload, timeout_seconds=timeout_seconds)
+            except RateLimitError:
+                fb = self._fallback_model()
+                if fb and fb != external.model:
+                    try:
+                        return ExternalLLMClient(model_override=fb).generate(payload, timeout_seconds=timeout_seconds)
+                    except RuntimeError:
+                        pass
             except RuntimeError:
                 pass
         return self.mock.generate(payload)
@@ -310,6 +333,14 @@ class LLMRouter:
         if external.is_configured():
             try:
                 return "external", external.stream_generate(payload, timeout_seconds=timeout_seconds), False
+            except RateLimitError:
+                fb = self._fallback_model()
+                if fb and fb != external.model:
+                    try:
+                        fb_client = ExternalLLMClient(model_override=fb)
+                        return "external_fallback", fb_client.stream_generate(payload, timeout_seconds=timeout_seconds), False
+                    except RuntimeError:
+                        pass
             except RuntimeError:
                 pass
         return "mock", self.mock.stream_generate(payload), True
