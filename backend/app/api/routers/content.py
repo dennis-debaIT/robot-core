@@ -271,7 +271,21 @@ def get_calendar_month(year: int = 0, month: int = 0) -> dict[str, Any]:
             "is_allday": is_allday,
             "time":      "" if is_allday else start_raw.get("dateTime", "")[11:16],
         })
-    return {"year": y, "month": m, "events": by_date, "colors": colors}
+    # Legende: alle ausgewählten Kalender mit Name + Farbe
+    ha = HomeAssistantProvider()
+    all_cals = {c["entity_id"]: c.get("name", c["entity_id"]) for c in (ha.list_calendars() or [])}
+    legend_entities = selected if selected else list(all_cals.keys())
+    _DEFAULT_COLORS = ["#4285f4","#0f9d58","#db4437","#f4b400","#ab47bc","#00acc1","#ff7043","#9e9d24"]
+    legend = [
+        {
+            "entity_id": eid,
+            "name": all_cals.get(eid, eid),
+            "color": colors.get(eid) or _DEFAULT_COLORS[i % len(_DEFAULT_COLORS)],
+        }
+        for i, eid in enumerate(legend_entities)
+        if eid
+    ]
+    return {"year": y, "month": m, "events": by_date, "colors": colors, "legend": legend}
 
 
 @router.get("/ha/calendars")
