@@ -68,9 +68,10 @@ body {
 }
 
 .shell {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 30px 22px 60px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
 }
 
 .hero {
@@ -109,36 +110,118 @@ h1 {
   line-height: 1.45;
 }
 
-.tab-bar {
+/* ── Sidebar Layout ─────────────────────────────────────────── */
+.admin-layout {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin: 18px 0 22px;
+  min-height: 100vh;
+  align-items: flex-start;
 }
 
-.tab-button {
-  appearance: none;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 12px 20px;
-  background: rgba(11, 11, 23, 0.92);
-  color: var(--muted);
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+.admin-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-.tab-button:hover,
-.tab-button.active {
-  border-color: rgba(0, 200, 255, 0.42);
-  background: rgba(0, 200, 255, 0.1);
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.sidebar-title {
+  font-size: 0.88rem;
+  font-weight: 800;
   color: var(--ink);
+  line-height: 1.2;
+}
+
+.sidebar-display-link {
+  font-size: 0.68rem;
+  color: var(--accent);
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+.sidebar-display-link:hover { opacity: 1; }
+
+.sidebar-group {
+  padding: 8px 0 4px;
+}
+
+.sidebar-group-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 6px 16px 4px;
+  opacity: 0.7;
+}
+
+.tab-button.sidebar-item {
+  appearance: none;
+  border: none;
+  border-radius: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+  border-left: 3px solid transparent;
+}
+
+.tab-button.sidebar-item:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--ink);
+}
+
+.tab-button.sidebar-item.active {
+  background: rgba(0,200,255,0.08);
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 700;
+}
+
+.si-icon {
+  font-size: 0.9rem;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.admin-content {
+  flex: 1;
+  min-width: 0;
+  padding: 28px 28px 60px;
+  overflow-y: auto;
 }
 
 .layout {
   display: block;
-  align-items: start;
 }
 
 .panel-stack {
@@ -963,41 +1046,57 @@ code {
   color: var(--accent);
 }
 
-@media (max-width: 980px) {
-  .layout {
-    grid-template-columns: 1fr;
+@media (max-width: 780px) {
+  .admin-layout {
+    flex-direction: column;
   }
 
-  .side-card {
+  .admin-sidebar {
+    width: 100%;
+    height: auto;
     position: static;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0;
+    padding: 8px;
+  }
+
+  .sidebar-header { display: none; }
+
+  .sidebar-group {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 0;
+  }
+
+  .sidebar-group-label { display: none; }
+
+  .tab-button.sidebar-item {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    padding: 7px 12px;
+    font-size: 0.75rem;
+    border-radius: 8px;
+  }
+
+  .tab-button.sidebar-item.active {
+    border-bottom-color: var(--accent);
+    border-left-color: transparent;
+  }
+
+  .admin-content {
+    padding: 16px;
   }
 }
 
 @media (max-width: 640px) {
-  .shell {
-    padding: 18px 14px 36px;
-  }
-
-  .hero,
   .panel-card,
-  .side-card {
-    padding: 18px;
-  }
-
   .panel-header,
-  .control-top,
   .action-bar {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .tab-bar {
-    gap: 10px;
-  }
-
-  .tab-button,
-  button {
-    width: 100%;
   }
 }
 

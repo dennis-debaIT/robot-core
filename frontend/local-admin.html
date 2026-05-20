@@ -8,31 +8,51 @@
 </head>
 <body>
   <main class="shell">
-    <section class="hero">
-      <div class="eyebrow">Lokaler Admin</div>
-      <h1>Erika vor Ort konfigurieren</h1>
-      <p>Diese Oberfläche ist für den Anwender am Gerät gedacht. Die bestehende Console bleibt unverändert und separat erhalten.</p>
-    </section>
+    <section class="hero" style="display:none;"></section>
 
-    <nav class="tab-bar" aria-label="Konfiguration">
-      <a href="/display" class="tab-button" style="text-decoration:none;opacity:0.7;">← Display</a>
-      <button type="button" class="tab-button active" data-tab-target="tab-overview">Übersicht</button>
-      <button type="button" class="tab-button" data-tab-target="tab-news">News</button>
-      <button type="button" class="tab-button" data-tab-target="tab-weather">Wetter</button>
-      <button type="button" class="tab-button" data-tab-target="tab-vehicles">Fahrzeuge</button>
-      <button type="button" class="tab-button" data-tab-target="tab-lights">Lichter</button>
-      <button type="button" class="tab-button" data-tab-target="tab-robots">Roboter</button>
-      <button type="button" class="tab-button" data-tab-target="tab-cameras">Kameras</button>
-      <button type="button" class="tab-button" data-tab-target="tab-fuel">Kraftstoff</button>
-      <button type="button" class="tab-button" data-tab-target="tab-calendar">Kalender</button>
-      <button type="button" class="tab-button" data-tab-target="tab-pv">PV-Anlage</button>
-      <button type="button" class="tab-button" data-tab-target="tab-printer">3D-Drucker</button>
-      <button type="button" class="tab-button" data-tab-target="tab-persons">Personen</button>
-      <button type="button" class="tab-button" data-tab-target="tab-llm">KI / LLM</button>
-      <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
-    </nav>
+    <div class="admin-layout">
+      <nav class="admin-sidebar" aria-label="Konfiguration">
+        <div class="sidebar-header">
+          <div class="sidebar-logo">🤖</div>
+          <div>
+            <div class="sidebar-title">Erika Admin</div>
+            <a href="/display" class="sidebar-display-link">← zum Display</a>
+          </div>
+        </div>
 
-    <section class="layout">
+        <div class="sidebar-group">
+          <button type="button" class="tab-button sidebar-item active" data-tab-target="tab-overview">
+            <span class="si-icon">📊</span><span>Übersicht</span>
+          </button>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">Display-Module</div>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-news"><span class="si-icon">📰</span><span>News</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-weather"><span class="si-icon">🌤</span><span>Wetter</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-calendar"><span class="si-icon">📅</span><span>Kalender</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-vehicles"><span class="si-icon">🚗</span><span>Fahrzeuge</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-lights"><span class="si-icon">💡</span><span>Lichter</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-robots"><span class="si-icon">🤖</span><span>Roboter</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-cameras"><span class="si-icon">📷</span><span>Kameras</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-fuel"><span class="si-icon">⛽</span><span>Kraftstoff</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-pv"><span class="si-icon">☀️</span><span>PV-Anlage</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">Konfiguration</div>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-llm"><span class="si-icon">🧠</span><span>KI / LLM</span></button>
+        </div>
+
+        <div class="sidebar-group">
+          <div class="sidebar-group-label">System</div>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-system"><span class="si-icon">⚙️</span><span>System</span></button>
+        </div>
+      </nav>
+
+      <section class="admin-content">
       <section class="panel-stack">
         <article id="tab-overview" class="panel-card tab-panel active">
           <header class="panel-header">
@@ -895,7 +915,8 @@
         </div>
       </section>
 
-    </section>
+      </section><!-- admin-content -->
+    </div><!-- admin-layout -->
   </main>
 
   <script>
