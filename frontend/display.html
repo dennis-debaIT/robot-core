@@ -2348,39 +2348,44 @@
     rec.onresult = (e) => {
       let interim = '';
 
-      if (e.resultIndex > 0) {
-        // Desktop Chrome: resultIndex korrekt gesetzt → nur neue Ergebnisse verarbeiten
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
-          if (e.results[i].isFinal) {
-            gotResult = true;
-            _interimText = (_interimText ? _interimText + ' ' : '') + t.trim();
-          } else {
-            interim += t;
-          }
-        }
-      } else {
-        // Android Chrome: resultIndex immer 0 → kumulative Finals erkennen
-        const allFinals = [];
+      if (e.resultIndex === 0) {
+        // resultIndex=0: von vorn aufbauen (Android immer 0, oder erster Desktop-Event)
+        // Für kumulative Ergebnisse (jedes Final = vollständiger Text bisher):
+        // vergleiche mit letztem Zwischenstand und ersetze statt zu konkatenieren.
+        let freshFinal = '';
         for (let i = 0; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript;
+          const t = e.results[i][0].transcript.trim();
           if (e.results[i].isFinal) {
-            allFinals.push(t.trim());
             gotResult = true;
+            const fLow = freshFinal.toLowerCase();
+            const tLow = t.toLowerCase();
+            if (fLow && tLow.startsWith(fLow)) {
+              freshFinal = t;       // kumulativ: enthält alles bisherige → ersetzen
+            } else {
+              freshFinal = freshFinal ? freshFinal + ' ' + t : t;  // inkrementell
+            }
           } else {
             interim = t;
           }
         }
-        if (allFinals.length === 1) {
-          _interimText = allFinals[0];
-        } else if (allFinals.length > 1) {
-          // Kumulativ: letztes Final enthält alle früheren → nur letztes nehmen
-          // Inkrementell: jedes Final ist ein neues Wort → zusammenführen
-          const last  = allFinals[allFinals.length - 1].toLowerCase();
-          const first = allFinals[0].toLowerCase().slice(0, Math.min(6, allFinals[0].length));
-          _interimText = (first && last.includes(first))
-            ? allFinals[allFinals.length - 1]   // kumulativ: letztes ist vollständig
-            : allFinals.join(' ');               // inkrementell: alle zusammenführen
+        if (freshFinal) _interimText = freshFinal;
+      } else {
+        // resultIndex > 0: nur neue Ergebnisse ab resultIndex verarbeiten
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const t = e.results[i][0].transcript.trim();
+          if (e.results[i].isFinal) {
+            gotResult = true;
+            const eLow = _interimText.toLowerCase();
+            const tLow = t.toLowerCase();
+            // Kumulativer Text: neues Ergebnis beginnt mit bisherigem → ersetzen
+            if (eLow && tLow.startsWith(eLow)) {
+              _interimText = t;
+            } else {
+              _interimText = _interimText ? _interimText + ' ' + t : t;
+            }
+          } else {
+            interim += t;
+          }
         }
       }
 
