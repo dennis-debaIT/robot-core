@@ -1057,6 +1057,10 @@ class RobotCore:
             if light_reply:
                 direct_reply = light_reply
                 self._set_lights_display_intent()
+        if direct_reply is None:
+            timer_reply = self._try_timer_command(captured)
+            if timer_reply:
+                direct_reply = timer_reply
         if direct_reply is not None:
             self._record_direct_chat_input(captured, person_name)
 
@@ -1575,6 +1579,51 @@ class RobotCore:
             return f"{robot['name']} fährt jetzt zum {mode_label} in: {room_str}."
         except Exception:
             return None
+
+    _TIMER_PATTERN = re.compile(
+        r"\b(?:stell(?:e|en)?(?:\s+(?:mir|einen|ein))?\s+)?timer"
+        r"|timer\s+(?:auf|für|von)"
+        r"|\b(?:erinner(?:e|ung)?|alarm)\s+in"
+        r"|\b(\d+)\s*(?:minuten?|sekunden?|stunden?)\s+timer\b",
+        re.IGNORECASE,
+    )
+    _TIMER_CANCEL_PATTERN = re.compile(
+        r"\b(?:stopp?|abbr[eü]ch?|beend|lösch|cancel|reset)\s+(?:den\s+)?timer\b"
+        r"|\btimer\s+(?:stopp?|abbr[eü]ch?|beend|lösch)\b",
+        re.IGNORECASE,
+    )
+    _DURATION_RE = re.compile(
+        r"(\d+(?:[.,]\d+)?)\s*(stunde[n]?|std?|h(?:our)?|minute[n]?|min?|sekunde[n]?|sek?|s(?:ec)?)\b",
+        re.IGNORECASE,
+    )
+
+    def _try_timer_command(self, captured: str) -> str | None:
+        q = captured.lower()
+        if self._TIMER_CANCEL_PATTERN.search(q):
+            from app.api.routers.timer import cancel_timer
+            cancel_timer()
+            return "Timer gestoppt."
+        if not self._TIMER_PATTERN.search(q):
+            return None
+        m = self._DURATION_RE.search(q)
+        if not m:
+            return None
+        amount = float(m.group(1).replace(",", "."))
+        unit   = m.group(2).lower()
+        if unit.startswith("s"):
+            seconds = int(amount)
+            label = f"{seconds} Sekunden"
+        elif unit.startswith("m") or unit == "min":
+            seconds = int(amount * 60)
+            label = f"{int(amount)} Minuten" if amount == int(amount) else f"{amount} Minuten"
+        else:
+            seconds = int(amount * 3600)
+            label = f"{int(amount)} Stunde{'n' if amount != 1 else ''}"
+        if seconds <= 0 or seconds > 86400:
+            return None
+        from app.api.routers.timer import set_timer
+        set_timer({"duration_seconds": seconds, "label": label})
+        return f"Timer auf {label} gestellt. Ich melde mich wenn die Zeit um ist."
 
     def _try_light_command(self, captured: str) -> str | None:
         """Führt Lichtbefehl via HA aus und gibt Bestätigungstext zurück oder None."""

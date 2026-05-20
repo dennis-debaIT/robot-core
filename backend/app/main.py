@@ -24,6 +24,7 @@ from app.api.routers import (
     setup,
     simulation,
     system,
+    timer,
 )
 from app.core.settings import SettingsService
 from app.database.db import init_db
@@ -41,6 +42,34 @@ async def _robot_error_history_loop(interval_seconds: int = 15) -> None:
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
+
+
+async def _timer_watcher_loop() -> None:
+    from app.database.db import get_connection, read_state, write_state
+    import time as _time
+    while True:
+        try:
+            with get_connection() as conn:
+                t = read_state(conn, "active_timer")
+            if t and not t.get("finished") and not t.get("notified"):
+                elapsed = _time.time() - float(t["started_at"])
+                if elapsed >= float(t["duration_seconds"]):
+                    t["finished"] = True
+                    t["notified"] = True
+                    with get_connection() as conn:
+                        write_state(conn, "active_timer", t)
+                    # TTS-Ansage auslösen
+                    label = t.get("label") or "der Timer"
+                    from datetime import datetime, timedelta, timezone
+                    expires = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
+                    with get_connection() as conn:
+                        write_state(conn, "last_speech_text", {
+                            "text": f"{label} ist abgelaufen!",
+                            "expires_at": expires,
+                        })
+        except Exception:
+            pass
+        await asyncio.sleep(1)
 
 
 async def _auto_update_loop() -> None:
@@ -92,6 +121,7 @@ async def lifespan(_: FastAPI) -> Any:
     history_task = asyncio.create_task(_robot_error_history_loop())
     vehicle_history_task = asyncio.create_task(_vehicle_location_history_loop())
     auto_update_task = asyncio.create_task(_auto_update_loop())
+    timer_task = asyncio.create_task(_timer_watcher_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -99,12 +129,15 @@ async def lifespan(_: FastAPI) -> Any:
         history_task.cancel()
         vehicle_history_task.cancel()
         auto_update_task.cancel()
+        timer_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
             await vehicle_history_task
         with suppress(asyncio.CancelledError):
             await auto_update_task
+        with suppress(asyncio.CancelledError):
+            await timer_task
         deps.clear_runtime()
 
 
@@ -132,3 +165,4 @@ app.include_router(setup.router)
 app.include_router(simulation.router)
 app.include_router(personality_audio.router)
 app.include_router(people.router)
+app.include_router(timer.router)
