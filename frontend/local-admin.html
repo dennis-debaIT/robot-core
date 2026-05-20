@@ -683,6 +683,28 @@
             </div>
           </section>
 
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Backup & Restore</div>
+              <p>Sicherung der Konfigurationsdatenbank erstellen oder wiederherstellen. Vor jedem Update wird automatisch ein Backup angelegt.</p>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+              <button type="button" onclick="downloadBackup()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                ⬇️ Backup herunterladen
+              </button>
+            </div>
+            <div class="section-copy" style="margin-bottom:8px;">
+              <span style="font-size:0.82rem;color:var(--muted);">Backup wiederherstellen (ZIP-Datei):</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input type="file" id="restore-file-input" accept=".zip" style="font-size:0.82rem;color:var(--text);">
+              <button type="button" onclick="restoreBackup()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(255,171,0,0.1);border:1px solid var(--warning);color:var(--warning);">
+                ↩️ Wiederherstellen
+              </button>
+            </div>
+            <div id="backup-status" style="margin-top:8px;font-size:0.8rem;color:var(--muted);"></div>
+          </section>
+
           <section class="module-card weather-legacy-hidden">
             <div class="section-copy">
               <div class="section-title">Wetteranzeige</div>
@@ -2175,6 +2197,27 @@
       } catch (error) {
         setStatus(error.message || 'Initialisierung fehlgeschlagen.', true);
       }
+      // Update-Einstellungen laden
+      try {
+        const s = await fetch('/system/update/settings').then(r => r.json());
+        const intervalEl = document.getElementById('update-interval');
+        const autoInstallEl = document.getElementById('update-auto-install');
+        if (intervalEl) intervalEl.value = s.interval || 'daily';
+        if (autoInstallEl) autoInstallEl.checked = !!s.auto_install;
+      } catch {}
+    }
+
+    async function saveUpdateSettings() {
+      const intervalEl = document.getElementById('update-interval');
+      const autoInstallEl = document.getElementById('update-auto-install');
+      await fetch('/system/update/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interval: intervalEl?.value || 'daily',
+          auto_install: autoInstallEl?.checked || false,
+        }),
+      });
     }
 
     document.querySelectorAll('.tab-button').forEach((button) => {
@@ -2248,6 +2291,48 @@
     reloadBtn.addEventListener('click', boot);
 
     boot();
+
+    // ── Backup-Funktionen ─────────────────────────────────────
+    async function downloadBackup() {
+      const status = document.getElementById('backup-status');
+      if (status) status.textContent = 'Erstelle Backup…';
+      try {
+        const r = await fetch('/system/backup/download');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const cd = r.headers.get('Content-Disposition') || '';
+        const fn = cd.match(/filename="([^"]+)"/)?.[1] || 'erika_backup.zip';
+        a.href = url; a.download = fn; a.click();
+        URL.revokeObjectURL(url);
+        if (status) status.textContent = '✓ Backup heruntergeladen: ' + fn;
+      } catch (e) {
+        if (status) status.textContent = '✗ Fehler: ' + e.message;
+      }
+    }
+
+    async function restoreBackup() {
+      const input = document.getElementById('restore-file-input');
+      const status = document.getElementById('backup-status');
+      if (!input?.files?.length) { if (status) status.textContent = 'Bitte zuerst eine ZIP-Datei auswählen.'; return; }
+      if (!await showConfirm('Backup wirklich einspielen?\nDie aktuelle Konfiguration wird überschrieben. Erika startet danach neu.', 'Wiederherstellen')) return;
+      const fd = new FormData();
+      fd.append('file', input.files[0]);
+      if (status) status.textContent = 'Stelle wieder her…';
+      try {
+        const r = await fetch('/system/backup/restore', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+        if (status) status.textContent = '✓ Wiederhergestellt. Neustart…';
+        setTimeout(() => fetch('/system/reboot', { method: 'POST' }).catch(() => {}), 1500);
+      } catch (e) {
+        if (status) status.textContent = '✗ Fehler: ' + e.message;
+      }
+    }
+
+    document.getElementById('update-interval')?.addEventListener('change', saveUpdateSettings);
+    document.getElementById('update-auto-install')?.addEventListener('change', saveUpdateSettings);
 
     // ── Update-Funktionen ─────────────────────────────────────
     async function checkForUpdate() {

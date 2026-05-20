@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import io
 import json
 import os
+import shutil
 import subprocess
+import tempfile
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import FRONTEND_INDEX, get_core, get_settings_service
 from app.api.schemas import ConfigPatchRequest, DevicePatchRequest
@@ -169,6 +173,15 @@ def get_update_log() -> dict[str, Any]:
 @router.post("/system/update/install")
 def trigger_install() -> dict[str, Any]:
     try:
+        # Auto-Backup vor dem Update
+        try:
+            backup_data = _create_backup_zip()
+            backup_dir = Path("/data/backups")
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            (backup_dir / f"pre_update_{ts}.zip").write_bytes(backup_data)
+        except Exception:
+            pass  # Backup-Fehler blockiert das Update nicht
         with open(_UPDATE_FLAG, "w") as f:
             json.dump({"requested_at": datetime.now(timezone.utc).isoformat()}, f)
         # Update-Status sofort auf "läuft" setzen → Display zeigt nicht mehr "verfügbar"
@@ -178,6 +191,106 @@ def trigger_install() -> dict[str, Any]:
             cached["installing"] = True
             write_state(conn, "git_update_status", cached)
         return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# ── AUTO-UPDATE SETTINGS ──────────────────────────────────────
+
+@router.get("/system/update/settings")
+def get_update_settings() -> dict[str, Any]:
+    with get_connection() as conn:
+        settings = read_state(conn, "update_settings", {}) or {}
+    return {
+        "interval": settings.get("interval", "daily"),
+        "auto_install": bool(settings.get("auto_install", False)),
+    }
+
+
+@router.post("/system/update/settings")
+def save_update_settings(payload: dict[str, Any]) -> dict[str, Any]:
+    interval = payload.get("interval", "daily")
+    if interval not in ("never", "daily", "6h", "hourly"):
+        interval = "daily"
+    settings = {
+        "interval": interval,
+        "auto_install": bool(payload.get("auto_install", False)),
+    }
+    with get_connection() as conn:
+        write_state(conn, "update_settings", settings)
+    return settings
+
+
+# ── BACKUP & RESTORE ──────────────────────────────────────────
+
+def _db_path() -> str:
+    from app.database.db import get_db_path
+    return get_db_path()
+
+
+def _create_backup_zip() -> bytes:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        db = _db_path()
+        if os.path.exists(db):
+            zf.write(db, "robot_core.db")
+        # .env falls vorhanden
+        for env_path in ("/app/.env", "/.env"):
+            if os.path.exists(env_path):
+                zf.write(env_path, ".env")
+                break
+    return buf.getvalue()
+
+
+@router.post("/system/backup/create")
+def create_backup() -> dict[str, Any]:
+    try:
+        data = _create_backup_zip()
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"erika_backup_{ts}.zip"
+        backup_dir = Path("/data/backups")
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        (backup_dir / filename).write_bytes(data)
+        return {"ok": True, "filename": filename, "size": len(data)}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.get("/system/backup/download")
+def download_backup() -> StreamingResponse:
+    try:
+        data = _create_backup_zip()
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"erika_backup_{ts}.zip"
+        return StreamingResponse(
+            io.BytesIO(data),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/system/backup/restore")
+async def restore_backup(file: UploadFile = File(...)) -> dict[str, Any]:
+    if not file.filename or not file.filename.endswith(".zip"):
+        raise HTTPException(status_code=400, detail="Nur ZIP-Dateien erlaubt")
+    try:
+        data = await file.read()
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            names = zf.namelist()
+            if "robot_core.db" not in names:
+                raise HTTPException(status_code=400, detail="Kein gültiges Backup (robot_core.db fehlt)")
+            db_path = _db_path()
+            # Sicherheitskopie vor Restore
+            if os.path.exists(db_path):
+                shutil.copy2(db_path, db_path + ".pre_restore")
+            with tempfile.TemporaryDirectory() as tmp:
+                zf.extractall(tmp)
+                shutil.copy2(os.path.join(tmp, "robot_core.db"), db_path)
+        return {"ok": True, "restored_files": names}
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

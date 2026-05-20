@@ -84,6 +84,7 @@
     <!-- Klingel-Overlay: ersetzt das Gesicht wenn jemand klingelt -->
     <div id="doorbell-overlay">
       <div id="doorbell-banner">🔔 Jemand an der Tür</div>
+      <button onclick="_closeDoorbellOverlay()" style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:50%;color:#fff;font-size:1.1rem;width:32px;height:32px;cursor:pointer;line-height:1;z-index:10;">✕</button>
       <img id="doorbell-cam-img" src="" alt="Kamera">
     </div>
     <div class="face-wrap">
@@ -665,15 +666,19 @@
           <div style="width:${level}%;height:100%;background:${bc};border-radius:3px;"></div>
         </div>
       </div>` : '';
-    const adblue = vehicle.adblue_level?.state != null ? parseInt(vehicle.adblue_level.state) : null;
-    const adblueColor = adblue == null ? 'var(--muted)' : adblue > 25 ? 'var(--accent)' : adblue > 10 ? 'var(--warning)' : 'var(--danger)';
-    const adblueHtml = !isEv && adblue != null ? `
+    const adblueRaw = vehicle.adblue_level?.state != null ? parseFloat(vehicle.adblue_level.state) : null;
+    const adblueUnit = (vehicle.adblue_level?.unit || '').trim() || '%';
+    const adblueIsKm = adblueUnit.toLowerCase() === 'km';
+    const adblueColor = adblueRaw == null ? 'var(--muted)' : adblueIsKm
+      ? (adblueRaw > 2000 ? 'var(--accent)' : adblueRaw > 500 ? 'var(--warning)' : 'var(--danger)')
+      : (adblueRaw > 25 ? 'var(--accent)' : adblueRaw > 10 ? 'var(--warning)' : 'var(--danger)');
+    const adblueHtml = !isEv && adblueRaw != null ? `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
         <span style="font-size:0.85rem;">&#128167;</span>
-        <span style="font-weight:700;color:${adblueColor};font-size:0.82rem;min-width:36px;">${adblue}%</span>
-        <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
-          <div style="width:${Math.max(0, Math.min(100, adblue))}%;height:100%;background:${adblueColor};border-radius:3px;"></div>
-        </div>
+        <span style="font-weight:700;color:${adblueColor};font-size:0.82rem;min-width:52px;">${Math.round(adblueRaw)} ${adblueUnit}</span>
+        ${!adblueIsKm ? `<div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+          <div style="width:${Math.max(0, Math.min(100, adblueRaw))}%;height:100%;background:${adblueColor};border-radius:3px;"></div>
+        </div>` : ''}
         <span style="font-size:0.62rem;color:var(--muted);font-weight:800;letter-spacing:0.08em;text-transform:uppercase;">AdBlue</span>
       </div>` : '';
     const statusHtml = isEv && vehicle.charging != null ? `
@@ -2677,8 +2682,10 @@
     const energyEntity = vehicle.battery || vehicle.fuel_level || null;
     const batteryPct = parseFloat(energyEntity?.state ?? '0');
     const hasBattery = Number.isFinite(batteryPct) && energyEntity;
-    const adbluePct = parseFloat(vehicle.adblue_level?.state ?? 'NaN');
-    const hasAdblue = Number.isFinite(adbluePct) && vehicle.adblue_level;
+    const adblueVal = parseFloat(vehicle.adblue_level?.state ?? 'NaN');
+    const adblueUnitDet = (vehicle.adblue_level?.unit || '').trim() || '%';
+    const adblueIsKmDet = adblueUnitDet.toLowerCase() === 'km';
+    const hasAdblue = Number.isFinite(adblueVal) && vehicle.adblue_level;
     const location = vehicle.location;
     const statusLabel = vehicleStateLabel(vehicle.activity?.state || location?.state || 'aktiv');
     const coreRows = [];
@@ -2688,7 +2695,7 @@
     coreRows.push(['Verlauf', `${history.length} Punkte / 14 Tage`]);
     if (vehicle.range) evRows.push(['Reichweite', `${vehicle.range.state} ${vehicle.range.unit || ''}`]);
     if (vehicle.fuel_level) evRows.push(['Tank', `${vehicle.fuel_level.state} ${vehicle.fuel_level.unit || '%'}`]);
-    if (vehicle.adblue_level) evRows.push(['AdBlue', `${vehicle.adblue_level.state} ${vehicle.adblue_level.unit || '%'}`]);
+    if (vehicle.adblue_level) evRows.push(['AdBlue', `${vehicle.adblue_level.state} ${adblueUnitDet}`]);
     if (vehicle.charging) evRows.push(['Ladestatus', vehicleChargeStateLabel(vehicle.charging.state)]);
     if (vehicle.remaining_charge_time) evRows.push(['Restladezeit', formatMinutesAsHHMM(vehicle.remaining_charge_time.state)]);
     const actions = [];
@@ -2711,8 +2718,8 @@
           </div>` : ''}
         ${hasAdblue ? `
           <div class="vehicle-battery vehicle-adblue">
-            <span>&#128167; AdBlue ${Math.round(adbluePct)}%</span>
-            <div class="vehicle-battery-bg"><div class="vehicle-battery-fill adblue-fill" style="width:${Math.max(0, Math.min(100, adbluePct))}%"></div></div>
+            <span>&#128167; AdBlue ${Math.round(adblueVal)} ${adblueUnitDet}</span>
+            ${!adblueIsKmDet ? `<div class="vehicle-battery-bg"><div class="vehicle-battery-fill adblue-fill" style="width:${Math.max(0, Math.min(100, adblueVal))}%"></div></div>` : ''}
           </div>` : ''}
         <div class="vehicle-section-grid">
           ${renderVehicleSection('Fahrdaten', coreRows)}

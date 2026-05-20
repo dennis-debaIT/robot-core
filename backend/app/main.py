@@ -43,6 +43,28 @@ async def _robot_error_history_loop(interval_seconds: int = 15) -> None:
         await asyncio.sleep(interval_seconds)
 
 
+async def _auto_update_loop() -> None:
+    from app.database.db import get_connection, read_state
+    from app.api.routers.system import check_for_update, trigger_install
+    await asyncio.sleep(60)  # Startup-Verzögerung
+    while True:
+        try:
+            with get_connection() as conn:
+                settings = read_state(conn, "update_settings", {}) or {}
+            interval = settings.get("interval", "daily")
+            auto_install = bool(settings.get("auto_install", False))
+            sleep_seconds = {"hourly": 3600, "6h": 21600, "daily": 86400}.get(interval, 0)
+            if sleep_seconds == 0:
+                await asyncio.sleep(3600)
+                continue
+            result = await asyncio.to_thread(check_for_update)
+            if auto_install and result.get("update_available"):
+                await asyncio.to_thread(trigger_install)
+        except Exception:
+            pass
+        await asyncio.sleep(sleep_seconds if sleep_seconds > 0 else 3600)
+
+
 async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
     config_service = IntegrationConfigService()
     vehicle_service = VehicleService()
@@ -69,16 +91,20 @@ async def lifespan(_: FastAPI) -> Any:
     robot_service.bootstrap_error_history()
     history_task = asyncio.create_task(_robot_error_history_loop())
     vehicle_history_task = asyncio.create_task(_vehicle_location_history_loop())
+    auto_update_task = asyncio.create_task(_auto_update_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
     finally:
         history_task.cancel()
         vehicle_history_task.cancel()
+        auto_update_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
             await vehicle_history_task
+        with suppress(asyncio.CancelledError):
+            await auto_update_task
         deps.clear_runtime()
 
 
