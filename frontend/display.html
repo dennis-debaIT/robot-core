@@ -890,18 +890,24 @@
 
   function renderFootballTable(f) {
     if (!f?.table) return '';
-    const rows = (f.table.full_table || f.table.surrounding || []).map(r => `
+    const rows = (f.table.full_table || f.table.surrounding || []).map(r => {
+      const logo = r.iconUrl
+        ? `<img src="${r.iconUrl}" style="width:18px;height:18px;object-fit:contain;vertical-align:middle;" onerror="this.style.display='none'">`
+        : `<span style="display:inline-block;width:18px;height:18px;"></span>`;
+      return `
       <div class="table-row ${r.isHighlighted ? 'highlighted' : ''}"
-           style="padding:4px 8px;">
+           style="padding:4px 8px;display:grid;grid-template-columns:28px 22px 1fr 28px 32px;gap:4px;align-items:center;">
         <div class="table-rank ${r.isHighlighted ? 'highlighted' : ''}">${r.rank}</div>
+        <div style="display:flex;align-items:center;justify-content:center;">${logo}</div>
         <div class="table-name" style="font-size:0.78rem;">${r.shortName || r.teamName}</div>
-        <div class="table-sp" style="font-size:0.74rem;">${r.matches}</div>
-        <div class="table-pts" style="font-size:0.82rem;">${r.points}</div>
-      </div>`).join('');
-    const header = `<div style="display:grid;grid-template-columns:28px 1fr 28px 32px;
+        <div class="table-sp" style="font-size:0.74rem;text-align:right;">${r.matches}</div>
+        <div class="table-pts" style="font-size:0.82rem;text-align:right;">${r.points}</div>
+      </div>`;
+    }).join('');
+    const header = `<div style="display:grid;grid-template-columns:28px 22px 1fr 28px 32px;
         gap:4px;padding:3px 8px 5px;font-size:0.62rem;color:var(--muted);
         border-bottom:1px solid var(--border);margin-bottom:3px;">
-      <span style="text-align:center">#</span><span>Verein</span>
+      <span style="text-align:center">#</span><span></span><span>Verein</span>
       <span style="text-align:right">SP</span><span style="text-align:right">PKT</span>
     </div>`;
     return header + rows;
