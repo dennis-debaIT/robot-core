@@ -167,47 +167,51 @@ class HomeAssistantProvider:
         re.IGNORECASE,
     )
 
-    def execute_light_command(self, query: str) -> str | None:
-        """
-        Erkennt Sprachbefehle für Lichtsteuerung und führt sie aus.
-        Unterstützt: ein/aus, Helligkeit (%), Farben, alle Lichter, Raumname, Einzellampen.
-        """
-        if not self._LIGHT_CMD.search(query):
-            return None
+    _LIGHT_STOP = frozenset({
+        "schalte", "schalten", "mach", "mache", "machen", "dreh", "drehe",
+        "stell", "stelle", "dimm", "dimme", "bitte", "mal", "doch", "auch",
+        "das", "die", "der", "den", "dem", "eine", "einen", "einem",
+        "im", "in", "von", "zu", "bei", "mit", "auf",
+        "licht", "lichter", "lampe", "lampen", "ein", "an", "aus",
+        "prozent", "hell", "heller", "dunkler", "alle", "alles", "gesamt",
+        "und", "sowie", "außerdem",
+    })
 
-        q = query.lower()
-
-        # Helligkeit extrahieren
-        bri_match = self._BRIGHTNESS_RE.search(q)
-        brightness_pct = int(bri_match.group(1)) if bri_match else None
-
-        # Farbe extrahieren
-        color_match = self._COLOR_RE.search(q)
-        color_name = color_match.group(1).lower() if color_match else None
+    def _extract_light_settings(self, seg: str) -> dict:
+        """Extrahiert Helligkeit, Farbe und Aktion aus einem Segment."""
+        bri = self._BRIGHTNESS_RE.search(seg)
+        brightness_pct = int(bri.group(1)) if bri else None
+        cm = self._COLOR_RE.search(seg)
+        color_name = cm.group(1).lower() if cm else None
         color_value = self._COLOR_MAP.get(color_name) if color_name else None
-
-        # Aktion bestimmen
-        is_off = bool(re.search(r"\b(aus|ausschalten|ausmachen|abschalten)\b", q)) \
+        is_off = bool(re.search(r"\b(aus|ausschalten|ausmachen|abschalten)\b", seg)) \
                  or brightness_pct == 0
-        is_on  = bool(re.search(r"\b(ein|an|einschalten|anmachen|anschalten)\b", q)) \
-                 or (brightness_pct is not None and brightness_pct > 0) \
-                 or color_value is not None
+        is_on = bool(re.search(r"\b(ein|an|einschalten|anmachen|anschalten)\b", seg)) \
+                or (brightness_pct and brightness_pct > 0) or color_value is not None
+        return {
+            "brightness_pct": brightness_pct,
+            "color_name": color_name,
+            "color_value": color_value,
+            "is_off": is_off,
+            "is_on": is_on,
+        }
 
-        if not is_on and not is_off:
-            return None
-
+    def _build_svc_data(self, settings: dict, target: dict) -> tuple[str, dict, str]:
+        """Gibt (service, svc_data, action_label) zurück."""
+        s = settings
+        is_off, is_on = s["is_off"], s["is_on"]
+        brightness_pct, color_name, color_value = s["brightness_pct"], s["color_name"], s["color_value"]
         service = "turn_off" if is_off else "turn_on"
-
-        # Service-Daten zusammenbauen
         data: dict = {}
-        action_parts = []
-        if is_on and brightness_pct:
+        action_parts: list[str] = []
+        domain = target["entity_id"].split(".")[0]
+        if is_on and brightness_pct and domain == "light" and target.get("supports_brightness"):
             data["brightness_pct"] = brightness_pct
             action_parts.append(f"{brightness_pct}%")
-        if is_on and color_value is not None:
+        if is_on and color_value is not None and domain == "light" and target.get("supports_color"):
             if isinstance(color_value, tuple):
                 data["rgb_color"] = list(color_value)
-                action_parts.append(color_name)
+                action_parts.append(color_name or "")
             elif color_value == "warm":
                 data["color_temp_kelvin"] = 2700
                 action_parts.append("warmweiß")
@@ -217,66 +221,92 @@ class HomeAssistantProvider:
             elif color_value == "neutral":
                 data["color_temp_kelvin"] = 4000
                 action_parts.append("neutralweiß")
-
         if is_off:
-            action = "ausgeschaltet"
+            label = "aus"
         elif action_parts:
-            action = "auf " + ", ".join(action_parts) + " eingestellt"
+            label = "auf " + ", ".join(action_parts)
         else:
-            action = "eingeschaltet"
+            label = "an"
+        return service, data, label
 
-        lights = self.get_lights()
-        groups = [l for l in lights if l["is_group"]]
+    def _find_light(self, seg: str, lights: list) -> dict | None:
+        """Findet die beste Lampe/Gruppe für ein Segment."""
+        words = [w for w in re.findall(r"[A-Za-zÄÖÜäöüß]{3,}", seg.lower())
+                 if w not in self._LIGHT_STOP and w not in self._COLOR_MAP]
+        if not words:
+            return None
+        groups  = [l for l in lights if l["is_group"]]
         singles = [l for l in lights if not l["is_group"]]
+        def score(candidates: list) -> tuple:
+            best, best_s = None, 0
+            for c in candidates:
+                nl = (c["name"] or "").lower()
+                s = sum(1 for w in words if w in nl)
+                if s > best_s:
+                    best_s, best = s, c
+            return best, best_s
+        t, s = score(groups)
+        if not t or s == 0:
+            t, s = score(singles)
+        return t if s > 0 else None
 
-        # "alle Lichter / alle aus / alle an"
+    def execute_light_command(self, query: str) -> str | None:
+        """
+        Lichtsteuerung per Sprache.
+        Unterstützt: ein/aus, Helligkeit, Farben, alle Lichter, Raumname,
+        Einzellampen und Multi-Target in einem Satz.
+        """
+        if not self._LIGHT_CMD.search(query):
+            return None
+
+        q = query.lower()
+        lights = self.get_lights()
+
+        # "alle Lichter" — vor Multi-Split prüfen
         if re.search(r"\b(all[e]?s?|gesamt)\b", q):
-            targets = groups if groups else lights
+            s = self._extract_light_settings(q)
+            if not s["is_on"] and not s["is_off"]:
+                return None
+            targets = [l for l in lights if l["is_group"]] or lights
+            service, data, label = self._build_svc_data(s, targets[0] if targets else {})
             for t in targets:
                 domain = t["entity_id"].split(".")[0]
-                svc_data = {"entity_id": t["entity_id"]}
-                if domain == "light":
-                    svc_data.update(data)
-                self.call_service(domain, service, svc_data)
-            return f"Alle Lichter {action}."
+                sd = {"entity_id": t["entity_id"]}
+                sd.update(data)
+                self.call_service(domain, service, sd)
+            return f"Alle Lichter {label}."
 
-        # Namenstreffer: erst Gruppen, dann Einzellampen
-        _STOP = {
-            "schalte", "schalten", "mach", "mache", "machen", "dreh", "drehe",
-            "stell", "stelle", "dimm", "dimme", "bitte", "mal", "doch",
-            "das", "die", "der", "den", "dem", "im", "in", "von", "zu",
-            "licht", "lichter", "lampe", "lampen", "ein", "an", "aus", "auf",
-            "prozent", "prozent", "hell", "heller", "dunkler", "bitte",
-        } | set(self._COLOR_MAP.keys())
+        # Multi-Target: Komma oder "und" zwischen Räumen
+        raw_segments = [p.strip() for p in re.split(r",\s*|\s+und\s+", q) if p.strip()]
 
-        words = [w for w in re.findall(r"[A-Za-zÄÖÜäöüß]{3,}", q) if w not in _STOP]
+        # Globale Aktion aus dem Gesamtsatz (für Segmente ohne explizite Angabe)
+        global_settings = self._extract_light_settings(q)
+        global_is_off = global_settings["is_off"]
+        global_is_on  = global_settings["is_on"] or (not global_is_off)
 
-        def best_match(candidates: list) -> tuple:
-            best, score = None, 0
-            for c in candidates:
-                name_lower = (c["name"] or "").lower()
-                s = sum(1 for w in words if w in name_lower)
-                if s > score:
-                    score, best = s, c
-            return best, score
+        results: list[str] = []
+        for seg in raw_segments:
+            s = self._extract_light_settings(seg)
+            # Aktion aus globalem Kontext erben wenn Segment selbst keine hat
+            if not s["is_on"] and not s["is_off"]:
+                s["is_off"] = global_is_off
+                s["is_on"]  = global_is_on
+            if not s["is_on"] and not s["is_off"]:
+                continue
+            target = self._find_light(seg, lights)
+            if not target:
+                continue
+            service, data, label = self._build_svc_data(s, target)
+            sd = {"entity_id": target["entity_id"]}
+            sd.update(data)
+            self.call_service(target["entity_id"].split(".")[0], service, sd)
+            results.append(f"{target['name']} {label}")
 
-        target, score = best_match(groups)
-        if not target or score == 0:
-            target, score = best_match(singles)
-
-        if target and score > 0:
-            domain = target["entity_id"].split(".")[0]
-            svc_data = {"entity_id": target["entity_id"]}
-            if domain == "light" and target.get("supports_color") and color_value is not None:
-                svc_data.update(data)
-            elif domain == "light" and target.get("supports_brightness") and brightness_pct:
-                svc_data["brightness_pct"] = brightness_pct
-            elif domain == "light" and not color_value and not brightness_pct:
-                pass  # einfaches ein/aus
-            self.call_service(domain, service, svc_data)
-            return f"Licht {target['name']} {action}."
-
-        return None
+        if not results:
+            return None
+        if len(results) == 1:
+            return f"Licht {results[0]}."
+        return "Lichter gesetzt: " + ", ".join(results) + "."
 
     def call_service(self, domain: str, service: str, data: dict) -> bool:
         """Ruft einen HA-Service auf (z.B. light.turn_on)."""
