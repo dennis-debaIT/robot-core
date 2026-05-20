@@ -58,15 +58,7 @@ async def _timer_watcher_loop() -> None:
                     t["notified"] = True
                     with get_connection() as conn:
                         write_state(conn, "active_timer", t)
-                    # TTS-Ansage auslösen
-                    label = t.get("label") or "der Timer"
-                    from datetime import datetime, timedelta, timezone
-                    expires = (datetime.now(timezone.utc) + timedelta(seconds=30)).isoformat()
-                    with get_connection() as conn:
-                        write_state(conn, "last_speech_text", {
-                            "text": f"{label} ist abgelaufen!",
-                            "expires_at": expires,
-                        })
+                    # Nur als abgelaufen markieren; Piepton + TTS macht das Frontend
         except Exception:
             pass
         await asyncio.sleep(1)
