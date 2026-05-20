@@ -1593,9 +1593,16 @@ class RobotCore:
         re.IGNORECASE,
     )
     _DURATION_RE = re.compile(
-        r"(\d+(?:[.,]\d+)?)\s*(stunde[n]?|std?|h(?:our)?|minute[n]?|min?|sekunde[n]?|sek?|s(?:ec)?)\b",
+        r"(eine?|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf|fünfzehn|zwanzig|dreißig|vierzig|fünfzig|sechzig|\d+(?:[.,]\d+)?)"
+        r"\s*(stunde[n]?|std?|h(?:our)?|minute[n]?|min?|sekunde[n]?|sek?|s(?:ec)?)\b",
         re.IGNORECASE,
     )
+    _WORD_NUMBERS = {
+        "eine": 1, "ein": 1, "zwei": 2, "drei": 3, "vier": 4, "fünf": 5,
+        "sechs": 6, "sieben": 7, "acht": 8, "neun": 9, "zehn": 10,
+        "elf": 11, "zwölf": 12, "fünfzehn": 15, "zwanzig": 20,
+        "dreißig": 30, "vierzig": 40, "fünfzig": 50, "sechzig": 60,
+    }
 
     def _try_timer_command(self, captured: str) -> str | None:
         q = captured.lower()
@@ -1608,7 +1615,8 @@ class RobotCore:
         m = self._DURATION_RE.search(q)
         if not m:
             return None
-        amount = float(m.group(1).replace(",", "."))
+        raw = m.group(1).lower()
+        amount = float(self._WORD_NUMBERS.get(raw, raw.replace(",", ".")))
         unit   = m.group(2).lower()
         if unit.startswith("s"):
             seconds = int(amount)
