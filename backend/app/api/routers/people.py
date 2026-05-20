@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 
 from app.api.deps import get_core
 from app.api.schemas import FactUpdateRequest, PersonPreferencePatchRequest
+from app.database.db import get_connection, read_state, write_state
 
 
 router = APIRouter()
@@ -83,3 +84,29 @@ def reset_person_persona(person_id: int) -> dict[str, Any]:
     if not result:
         raise HTTPException(status_code=404, detail="Person not found")
     return result
+
+
+@router.post("/profiles")
+def create_profile(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name darf nicht leer sein")
+    person = get_core().profile.ensure_person_stub(name)
+    return {"person": person}
+
+
+@router.get("/active-person")
+def get_active_person() -> dict[str, Any]:
+    with get_connection() as conn:
+        name = read_state(conn, "active_person_name")
+    return {"name": name}
+
+
+@router.post("/active-person")
+def set_active_person(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    name = payload.get("name")
+    if name is not None:
+        name = str(name).strip() or None
+    with get_connection() as conn:
+        write_state(conn, "active_person_name", name)
+    return {"name": name}

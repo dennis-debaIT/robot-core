@@ -27,6 +27,7 @@
       <button type="button" class="tab-button" data-tab-target="tab-calendar">Kalender</button>
       <button type="button" class="tab-button" data-tab-target="tab-pv">PV-Anlage</button>
       <button type="button" class="tab-button" data-tab-target="tab-printer">3D-Drucker</button>
+      <button type="button" class="tab-button" data-tab-target="tab-persons">Personen</button>
       <button type="button" class="tab-button" data-tab-target="tab-llm">KI / LLM</button>
       <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
     </nav>
@@ -585,6 +586,40 @@
               Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
             </div>
           </section>
+        </article>
+
+        <!-- ── PERSONEN ──────────────────────────────────────── -->
+        <article id="tab-persons" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Profile</div>
+              <h2>Personen verwalten</h2>
+            </div>
+            <button type="button" onclick="showAddPersonForm()" style="padding:7px 16px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.82rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+              + Neue Person
+            </button>
+          </header>
+
+          <section class="module-card" id="add-person-form" style="display:none;">
+            <div class="section-copy"><div class="section-title">Neue Person anlegen</div></div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+              <label class="field-block" style="flex:1;min-width:180px;">
+                <span class="field-label">Name</span>
+                <input id="new-person-name" class="field-input" type="text" placeholder="z.B. Dennis">
+              </label>
+              <button type="button" onclick="createPerson()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                Anlegen
+              </button>
+              <button type="button" onclick="document.getElementById('add-person-form').style.display='none'" style="padding:8px 14px;border-radius:10px;font-size:0.84rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">
+                Abbrechen
+              </button>
+            </div>
+            <div id="add-person-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+          </section>
+
+          <div id="persons-list" style="display:flex;flex-direction:column;gap:12px;margin-top:4px;">
+            <div style="color:var(--muted);font-size:0.82rem;">Lade Personen…</div>
+          </div>
         </article>
 
         <!-- ── KI / LLM ──────────────────────────────────────── -->
@@ -2401,6 +2436,162 @@
     reloadBtn.addEventListener('click', boot);
 
     boot();
+
+    // ── Personen ──────────────────────────────────────────────
+    let _personsData = [];
+    let _expandedPersonId = null;
+
+    async function loadPersons() {
+      try {
+        const d = await fetch('/profiles').then(r => r.json());
+        _personsData = d.items || [];
+        renderPersonsList();
+      } catch {
+        document.getElementById('persons-list').innerHTML = '<div style="color:var(--danger);font-size:0.82rem;">Fehler beim Laden.</div>';
+      }
+    }
+
+    function renderPersonsList() {
+      const el = document.getElementById('persons-list');
+      if (!_personsData.length) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">Noch keine Personen angelegt.</div>';
+        return;
+      }
+      el.innerHTML = _personsData.map(p => `
+        <div class="module-card" style="cursor:pointer;" onclick="togglePersonDetail(${p.id})">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:38px;height:38px;border-radius:50%;background:var(--accent-soft);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:var(--accent);">
+                ${escapeHtml((p.name||'?')[0].toUpperCase())}
+              </div>
+              <div>
+                <div style="font-weight:700;font-size:0.92rem;">${escapeHtml(p.name||'–')}</div>
+                <div style="font-size:0.72rem;color:var(--muted);">${p.facts_count ?? 0} Eigenschaften · ${p.memory_count ?? 0} Erinnerungen</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button onclick="event.stopPropagation();deletePerson(${p.id},'${escapeHtml(p.name||'')}')"
+                style="padding:4px 10px;border-radius:8px;font-size:0.72rem;cursor:pointer;background:rgba(255,61,61,0.1);border:1px solid var(--danger);color:var(--danger);">
+                Löschen
+              </button>
+              <span style="font-size:0.8rem;color:var(--muted);">${_expandedPersonId === p.id ? '▲' : '▼'}</span>
+            </div>
+          </div>
+          <div id="person-detail-${p.id}" style="display:${_expandedPersonId === p.id ? 'block' : 'none'};margin-top:14px;border-top:1px solid var(--border);padding-top:12px;" onclick="event.stopPropagation()">
+            <div style="color:var(--muted);font-size:0.78rem;">Lade Details…</div>
+          </div>
+        </div>`).join('');
+      if (_expandedPersonId !== null) {
+        loadPersonDetail(_expandedPersonId);
+      }
+    }
+
+    async function togglePersonDetail(id) {
+      if (_expandedPersonId === id) {
+        _expandedPersonId = null;
+        renderPersonsList();
+      } else {
+        _expandedPersonId = id;
+        renderPersonsList();
+        await loadPersonDetail(id);
+      }
+    }
+
+    async function loadPersonDetail(id) {
+      const el = document.getElementById(`person-detail-${id}`);
+      if (!el) return;
+      try {
+        const [ws, prefs] = await Promise.all([
+          fetch(`/profiles/${id}/workspace`).then(r => r.json()),
+          fetch(`/profiles/${id}/preferences`).then(r => r.json()),
+        ]);
+        const facts = ws.person?.facts || [];
+        const memories = (ws.memories || []).filter(m => m.status === 'approved');
+        const pending  = (ws.memories || []).filter(m => m.status === 'pending');
+
+        const factsHtml = facts.length ? `
+          <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Eigenschaften</div>
+          ${facts.map(f => `
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;background:var(--panel-soft);border-radius:8px;padding:6px 10px;">
+              <span style="font-size:0.72rem;color:var(--muted);min-width:100px;">${escapeHtml(f.trait_type||'')}</span>
+              <span style="flex:1;font-size:0.82rem;">${escapeHtml(String(f.value||''))}</span>
+              <button onclick="deletePersonFact(${id},${f.id})"
+                style="padding:2px 8px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">✕</button>
+            </div>`).join('')}` : '<div style="font-size:0.78rem;color:var(--muted);">Keine Eigenschaften bekannt.</div>';
+
+        const memoriesHtml = memories.length ? `
+          <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin:12px 0 6px;">Erinnerungen (${memories.length})</div>
+          ${memories.slice(0,10).map(m => `
+            <div style="background:var(--panel-soft);border-radius:8px;padding:6px 10px;margin-bottom:4px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+              <span style="flex:1;">${escapeHtml(m.content||'')}</span>
+              <span style="font-size:0.65rem;color:var(--muted);white-space:nowrap;">${m.category||''}</span>
+            </div>`).join('')}` : '';
+
+        const pendingHtml = pending.length ? `
+          <div style="font-size:0.72rem;font-weight:700;color:var(--warning);letter-spacing:0.08em;text-transform:uppercase;margin:12px 0 6px;">Ausstehend (${pending.length})</div>
+          ${pending.slice(0,5).map(m => `
+            <div style="background:rgba(255,171,0,0.07);border:1px solid rgba(255,171,0,0.2);border-radius:8px;padding:6px 10px;margin-bottom:4px;font-size:0.78rem;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <span style="flex:1;">${escapeHtml(m.content||'')}</span>
+              <div style="display:flex;gap:6px;flex-shrink:0;">
+                <button onclick="approveMemory(${m.id},${id})" style="padding:2px 8px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:rgba(0,200,100,0.1);border:1px solid rgba(0,200,100,0.4);color:#4caf50;">✓</button>
+                <button onclick="rejectMemory(${m.id},${id})" style="padding:2px 8px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">✕</button>
+              </div>
+            </div>`).join('')}` : '';
+
+        el.innerHTML = factsHtml + memoriesHtml + pendingHtml;
+      } catch {
+        el.innerHTML = '<div style="color:var(--danger);font-size:0.78rem;">Fehler beim Laden der Details.</div>';
+      }
+    }
+
+    async function deletePersonFact(personId, factId) {
+      if (!await showConfirm('Eigenschaft wirklich löschen?', 'Löschen')) return;
+      await fetch(`/profiles/${personId}/facts/${factId}`, { method: 'DELETE' });
+      await loadPersonDetail(personId);
+    }
+
+    async function deletePerson(id, name) {
+      if (!await showConfirm(`Person "${name}" und alle zugehörigen Daten löschen?`, 'Löschen')) return;
+      await fetch(`/profiles/${id}`, { method: 'DELETE' });
+      _expandedPersonId = null;
+      await loadPersons();
+    }
+
+    async function approveMemory(memoryId, personId) {
+      await fetch(`/memory/approve/${memoryId}`, { method: 'POST' });
+      await loadPersonDetail(personId);
+    }
+
+    async function rejectMemory(memoryId, personId) {
+      await fetch(`/memory/reject/${memoryId}`, { method: 'POST' });
+      await loadPersonDetail(personId);
+    }
+
+    function showAddPersonForm() {
+      document.getElementById('add-person-form').style.display = '';
+      document.getElementById('new-person-name').focus();
+    }
+
+    async function createPerson() {
+      const name = document.getElementById('new-person-name').value.trim();
+      const status = document.getElementById('add-person-status');
+      if (!name) { status.textContent = 'Name eingeben.'; return; }
+      try {
+        const r = await fetch('/profiles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+        document.getElementById('add-person-form').style.display = 'none';
+        document.getElementById('new-person-name').value = '';
+        await loadPersons();
+      } catch(e) {
+        status.textContent = '✗ ' + e.message;
+      }
+    }
+
+    document.querySelector('[data-tab-target="tab-persons"]')?.addEventListener('click', loadPersons);
 
     // ── LLM Konfiguration ─────────────────────────────────────
     let _llmProviders = {};

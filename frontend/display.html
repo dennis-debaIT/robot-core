@@ -48,11 +48,13 @@
       <div class="status-val status-ok" id="sb-wlan">–</div>
     </div>
   </div>
-  <div class="status-item">
+  <div class="status-item" style="cursor:pointer;position:relative;" onclick="togglePersonDropdown()">
     <div class="status-icon">👤</div>
     <div>
       <div class="status-label">Person</div>
       <div class="status-val" id="sb-person">N/A</div>
+    </div>
+    <div id="person-dropdown" style="display:none;position:absolute;top:100%;left:0;min-width:160px;background:#0f0f1a;border:1px solid #24284a;border-radius:10px;z-index:9999;padding:4px 0;margin-top:4px;box-shadow:0 4px 20px rgba(0,0,0,0.5);" onclick="event.stopPropagation()">
     </div>
   </div>
   <div class="status-item">
@@ -441,6 +443,7 @@
       if (netLabel) netLabel.textContent = netType === 'lan' ? 'LAN' : 'WLAN';
       const person = d.active_person_name || 'N/A';
       document.getElementById('sb-person').textContent = person;
+      _activePersonName = d.active_person_name || null;
       const stateEl = document.getElementById('sb-state');
       if (d.update_available) {
         stateEl.textContent = 'Update verfügbar';
@@ -2463,6 +2466,56 @@
     return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false };
   })();
   let _calendarOpenTrigger = 'both';
+  let _activePersonName = null;
+  let _personDropdownOpen = false;
+
+  async function togglePersonDropdown() {
+    const dd = document.getElementById('person-dropdown');
+    if (!dd) return;
+    _personDropdownOpen = !_personDropdownOpen;
+    if (!_personDropdownOpen) { dd.style.display = 'none'; return; }
+    dd.style.display = 'block';
+    dd.innerHTML = '<div style="padding:8px 14px;font-size:0.72rem;color:#7f8dcb;">Lade…</div>';
+    try {
+      const d = await fetch('/profiles').then(r => r.json());
+      const persons = d.items || [];
+      const items = [{ name: null, label: '— Niemand —' }, ...persons.map(p => ({ name: p.name, label: p.name }))];
+      dd.innerHTML = items.map(p => `
+        <div onclick="setActivePerson(${p.name ? `'${p.name.replace(/'/g,"\\'")}` : 'null'}')" style="
+          padding:8px 14px;font-size:0.78rem;cursor:pointer;
+          color:${_activePersonName === p.name ? '#00c8ff' : '#e8eaf0'};
+          font-weight:${_activePersonName === p.name ? 700 : 400};
+          background:${_activePersonName === p.name ? 'rgba(0,200,255,0.08)' : 'transparent'};
+        " onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='${_activePersonName === p.name ? 'rgba(0,200,255,0.08)' : 'transparent'}'">
+          ${p.label}
+        </div>`).join('');
+    } catch {
+      dd.innerHTML = '<div style="padding:8px 14px;font-size:0.72rem;color:#ff3d3d;">Fehler</div>';
+    }
+  }
+
+  async function setActivePerson(name) {
+    const dd = document.getElementById('person-dropdown');
+    if (dd) dd.style.display = 'none';
+    _personDropdownOpen = false;
+    try {
+      await fetch('/active-person', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name || null }),
+      });
+      _activePersonName = name || null;
+      document.getElementById('sb-person').textContent = name || 'N/A';
+    } catch {}
+  }
+
+  document.addEventListener('click', (e) => {
+    if (_personDropdownOpen && !e.target.closest('#person-dropdown') && !e.target.closest('.status-item')) {
+      const dd = document.getElementById('person-dropdown');
+      if (dd) dd.style.display = 'none';
+      _personDropdownOpen = false;
+    }
+  });
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
   let _vehiclesData = [];
