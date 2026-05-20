@@ -130,32 +130,68 @@ class HomeAssistantProvider:
         return lights
 
     _LIGHT_CMD = re.compile(
-        r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?)\b.{0,40}\b(?:licht(?:er)?|lampe[n]?)\b"
+        r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?)\b.{0,60}\b(?:licht(?:er)?|lampe[n]?|aus|ein|an)\b"
         r"|\b(?:licht(?:er)?|lampe[n]?)\b.{0,40}\b(?:an|ein|aus|\d+\s*(?:%|prozent))\b"
-        r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?)\b",
+        r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?|aus|an|ein)\b"
+        r"|\b(?:licht(?:er)?|lampe[n]?)\s+(?:aus|an|ein)\b"
+        r"|\b(?:alles?|alle)\s+(?:aus|an|ein)\b",
         re.IGNORECASE | re.DOTALL,
     )
     _BRIGHTNESS_RE = re.compile(r"(\d+)\s*(?:%|prozent)", re.IGNORECASE)
 
+    # Farbnamen → RGB-Werte (None = Farbtemperatur)
+    _COLOR_MAP: dict[str, tuple | str] = {
+        "rot":           (255, 0, 0),
+        "grün":          (0, 200, 0),
+        "blau":          (0, 0, 255),
+        "gelb":          (255, 220, 0),
+        "orange":        (255, 140, 0),
+        "lila":          (150, 0, 200),
+        "violett":       (148, 0, 211),
+        "pink":          (255, 80, 160),
+        "magenta":       (255, 0, 200),
+        "türkis":        (0, 200, 200),
+        "cyan":          (0, 200, 220),
+        "weiß":          (255, 255, 255),
+        "warm":          "warm",
+        "warmweiß":      "warm",
+        "gemütlich":     "warm",
+        "kalt":          "cool",
+        "kaltwei":       "cool",
+        "tageslichtweiß":"cool",
+        "neutral":       "neutral",
+    }
+    _COLOR_RE = re.compile(
+        r"\b(rot|grün|blau|gelb|orange|lila|violett|pink|magenta|türkis|cyan|weiß"
+        r"|warm(?:weiß)?|gemütlich|kalt(?:weiß)?|tageslichtweiß|neutral)\b",
+        re.IGNORECASE,
+    )
+
     def execute_light_command(self, query: str) -> str | None:
         """
-        Erkennt Sprachbefehle für Lichtsteuerung und führt sie direkt aus.
-        Unterstützt: ein/aus sowie Helligkeit in Prozent.
+        Erkennt Sprachbefehle für Lichtsteuerung und führt sie aus.
+        Unterstützt: ein/aus, Helligkeit (%), Farben, alle Lichter, Raumname, Einzellampen.
         """
         if not self._LIGHT_CMD.search(query):
             return None
 
         q = query.lower()
 
-        # Helligkeit extrahieren (z.B. "50%", "30 Prozent")
+        # Helligkeit extrahieren
         bri_match = self._BRIGHTNESS_RE.search(q)
         brightness_pct = int(bri_match.group(1)) if bri_match else None
 
-        # Aktion bestimmen: explizit oder aus Helligkeit ableiten
+        # Farbe extrahieren
+        color_match = self._COLOR_RE.search(q)
+        color_name = color_match.group(1).lower() if color_match else None
+        color_value = self._COLOR_MAP.get(color_name) if color_name else None
+
+        # Aktion bestimmen
         is_off = bool(re.search(r"\b(aus|ausschalten|ausmachen|abschalten)\b", q)) \
                  or brightness_pct == 0
         is_on  = bool(re.search(r"\b(ein|an|einschalten|anmachen|anschalten)\b", q)) \
-                 or (brightness_pct is not None and brightness_pct > 0)
+                 or (brightness_pct is not None and brightness_pct > 0) \
+                 or color_value is not None
 
         if not is_on and not is_off:
             return None
@@ -164,51 +200,81 @@ class HomeAssistantProvider:
 
         # Service-Daten zusammenbauen
         data: dict = {}
+        action_parts = []
         if is_on and brightness_pct:
             data["brightness_pct"] = brightness_pct
-            action = f"auf {brightness_pct}% eingestellt"
-        elif is_on:
-            action = "eingeschaltet"
-        else:
+            action_parts.append(f"{brightness_pct}%")
+        if is_on and color_value is not None:
+            if isinstance(color_value, tuple):
+                data["rgb_color"] = list(color_value)
+                action_parts.append(color_name)
+            elif color_value == "warm":
+                data["color_temp_kelvin"] = 2700
+                action_parts.append("warmweiß")
+            elif color_value == "cool":
+                data["color_temp_kelvin"] = 6000
+                action_parts.append("kaltweiß")
+            elif color_value == "neutral":
+                data["color_temp_kelvin"] = 4000
+                action_parts.append("neutralweiß")
+
+        if is_off:
             action = "ausgeschaltet"
+        elif action_parts:
+            action = "auf " + ", ".join(action_parts) + " eingestellt"
+        else:
+            action = "eingeschaltet"
 
         lights = self.get_lights()
         groups = [l for l in lights if l["is_group"]]
+        singles = [l for l in lights if not l["is_group"]]
 
-        # "alle Lichter/Lampen"
-        if re.search(r"\ball[e]?\b", q):
-            for g in groups:
-                domain = g["entity_id"].split(".")[0]
-                svc_data = {"entity_id": g["entity_id"]}
+        # "alle Lichter / alle aus / alle an"
+        if re.search(r"\b(all[e]?s?|gesamt)\b", q):
+            targets = groups if groups else lights
+            for t in targets:
+                domain = t["entity_id"].split(".")[0]
+                svc_data = {"entity_id": t["entity_id"]}
                 if domain == "light":
                     svc_data.update(data)
                 self.call_service(domain, service, svc_data)
             return f"Alle Lichter {action}."
 
-        # Spezifischen Raum suchen
-        _STOP = {"schalte", "mach", "mache", "dreh", "stell", "stelle", "dimm",
-                 "dimme", "das", "die", "der", "im", "in", "von", "licht",
-                 "lampe", "lampen", "lichter", "ein", "an", "aus", "auf",
-                 "bitte", "mal", "doch", "den", "dem", "prozent"}
+        # Namenstreffer: erst Gruppen, dann Einzellampen
+        _STOP = {
+            "schalte", "schalten", "mach", "mache", "machen", "dreh", "drehe",
+            "stell", "stelle", "dimm", "dimme", "bitte", "mal", "doch",
+            "das", "die", "der", "den", "dem", "im", "in", "von", "zu",
+            "licht", "lichter", "lampe", "lampen", "ein", "an", "aus", "auf",
+            "prozent", "prozent", "hell", "heller", "dunkler", "bitte",
+        } | set(self._COLOR_MAP.keys())
+
         words = [w for w in re.findall(r"[A-Za-zÄÖÜäöüß]{3,}", q) if w not in _STOP]
 
-        best_group = None
-        best_score = 0
-        for g in groups:
-            name_lower = (g["name"] or "").lower()
-            score = sum(1 for w in words if w in name_lower)
-            if score > best_score:
-                best_score = score
-                best_group = g
+        def best_match(candidates: list) -> tuple:
+            best, score = None, 0
+            for c in candidates:
+                name_lower = (c["name"] or "").lower()
+                s = sum(1 for w in words if w in name_lower)
+                if s > score:
+                    score, best = s, c
+            return best, score
 
-        if best_group and best_score > 0:
-            domain = best_group["entity_id"].split(".")[0]
-            # Switches unterstützen keine Helligkeit
-            svc_data = {"entity_id": best_group["entity_id"]}
-            if domain == "light":
+        target, score = best_match(groups)
+        if not target or score == 0:
+            target, score = best_match(singles)
+
+        if target and score > 0:
+            domain = target["entity_id"].split(".")[0]
+            svc_data = {"entity_id": target["entity_id"]}
+            if domain == "light" and target.get("supports_color") and color_value is not None:
                 svc_data.update(data)
+            elif domain == "light" and target.get("supports_brightness") and brightness_pct:
+                svc_data["brightness_pct"] = brightness_pct
+            elif domain == "light" and not color_value and not brightness_pct:
+                pass  # einfaches ein/aus
             self.call_service(domain, service, svc_data)
-            return f"Licht {best_group['name']} {action}."
+            return f"Licht {target['name']} {action}."
 
         return None
 

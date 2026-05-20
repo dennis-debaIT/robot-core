@@ -42,9 +42,10 @@ class RobotCore:
         flags=re.UNICODE,
     )
     LIGHT_COMMAND_PATTERN = re.compile(
-        r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?)\b.{0,40}\b(?:licht(?:er)?|lampe[n]?)\b"
+        r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?)\b.{0,60}\b(?:licht(?:er)?|lampe[n]?|aus|ein|an)\b"
         r"|\b(?:licht(?:er)?|lampe[n]?)\b.{0,40}\b(?:an|ein|aus|\d+\s*(?:%|prozent))\b"
-        r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?)\b",
+        r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?|aus|an|ein)\b"
+        r"|\b(?:alles?|alle)\s+(?:aus|an|ein)\b",
         re.IGNORECASE | re.DOTALL,
     )
 
