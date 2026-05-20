@@ -17,6 +17,42 @@ from app.database.db import get_connection, read_state, write_state
 router = APIRouter()
 
 _GIT_DIR = "/app"
+
+
+def _detect_network() -> dict[str, Any]:
+    import re
+    try:
+        out = subprocess.run(
+            ["ip", "route", "get", "1.1.1.1"],
+            capture_output=True, text=True, timeout=2,
+        ).stdout
+        m = re.search(r"\bdev\s+(\S+)", out)
+        if m:
+            iface = m.group(1)
+            if iface.startswith(("eth", "enp", "ens", "eno", "enx")):
+                return {"type": "lan", "connected": True, "interface": iface}
+            if iface.startswith(("wlan", "wlp", "wlx")):
+                return {"type": "wifi", "connected": True, "interface": iface}
+            return {"type": "unknown", "connected": True, "interface": iface}
+    except Exception:
+        pass
+    # Fallback: /sys/class/net carrier
+    try:
+        for iface in sorted(os.listdir("/sys/class/net")):
+            if iface == "lo":
+                continue
+            try:
+                carrier = Path(f"/sys/class/net/{iface}/carrier").read_text().strip()
+                if carrier == "1":
+                    if iface.startswith(("eth", "enp", "ens", "eno")):
+                        return {"type": "lan", "connected": True, "interface": iface}
+                    if iface.startswith(("wlan", "wlp")):
+                        return {"type": "wifi", "connected": True, "interface": iface}
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return {"type": "unknown", "connected": False, "interface": ""}
 _UPDATE_FLAG = "/update.flag"
 _REBOOT_FLAG = "/reboot.flag"
 _SSH_CMD = "ssh -o StrictHostKeyChecking=no -o BatchMode=yes"
@@ -75,6 +111,7 @@ def status() -> dict[str, Any]:
     with get_connection() as conn:
         upd = read_state(conn, "git_update_status", {}) or {}
     result["update_available"] = bool(upd.get("update_available", False))
+    result["network"] = _detect_network()
     return result
 
 

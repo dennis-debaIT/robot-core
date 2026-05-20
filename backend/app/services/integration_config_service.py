@@ -84,6 +84,7 @@ class IntegrationConfigService:
                 "days_count": 7,
                 "selected_calendars": [],
                 "colors": {},
+                "open_trigger": "both",
             },
             "printer": {
                 "enabled":        False,
@@ -165,6 +166,7 @@ class IntegrationConfigService:
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
         calendar["colors"] = {k: str(v) for k, v in (calendar.get("colors") or {}).items()}
+        calendar["open_trigger"] = calendar.get("open_trigger") if calendar.get("open_trigger") in ("nav", "widget", "both") else "both"
         printer = merged.setdefault("printer", {})
         printer["enabled"]       = bool(printer.get("enabled", False))
         printer["printer_ip"]    = str(printer.get("printer_ip") or "").strip()
@@ -230,6 +232,7 @@ class IntegrationConfigService:
         calendar["days_count"] = max(1, min(30, int(calendar.get("days_count") or 7)))
         calendar["selected_calendars"] = self._sanitize_string_list(calendar.get("selected_calendars"))
         calendar["colors"] = {k: str(v) for k, v in (calendar.get("colors") or {}).items()}
+        calendar["open_trigger"] = calendar.get("open_trigger") if calendar.get("open_trigger") in ("nav", "widget", "both") else "both"
         printer2 = updated.setdefault("printer", {})
         printer2["enabled"]       = bool(printer2.get("enabled", False))
         printer2["printer_ip"]    = str(printer2.get("printer_ip") or "").strip()
@@ -588,11 +591,17 @@ class IntegrationConfigService:
             entity = str(entity_id or "").strip()
             if not entity or not isinstance(cfg, dict):
                 continue
+            duration_raw = cfg.get("doorbell_duration")
+            try:
+                duration = max(5, min(300, int(duration_raw))) if duration_raw is not None else 30
+            except (TypeError, ValueError):
+                duration = 30
             result[entity] = {
                 "name": str(cfg.get("name") or "").strip(),
                 "ring_device_id": str(cfg.get("ring_device_id") or "").strip(),
                 "has_live_stream": bool(cfg.get("has_live_stream", True)),
                 "doorbell_sensor": str(cfg.get("doorbell_sensor") or "").strip(),
+                "doorbell_duration": duration,
             }
         return result
 

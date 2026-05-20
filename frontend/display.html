@@ -42,9 +42,9 @@
     </div>
   </div>
   <div class="status-item">
-    <div class="status-icon">📶</div>
+    <div class="status-icon" id="sb-net-icon">📶</div>
     <div>
-      <div class="status-label">WLAN</div>
+      <div class="status-label" id="sb-net-label">Netzwerk</div>
       <div class="status-val status-ok" id="sb-wlan">–</div>
     </div>
   </div>
@@ -428,10 +428,16 @@
       const bar = document.getElementById('sb-battery-bar');
       bar.style.width = (batt ?? 0) + '%';
       bar.style.background = batt == null ? 'var(--muted)' : batt > 30 ? 'var(--success)' : batt > 15 ? 'var(--warning)' : 'var(--danger)';
-      const net = d.device?.network_connected;
+      const netInfo = d.network || {};
+      const connected = netInfo.connected ?? d.device?.network_connected ?? false;
+      const netType = netInfo.type || 'unknown';
       const wlanEl = document.getElementById('sb-wlan');
-      wlanEl.textContent = net ? 'Verbunden' : 'Getrennt';
-      wlanEl.className = 'status-val ' + (net ? 'status-ok' : 'status-err');
+      wlanEl.textContent = connected ? 'Verbunden' : 'Getrennt';
+      wlanEl.className = 'status-val ' + (connected ? 'status-ok' : 'status-err');
+      const netIcon = document.getElementById('sb-net-icon');
+      const netLabel = document.getElementById('sb-net-label');
+      if (netIcon) netIcon.textContent = netType === 'lan' ? '🔌' : '📶';
+      if (netLabel) netLabel.textContent = netType === 'lan' ? 'LAN' : 'WLAN';
       const person = d.active_person_name || 'N/A';
       document.getElementById('sb-person').textContent = person;
       const stateEl = document.getElementById('sb-state');
@@ -1475,7 +1481,13 @@
     const printerIcon = hasPrinter
       ? `<span onclick="openPrinterOverlay()" title="Drucker-Details" style="cursor:pointer;opacity:${isPrinting?1:0.4};">🖨</span>`
       : '';
-    const parts = [hasCal ? 'Kalender' : '', printerIcon, hasPv ? 'PV' : ''].filter(Boolean);
+    const calClickable = _calendarOpenTrigger === 'widget' || _calendarOpenTrigger === 'both';
+    const calLabel = hasCal
+      ? (calClickable
+          ? `<span onclick="openMonthCalendar()" style="cursor:pointer;" title="Monatskalender öffnen">Kalender</span>`
+          : 'Kalender')
+      : '';
+    const parts = [calLabel, printerIcon, hasPv ? 'PV' : ''].filter(Boolean);
     const label = parts.join(' · ') || '';
     const calHtml      = hasCal     ? renderCalendarData(cal)    : '';
     const printerHtml  = isPrinting ? renderPrinterWidget(printer) : '';
@@ -1927,7 +1939,7 @@
     try {
       const state = await fetch('/display/state', { cache: 'no-store' }).then(r => r.json());
       applyAppHash(state.app_hash);
-      applyModuleVisibility(state.modules);
+      applyModuleVisibility(state.modules, state.calendar_config);
       applyConfigVersion(state.config_version);
       if (state.mode === 'lights') {
         // Sprachbefehl hat Licht gesteuert → Lichtansicht zeigen
@@ -2431,6 +2443,7 @@
     } catch {}
     return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false };
   })();
+  let _calendarOpenTrigger = 'both';
   let _selectedGroup = null;
   let _lightsLiveInterval = null;
   let _vehiclesData = [];
@@ -2447,7 +2460,7 @@
     applyModuleVisibility(_enabledModules);
   });
 
-  function applyModuleVisibility(modules) {
+  function applyModuleVisibility(modules, calendarConfig) {
     const prevCal = _enabledModules.calendar !== false;
     const prevPv  = _enabledModules.pv === true;
     _enabledModules = {
@@ -2470,6 +2483,7 @@
     const vehiclesBtn = document.getElementById('nav-vehicles');
     const robotsBtn = document.getElementById('nav-robots');
     const camerasBtn = document.getElementById('nav-cameras');
+    const calBtn = document.getElementById('nav-calendar');
     if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
     if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
     if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
@@ -2477,6 +2491,11 @@
     if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras)) {
       navTo('home');
     }
+    // Kalender Trigger-Konfiguration anwenden
+    if (calendarConfig) {
+      _calendarOpenTrigger = calendarConfig.open_trigger || 'both';
+    }
+    if (calBtn) calBtn.hidden = (_calendarOpenTrigger === 'widget');
   }
 
   function _startLightsPolling() {
@@ -4097,9 +4116,10 @@
     if (img) { img.src = _snapUrl(entityId); img.style.display = 'block'; }
     overlay.classList.add('active');
 
-    // Auto-Schließen nach 30s
+    // Auto-Schließen nach konfigurierter Dauer (default 30s)
+    const doorbellDurationMs = ((cam.doorbell_duration ?? 30) * 1000);
     clearTimeout(_doorbellTimer);
-    _doorbellTimer = setTimeout(() => _closeDoorbellOverlay(), 30000);
+    _doorbellTimer = setTimeout(() => _closeDoorbellOverlay(), doorbellDurationMs);
 
     // Live-Stream starten
     if (cam.has_live_stream !== false) {

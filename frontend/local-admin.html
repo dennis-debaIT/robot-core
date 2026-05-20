@@ -417,6 +417,22 @@
           </section>
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">Monatskalender öffnen über</div>
+              <p>Wie soll der Monatskalender (volle Breite) geöffnet werden?</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Trigger</span>
+                <select id="calendar-open-trigger" class="field-select">
+                  <option value="both">Nav-Button + Klick auf Widget</option>
+                  <option value="nav">Nur Nav-Button (📅)</option>
+                  <option value="widget">Nur Klick auf Kalender-Widget</option>
+                </select>
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Kalender auswählen</div>
               <p>Welche HA-Kalender sollen angezeigt werden? Ohne Auswahl werden alle eingebundenen Kalender verwendet.</p>
             </div>
@@ -775,6 +791,7 @@
     const camerasClearBtn = document.getElementById('cameras-clear-btn');
     const calendarEnabledEl = document.getElementById('calendar-enabled');
     const calendarDaysEl = document.getElementById('calendar-days');
+    const calendarOpenTriggerEl = document.getElementById('calendar-open-trigger');
     const calendarEntityGridEl = document.getElementById('calendar-entity-grid');
     const printerEnabledEl = document.getElementById('printer-enabled');
     const printerIpEl = document.getElementById('printer-ip');
@@ -926,13 +943,22 @@
       if (!cameraEntityGridEl) return;
       cameraEntityGridEl.querySelectorAll('.camera-device-id').forEach((el) => {
         const eid = el.dataset.entity;
-        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '' };
+        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '', doorbell_duration: 30 };
         cameraConfigs[eid].ring_device_id = el.value.trim();
       });
       cameraEntityGridEl.querySelectorAll('.camera-doorbell-sensor').forEach((el) => {
         const eid = el.dataset.entity;
-        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '' };
+        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '', doorbell_duration: 30 };
         cameraConfigs[eid].doorbell_sensor = el.value;
+        // Show/hide duration field
+        const row = el.closest('.camera-row');
+        const durationWrap = row?.querySelector('.camera-doorbell-duration-wrap');
+        if (durationWrap) durationWrap.style.display = el.value ? '' : 'none';
+      });
+      cameraEntityGridEl.querySelectorAll('.camera-doorbell-duration').forEach((el) => {
+        const eid = el.dataset.entity;
+        if (!cameraConfigs[eid]) cameraConfigs[eid] = { name: '', ring_device_id: '', has_live_stream: true, doorbell_sensor: '', doorbell_duration: 30 };
+        cameraConfigs[eid].doorbell_duration = Math.max(5, Math.min(300, parseInt(el.value) || 30));
       });
     }
 
@@ -998,6 +1024,14 @@
                 </select>
               </label>
             </div>
+            <div class="camera-row-device camera-doorbell-duration-wrap" style="display:${cfg.doorbell_sensor ? '' : 'none'}">
+              <label class="field-block">
+                <span class="field-label">Anzeige-Dauer (Sek.)</span>
+                <input class="field-input camera-doorbell-duration" type="number" min="5" max="300"
+                  data-entity="${escapeHtml(entityId)}"
+                  value="${escapeHtml(String(cfg.doorbell_duration ?? 30))}">
+              </label>
+            </div>
           </div>
         `;
       }).join('');
@@ -1010,6 +1044,9 @@
       });
       cameraEntityGridEl.querySelectorAll('.camera-doorbell-sensor').forEach((el) => {
         el.addEventListener('change', syncCameraConfigsFromDom);
+      });
+      cameraEntityGridEl.querySelectorAll('.camera-doorbell-duration').forEach((el) => {
+        el.addEventListener('input', syncCameraConfigsFromDom);
       });
       _applyHideNonLive();
     }
@@ -1922,6 +1959,7 @@
       camerasEnabledEl.checked = camerasConfig.enabled !== false;
       calendarEnabledEl.checked = calendarConfig.enabled !== false;
       calendarDaysEl.value = calendarConfig.days_count || 7;
+      if (calendarOpenTriggerEl) calendarOpenTriggerEl.value = calendarConfig.open_trigger || 'both';
       _calendarEntities = calendarConfig.selected_calendars || [];
       _calendarColors   = calendarConfig.colors || {};
       const printerConfig = data?.config?.printer || {};
@@ -2004,6 +2042,7 @@
                     ring_device_id: cfg.ring_device_id || '',
                     has_live_stream: cfg.has_live_stream !== false,
                     doorbell_sensor: cfg.doorbell_sensor || '',
+                    doorbell_duration: cfg.doorbell_duration ?? 30,
                   };
                 });
                 return result;
@@ -2045,6 +2084,7 @@
               days_count: Math.max(1, Math.min(30, Number(calendarDaysEl.value) || 7)),
               selected_calendars: getSelectedCalendarIds(),
               colors: getCalendarColors(),
+              open_trigger: calendarOpenTriggerEl?.value || 'both',
             },
             printer: {
               enabled:        printerEnabledEl.checked,

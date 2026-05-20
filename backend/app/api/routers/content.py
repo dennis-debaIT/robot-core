@@ -191,9 +191,11 @@ def get_display_state() -> dict[str, Any]:
         "pv":       bool((config.get("pv")       or {}).get("enabled", False)),
         "printer":  bool((config.get("printer")  or {}).get("enabled", False)),
     }
+    cal_cfg = config.get("calendar") or {}
+    calendar_config = {"open_trigger": cal_cfg.get("open_trigger", "both")}
     with get_connection() as conn:
         raw = read_state(conn, "display_intent")
-    base = {"mode": "idle", "config_version": config_version, "modules": modules, "app_hash": app_hash}
+    base = {"mode": "idle", "config_version": config_version, "modules": modules, "app_hash": app_hash, "calendar_config": calendar_config}
     if not raw:
         return base
     try:
@@ -201,6 +203,7 @@ def get_display_state() -> dict[str, Any]:
         intent["config_version"] = config_version
         intent["modules"] = modules
         intent["app_hash"] = app_hash
+        intent["calendar_config"] = calendar_config
         expires = intent.get("expires_at")
         if expires and datetime.now(timezone.utc) > datetime.fromisoformat(expires):
             return base
