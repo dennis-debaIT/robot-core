@@ -938,15 +938,57 @@ class RobotCore:
             reason = "robot_command"
         else:
             template_text, template_search_result = self._try_template_search(captured)
-            reason = "template" if template_text else "fallback"
-            if not template_text:
-                template_text = "Das kann ich noch nicht beantworten."
+            reason = "template" if template_text else "llm"
+
+        if not template_text:
+            # LLM-Pfad: externes Modell oder Mock
+            search_result = None
+            search_context = None
+            if self.search.needs_search(captured):
+                query = self.search.extract_query(captured)
+                search_result = self.search.search(query)
+                if search_result:
+                    search_context = self.search.format_prompt_block(search_result)
+            payload = self.preview_chat_prompt(captured, person_name, search_context=search_context)
+            self._record_direct_chat_input(captured, person_name)
+            proposed_memories: list[dict] = []
+
+            def llm_generate() -> Any:
+                yield self._sse_event("meta", {
+                    "llm_provider": "external", "used_fallback": False,
+                    "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+                    "proposed_memories": proposed_memories,
+                })
+                full_reply = ""
+                provider, fragments, used_fallback = self.llm.stream_generate(payload)
+                try:
+                    for fragment in fragments:
+                        full_reply += fragment
+                        for piece in self._stream_delta_pieces(fragment):
+                            yield self._sse_event("delta", {"text": piece})
+                            self._store_reply_text(full_reply, done=False)
+                except Exception:
+                    if not full_reply:
+                        full_reply = "Das kann ich leider gerade nicht beantworten."
+                        yield self._sse_event("delta", {"text": full_reply})
+                reply = self._sanitize_reply_text(full_reply)
+                self._finalize_chat(reply, person_name)
+                self._store_reply_text(reply, done=True)
+                if search_result:
+                    self._update_display_intent(search_result, person_name)
+                yield self._sse_event("done", {
+                    "reply": reply, "llm_provider": provider, "used_fallback": used_fallback,
+                    "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+                    "proposed_memories": proposed_memories, "status": self.get_status(),
+                })
+
+            return llm_generate()
 
         self._record_direct_chat_input(captured, person_name)
 
         def template_generate() -> Any:
             text = self._sanitize_reply_text(template_text)
-            yield self._sse_event("meta", {"llm_provider": "template", "used_fallback": reason == "fallback",
+            yield self._sse_event("meta", {"llm_provider": "template", "used_fallback": False,
                                            "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
                                            "proposed_memories": []})
             yield self._sse_event("delta", {"text": text})
@@ -955,7 +997,7 @@ class RobotCore:
             if template_search_result:
                 self._update_display_intent(template_search_result, person_name)
             yield self._sse_event("done", {"reply": text, "llm_provider": "template",
-                                           "used_fallback": reason == "fallback",
+                                           "used_fallback": False,
                                            "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
                                            "proposed_memories": [], "status": self.get_status()})
 
