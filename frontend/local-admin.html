@@ -51,6 +51,32 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">Systemauslastung</div>
+              <p>Aktuelle Ressourcenauslastung des Geräts. Wird alle 5 Sekunden aktualisiert.</p>
+            </div>
+            <div id="sysres-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px;">
+              <div class="sysres-card" id="sysres-cpu">
+                <div class="sysres-label">CPU</div>
+                <div class="sysres-value" id="sysres-cpu-val">–</div>
+                <div class="sysres-bar-bg"><div class="sysres-bar-fill" id="sysres-cpu-bar" style="width:0%"></div></div>
+              </div>
+              <div class="sysres-card" id="sysres-ram">
+                <div class="sysres-label">RAM</div>
+                <div class="sysres-value" id="sysres-ram-val">–</div>
+                <div class="sysres-bar-bg"><div class="sysres-bar-fill" id="sysres-ram-bar" style="width:0%"></div></div>
+                <div class="sysres-sub" id="sysres-ram-sub"></div>
+              </div>
+              <div class="sysres-card" id="sysres-disk">
+                <div class="sysres-label">Disk (/data)</div>
+                <div class="sysres-value" id="sysres-disk-val">–</div>
+                <div class="sysres-bar-bg"><div class="sysres-bar-fill" id="sysres-disk-bar" style="width:0%"></div></div>
+                <div class="sysres-sub" id="sysres-disk-sub"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Systemzusammenfassung</div>
               <p>Kurzer Überblick über die wichtigsten Einstellungen des lokalen Geräts.</p>
             </div>
@@ -2291,6 +2317,57 @@
     reloadBtn.addEventListener('click', boot);
 
     boot();
+
+    // ── Systemauslastung ──────────────────────────────────────
+    let _sysresInterval = null;
+
+    function _barColor(pct) {
+      if (pct >= 90) return '#ff3d3d';
+      if (pct >= 70) return '#ffab00';
+      return 'var(--color-accent)';
+    }
+
+    async function refreshSysRes() {
+      try {
+        const d = await fetch('/system/resources').then(r => r.json());
+        // CPU
+        const cpuVal = document.getElementById('sysres-cpu-val');
+        const cpuBar = document.getElementById('sysres-cpu-bar');
+        if (d.cpu_percent != null) {
+          const p = d.cpu_percent;
+          if (cpuVal) cpuVal.textContent = p.toFixed(1) + ' %';
+          if (cpuBar) { cpuBar.style.width = Math.min(100, p) + '%'; cpuBar.style.background = _barColor(p); }
+        }
+        // RAM
+        const ramVal = document.getElementById('sysres-ram-val');
+        const ramBar = document.getElementById('sysres-ram-bar');
+        const ramSub = document.getElementById('sysres-ram-sub');
+        if (d.ram) {
+          const p = d.ram.percent;
+          if (ramVal) ramVal.textContent = p.toFixed(1) + ' %';
+          if (ramBar) { ramBar.style.width = Math.min(100, p) + '%'; ramBar.style.background = _barColor(p); }
+          if (ramSub) ramSub.textContent = `${d.ram.used_mb.toFixed(0)} / ${d.ram.total_mb.toFixed(0)} MB`;
+        }
+        // Disk
+        const diskVal = document.getElementById('sysres-disk-val');
+        const diskBar = document.getElementById('sysres-disk-bar');
+        const diskSub = document.getElementById('sysres-disk-sub');
+        if (d.disk) {
+          const p = d.disk.percent;
+          if (diskVal) diskVal.textContent = p.toFixed(1) + ' %';
+          if (diskBar) { diskBar.style.width = Math.min(100, p) + '%'; diskBar.style.background = _barColor(p); }
+          if (diskSub) diskSub.textContent = `${d.disk.used_gb.toFixed(1)} / ${d.disk.total_gb.toFixed(1)} GB`;
+        }
+      } catch {}
+    }
+
+    document.querySelector('[data-tab-target="tab-overview"]')?.addEventListener('click', () => {
+      refreshSysRes();
+      if (!_sysresInterval) _sysresInterval = setInterval(refreshSysRes, 5000);
+    });
+    // Beim Start direkt laden (Tab ist standardmäßig aktiv)
+    refreshSysRes();
+    _sysresInterval = setInterval(refreshSysRes, 5000);
 
     // ── Backup-Funktionen ─────────────────────────────────────
     async function downloadBackup() {

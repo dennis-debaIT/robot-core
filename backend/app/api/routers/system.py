@@ -319,6 +319,53 @@ def start_printer_bridge() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+@router.get("/system/resources")
+def get_system_resources() -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    # CPU (1s blocking sample — akzeptabel für Admin-Poll)
+    try:
+        cpu_times1 = Path("/proc/stat").read_text().splitlines()[0].split()
+        import time as _time
+        _time.sleep(0.5)
+        cpu_times2 = Path("/proc/stat").read_text().splitlines()[0].split()
+        idle1, total1 = int(cpu_times1[4]), sum(int(x) for x in cpu_times1[1:])
+        idle2, total2 = int(cpu_times2[4]), sum(int(x) for x in cpu_times2[1:])
+        dtotal = total2 - total1
+        result["cpu_percent"] = round((1 - (idle2 - idle1) / dtotal) * 100, 1) if dtotal else 0.0
+    except Exception:
+        result["cpu_percent"] = None
+    # RAM
+    try:
+        meminfo = {}
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            k, v = line.split(":", 1)
+            meminfo[k.strip()] = int(v.strip().split()[0])
+        total_kb = meminfo.get("MemTotal", 0)
+        avail_kb = meminfo.get("MemAvailable", meminfo.get("MemFree", 0))
+        used_kb  = total_kb - avail_kb
+        result["ram"] = {
+            "total_mb": round(total_kb / 1024, 1),
+            "used_mb":  round(used_kb / 1024, 1),
+            "percent":  round(used_kb / total_kb * 100, 1) if total_kb else 0.0,
+        }
+    except Exception:
+        result["ram"] = None
+    # Disk (/data)
+    try:
+        st = os.statvfs("/data")
+        total = st.f_frsize * st.f_blocks
+        free  = st.f_frsize * st.f_bfree
+        used  = total - free
+        result["disk"] = {
+            "total_gb": round(total / 1024**3, 1),
+            "used_gb":  round(used / 1024**3, 1),
+            "percent":  round(used / total * 100, 1) if total else 0.0,
+        }
+    except Exception:
+        result["disk"] = None
+    return result
+
+
 @router.post("/system/reboot")
 def trigger_reboot() -> dict[str, Any]:
     try:
