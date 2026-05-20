@@ -2311,6 +2311,7 @@
     _recognition = rec;
     _listening = true;
     _interimText = '';
+    _bestFinal = '';
 
     const micBtn  = document.getElementById('nav-mic');
     const micIcon = document.getElementById('mic-icon');
@@ -2345,51 +2346,33 @@
     // Stille-Timer sofort starten (falls Nutzer nichts sagt)
     resetSilenceTimer();
 
+    let _bestFinal = '';  // bestes (längstes/vollständigstes) Ergebnis dieser Session
+
     rec.onresult = (e) => {
       let interim = '';
 
-      if (e.resultIndex === 0) {
-        // resultIndex=0: von vorn aufbauen (Android immer 0, oder erster Desktop-Event)
-        // Für kumulative Ergebnisse (jedes Final = vollständiger Text bisher):
-        // vergleiche mit letztem Zwischenstand und ersetze statt zu konkatenieren.
-        let freshFinal = '';
-        for (let i = 0; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript.trim();
-          if (e.results[i].isFinal) {
-            gotResult = true;
-            const fLow = freshFinal.toLowerCase();
-            const tLow = t.toLowerCase();
-            if (fLow && tLow.startsWith(fLow)) {
-              freshFinal = t;       // kumulativ: enthält alles bisherige → ersetzen
-            } else {
-              freshFinal = freshFinal ? freshFinal + ' ' + t : t;  // inkrementell
-            }
-          } else {
-            interim = t;
-          }
+      for (let i = 0; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript.trim();
+        if (!e.results[i].isFinal) {
+          interim = t;
+          continue;
         }
-        if (freshFinal) _interimText = freshFinal;
-      } else {
-        // resultIndex > 0: nur neue Ergebnisse ab resultIndex verarbeiten
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const t = e.results[i][0].transcript.trim();
-          if (e.results[i].isFinal) {
-            gotResult = true;
-            const eLow = _interimText.toLowerCase();
-            const tLow = t.toLowerCase();
-            // Kumulativer Text: neues Ergebnis beginnt mit bisherigem → ersetzen
-            if (eLow && tLow.startsWith(eLow)) {
-              _interimText = t;
-            } else {
-              _interimText = _interimText ? _interimText + ' ' + t : t;
-            }
-          } else {
-            interim += t;
-          }
+        gotResult = true;
+        const tWords    = t.split(/\s+/).filter(Boolean).length;
+        const bestWords = _bestFinal.split(/\s+/).filter(Boolean).length;
+
+        if (tWords > bestWords) {
+          // Mehr Wörter als bisher → kumulatives Ergebnis, ersetzt alles
+          _bestFinal = t;
+        } else if (tWords <= 2 && bestWords > 0) {
+          // Kurzes neues Ergebnis nach längerem Text → inkrementelles neues Wort
+          _bestFinal = _bestFinal + ' ' + t;
         }
+        // Gleiches oder weniger Wörter ohne klare Indikation → ignorieren
       }
 
-      const display = (_interimText + (interim ? ' ' + interim : '')).trim();
+      _interimText = _bestFinal;
+      const display = (_bestFinal + (interim ? ' ' + interim : '')).trim();
       if (display) showReplyText('🎤 ' + display, false);
       resetSilenceTimer();
     };
