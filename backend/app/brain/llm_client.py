@@ -100,14 +100,18 @@ class ExternalLLMClient:
     def _build_request_body(self, payload: dict[str, Any], stream: bool = False) -> dict[str, Any]:
         max_tokens = payload.get("llm_max_tokens", self.max_tokens)
         if self.provider == "openai_compat":
-            body = {
+            api_url = (self.api_url or "").lower()
+            is_local = "localhost" in api_url or "127.0.0.1" in api_url or "lmstudio" in api_url
+            body: dict[str, Any] = {
                 "model": self.model or "local-model",
                 "messages": payload["messages"],
                 "temperature": self.temperature,
-                "max_tokens": max_tokens,
-                # Qwen3 Thinking-Modus deaktivieren (andere Modelle ignorieren diesen Parameter)
-                "enable_thinking": False,
+                "max_completion_tokens": max_tokens,
             }
+            if is_local:
+                # Qwen3 Thinking-Modus deaktivieren — nur für lokale Modelle
+                body["enable_thinking"] = False
+                body["max_tokens"] = max_tokens
             if stream:
                 body["stream"] = True
             return body
