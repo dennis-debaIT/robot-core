@@ -27,6 +27,7 @@
       <button type="button" class="tab-button" data-tab-target="tab-calendar">Kalender</button>
       <button type="button" class="tab-button" data-tab-target="tab-pv">PV-Anlage</button>
       <button type="button" class="tab-button" data-tab-target="tab-printer">3D-Drucker</button>
+      <button type="button" class="tab-button" data-tab-target="tab-llm">KI / LLM</button>
       <button type="button" class="tab-button" data-tab-target="tab-system">System</button>
     </nav>
 
@@ -583,6 +584,89 @@
             <div style="margin-top:8px;padding:10px 12px;background:rgba(0,200,255,0.05);border:1px solid rgba(0,200,255,0.15);border-radius:8px;font-size:0.75rem;color:var(--color-muted,#7f8dcb);line-height:1.6;">
               Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
             </div>
+          </section>
+        </article>
+
+        <!-- ── KI / LLM ──────────────────────────────────────── -->
+        <article id="tab-llm" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Künstliche Intelligenz</div>
+              <h2>Externes LLM konfigurieren</h2>
+            </div>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Anbieter</div>
+              <p>Wähle einen Anbieter – URL und Modell werden automatisch vorausgefüllt. Eigene Werte können jederzeit überschrieben werden.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Anbieter</span>
+                <select id="llm-provider" class="field-select" onchange="onLlmProviderChange()">
+                  <option value="">– Anbieter wählen –</option>
+                  <option value="groq">Groq (kostenlos)</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Google Gemini</option>
+                  <option value="mistral">Mistral AI</option>
+                  <option value="custom">Eigene URL</option>
+                </select>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Modell</span>
+                <input id="llm-model" class="field-input" type="text" placeholder="z.B. llama-3.3-70b-versatile">
+              </label>
+            </div>
+            <div id="llm-model-suggestions" style="display:none;margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Verbindung</div>
+            </div>
+            <div class="field-grid">
+              <label class="field-block" style="grid-column:1/-1">
+                <span class="field-label">API-URL</span>
+                <input id="llm-api-url" class="field-input" type="text" placeholder="https://api.groq.com/openai/v1/chat/completions">
+              </label>
+              <label class="field-block" style="grid-column:1/-1">
+                <span class="field-label">API-Key</span>
+                <input id="llm-api-key" class="field-input" type="password" placeholder="Neuen Key eingeben (leer = bestehender bleibt erhalten)">
+              </label>
+            </div>
+            <div id="llm-key-hint" style="font-size:0.78rem;color:var(--muted);margin-top:6px;"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Parameter</div>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Max. Tokens (Antwortlänge)</span>
+                <input id="llm-max-tokens" class="field-input" type="number" min="50" max="4096" value="220">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Temperatur (0 = präzise, 2 = kreativ)</span>
+                <input id="llm-temperature" class="field-input" type="number" min="0" max="2" step="0.1" value="0.4">
+              </label>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Test & Speichern</div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+              <button type="button" onclick="saveLlmConfig()" style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                💾 Speichern
+              </button>
+              <button type="button" onclick="testLlmConfig()" style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,180,0,0.1);border:1px solid rgba(0,200,100,0.4);color:#4caf50;">
+                🔌 Verbindung testen
+              </button>
+            </div>
+            <div id="llm-status" style="font-size:0.82rem;color:var(--muted);min-height:24px;"></div>
           </section>
         </article>
 
@@ -2317,6 +2401,96 @@
     reloadBtn.addEventListener('click', boot);
 
     boot();
+
+    // ── LLM Konfiguration ─────────────────────────────────────
+    let _llmProviders = {};
+
+    async function loadLlmConfig() {
+      try {
+        const d = await fetch('/llm/config').then(r => r.json());
+        _llmProviders = d.providers || {};
+        const provEl    = document.getElementById('llm-provider');
+        const urlEl     = document.getElementById('llm-api-url');
+        const modelEl   = document.getElementById('llm-model');
+        const maxTokEl  = document.getElementById('llm-max-tokens');
+        const tempEl    = document.getElementById('llm-temperature');
+        const keyHint   = document.getElementById('llm-key-hint');
+        if (provEl)   provEl.value   = d.api_provider || '';
+        if (urlEl)    urlEl.value    = d.api_url      || '';
+        if (modelEl)  modelEl.value  = d.model        || '';
+        if (maxTokEl) maxTokEl.value = d.max_tokens   ?? 220;
+        if (tempEl)   tempEl.value   = d.temperature  ?? 0.4;
+        if (keyHint)  keyHint.textContent = d.api_key_set
+          ? `Gespeicherter Key: ${d.api_key_masked} — Feld leer lassen um ihn beizubehalten`
+          : 'Noch kein API-Key gespeichert.';
+        _renderModelSuggestions(d.api_provider || '');
+      } catch {}
+    }
+
+    function onLlmProviderChange() {
+      const provEl  = document.getElementById('llm-provider');
+      const urlEl   = document.getElementById('llm-api-url');
+      const modelEl = document.getElementById('llm-model');
+      const prov    = provEl?.value || '';
+      const preset  = _llmProviders[prov];
+      if (preset?.url) urlEl.value   = preset.url;
+      if (preset?.models?.[0]) modelEl.value = preset.models[0];
+      _renderModelSuggestions(prov);
+    }
+
+    function _renderModelSuggestions(prov) {
+      const wrap   = document.getElementById('llm-model-suggestions');
+      const modelEl = document.getElementById('llm-model');
+      const models = _llmProviders[prov]?.models || [];
+      if (!wrap) return;
+      if (!models.length) { wrap.style.display = 'none'; return; }
+      wrap.style.display = 'flex';
+      wrap.innerHTML = models.map(m =>
+        `<button type="button" onclick="document.getElementById('llm-model').value='${m}'"
+          style="padding:3px 10px;border-radius:20px;font-size:0.72rem;cursor:pointer;
+          background:var(--panel-soft);border:1px solid var(--border);color:var(--color-muted);">${m}</button>`
+      ).join('');
+    }
+
+    async function saveLlmConfig() {
+      const status = document.getElementById('llm-status');
+      if (status) status.textContent = 'Speichere…';
+      try {
+        const r = await fetch('/llm/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            api_provider: document.getElementById('llm-provider')?.value  || '',
+            api_url:      document.getElementById('llm-api-url')?.value   || '',
+            api_key:      document.getElementById('llm-api-key')?.value   || '',
+            model:        document.getElementById('llm-model')?.value     || '',
+            max_tokens:   parseInt(document.getElementById('llm-max-tokens')?.value) || 220,
+            temperature:  parseFloat(document.getElementById('llm-temperature')?.value) || 0.4,
+          }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        document.getElementById('llm-api-key').value = '';
+        await loadLlmConfig();
+        if (status) status.textContent = '✓ Gespeichert. Änderungen gelten sofort.';
+      } catch (e) {
+        if (status) status.textContent = '✗ Fehler: ' + e.message;
+      }
+    }
+
+    async function testLlmConfig() {
+      const status = document.getElementById('llm-status');
+      if (status) status.textContent = '⏳ Teste Verbindung…';
+      try {
+        const r = await fetch('/llm/test', { method: 'POST' });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+        if (status) status.innerHTML = `✓ Verbindung erfolgreich · Modell: <strong>${d.model}</strong> · Antwort: „${d.reply}"`;
+      } catch (e) {
+        if (status) status.textContent = '✗ Fehler: ' + e.message;
+      }
+    }
+
+    document.querySelector('[data-tab-target="tab-llm"]')?.addEventListener('click', loadLlmConfig);
 
     // ── Systemauslastung ──────────────────────────────────────
     let _sysresInterval = null;

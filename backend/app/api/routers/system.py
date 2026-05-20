@@ -376,6 +376,85 @@ def trigger_reboot() -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
+# ── LLM KONFIGURATION ────────────────────────────────────────
+
+_LLM_PROVIDERS: dict[str, dict[str, Any]] = {
+    "groq":    {"url": "https://api.groq.com/openai/v1/chat/completions",                             "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"]},
+    "openai":  {"url": "https://api.openai.com/v1/chat/completions",                                  "models": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]},
+    "gemini":  {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",    "models": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]},
+    "mistral": {"url": "https://api.mistral.ai/v1/chat/completions",                                  "models": ["mistral-small-latest", "open-mistral-nemo", "mistral-large-latest"]},
+    "custom":  {"url": "", "models": []},
+}
+
+
+@router.get("/llm/config")
+def get_llm_config() -> dict[str, Any]:
+    with get_connection() as conn:
+        cfg = read_state(conn, "llm_config", {}) or {}
+    key = cfg.get("api_key", "")
+    masked = ("•" * (len(key) - 4) + key[-4:]) if len(key) > 4 else ("•" * len(key))
+    return {
+        "api_provider": cfg.get("api_provider", ""),
+        "api_url":      cfg.get("api_url", ""),
+        "api_key_masked": masked,
+        "api_key_set":  bool(key),
+        "model":        cfg.get("model", ""),
+        "max_tokens":   cfg.get("max_tokens", 220),
+        "temperature":  cfg.get("temperature", 0.4),
+        "enabled":      bool(cfg.get("api_url")),
+        "providers":    _LLM_PROVIDERS,
+    }
+
+
+@router.post("/llm/config")
+def save_llm_config(payload: dict[str, Any]) -> dict[str, Any]:
+    with get_connection() as conn:
+        existing = read_state(conn, "llm_config", {}) or {}
+    api_key = payload.get("api_key", "").strip()
+    if not api_key:
+        api_key = existing.get("api_key", "")
+    try:
+        max_tokens = max(50, min(4096, int(payload.get("max_tokens", 220))))
+    except (TypeError, ValueError):
+        max_tokens = 220
+    try:
+        temperature = max(0.0, min(2.0, float(payload.get("temperature", 0.4))))
+    except (TypeError, ValueError):
+        temperature = 0.4
+    cfg = {
+        "api_provider": str(payload.get("api_provider", "custom")).strip(),
+        "api_url":      str(payload.get("api_url", "")).strip(),
+        "api_key":      api_key,
+        "model":        str(payload.get("model", "")).strip(),
+        "max_tokens":   max_tokens,
+        "temperature":  temperature,
+    }
+    with get_connection() as conn:
+        write_state(conn, "llm_config", cfg)
+    return {"ok": True}
+
+
+@router.post("/llm/test")
+def test_llm_config() -> dict[str, Any]:
+    from app.brain.llm_client import ExternalLLMClient
+    client = ExternalLLMClient()
+    if not client.is_configured():
+        raise HTTPException(status_code=400, detail="Keine LLM-URL konfiguriert")
+    try:
+        result = client.generate({
+            "message": "Antworte mit genau einem Wort: Hallo",
+            "messages": [
+                {"role": "system", "content": "Du bist ein Testassistent. Antworte kurz."},
+                {"role": "user",   "content": "Antworte mit genau einem Wort: Hallo"},
+            ],
+            "personality": {"directness": 0.8, "humor": 0.0},
+            "llm_max_tokens": 10,
+        }, timeout_seconds=10)
+        return {"ok": True, "reply": result.get("reply", ""), "model": client.model}
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/device/identity")
 def get_device_identity() -> dict[str, Any]:
     return get_core().get_device_identity()

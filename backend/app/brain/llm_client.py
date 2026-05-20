@@ -32,12 +32,23 @@ class MockLLMClient:
 
 class ExternalLLMClient:
     def __init__(self) -> None:
-        self.api_url = os.getenv("LLM_API_URL")
-        self.api_key = os.getenv("LLM_API_KEY")
-        self.provider = os.getenv("LLM_PROVIDER", "generic").strip().lower()
-        self.model = os.getenv("LLM_MODEL", "").strip()
-        self.temperature = self._read_float_env("LLM_TEMPERATURE", 0.4)
-        self.max_tokens = self._read_int_env("LLM_MAX_TOKENS", 220)
+        db = self._load_db_config()
+        self.api_url     = db.get("api_url")  or os.getenv("LLM_API_URL")
+        self.api_key     = db.get("api_key")  or os.getenv("LLM_API_KEY")
+        self.model       = db.get("model")    or os.getenv("LLM_MODEL", "").strip()
+        self.provider    = "openai_compat"
+        self.temperature = float(db["temperature"]) if db.get("temperature") is not None else self._read_float_env("LLM_TEMPERATURE", 0.4)
+        self.max_tokens  = int(db["max_tokens"])    if db.get("max_tokens")   is not None else self._read_int_env("LLM_MAX_TOKENS", 220)
+
+    @staticmethod
+    def _load_db_config() -> dict[str, Any]:
+        try:
+            from app.database.db import get_connection, read_state
+            with get_connection() as conn:
+                cfg = read_state(conn, "llm_config", {}) or {}
+            return cfg if isinstance(cfg, dict) else {}
+        except Exception:
+            return {}
 
     def is_configured(self) -> bool:
         return bool(self.api_url)
@@ -246,21 +257,22 @@ class ExternalLLMClient:
 
 class LLMRouter:
     def __init__(self) -> None:
-        self.external = ExternalLLMClient()
         self.mock = MockLLMClient()
 
     def generate(self, payload: dict[str, Any], timeout_seconds: int = 15) -> dict[str, Any]:
-        if self.external.is_configured():
+        external = ExternalLLMClient()
+        if external.is_configured():
             try:
-                return self.external.generate(payload, timeout_seconds=timeout_seconds)
+                return external.generate(payload, timeout_seconds=timeout_seconds)
             except RuntimeError:
                 pass
         return self.mock.generate(payload)
 
     def stream_generate(self, payload: dict[str, Any], timeout_seconds: int = 15) -> tuple[str, Any, bool]:
-        if self.external.is_configured():
+        external = ExternalLLMClient()
+        if external.is_configured():
             try:
-                return "external", self.external.stream_generate(payload, timeout_seconds=timeout_seconds), False
+                return "external", external.stream_generate(payload, timeout_seconds=timeout_seconds), False
             except RuntimeError:
                 pass
         return "mock", self.mock.stream_generate(payload), True
