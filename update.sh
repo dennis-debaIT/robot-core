@@ -54,4 +54,7 @@ chmod +x "$INSTALL_DIR/reboot-watcher.sh" "$INSTALL_DIR/setup-watcher.sh" 2>/dev
 pgrep -f reboot-watcher.sh  > /dev/null || nohup bash "$INSTALL_DIR/reboot-watcher.sh"  >> "$INSTALL_DIR/reboot.log"  2>&1 &
 pgrep -f setup-watcher.sh   > /dev/null || nohup bash "$INSTALL_DIR/setup-watcher.sh"   >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
 
+# Build-Cache bereinigen um Speicherplatz-Wachstum zu verhindern
+docker builder prune -af >> "$LOG" 2>&1 || true
+
 echo "[update] Abgeschlossen: $(date)" | tee -a "$LOG"
