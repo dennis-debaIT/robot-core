@@ -2346,20 +2346,22 @@
     resetSilenceTimer();
 
     rec.onresult = (e) => {
-      // Alle Ergebnisse sammeln (interim + final)
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      // Alle Results von 0 neu aufbauen — Android Chrome liefert resultIndex
+      // immer 0 und würde Finals sonst mehrfach akkumulieren.
+      let finalText = '';
+      let interim   = '';
+      for (let i = 0; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
         if (e.results[i].isFinal) {
           gotResult = true;
-          _interimText += t;
+          finalText += t;
         } else {
           interim += t;
         }
       }
-      const display = (_interimText + interim).trim();
+      _interimText = finalText;   // = statt +=, kein Doppeln mehr
+      const display = (finalText + interim).trim();
       if (display) showReplyText('🎤 ' + display, false);
-      // Bei jedem Sprach-Segment Timer zurücksetzen
       resetSilenceTimer();
     };
 
