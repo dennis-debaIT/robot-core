@@ -110,6 +110,38 @@ class RobotCore:
                 (role, person_name, message, now_iso()),
             )
 
+    _FACT_LABELS: dict[str, str] = {
+        "age":             "Du bist {v} Jahre alt.",
+        "favorite_color":  "Deine Lieblingsfarbe ist {v}.",
+        "favorite_food":   "Dein Lieblingsessen ist {v}.",
+        "favorite_drink":  "Dein Lieblingsgetränk ist {v}.",
+        "occupation":      "Du arbeitest als {v}.",
+        "hometown":        "Du kommst aus {v}.",
+        "residence":       "Du wohnst in {v}.",
+        "interest":        "Du interessierst dich für {v}.",
+        "preference":      "Du magst {v}.",
+        "dislike":         "Du magst {v} nicht.",
+        "nickname":        "Dein Spitzname ist {v}.",
+    }
+
+    def _profile_facts_for_prompt(self, person_name: str) -> list[str]:
+        person = self.profile.get_person(person_name)
+        if not person:
+            return []
+        lines = []
+        for fact in (person.get("facts") or []):
+            tt = fact.get("trait_type", "")
+            v = str(fact.get("value", "")).strip()
+            if not v:
+                continue
+            template = self._FACT_LABELS.get(tt)
+            if template:
+                lines.append(template.format(v=v))
+            elif tt not in {"person_profile", "response_humor_preference",
+                            "response_style_preference", "response_length_preference"}:
+                lines.append(f"{tt.replace('_', ' ').capitalize()}: {v}.")
+        return lines
+
     def _approved_memories_for_prompt(
         self,
         person_name: str | None,
@@ -118,30 +150,31 @@ class RobotCore:
     ) -> list[str]:
         if not person_name:
             return []
+
+        # Profil-Fakten immer vollständig einschließen
+        fact_lines = self._profile_facts_for_prompt(person_name)
+
         items = self.memory.list_approved_for_subject(person_name)
         if not items:
-            return []
+            return fact_lines
 
-        # Kernprofil: Name, Vorlieben, explizite Interessen — immer dabei, max. 5
-        CORE_CATEGORIES = {"person_profile", "preference", "dislike", "interest", "age",
+        # Themen-relevante Erinnerungen per Keyword-Überschneidung — max. 4
+        SKIP_CATEGORIES = {"person_profile", "preference", "dislike", "interest", "age",
                            "occupation", "favorite_food", "favorite_drink", "favorite_color"}
-        core_items = [i["content"] for i in items if i.get("category") in CORE_CATEGORIES][:5]
-
-        # Themen-relevante Einträge (interest_signal etc.) per Keyword-Überschneidung — max. 4
         query_tokens = self._prompt_keywords(message or "")
         scored: list[tuple[int, int, str]] = []
         for index, item in enumerate(items):
-            if item.get("category") in CORE_CATEGORIES:
+            if item.get("category") in SKIP_CATEGORIES:
                 continue
             content = item["content"]
             overlap = len(query_tokens & self._prompt_keywords(content)) if query_tokens else 0
             scored.append((overlap, index, content))
 
         scored.sort(key=lambda e: (e[0], e[1]), reverse=True)
-        topic_items = [content for score, _, content in scored if score > 0][:4]
+        topic_items = [self._to_second_person(c, person_name)
+                       for _, _, c in scored if _ > 0][:limit]
 
-        all_items = (core_items + topic_items)[:limit]
-        return [self._to_second_person(m, person_name) for m in all_items]
+        return fact_lines + topic_items
 
     @staticmethod
     def _to_second_person(content: str, person_name: str) -> str:
