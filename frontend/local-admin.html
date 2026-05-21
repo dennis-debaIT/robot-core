@@ -1447,8 +1447,10 @@
         adblue_level_entity: '',
         charging_entity: '',
         remaining_charge_time_entity: '',
+        plug_entity: '',
         stop_charging_button_entity: '',
         climate_button_entity: '',
+        battery_capacity_kwh: '',
       };
     }
 
@@ -1520,12 +1522,20 @@
               <select class="field-select ev-field" data-vehicle-index="${index}" data-field="remaining_charge_time_entity">${buildEntityOptions('remaining_charge_time_entity', vehicle.remaining_charge_time_entity)}</select>
             </label>
             <label class="field-block ev-only">
+              <span class="field-label">Steckerzustand</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="plug_entity">${buildEntityOptions('plug_entity', vehicle.plug_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
               <span class="field-label">Stop-Button</span>
               <select class="field-select ev-field" data-vehicle-index="${index}" data-field="stop_charging_button_entity">${buildEntityOptions('stop_charging_button_entity', vehicle.stop_charging_button_entity)}</select>
             </label>
             <label class="field-block">
               <span class="field-label">Klima starten</span>
               <select class="field-select ev-field" data-vehicle-index="${index}" data-field="climate_button_entity">${buildEntityOptions('climate_button_entity', vehicle.climate_button_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
+              <span class="field-label">Akkukapazität (kWh)</span>
+              <input class="field-input ev-field" data-vehicle-index="${index}" data-field="battery_capacity_kwh" type="number" min="0" max="200" step="0.1" placeholder="z.B. 26.8" value="${vehicle.battery_capacity_kwh || ''}">
             </label>
           </div>
         </section>
@@ -1568,8 +1578,10 @@
           adblue_level_entity: getField('adblue_level_entity'),
           charging_entity: getField('charging_entity'),
           remaining_charge_time_entity: getField('remaining_charge_time_entity'),
+          plug_entity: getField('plug_entity'),
           stop_charging_button_entity: getField('stop_charging_button_entity'),
           climate_button_entity: getField('climate_button_entity'),
+          battery_capacity_kwh: getField('battery_capacity_kwh') ? parseFloat(getField('battery_capacity_kwh')) : null,
         };
       });
       syncSummary();
