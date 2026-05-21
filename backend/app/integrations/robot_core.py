@@ -1817,6 +1817,18 @@ class RobotCore:
             return None
 
     @staticmethod
+    def _fmt_minutes(mins: int) -> str:
+        if mins <= 0:
+            return "vollständig geladen"
+        if mins < 60:
+            return f"noch etwa {mins} Minuten"
+        h = mins // 60
+        m = mins % 60
+        if m == 0:
+            return f"noch etwa {h} {'Stunde' if h == 1 else 'Stunden'}"
+        return f"noch etwa {h} {'Stunde' if h == 1 else 'Stunden'} und {m} Minuten"
+
+    @staticmethod
     def _pct(state: Any) -> str:
         try:
             return f"{round(float(state))} Prozent"
@@ -1848,29 +1860,38 @@ class RobotCore:
 
             plug = v.get("plug")
             charging = v.get("charging")
-            is_plugged = False
-            if plug:
-                is_plugged = (plug.get("state") or "").lower() in (
-                    "on", "plugged_in", "connected", "true", "1", "charging", "in_charge"
-                )
-            elif charging:
-                is_plugged = (charging.get("state") or "").lower() in (
-                    "charging", "in_charge", "on", "plugged_in"
-                )
+            rct = v.get("remaining_charge_time")
 
-            if is_plugged:
-                rct = v.get("remaining_charge_time")
-                if rct:
-                    try:
-                        mins = int(float(rct.get("state", 0)))
-                        if mins > 0:
-                            parts.append(f"Das Auto lädt gerade — noch etwa {mins} Minuten.")
-                        else:
-                            parts.append("Das Auto ist vollständig geladen.")
-                    except (TypeError, ValueError):
-                        parts.append("Das Auto lädt gerade.")
+            _CHARGING_STATES = {
+                "on", "charging", "in_charge", "charge_in_progress",
+                "plugged_in", "connected", "true", "1",
+                "laden", "lädt", "active", "start",
+            }
+            _PLUGGED_STATES = _CHARGING_STATES | {"plugged", "plug_in", "angeschlossen"}
+
+            charge_state = (charging.get("state") or "").lower() if charging else ""
+            plug_state   = (plug.get("state")    or "").lower() if plug    else ""
+
+            # Fallback: wenn Restladezeit > 0, lädt das Auto definitiv
+            rct_mins = 0
+            try:
+                rct_mins = int(float((rct or {}).get("state", 0) or 0))
+            except (TypeError, ValueError):
+                pass
+
+            is_charging = (
+                charge_state in _CHARGING_STATES
+                or plug_state  in _CHARGING_STATES
+                or rct_mins > 0
+            )
+
+            if is_charging:
+                if rct_mins > 0:
+                    parts.append(f"Das Auto lädt gerade — {self._fmt_minutes(rct_mins)}.")
                 else:
-                    parts.append("Das Auto ist angesteckt und lädt.")
+                    parts.append("Das Auto lädt gerade.")
+            elif plug_state in _PLUGGED_STATES:
+                parts.append("Das Auto ist angesteckt, aber nicht am Laden.")
             else:
                 parts.append("Das Auto ist aktuell nicht angesteckt.")
 
