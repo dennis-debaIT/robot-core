@@ -3094,66 +3094,80 @@
     } catch { return null; }
   }
 
-  function _svgChargingBar(labels, minPct, maxPct, chargedPct, capacityKwh, w, h) {
+  function _svgChargingLine(labels, minPct, maxPct, capacityKwh, w, h) {
     const pad = { t: 14, r: 8, b: 32, l: 38 };
     const cw = w - pad.l - pad.r;
     const ch = h - pad.t - pad.b;
-    const bw = Math.max(4, cw / Math.max(labels.length, 1) * 0.68);
-    const gap = cw / Math.max(labels.length, 1);
-    let bars = '', lbls = '', vals = '';
-    labels.forEach((lbl, i) => {
-      const lo = minPct[i] ?? null, hi = maxPct[i] ?? null, gain = chargedPct[i] ?? null;
-      const x = pad.l + gap * i + (gap - bw) / 2;
-      const isToday = (i === labels.length - 1);
-      if (lo !== null && hi !== null) {
-        const yHi = pad.t + ch * (1 - hi / 100);
-        const yLo = pad.t + ch * (1 - lo / 100);
-        const totalH = Math.max(2, yLo - yHi);
-        // Gesamtbalken (dunkel = Basis)
-        bars += `<rect x="${x.toFixed(1)}" y="${yHi.toFixed(1)}" width="${bw.toFixed(1)}" height="${totalH.toFixed(1)}"
-          fill="${isToday ? 'rgba(0,200,255,0.25)' : 'rgba(0,200,255,0.12)'}" rx="3"/>`;
-        // Geladener Anteil (hell oben)
-        if (gain && gain > 0) {
-          const gainH = ch * gain / 100;
-          bars += `<rect x="${x.toFixed(1)}" y="${yHi.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,gainH).toFixed(1)}"
-            fill="${isToday ? '#00c832' : 'rgba(0,200,50,0.65)'}" rx="3"
-            title="${lbl}: +${gain}% geladen"/>`;
-        }
-        // Max-Wert Label
-        if (capacityKwh) {
-          const kwh = (hi * capacityKwh / 100).toFixed(1);
-          vals += `<text x="${(x+bw/2).toFixed(1)}" y="${(yHi-3).toFixed(1)}" text-anchor="middle" font-size="8" fill="rgba(127,141,203,0.75)">${kwh}</text>`;
-        }
-      }
-      if (i % Math.max(1, Math.floor(labels.length / 7)) === 0 || i === labels.length - 1)
-        lbls += `<text x="${(x+bw/2).toFixed(1)}" y="${(h-6).toFixed(1)}" text-anchor="middle" font-size="9" fill="rgba(127,141,203,0.9)">${lbl}</text>`;
+    const n  = labels.length;
+    const xOf = i => pad.l + (cw / Math.max(n - 1, 1)) * i;
+    const yOf = pct => pad.t + ch * (1 - pct / 100);
+
+    // Punkte nur wo Daten vorhanden
+    const hiPts = [], loPts = [];
+    labels.forEach((_, i) => {
+      if (maxPct[i] !== null) hiPts.push([xOf(i), yOf(maxPct[i])]);
+      if (minPct[i] !== null) loPts.push([xOf(i), yOf(minPct[i])]);
     });
-    const ySteps = [0, 25, 50, 75, 100];
-    const yLines = ySteps.map(pct => {
-      const y = pad.t + ch * (1 - pct / 100);
-      return `<line x1="${pad.l}" x2="${w-pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
-        <text x="${(pad.l-3).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${pct}%</text>`;
+
+    const polyHi  = hiPts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const polyLo  = loPts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    // Fläche: hi-Linie vorwärts + lo-Linie rückwärts
+    const areaHi  = hiPts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const areaLo  = [...loPts].reverse().map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+    const area    = areaHi && areaLo ? `${areaHi} ${areaLo}` : '';
+
+    // Y-Achse fix 0–100%
+    const yLines = [0, 25, 50, 75, 100].map(pct => {
+      const y = yOf(pct);
+      return `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}"
+        stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
+        <text x="${(pad.l - 3).toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="end"
+          font-size="9" fill="rgba(127,141,203,0.8)">${pct}%</text>`;
     }).join('');
-    const kwhLabel = capacityKwh ? `<text x="${(w-pad.r).toFixed(1)}" y="${(pad.t-3).toFixed(1)}" text-anchor="end" font-size="8" fill="rgba(127,141,203,0.6)">kWh</text>` : '';
-    return `<svg width="${w}" height="${h}" style="width:100%;max-width:${w}px;">${yLines}${bars}${vals}${lbls}${kwhLabel}</svg>`;
+
+    // X-Labels
+    const step = Math.max(1, Math.floor(n / 7));
+    const lbls = labels.map((l, i) => {
+      if (i % step !== 0 && i !== n - 1) return '';
+      const anchor = i === n - 1 ? 'end' : i === 0 ? 'start' : 'middle';
+      return `<text x="${xOf(i).toFixed(1)}" y="${(h - 6).toFixed(1)}"
+        text-anchor="${anchor}" font-size="9" fill="rgba(127,141,203,0.9)">${l}</text>`;
+    }).join('');
+
+    // Aktueller Punkt (letzter mit Daten)
+    const lastHi = hiPts[hiPts.length - 1];
+    const dot = lastHi
+      ? `<circle cx="${lastHi[0].toFixed(1)}" cy="${lastHi[1].toFixed(1)}"
+           r="4" fill="#00c832" stroke="#050611" stroke-width="2"/>`
+      : '';
+
+    // kWh-Label oben rechts
+    const kwhLbl = capacityKwh
+      ? `<text x="${(w - pad.r).toFixed(1)}" y="${(pad.t - 2).toFixed(1)}"
+           text-anchor="end" font-size="8" fill="rgba(127,141,203,0.55)">kWh</text>`
+      : '';
+
+    return `<svg width="${w}" height="${h}" style="width:100%;max-width:${w}px;">
+      <defs>
+        <linearGradient id="chg-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#00c832" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="#00c832" stop-opacity="0.03"/>
+        </linearGradient>
+      </defs>
+      ${yLines}
+      ${area ? `<polygon points="${area}" fill="url(#chg-grad)"/>` : ''}
+      ${polyLo ? `<polyline points="${polyLo}" fill="none" stroke="rgba(0,200,50,0.25)" stroke-width="1" stroke-dasharray="3,3"/>` : ''}
+      ${polyHi ? `<polyline points="${polyHi}" fill="none" stroke="#00c832" stroke-width="2" stroke-linejoin="round"/>` : ''}
+      ${dot}${lbls}${kwhLbl}
+    </svg>`;
   }
 
   function renderVehicleChargingChart(histData, capacityKwh) {
     if (!histData || !histData.labels?.length) {
       return '<div style="color:var(--muted);font-size:0.78rem;text-align:center;padding:18px 0;">Noch keine Daten — werden beim nächsten Poll gespeichert.</div>';
     }
-    const { labels, min_pct, max_pct, charged_pct } = histData;
-    const hasAny = charged_pct.some(v => v !== null && v > 0);
-    const totalCharged = charged_pct.reduce((s, v) => s + (v ?? 0), 0).toFixed(1);
-    const totalKwh = capacityKwh ? (totalCharged * capacityKwh / 100).toFixed(1) : null;
-    const summary = `<div style="display:flex;gap:16px;margin-bottom:10px;font-size:0.74rem;color:var(--muted);">
-      <span>⚡ Geladen gesamt: <strong style="color:var(--text);">${totalCharged}%${totalKwh ? ' · ' + totalKwh + ' kWh' : ''}</strong></span>
-    </div>`;
-    const legend = `<div style="display:flex;gap:14px;font-size:0.7rem;color:var(--muted);margin-top:8px;">
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(0,200,50,0.65);border-radius:2px;margin-right:4px;"></span>Ladegewinn</span>
-      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(0,200,255,0.25);border-radius:2px;margin-right:4px;"></span>Akkustand Min→Max</span>
-    </div>`;
-    return summary + _svgChargingBar(labels, min_pct, max_pct, charged_pct, capacityKwh, 580, 200) + (hasAny ? legend : '');
+    const { labels, min_pct, max_pct } = histData;
+    return _svgChargingLine(labels, min_pct, max_pct, capacityKwh, 580, 190);
   }
 
   async function showVehicleChargingTab(vehicleId, period, capacityKwh) {
