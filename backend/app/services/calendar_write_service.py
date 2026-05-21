@@ -19,14 +19,17 @@ class CalendarWriteService:
         if not person_name:
             return None
         try:
-            from app.profile.service import ProfileService
-            svc = ProfileService()
-            person = svc.get_person(person_name)
-            if not person:
-                return None
-            for fact in person.get("facts") or []:
-                if fact.get("trait_type") == "write_calendar_entity":
-                    return str(fact["value"]).strip() or None
+            from app.database.db import get_connection
+            with get_connection() as conn:
+                row = conn.execute(
+                    """SELECT ppf.value FROM person_profile_facts ppf
+                       JOIN persons p ON p.id = ppf.person_id
+                       WHERE lower(p.name) = lower(?) AND ppf.trait_type = 'write_calendar_entity'
+                       LIMIT 1""",
+                    (person_name,),
+                ).fetchone()
+                if row:
+                    return str(row["value"]).strip() or None
         except Exception:
             pass
         return None
