@@ -1084,6 +1084,10 @@ class RobotCore:
             if calendar_reply:
                 direct_reply = calendar_reply
         if direct_reply is None:
+            summary_reply = self._try_summary_command(captured, person_name)
+            if summary_reply:
+                direct_reply = summary_reply
+        if direct_reply is None:
             reminder_reply = self._try_reminder_command(captured, person_name)
             if reminder_reply:
                 direct_reply = reminder_reply
@@ -1750,6 +1754,23 @@ class RobotCore:
                         cmd["rgb_color"] = light["rgb_color"]
                     svc.control_light(cmd)
             return f"Szene '{best_name}' aktiviert."
+        except Exception:
+            return None
+
+    def _try_summary_command(self, captured: str, person_name: str | None) -> str | None:
+        if not person_name:
+            return None
+        try:
+            from app.services.summary_service import get_config, build_summary
+            person = self.profile.get_person(person_name)
+            if not person:
+                return None
+            cfg = get_config(person["id"])
+            phrases = [p.strip().lower() for p in (cfg.get("trigger_phrases") or []) if p.strip()]
+            q = captured.strip().lower().rstrip('.,!?')
+            if not any(q == phrase or q.startswith(phrase) for phrase in phrases):
+                return None
+            return build_summary(person["id"], person_name)
         except Exception:
             return None
 

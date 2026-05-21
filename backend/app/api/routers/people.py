@@ -115,6 +115,41 @@ def set_active_person(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     return {"name": name}
 
 
+# ── Tageszusammenfassung ──────────────────────────────────────────────────────
+
+@router.get("/profiles/{person_id}/summary-config")
+def get_summary_config(person_id: int) -> dict[str, Any]:
+    from app.services.summary_service import get_config
+    return {"config": get_config(person_id)}
+
+
+@router.put("/profiles/{person_id}/summary-config")
+def save_summary_config(person_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    from app.services.summary_service import save_config
+    save_config(person_id, payload)
+    return {"ok": True}
+
+
+@router.get("/summary/today")
+def get_today_summary(person_id: int | None = None, person_name: str | None = None) -> dict[str, Any]:
+    from app.services.summary_service import build_summary
+    if not person_id and not person_name:
+        return {"text": "Keine Person angegeben."}
+    if not person_id and person_name:
+        core = get_core()
+        person = core.profile.get_person(person_name)
+        if not person:
+            return {"text": f"Person {person_name} nicht gefunden."}
+        person_id = person["id"]
+        person_name = person["name"]
+    elif person_id and not person_name:
+        core = get_core()
+        person = core.profile.get_person_by_id(person_id)
+        person_name = (person or {}).get("name", "")
+    text = build_summary(person_id, person_name or "")
+    return {"text": text}
+
+
 # ── Gesichtserkennung ─────────────────────────────────────────────────────────
 
 @router.post("/profiles/{person_id}/face-descriptors")

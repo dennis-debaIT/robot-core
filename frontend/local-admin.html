@@ -2993,7 +2993,40 @@
           });
         }).catch(() => {});
 
-        el.innerHTML = relHtml + faceHtml + calHtml + prefHtml + header
+        // Tageszusammenfassung-Konfiguration
+        const sumCfg = await fetch(`/profiles/${id}/summary-config`).then(r=>r.json()).then(d=>d.config).catch(()=>null);
+        const sumTriggers = (sumCfg?.trigger_phrases || ['guten morgen','tageszusammenfassung','was steht heute an']).join(', ');
+        const MODULE_LABELS = {calendar:'📅 Kalender',reminders:'⏰ Erinnerungen',weather:'🌤️ Wetter',pv:'☀️ PV-Anlage',vehicles:'🚗 Fahrzeuge',robots:'🤖 Roboter',notifications:'🔔 Benachrichtigungen'};
+        const sumModules = sumCfg?.modules || [{type:'calendar',enabled:true},{type:'reminders',enabled:true},{type:'weather',enabled:true},{type:'pv',enabled:true},{type:'vehicles',enabled:true},{type:'robots',enabled:true},{type:'notifications',enabled:true}];
+
+        const sumHtml = `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
+            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">📋 Tageszusammenfassung</div>
+            <label class="field-block" style="margin-bottom:10px;">
+              <span class="field-label">Auslöse-Phrasen (kommagetrennt)</span>
+              <input class="field-input" id="sum-triggers-${id}" type="text" value="${escapeHtml(sumTriggers)}" placeholder="guten morgen, was steht heute an">
+            </label>
+            <div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px;">Module (↕ ziehen zum Sortieren):</div>
+            <div id="sum-modules-${id}" style="display:flex;flex-direction:column;gap:5px;">
+              ${sumModules.map((m,i)=>`
+                <div draggable="true" data-idx="${i}" data-type="${m.type}"
+                     style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);
+                            border-radius:8px;padding:6px 10px;cursor:grab;font-size:0.78rem;"
+                     ondragstart="sumDragStart(event,${id})" ondragover="event.preventDefault()" ondrop="sumDrop(event,${id})">
+                  <span style="color:var(--muted);cursor:grab;">⠿</span>
+                  <label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;">
+                    <input type="checkbox" ${m.enabled?'checked':''} onchange="saveSummaryConfig(${id})">
+                    <span>${MODULE_LABELS[m.type]||m.type}</span>
+                  </label>
+                </div>`).join('')}
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+              <button onclick="saveSummaryConfig(${id})" style="padding:5px 14px;border-radius:8px;font-size:0.76rem;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;font-weight:700;">Speichern</button>
+              <span id="sum-status-${id}" style="font-size:0.72rem;color:var(--muted);"></span>
+            </div>
+          </div>`;
+
+        el.innerHTML = relHtml + faceHtml + sumHtml + calHtml + prefHtml + header
           + (pendingRows ? `<div style="margin-bottom:6px;">${pendingRows}</div>` : '')
           + factRows
           + (memRows ? `<div style="margin-top:4px;">${memRows}</div>` : '');
@@ -3103,6 +3136,48 @@
       if (!await showConfirm('Gesichtsdaten dieser Person löschen?', 'Löschen')) return;
       await fetch(`/profiles/${personId}/face-descriptors`, { method: 'DELETE' });
       loadPersonDetail(personId);
+    }
+
+    let _sumDragIdx = null;
+    let _sumDragPersonId = null;
+
+    function sumDragStart(e, personId) {
+      _sumDragIdx = parseInt(e.currentTarget.dataset.idx);
+      _sumDragPersonId = personId;
+      e.dataTransfer.effectAllowed = 'move';
+    }
+
+    function sumDrop(e, personId) {
+      e.preventDefault();
+      if (_sumDragPersonId !== personId) return;
+      const targetIdx = parseInt(e.currentTarget.dataset.idx);
+      if (targetIdx === _sumDragIdx) return;
+      const container = document.getElementById(`sum-modules-${personId}`);
+      const items = [...container.children];
+      const draggedEl = items[_sumDragIdx];
+      const targetEl  = items[targetIdx];
+      if (_sumDragIdx < targetIdx) container.insertBefore(draggedEl, targetEl.nextSibling);
+      else container.insertBefore(draggedEl, targetEl);
+      // Update data-idx
+      [...container.children].forEach((el, i) => el.dataset.idx = i);
+      _sumDragIdx = null;
+    }
+
+    async function saveSummaryConfig(personId) {
+      const triggers = (document.getElementById(`sum-triggers-${personId}`)?.value || '')
+        .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+      const container = document.getElementById(`sum-modules-${personId}`);
+      const modules = [...(container?.children || [])].map(el => ({
+        type: el.dataset.type,
+        enabled: el.querySelector('input[type=checkbox]')?.checked ?? true,
+      }));
+      const r = await fetch(`/profiles/${personId}/summary-config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trigger_phrases: triggers, modules }),
+      });
+      const status = document.getElementById(`sum-status-${personId}`);
+      if (status) { status.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler'; setTimeout(() => status.textContent='', 2000); }
     }
 
     async function savePersonCalendar(personId) {
