@@ -651,6 +651,23 @@ class RobotCore:
             for candidate in decision.candidates
             if candidate.kind in {CandidateKind.MEMORY, CandidateKind.PROFILE}
         ]
+
+        # Auto-approve hochkonfidente Profil-Fakten direkt (Alter, Farbe, Sprache etc.)
+        if person_name:
+            for candidate in decision.candidates:
+                if (
+                    candidate.kind == CandidateKind.PROFILE
+                    and candidate.confidence >= 0.90
+                    and getattr(candidate, "profile_value", None)
+                ):
+                    self.profile.upsert_fact_resolved(
+                        person_name=person_name,
+                        trait_type=candidate.category,
+                        value=str(candidate.profile_value),
+                        source_memory_id=None,
+                        confidence=candidate.confidence,
+                    )
+
         interest_signal = self.conversation.detect_interest_signal(
             person_name=person_name,
             text=captured,
