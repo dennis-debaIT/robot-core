@@ -1084,6 +1084,10 @@ class RobotCore:
             if calendar_reply:
                 direct_reply = calendar_reply
         if direct_reply is None:
+            vehicle_reply = self._try_vehicle_query(captured)
+            if vehicle_reply:
+                direct_reply = vehicle_reply
+        if direct_reply is None:
             summary_reply = self._try_summary_command(captured, person_name)
             if summary_reply:
                 direct_reply = summary_reply
@@ -1756,6 +1760,90 @@ class RobotCore:
             return f"Szene '{best_name}' aktiviert."
         except Exception:
             return None
+
+    _VEHICLE_QUERY_PATTERN = re.compile(
+        r"\b(?:"
+        r"wie\s+(?:ist|viel|weit|hoch|lang)\b.{0,40}\b(?:akku|ladestand|tank|reichweite|laden|ladung|batterie|auto|fahrzeug|dacia|spring|wagen)"
+        r"|(?:akku|ladestand|tank|tankstand|reichweite|ladung|batterie)\b.{0,30}\b(?:auto|fahrzeug|dacia|spring|wagen|vom|des)"
+        r"|wird\b.{0,20}\b(?:auto|fahrzeug|dacia|spring|wagen)\b.{0,10}\b(?:geladen|aufgeladen)"
+        r"|(?:alle?\s+)?(?:autos?|fahrzeuge)\b"
+        r"|wie\s+(?:steht|sieht).{0,20}\b(?:auto|fahrzeug|akku|tank|batterie)"
+        r")",
+        re.IGNORECASE,
+    )
+
+    def _try_vehicle_query(self, captured: str) -> str | None:
+        if not self._VEHICLE_QUERY_PATTERN.search(captured):
+            return None
+        try:
+            from app.services.vehicle_service import VehicleService
+            from app.services.integration_config_service import IntegrationConfigService
+            svc = VehicleService()
+            cfg = IntegrationConfigService().get_config()
+            data = svc.list_vehicles(cfg)
+            vehicles = data.get("vehicles") or []
+            if not vehicles:
+                return "Ich habe keine Fahrzeuge konfiguriert."
+
+            q = captured.lower()
+
+            # Gezieltes Fahrzeug suchen (nach Label/Name)
+            target = None
+            for v in vehicles:
+                label = (v.get("label") or v.get("id") or "").lower()
+                if any(word in q for word in label.split()):
+                    target = v
+                    break
+
+            # Alle Fahrzeuge wenn explizit gefragt oder nur eines vorhanden
+            if target is None and ("alle" in q or "fahrzeuge" in q or len(vehicles) == 1):
+                return self._format_vehicles_reply(vehicles)
+
+            if target is None:
+                target = vehicles[0]
+
+            return self._format_vehicle_reply(target)
+        except Exception:
+            return None
+
+    def _format_vehicle_reply(self, v: dict) -> str:
+        label = v.get("label") or v.get("id") or "Fahrzeug"
+        parts: list[str] = []
+        # E-Auto
+        battery = v.get("battery")
+        if battery:
+            pct = battery.get("state")
+            parts.append(f"{label} hat {pct}% Akku.")
+            rng = v.get("range")
+            if rng:
+                parts.append(f"Reichweite: {rng['state']} {rng.get('unit','km')}.")
+            charging = v.get("charging")
+            plug = v.get("plug")
+            if plug:
+                plug_state = (plug.get("state") or "").lower()
+                is_plugged = plug_state in ("on", "plugged_in", "connected", "true", "1", "charging", "in_charge")
+                parts.append("Das Fahrzeug ist angesteckt." if is_plugged else "Das Fahrzeug ist nicht angesteckt.")
+            elif charging:
+                charge_state = (charging.get("state") or "").lower()
+                if charge_state in ("charging", "in_charge", "on"):
+                    rct = v.get("remaining_charge_time")
+                    rct_text = f" Noch {rct['state']} Minuten." if rct else ""
+                    parts.append(f"Es wird gerade geladen.{rct_text}")
+                else:
+                    parts.append("Es wird aktuell nicht geladen.")
+        # Verbrenner
+        fuel = v.get("fuel_level")
+        if fuel:
+            pct = fuel.get("state")
+            unit = fuel.get("unit") or "%"
+            parts.append(f"{label}: Tank {pct} {unit}.")
+            rng = v.get("range")
+            if rng:
+                parts.append(f"Reichweite: {rng['state']} {rng.get('unit','km')}.")
+        return " ".join(parts) if parts else f"Keine Daten für {label}."
+
+    def _format_vehicles_reply(self, vehicles: list) -> str:
+        return " ".join(self._format_vehicle_reply(v) for v in vehicles)
 
     def _try_summary_command(self, captured: str, person_name: str | None) -> str | None:
         if not person_name:
