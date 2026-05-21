@@ -227,6 +227,19 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_vehicle_location_history_vehicle_recorded
             ON vehicle_location_history(vehicle_id, recorded_at DESC);
 
+            CREATE TABLE IF NOT EXISTS reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                fire_at TEXT NOT NULL,
+                person_name TEXT,
+                notified INTEGER NOT NULL DEFAULT 0,
+                dismissed INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_reminders_fire_at
+            ON reminders(fire_at, notified, dismissed);
+
             CREATE TABLE IF NOT EXISTS person_face_descriptors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 person_id INTEGER NOT NULL,

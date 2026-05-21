@@ -12,6 +12,7 @@ from app.api.routers import (
     chat,
     content,
     ha_calendar,
+    reminders as reminders_router,
     ha_cameras,
     ha_devices,
     ha_lights,
@@ -88,6 +89,22 @@ async def _auto_update_loop() -> None:
         await asyncio.sleep(sleep_seconds if sleep_seconds > 0 else 3600)
 
 
+async def _reminder_watcher_loop() -> None:
+    from app.database.db import get_connection
+    import time as _time
+    while True:
+        try:
+            now_iso = __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()
+            with get_connection() as conn:
+                conn.execute(
+                    "UPDATE reminders SET notified=1 WHERE notified=0 AND dismissed=0 AND fire_at <= ?",
+                    (now_iso,),
+                )
+        except Exception:
+            pass
+        await asyncio.sleep(5)
+
+
 async def _notification_check_loop(interval_seconds: int = 30) -> None:
     from app.services.notification_service import NotificationService
     from app.database.db import get_connection, read_state, write_state
@@ -134,6 +151,7 @@ async def lifespan(_: FastAPI) -> Any:
     auto_update_task = asyncio.create_task(_auto_update_loop())
     timer_task = asyncio.create_task(_timer_watcher_loop())
     notification_task = asyncio.create_task(_notification_check_loop())
+    reminder_task = asyncio.create_task(_reminder_watcher_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -143,6 +161,7 @@ async def lifespan(_: FastAPI) -> Any:
         auto_update_task.cancel()
         timer_task.cancel()
         notification_task.cancel()
+        reminder_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
@@ -153,6 +172,8 @@ async def lifespan(_: FastAPI) -> Any:
             await timer_task
         with suppress(asyncio.CancelledError):
             await notification_task
+        with suppress(asyncio.CancelledError):
+            await reminder_task
         deps.clear_runtime()
 
 
@@ -183,3 +204,4 @@ app.include_router(people.router)
 app.include_router(timer.router)
 app.include_router(notifications.router)
 app.include_router(ha_calendar.router)
+app.include_router(reminders_router.router)

@@ -1084,6 +1084,10 @@ class RobotCore:
             if calendar_reply:
                 direct_reply = calendar_reply
         if direct_reply is None:
+            reminder_reply = self._try_reminder_command(captured, person_name)
+            if reminder_reply:
+                direct_reply = reminder_reply
+        if direct_reply is None:
             timer_reply = self._try_timer_command(captured)
             if timer_reply:
                 direct_reply = timer_reply
@@ -1746,6 +1750,63 @@ class RobotCore:
                         cmd["rgb_color"] = light["rgb_color"]
                     svc.control_light(cmd)
             return f"Szene '{best_name}' aktiviert."
+        except Exception:
+            return None
+
+    _REMINDER_PATTERN = re.compile(
+        r"\b(?:erinner[e]?\s+mich|setz[e]?\s+(?:eine\s+)?erinnerung|stell[e]?\s+(?:eine\s+)?erinnerung)\b",
+        re.IGNORECASE,
+    )
+
+    def _try_reminder_command(self, captured: str, person_name: str | None) -> str | None:
+        if not self._REMINDER_PATTERN.search(captured):
+            return None
+        try:
+            from datetime import datetime, timezone, timedelta
+            # Dauer extrahieren (gleiche Logik wie Timer)
+            m = self._DURATION_RE.search(captured.lower())
+            if not m:
+                return None
+            raw = m.group(1).lower()
+            amount = float(self._WORD_NUMBERS.get(raw, raw.replace(",", ".")))
+            unit = m.group(2).lower()
+            if unit.startswith("s"):
+                seconds = int(amount)
+            elif unit.startswith("m"):
+                seconds = int(amount * 60)
+            else:
+                seconds = int(amount * 3600)
+            if seconds <= 0 or seconds > 86400:
+                return "Ungültige Dauer für die Erinnerung."
+
+            # Erinnerungstext extrahieren — alles nach "an" oder "dass"
+            text_match = re.search(
+                r'\b(?:erinner[e]?\s+mich|erinnerung)\b.{0,30}?\b(?:an|dass)\s+(.+?)(?:\.|,|$)',
+                captured, re.IGNORECASE
+            )
+            reminder_text = text_match.group(1).strip().rstrip('.,!?') if text_match else "Erinnerung"
+            if not reminder_text:
+                reminder_text = "Erinnerung"
+
+            fire_at = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+            from app.database.db import get_connection
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT INTO reminders(text, fire_at, person_name, notified, dismissed, created_at) VALUES (?,?,?,0,0,?)",
+                    (reminder_text, fire_at, person_name, datetime.now(timezone.utc).isoformat()),
+                )
+
+            # Zeitangabe für Bestätigung
+            if seconds < 60:
+                time_str = f"{seconds} Sekunden"
+            elif seconds < 3600:
+                mins = seconds // 60
+                time_str = f"{mins} Minute{'n' if mins != 1 else ''}"
+            else:
+                hours = seconds // 3600
+                time_str = f"{hours} Stunde{'n' if hours != 1 else ''}"
+
+            return f"Ich erinnere dich in {time_str} an: {reminder_text}."
         except Exception:
             return None
 
