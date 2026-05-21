@@ -1770,11 +1770,18 @@ class RobotCore:
 
     _VEHICLE_QUERY_PATTERN = re.compile(
         r"\b(?:"
+        # Zustandsfragen mit Fahrzeugnamen
         r"wie\s+(?:ist|viel|weit|hoch|lang|sieht|steht)\b.{0,50}\b(?:akku|ladestand|tank|tankstand|reichweite|laden|ladung|batterie|auto|fahrzeug|dacia|spring|wagen|elektro)"
-        r"|(?:akku|ladestand|tank|tankstand|reichweite|ladung|batterie|ladestand)\b.{0,40}\b(?:auto|fahrzeug|dacia|spring|wagen|vom|des|mein)"
+        r"|(?:akku|ladestand|tank|tankstand|reichweite|ladung|batterie)\b.{0,40}\b(?:auto|fahrzeug|dacia|spring|wagen|vom|des|mein)"
         r"|\b(?:wie\s+viel|wieviel)\s+(?:akku|reichweite|strom|prozent|kilometer|km)\b"
-        r"|wird\b.{0,30}\b(?:auto|fahrzeug|dacia|spring|wagen|es)\b.{0,15}\b(?:geladen|aufgeladen|laden)"
-        r"|lädt\b.{0,20}\b(?:auto|fahrzeug|dacia|spring|wagen|es|gerade)"
+        # Ladefragen in verschiedenen Wortstellungen
+        r"|wird\b.{0,40}\b(?:auto|fahrzeug|dacia|spring|wagen|es)\b.{0,20}\b(?:geladen|aufgeladen|laden)"
+        r"|(?:auto|fahrzeug|dacia|spring|wagen)\b.{0,30}\b(?:gerade\s+)?(?:am\s+laden|geladen|lädt|aufgeladen)"
+        r"|(?:lädt|laden|geladen)\b.{0,30}\b(?:auto|fahrzeug|dacia|spring|wagen|es|gerade)"
+        r"|\b(?:ist|wird)\b.{0,20}\b(?:dacia|spring|auto|fahrzeug|wagen)\b.{0,20}\b(?:geladen|laden|am\s+laden|am\s+strom|angesteckt|verbunden)"
+        r"|\bam\s+laden\b"
+        r"|\b(?:lädt|geladen|ladevorgang|ladestand)\b"
+        # Reichweite / Allgemein
         r"|(?:alle?\s+)?(?:autos?|fahrzeuge)\b"
         r"|(?:wie\s+weit|weit)\s+komm(?:e|st)?\s+(?:ich|du|man)\s+noch\b"
         r"|(?:reicht|langt)\s+(?:der\s+akku|die\s+ladung|der\s+tank)\b"
