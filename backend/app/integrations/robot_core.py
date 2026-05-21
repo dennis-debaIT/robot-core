@@ -42,10 +42,13 @@ class RobotCore:
         flags=re.UNICODE,
     )
     LIGHT_COMMAND_PATTERN = re.compile(
-        r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?)\b.{0,60}\b(?:licht(?:er)?|lampe[n]?|aus|ein|an)\b"
-        r"|\b(?:licht(?:er)?|lampe[n]?)\b.{0,40}\b(?:an|ein|aus|\d+\s*(?:%|prozent))\b"
-        r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?|aus|an|ein)\b"
-        r"|\b(?:alles?|alle)\s+(?:aus|an|ein)\b",
+        r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?|setz[e]?|bring[e]?|regulier[e]?)\b.{0,80}\b(?:licht(?:er)?|lampe[n]?|beleuchtung|aus|ein|an)\b"
+        r"|\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,50}\b(?:an|ein|aus|hell|dunkel|\d+\s*(?:%|prozent))\b"
+        r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?|beleuchtung|aus|an|ein)\b"
+        r"|\b(?:alles?|alle)\s+(?:aus|an|ein)\b"
+        r"|\b(?:kannst\s+du|bitte)\b.{0,40}\b(?:licht|lampe|beleuchtung)\b.{0,30}\b(?:aus|an|ein|hell|dunkler|dimmen)\b"
+        r"|\blicht\s+(?:aus|an|ein|hell|dunkel|dimmen)\b"
+        r"|\b(?:mach|schalte?)\s+(?:es\s+)?(?:hell|dunkel|dunkler|heller)\b",
         re.IGNORECASE | re.DOTALL,
     )
 
@@ -1619,15 +1622,18 @@ class RobotCore:
             return None
 
     _TIMER_PATTERN = re.compile(
-        r"\b(?:stell(?:e|en)?(?:\s+(?:mir|einen|ein))?\s+)?timer"
-        r"|timer\s+(?:auf|für|von)"
-        r"|\b(?:erinner(?:e|ung)?|alarm)\s+in"
-        r"|\b(\d+)\s*(?:minuten?|sekunden?|stunden?)\s+timer\b",
+        r"\b(?:stell(?:e|en)?(?:\s+(?:mir|einen|ein|mal))?\s+)?timer\b"
+        r"|\btimer\s+(?:auf|für|von|starten|setzen)\b"
+        r"|\b(?:alarm|wecker)\s+(?:in|auf|für|stell)\b"
+        r"|\b(\d+)\s*(?:minuten?|sekunden?|stunden?)\s+(?:timer|alarm)\b"
+        r"|\bstell(?:e)?\s+(?:mir\s+)?(?:einen?\s+)?(?:timer|alarm|wecker)\b"
+        r"|\b(?:setz[e]?|start[e]?)\s+(?:einen?\s+)?timer\b",
         re.IGNORECASE,
     )
     _TIMER_CANCEL_PATTERN = re.compile(
-        r"\b(?:stopp?|abbr[eü]ch?|beend|lösch|cancel|reset)\s+(?:den\s+)?timer\b"
-        r"|\btimer\s+(?:stopp?|abbr[eü]ch?|beend|lösch)\b",
+        r"\b(?:stopp?|abbr[eü]ch?|beend[e]?|lösch[e]?|cancel|reset|abschalten)\s+(?:den\s+)?(?:timer|alarm|wecker)\b"
+        r"|\b(?:timer|alarm|wecker)\s+(?:stopp?|abbr[eü]ch?|beend[e]?|lösch[e]?|aus|weg)\b"
+        r"|\b(?:timer|alarm|wecker)\s+(?:nicht\s+mehr|deaktivieren)\b",
         re.IGNORECASE,
     )
     _DURATION_RE = re.compile(
@@ -1644,9 +1650,11 @@ class RobotCore:
 
     _CALENDAR_PATTERN = re.compile(
         r"\bkalendereintrag\b"
-        r"|\b(trag[e]?|erstell[e]?|anlegen?|notier[e]?|füg[e]?\s+ein).{0,50}\b(termin|eintrag|event|kalender)\b"
-        r"|\b(termin|event).{0,30}\b(tragen?|erstellen?|anlegen?|eintragen?)\b"
-        r"|\b(kalender).{0,30}\b(eintragen?|erstellen?|anlegen?|notieren?|hinzufügen?)\b",
+        r"|\b(trag[e]?|erstell[e]?|anlegen?|notier[e]?|füg[e]?\s+ein|merk[e]?\s+(?:dir|vor)|speicher[e]?).{0,60}\b(termin|eintrag|event|kalender|appointment|verabredung|besprechung|meeting)\b"
+        r"|\b(termin|event|besprechung|meeting|verabredung).{0,40}\b(tragen?|erstellen?|anlegen?|eintragen?|einplanen?|merken?|speichern?)\b"
+        r"|\b(kalender|terminkalender).{0,40}\b(eintragen?|erstellen?|anlegen?|notieren?|hinzufügen?|ergänzen?)\b"
+        r"|\b(ich\s+habe\s+(?:morgen|übermorgen|am\s+\w+).{0,40}(?:termin|meeting|besprechung|arzt|zahnarzt|treffen))\b"
+        r"|\btrag[e]?\s+(?:bitte\s+)?(?:für\s+)?(?:mich\s+)?.{0,60}\b(?:ein|im\s+kalender)\b",
         re.IGNORECASE,
     )
 
@@ -1763,11 +1771,14 @@ class RobotCore:
 
     _VEHICLE_QUERY_PATTERN = re.compile(
         r"\b(?:"
-        r"wie\s+(?:ist|viel|weit|hoch|lang)\b.{0,40}\b(?:akku|ladestand|tank|reichweite|laden|ladung|batterie|auto|fahrzeug|dacia|spring|wagen)"
-        r"|(?:akku|ladestand|tank|tankstand|reichweite|ladung|batterie)\b.{0,30}\b(?:auto|fahrzeug|dacia|spring|wagen|vom|des)"
-        r"|wird\b.{0,20}\b(?:auto|fahrzeug|dacia|spring|wagen)\b.{0,10}\b(?:geladen|aufgeladen)"
+        r"wie\s+(?:ist|viel|weit|hoch|lang|sieht|steht)\b.{0,50}\b(?:akku|ladestand|tank|tankstand|reichweite|laden|ladung|batterie|auto|fahrzeug|dacia|spring|wagen|elektro)"
+        r"|(?:akku|ladestand|tank|tankstand|reichweite|ladung|batterie|ladestand)\b.{0,40}\b(?:auto|fahrzeug|dacia|spring|wagen|vom|des|mein)"
+        r"|\b(?:wie\s+viel|wieviel)\s+(?:akku|reichweite|strom|prozent|kilometer|km)\b"
+        r"|wird\b.{0,30}\b(?:auto|fahrzeug|dacia|spring|wagen|es)\b.{0,15}\b(?:geladen|aufgeladen|laden)"
+        r"|lädt\b.{0,20}\b(?:auto|fahrzeug|dacia|spring|wagen|es|gerade)"
         r"|(?:alle?\s+)?(?:autos?|fahrzeuge)\b"
-        r"|wie\s+(?:steht|sieht).{0,20}\b(?:auto|fahrzeug|akku|tank|batterie)"
+        r"|(?:wie\s+weit|weit)\s+komm(?:e|st)?\s+(?:ich|du|man)\s+noch\b"
+        r"|(?:reicht|langt)\s+(?:der\s+akku|die\s+ladung|der\s+tank)\b"
         r")",
         re.IGNORECASE,
     )
@@ -1901,7 +1912,9 @@ class RobotCore:
             return None
 
     _REMINDER_PATTERN = re.compile(
-        r"\b(?:erinner[e]?\s+mich|setz[e]?\s+(?:eine\s+)?erinnerung|stell[e]?\s+(?:eine\s+)?erinnerung)\b",
+        r"\b(?:erinner[e]?\s+(?:mich|uns)|setz[e]?\s+(?:eine?\s+)?erinnerung|stell[e]?\s+(?:eine?\s+)?erinnerung|leg[e]?\s+(?:eine?\s+)?erinnerung)\b"
+        r"|\b(?:ich\s+soll\b.{0,30}nicht\s+vergessen\b)"
+        r"|\b(?:vergiss?\s+nicht\b.{0,30}\bin\s+\d)",
         re.IGNORECASE,
     )
 
