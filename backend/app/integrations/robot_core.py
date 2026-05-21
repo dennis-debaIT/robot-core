@@ -790,14 +790,15 @@ class RobotCore:
         # Lieblingsfarbe
         (r'\bmeine?\s+lieblingsfarbe\s+ist\s+(\w+)', 'favorite_color'),
         (r'\bich\s+mag\s+(?:die\s+farbe\s+)?(\w+)\s+am\s+liebsten', 'favorite_color'),
-        # Vorlieben (preference) — explizite Mögen-Aussagen
-        (r'\bich\s+liebe\s+(?:es\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$|\s+sehr|\s+wirklich)', 'preference'),
-        (r'\bich\s+mag\s+(?:sehr\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\s+sehr)?(?:\.|,|$)', 'preference'),
-        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+(?:esse|trinke|mag)\s+ich\s+(?:sehr\s+)?gerne?\b', 'preference'),
-        # Abneigungen (dislike)
+        # Abneigungen (dislike) — VOR preference, da "ich mag kein/keine" sonst als Vorliebe gilt
         (r'\bich\s+mag\s+(?:kein|keine|keinen)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
-        (r'\bich\s+(?:hasse|verabscheue)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
+        (r'\bich\s+(?:hasse|verabscheue|ekle\s+mich\s+vor)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
         (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+mag\s+ich\s+(?:gar\s+)?nicht\b', 'dislike'),
+        (r'\bich\s+esse?\s+(?:kein|keine|keinen)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
+        # Vorlieben (preference) — kein "kein/keine/keinen" (würde Abneigung sein)
+        (r'\bich\s+liebe\s+(?:es\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$|\s+sehr|\s+wirklich)', 'preference'),
+        (r'\bich\s+mag\s+(?!kein|keine|keinen)(?:sehr\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\s+sehr)?(?:\.|,|$)', 'preference'),
+        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+(?:esse|trinke|mag)\s+ich\s+(?:sehr\s+)?gerne?\b', 'preference'),
         # Interessen
         (r'\bich\s+interessiere\s+mich\s+(?:sehr\s+)?für\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$)', 'interest'),
         (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+ist\s+mein\s+(?:lieblingsverein|lieblingsklub)\b', 'interest'),

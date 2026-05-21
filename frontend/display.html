@@ -5402,20 +5402,13 @@
 
   function _onWakeDetected() {
     if (_listening) return;
-    // Wake Word pausieren — STT übernimmt das Mikro
     try { _wakeRec?.stop(); } catch {}
     _wakeActive = false;
     const mic = document.getElementById('mic-btn');
     if (mic) { mic.style.boxShadow = '0 0 20px 6px rgba(0,200,255,0.8)'; setTimeout(() => mic.style.boxShadow = '', 600); }
     unlockAudio();
     startSpeech();
-    // Wake Word nach STT-Ende wieder starten
-    const checkDone = setInterval(() => {
-      if (!_listening) {
-        clearInterval(checkDone);
-        setTimeout(() => { if (!_listening) _startWakeWord(); }, 800);
-      }
-    }, 500);
+    // Kein manuelles checkDone — Watchdog unten übernimmt den Neustart
   }
 
   // Beim ersten Touch/Klick: Wake Word starten falls noch ausstehend
@@ -5426,8 +5419,13 @@
     }
   }, { passive: true });
 
-  // Nach STT-Ende: Wake Word wieder aktivieren (onend-Handler kümmert sich um Neustart)
-  // Kein Override von stopSpeech nötig — _wakeRec.onend startet automatisch neu
+  // Watchdog: Wake Word neu starten wenn es sollte aber nicht läuft
+  // Deckt alle Fälle ab: nach STT-Ende, nach Follow-up, nach Gesprächsende
+  setInterval(() => {
+    if (_attentionConfig.wake_word_enabled && !_wakeActive && !_listening && !_wakeWordPending) {
+      _startWakeWord();
+    }
+  }, 2000);
 
   // ── Gesichtserkennung ──────────────────────────────────────
   async function _loadFaceApiLib() {
