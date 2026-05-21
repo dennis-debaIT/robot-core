@@ -1058,6 +1058,10 @@ class RobotCore:
                 direct_reply = light_reply
                 self._set_lights_display_intent()
         if direct_reply is None:
+            scene_reply = self._try_scene_command(captured)
+            if scene_reply:
+                direct_reply = scene_reply
+        if direct_reply is None:
             timer_reply = self._try_timer_command(captured)
             if timer_reply:
                 direct_reply = timer_reply
@@ -1603,6 +1607,62 @@ class RobotCore:
         "elf": 11, "zwölf": 12, "fünfzehn": 15, "zwanzig": 20,
         "dreißig": 30, "vierzig": 40, "fünfzig": 50, "sechzig": 60,
     }
+
+    def _try_scene_command(self, captured: str) -> str | None:
+        import re, json
+        q = captured.lower()
+        if not re.search(r'\bszene\b', q):
+            return None
+        m = re.search(r'szene[n]?\s+[»„"\']?([^\'"»"]+?)[\'\"«"»]?\s*(?:aktivieren?|starten?|einschalten?|laden?|abspielen?|an)?$', q)
+        if not m:
+            m = re.search(r'(?:aktiviere?|starte?|spiele?|lade?)\s+(?:die\s+)?szene[n]?\s+[»„"\']?(.+?)[\'\"«"»]?\s*$', q)
+        if not m:
+            return None
+        scene_name = m.group(1).strip().rstrip('.')
+        if not scene_name:
+            return None
+        try:
+            from app.database.db import get_connection
+            with get_connection() as conn:
+                rows = conn.execute("SELECT id, name FROM light_scenes").fetchall()
+            best_id, best_name = None, None
+            name_lower = scene_name.lower()
+            for row in rows:
+                if row["name"].lower() == name_lower:
+                    best_id, best_name = row["id"], row["name"]
+                    break
+                if name_lower in row["name"].lower() or row["name"].lower() in name_lower:
+                    best_id, best_name = row["id"], row["name"]
+            if not best_id:
+                return f"Szene '{scene_name}' nicht gefunden."
+            from app.services.light_service import LightService
+            from app.database.db import get_connection
+            with get_connection() as conn:
+                row = conn.execute("SELECT light_states FROM light_scenes WHERE id = ?", (best_id,)).fetchone()
+            if not row:
+                return "Szene konnte nicht geladen werden."
+            states = json.loads(row["light_states"])
+            svc = LightService()
+            for light in states:
+                eid = light.get("entity_id", "")
+                if not eid:
+                    continue
+                if light.get("state") == "off":
+                    svc.control_light({"entity_id": eid, "service": "turn_off"})
+                else:
+                    cmd: dict = {"entity_id": eid, "service": "turn_on"}
+                    if light.get("brightness_pct") is not None:
+                        cmd["brightness_pct"] = light["brightness_pct"]
+                    if light.get("hs_color"):
+                        cmd["hs_color"] = light["hs_color"]
+                    elif light.get("color_temp_kelvin"):
+                        cmd["color_temp_kelvin"] = light["color_temp_kelvin"]
+                    elif light.get("rgb_color"):
+                        cmd["rgb_color"] = light["rgb_color"]
+                    svc.control_light(cmd)
+            return f"Szene '{best_name}' aktiviert."
+        except Exception:
+            return None
 
     def _try_timer_command(self, captured: str) -> str | None:
         q = captured.lower()

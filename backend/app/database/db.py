@@ -227,6 +227,13 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_vehicle_location_history_vehicle_recorded
             ON vehicle_location_history(vehicle_id, recorded_at DESC);
 
+            CREATE TABLE IF NOT EXISTS light_scenes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                light_states TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS vehicle_charging_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 vehicle_id TEXT NOT NULL,

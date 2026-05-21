@@ -2715,6 +2715,7 @@
     }
   });
   let _selectedGroup = null;
+  let _lightsShowScenes = false;
   let _lightsLiveInterval = null;
   let _vehiclesData = [];
   let _selectedVehicle = null;
@@ -4724,6 +4725,14 @@
           <span style="color:${isOn?'var(--warning)':'var(--border)'};font-size:0.8rem;">${isOn?'●':'○'}</span>
         </div>`;
     }).join('');
+
+    const scenesSel = _lightsShowScenes ? ' selected' : '';
+    html += `
+      <div class="light-group-item${scenesSel}" onclick="openLightScenes()"
+           style="margin-top:10px;border-color:rgba(150,0,255,0.4);background:rgba(150,0,255,0.06);">
+        <span style="font-size:1.1rem;">🎬</span>
+        <div style="flex:1;font-weight:700;font-size:0.88rem;">Szenen</div>
+      </div>`;
     return html;
   }
 
@@ -5006,11 +5015,6 @@
     return html;
   }
 
-  function selectLightGroup(entity_id) {
-    _selectedGroup = entity_id;
-    refreshLightsView();
-  }
-
   async function showLightsView() {
     const lights = await loadLightsData();
     if (!lights) return;
@@ -5036,22 +5040,130 @@
     // Mitte: Overlay
     const overlay = document.getElementById('cal-overlay');
     if (overlay) {
-      if (!selected) {
-        // Alle Gruppen Übersicht
+      if (_lightsShowScenes) {
+        renderScenesOverlay();
+      } else if (!selected) {
         overlay.innerHTML = renderAllGroupsCenter(groups);
+        overlay.classList.add('active');
       } else {
-        // Einzelne Gruppe/Schalter steuern
         overlay.innerHTML = renderLightCenter(selected);
+        overlay.classList.add('active');
       }
-      overlay.classList.add('active');
     }
 
     // Rechts: Einzellampen der gewählten Gruppe (oder leer)
-    if (selected?.is_group) {
+    if (!_lightsShowScenes && selected?.is_group) {
       setPanel('right', selected.name, renderLightLamps(selected, lights));
-    } else {
+    } else if (!_lightsShowScenes) {
       setPanel('right', 'Lampen', '<div class="cal-placeholder">Gruppe auswählen</div>');
     }
+  }
+
+  async function openLightScenes() {
+    _lightsShowScenes = true;
+    _selectedGroup = null;
+    const leftContent = document.getElementById('left-content');
+    if (leftContent) leftContent.innerHTML = renderLightGroupsList(_lightsData || [], null);
+    await renderScenesOverlay();
+    setPanel('right', 'Szenen', '<div class="cal-placeholder">Szene wählen oder speichern</div>');
+  }
+
+  function selectLightGroup(entityId) {
+    _lightsShowScenes = false;
+    _selectedGroup = entityId;
+    refreshLightsView();
+  }
+
+  async function renderScenesOverlay() {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:20px;text-align:center;">Lade…</div>';
+    let scenes = [];
+    try {
+      const r = await fetch('/ha/lights/scenes', { cache: 'no-store' });
+      if (r.ok) scenes = (await r.json()).scenes || [];
+    } catch {}
+
+    const sceneList = scenes.length ? scenes.map(s => `
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);
+                  border:1px solid var(--border);border-radius:12px;padding:12px 14px;">
+        <button onclick="applyLightScene(${s.id})"
+          style="flex:1;text-align:left;background:none;border:none;color:var(--text);
+                 font-size:0.88rem;font-weight:700;cursor:pointer;padding:0;">
+          🎬 ${escapeHTML(s.name)}
+        </button>
+        <button onclick="deleteLightScene(${s.id}, this)"
+          style="background:none;border:1px solid rgba(255,61,61,0.35);border-radius:8px;
+                 color:var(--danger);font-size:0.8rem;padding:4px 10px;cursor:pointer;">
+          🗑
+        </button>
+      </div>`).join('') :
+      '<div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:8px 0;">Noch keine Szenen gespeichert.</div>';
+
+    overlay.innerHTML = `
+      <div style="padding:4px 0 18px;">
+        <div style="font-size:0.62rem;color:var(--accent);letter-spacing:0.13em;margin-bottom:12px;">SZENEN</div>
+        <div style="font-size:0.76rem;color:var(--muted);line-height:1.55;margin-bottom:18px;
+                    background:rgba(150,0,255,0.07);border:1px solid rgba(150,0,255,0.2);
+                    border-radius:10px;padding:10px 14px;">
+          Stelle alle Lampen so ein wie es in der Szene aussehen soll — auch welche aus sein sollen.
+          Gib der Szene dann einen Namen und speichere sie.
+          Beim Abrufen werden alle Lampen auf den gespeicherten Zustand gesetzt.
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;">${sceneList}</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input id="scene-name-input" type="text" placeholder="Szenenname (z.B. Filmabend)"
+            style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+                   padding:10px 14px;color:var(--text);font-size:0.84rem;"
+            onkeydown="if(event.key==='Enter')saveLightScene()">
+          <button onclick="saveLightScene()"
+            style="background:rgba(150,0,255,0.15);border:1px solid rgba(150,0,255,0.5);
+                   color:#c87fff;border-radius:10px;padding:10px 18px;font-size:0.82rem;
+                   font-weight:800;cursor:pointer;">
+            Speichern
+          </button>
+        </div>
+      </div>`;
+  }
+
+  async function saveLightScene() {
+    const input = document.getElementById('scene-name-input');
+    const name = (input?.value || '').trim();
+    if (!name) { input?.focus(); return; }
+    const lights = _lightsData || [];
+    const states = lights.map(l => ({
+      entity_id: l.entity_id,
+      state: l.state,
+      brightness_pct: l.brightness_pct || null,
+      hs_color: l.hs_color || null,
+      color_temp_kelvin: l.color_temp_kelvin || null,
+      rgb_color: l.rgb_color || null,
+    }));
+    try {
+      await fetch('/ha/lights/scenes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, light_states: states }),
+      });
+    } catch {}
+    if (input) input.value = '';
+    await renderScenesOverlay();
+  }
+
+  async function applyLightScene(sceneId) {
+    try {
+      await fetch(`/ha/lights/scenes/${sceneId}/apply`, { method: 'POST' });
+      setTimeout(() => refreshLightsView(), 800);
+    } catch {}
+  }
+
+  async function deleteLightScene(sceneId, btn) {
+    btn.disabled = true;
+    try {
+      await fetch(`/ha/lights/scenes/${sceneId}`, { method: 'DELETE' });
+    } catch {}
+    await renderScenesOverlay();
   }
 
   async function refreshLightsView() {
