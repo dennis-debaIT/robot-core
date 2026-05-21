@@ -1376,6 +1376,8 @@
     if (el) el.remove();
     const faceWrap = document.querySelector('.face-wrap');
     if (faceWrap) faceWrap.style.opacity = '';
+    _timerBeepDone   = false;
+    _timerFinishedAt = 0;
   }
 
   // Timer-Polling beim Laden prüfen (falls Timer schon läuft)
