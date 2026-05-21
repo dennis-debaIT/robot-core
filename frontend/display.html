@@ -79,6 +79,7 @@
     <div class="panel-content" id="left-content">
       <div class="loading-dots" style="color:var(--muted); font-size:0.9rem;">Lade</div>
     </div>
+    <div id="left-footer" style="flex-shrink:0;"></div>
   </div>
 
   <!-- ── CENTER PANEL (FACE) ────────────────────────────── -->
@@ -4726,13 +4727,6 @@
         </div>`;
     }).join('');
 
-    const scenesSel = _lightsShowScenes ? ' selected' : '';
-    html += `
-      <div class="light-group-item${scenesSel}" onclick="openLightScenes()"
-           style="margin-top:10px;border-color:rgba(150,0,255,0.4);background:rgba(150,0,255,0.06);">
-        <span style="font-size:1.1rem;">🎬</span>
-        <div style="flex:1;font-weight:700;font-size:0.88rem;">Szenen</div>
-      </div>`;
     return html;
   }
 
@@ -5037,11 +5031,26 @@
     leftContent.style.overflowY = 'auto';
     leftContent.innerHTML = renderLightGroupsList(lights, _selectedGroup);
 
-    // Mitte: Overlay
+    // Fixer Szenen-Button im Footer
+    const leftFooter = document.getElementById('left-footer');
+    if (leftFooter) {
+      const scenesSel = _lightsShowScenes ? 'var(--accent)' : 'var(--muted)';
+      leftFooter.innerHTML = `
+        <div onclick="openLightScenes()"
+             style="display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;
+                    border-top:1px solid var(--border);
+                    background:${_lightsShowScenes ? 'rgba(150,0,255,0.08)' : 'transparent'};
+                    color:${scenesSel};font-size:0.84rem;font-weight:700;
+                    transition:background 0.15s;">
+          <span style="font-size:1.1rem;">🎬</span> Szenen
+        </div>`;
+    }
+
+    // Mitte: Overlay — bei offenem Szenen-Menü KEIN Rebuild (Input-Text bleibt erhalten)
     const overlay = document.getElementById('cal-overlay');
     if (overlay) {
       if (_lightsShowScenes) {
-        renderScenesOverlay();
+        // Overlay nur einmalig bauen — kein Refresh während User tippt
       } else if (!selected) {
         overlay.innerHTML = renderAllGroupsCenter(groups);
         overlay.classList.add('active');
@@ -5174,9 +5183,12 @@
 
   function clearLightsView() {
     _stopLightsPolling();
+    _lightsShowScenes = false;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     document.getElementById('left-content').style.overflowY = '';
+    const lf = document.getElementById('left-footer');
+    if (lf) lf.innerHTML = '';
   }
 
   // ── INIT ──────────────────────────────────────────────────
