@@ -424,7 +424,14 @@ class WeatherProvider:
         "wetter", "temperatur", "regen", "wind", "schnee", "frost", "nebel",
         "morgen", "heute", "gestern", "übermorgen", "wochenende",
         "montag", "dienstag", "mittwoch", "donnerstag", "freitag", "samstag", "sonntag",
-        "aktuell", "gerade", "jetzt", "wie", "wird", "wird's", "ist", "war",
+        "aktuell", "gerade", "jetzt", "wie", "wird", "wird's", "ist", "war", "sind", "bin",
+        # Deutsche Artikel (STT schreibt sie oft groß)
+        "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem", "einer",
+        # Häufige Verben / Wörter die kein Ort sind
+        "kannst", "sagen", "mir", "bitte", "gibt", "gibt's", "haben", "weißt",
+        "magst", "schau", "schau mal", "sag", "zeig", "zeige",
+        "du", "ich", "er", "sie", "es", "wir", "ihr",
+        "bitte", "mal", "doch", "noch", "schon", "auch",
     ])
 
     def _extract_location(self, query: str) -> str | None:

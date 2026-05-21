@@ -5410,7 +5410,8 @@
   }
 
   // ── Wake Word ──────────────────────────────────────────────
-  let _wakeWordPending = false; // warten auf erste User-Interaktion
+  let _wakeWordPending  = false;
+  let _wakeLastActivity = 0;  // Heartbeat gegen stuck _wakeActive
 
   function _startWakeWord() {
     if (_wakeActive) return;
@@ -5423,6 +5424,7 @@
     _wakeRec.interimResults = true;
     _wakeRec.maxAlternatives = 1;
     _wakeRec.onresult = (e) => {
+      _wakeLastActivity = Date.now(); // Heartbeat aktualisieren
       const word = (_attentionConfig.wake_word || 'erika').toLowerCase();
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const text = (e.results[i][0]?.transcript || '').toLowerCase();
@@ -5439,8 +5441,12 @@
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         _wakeActive = false;
         _wakeWordPending = true;
+      } else if (e.error !== 'no-speech') {
+        // Alle anderen Fehler: Session als tot markieren → Watchdog startet neu
+        _wakeActive = false;
       }
     };
+    _wakeLastActivity = Date.now();
     try {
       _wakeRec.start();
     } catch {
@@ -5475,10 +5481,16 @@
   }, { passive: true });
 
   // Watchdog: Wake Word neu starten wenn es sollte aber nicht läuft
-  // Deckt alle Fälle ab: nach STT-Ende, nach Follow-up, nach Gesprächsende
   setInterval(() => {
-    if (_attentionConfig.wake_word_enabled && !_wakeActive && !_listening && !_wakeWordPending) {
+    if (!_attentionConfig.wake_word_enabled || _listening || _wakeWordPending) return;
+    if (!_wakeActive) {
       _startWakeWord();
+      return;
+    }
+    // Stuck-Detection: _wakeActive=true aber seit >90s kein onresult → Session tot
+    if (_wakeLastActivity > 0 && Date.now() - _wakeLastActivity > 90_000) {
+      _wakeActive = false;
+      try { _wakeRec?.stop(); } catch {}
     }
   }, 2000);
 
