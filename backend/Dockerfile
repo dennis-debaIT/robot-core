@@ -3,15 +3,18 @@ FROM python:3.12-slim
 # ffmpeg für RTSP→HLS Live-Transcoding (Ring-Kameras via go2rtc)
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git openssh-client tzdata && rm -rf /var/lib/apt/lists/*
 
-ARG GIT_HASH=unknown
-ENV GIT_HASH=$GIT_HASH
 RUN git config --global --add safe.directory /app
 
 WORKDIR /app
 
+# requirements zuerst kopieren → pip-Layer bleibt im Cache solange requirements unverändert
 COPY backend/requirements.txt /app/requirements.txt
 COPY backend/requirements-dev.txt /app/requirements-dev.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt -r /app/requirements-dev.txt
+
+# GIT_HASH nach pip install → ändert sich jeden Commit, invalidiert nur die COPY-Schritte darunter
+ARG GIT_HASH=unknown
+ENV GIT_HASH=$GIT_HASH
 
 COPY backend/app /app/app
 COPY backend/tests /app/tests
