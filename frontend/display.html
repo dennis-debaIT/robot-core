@@ -3018,8 +3018,12 @@
     if (vehicle.charging) evRows.push(['Ladestatus', vehicleChargeStateLabel(vehicle.charging.state)]);
     if (vehicle.remaining_charge_time) evRows.push(['Restladezeit', formatMinutesAsHHMM(vehicle.remaining_charge_time.state)]);
     const plugState = (vehicle.plug?.state || '').toLowerCase();
+    const chargingState = (vehicle.charging?.state || '').toLowerCase();
+    const _NOT_CHARGING = ['off','false','0','not_in_charge','not charging','no_charging','charge error','charge_error','stopped'];
     const isPlugged = ['on','plugged_in','connected','true','1','charging','in_charge'].includes(plugState)
-                   || (!vehicle.plug && ['charging','in_charge','plugged_in'].includes((vehicle.charging?.state||'').toLowerCase()));
+                   || (!vehicle.plug && ['charging','in_charge','plugged_in'].includes(chargingState));
+    // Nur "Laden stoppen" zeigen wenn tatsächlich geladen wird (nicht bei Ladefehler)
+    const isActuallyCharging = isPlugged && !_NOT_CHARGING.includes(chargingState);
     const capacityKwh = vehicle.battery_capacity_kwh || null;
     const capArg = capacityKwh ? capacityKwh : 'null';
 
@@ -3027,7 +3031,7 @@
     if (vehicle.climate_button_entity) {
       actions.push(`<button class="vehicle-action-btn" onclick="pressVehicleButton('${escapeAttr(vehicle.climate_button_entity)}', this, 'Klima gestartet')">&#127777; Klima starten</button>`);
     }
-    if (vehicle.stop_charging_button_entity && isPlugged) {
+    if (vehicle.stop_charging_button_entity && isActuallyCharging) {
       actions.push(`<button class="vehicle-action-btn vehicle-action-btn--danger" onclick="pressVehicleButton('${escapeAttr(vehicle.stop_charging_button_entity)}', this, 'Ladevorgang gestoppt')">&#9211; Laden stoppen</button>`);
     }
 
@@ -3094,11 +3098,19 @@
     const labels = {
       'not_in_charge': 'Nicht am Laden',
       'not charging': 'Nicht am Laden',
+      'no_charging': 'Nicht am Laden',
+      'charge_stop': 'Laden gestoppt',
+      'charge error': 'Ladefehler',
+      'charge_error': 'Ladefehler',
+      'error': 'Fehler',
+      'stopped': 'Gestoppt',
       'off': 'Aus',
       'on': 'An',
       'charging': 'Lädt gerade',
       'in_charge': 'Lädt gerade',
+      'charge_in_progress': 'Lädt gerade',
       'plugged_in': 'Angeschlossen',
+      'connected': 'Angeschlossen',
       'home': 'Zuhause',
       'not_home': 'Unterwegs',
       'away': 'Unterwegs',
@@ -3112,8 +3124,9 @@
 
   function vehicleChargeStateLabel(value) {
     const key = String(value ?? '').trim().toLowerCase();
-    if (['off', 'false', '0', 'not_in_charge', 'not charging'].includes(key)) return 'Nicht am Laden';
-    if (['on', 'true', '1', 'charging', 'in_charge'].includes(key)) return 'Lädt gerade';
+    if (['off', 'false', '0', 'not_in_charge', 'not charging', 'no_charging', 'stopped'].includes(key)) return 'Nicht am Laden';
+    if (['charge error', 'charge_error', 'error'].includes(key)) return 'Ladefehler';
+    if (['on', 'true', '1', 'charging', 'in_charge', 'charge_in_progress'].includes(key)) return 'Lädt gerade';
     return vehicleStateLabel(value);
   }
 

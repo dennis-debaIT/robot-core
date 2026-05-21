@@ -1875,22 +1875,29 @@ class RobotCore:
                 "plugged_in", "connected", "true", "1",
                 "laden", "lädt", "active", "start",
             }
+            # Explizit kein Laden — überschreibt rct-Fallback
+            _NOT_CHARGING_STATES = {
+                "not_charging", "not charging", "charge_error", "charge error",
+                "stopped", "stop", "error", "off", "false", "0",
+                "nicht am laden", "nicht_am_laden", "no_charging",
+            }
             _PLUGGED_STATES = _CHARGING_STATES | {"plugged", "plug_in", "angeschlossen"}
 
             charge_state = (charging.get("state") or "").lower() if charging else ""
             plug_state   = (plug.get("state")    or "").lower() if plug    else ""
 
-            # Fallback: wenn Restladezeit > 0, lädt das Auto definitiv
             rct_mins = 0
             try:
                 rct_mins = int(float((rct or {}).get("state", 0) or 0))
             except (TypeError, ValueError):
                 pass
 
+            # rct > 0 nur als Fallback wenn der Ladestatus nicht explizit "kein Laden" meldet
+            explicitly_not_charging = charge_state in _NOT_CHARGING_STATES
             is_charging = (
                 charge_state in _CHARGING_STATES
-                or plug_state  in _CHARGING_STATES
-                or rct_mins > 0
+                or plug_state in _CHARGING_STATES
+                or (rct_mins > 0 and not explicitly_not_charging)
             )
 
             if is_charging:
@@ -1898,7 +1905,7 @@ class RobotCore:
                     parts.append(f"Das Auto lädt gerade — {self._fmt_minutes(rct_mins)}.")
                 else:
                     parts.append("Das Auto lädt gerade.")
-            elif plug_state in _PLUGGED_STATES:
+            elif plug_state in _PLUGGED_STATES or explicitly_not_charging:
                 parts.append("Das Auto ist angesteckt, aber nicht am Laden.")
             else:
                 parts.append("Das Auto ist aktuell nicht angesteckt.")
