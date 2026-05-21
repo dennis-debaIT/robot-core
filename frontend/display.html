@@ -2398,10 +2398,17 @@
   function feedTts(chunk, flush = false) {
     _ttsBuf += chunk;
 
+    // Flush mit komplettem Text unter 600 Zeichen → als ein einziger TTS-Request
+    if (flush && _ttsBuf.trim().length > 1 && _ttsBuf.trim().length <= 600) {
+      enqueueTts(_ttsBuf.trim());
+      _ttsBuf = '';
+      return;
+    }
+
     // Erster Chunk: 20 Zeichen für schnellen Start
-    // Folge-Chunks: 50 Zeichen — größer = weniger Lücken zwischen Chunks
+    // Folge-Chunks: 60 Zeichen — größer = weniger Lücken zwischen Chunks
     const isFirst = _ttsQueue.length === 0 && !_ttsPlaying;
-    const minLen  = isFirst ? 20 : 50;
+    const minLen  = isFirst ? 20 : 60;
 
     const patterns = [
       /^(.+?[.!?])\s/,                    // Satzende — immer sofort
