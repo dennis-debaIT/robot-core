@@ -2319,7 +2319,14 @@
       }
     }
 
-    const done = () => { _ttsPlaying = false; _playNext(); };
+    let _doneGuard = null;
+    const done = () => {
+      clearTimeout(_doneGuard);
+      _ttsPlaying = false;
+      _playNext();
+    };
+    // Watchdog: nach 30s force-done wenn Audio steckt
+    _doneGuard = setTimeout(() => { if (_ttsPlaying) done(); }, 30_000);
 
     try {
       const buf = _prefetchCache[text] || await _synthesize(text);
