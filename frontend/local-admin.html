@@ -2917,8 +2917,8 @@
           Was Erika über diese Person weiß · ${total} Einträge
         </div>`;
 
-        // Kalender-Einstellung
-        const calEntity = (prefData.find(p => p.trait_type === 'write_calendar_entity') || {}).value || '';
+        // Kalender-Einstellung (aus workspace-Facts lesen, da prefData kein Array ist)
+        const calEntity = (ws.person?.facts || []).find(f => f.trait_type === 'write_calendar_entity')?.value || '';
         const calHtml = `
           <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
             <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">📅 Kalender eintragen in</div>
