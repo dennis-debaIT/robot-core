@@ -2249,15 +2249,22 @@
   let _ttsBuf = '';
   let _currentSource = null;  // Laufende AudioBufferSourceNode
 
+  let _pendingNotifSpeech = [];
+
   function unlockAudio() {
     if (_audioUnlocked) return;
-    // Web Audio API: Context einmal resumieren → bleibt aktiv
     if (!_audioCtx) {
       _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    _audioCtx.resume().then(() => { _audioUnlocked = true; }).catch(() => {});
+    _audioCtx.resume().then(() => {
+      _audioUnlocked = true;
+      // Benachrichtigungs-TTS die während des Audio-Locks aufgelaufen sind
+      if (_pendingNotifSpeech.length) {
+        _pendingNotifSpeech.forEach(msg => { feedTts(msg, false); feedTts('', true); });
+        _pendingNotifSpeech = [];
+      }
+    }).catch(() => {});
 
-    // iOS: HTML-Audio-Element zusätzlich mit silent WAV entsperren
     if (_ttsAudio) {
       const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
       _ttsAudio.src = SILENT;
@@ -5238,10 +5245,14 @@
           .then(r => r.json()).catch(() => ({ notifications: [] }));
         const newest = (diff.notifications || [])[0];
         if (newest) {
-          feedTts(newest.message, false);
-          feedTts('', true);
+          if (_audioUnlocked) {
+            feedTts(newest.message, false);
+            feedTts('', true);
+          } else {
+            _pendingNotifSpeech.push(newest.message);
+          }
           // Glocke kurz animieren
-          btn.animate([{transform:'scale(1)'},{transform:'scale(1.3)'},{transform:'scale(1)'}], {duration:400,iterations:2});
+          if (btn.animate) btn.animate([{transform:'scale(1)'},{transform:'scale(1.3)'},{transform:'scale(1)'}], {duration:400,iterations:2});
         }
       }
       _notifLastCount = unread;

@@ -130,23 +130,41 @@ class NotificationService:
                 condition_active = bool(prev["condition_active"]) if prev else False
 
                 fire = False
-                condition_met = self._evaluate(condition_type, current_value, condition_value, last_value)
+                now_iso = datetime.now(timezone.utc).isoformat()
+                last_fired = prev["last_fired_at"] if prev else None
 
-                if condition_met and not condition_active:
-                    fire = True
-                elif not condition_met and condition_active:
-                    # Bedingung nicht mehr erfüllt → Reset
-                    conn.execute(
-                        "INSERT OR REPLACE INTO notification_rule_state(rule_id, last_value, last_fired_at, condition_active) VALUES (?,?,?,0)",
-                        (rule_id, current_value, prev["last_fired_at"] if prev else None),
-                    )
+                is_change_type = condition_type in ("changed_to", "changed")
+
+                if is_change_type:
+                    # Für Zustands-Änderungen: feuert bei echter Transition, Cooldown 5 Min.
+                    condition_met = self._evaluate(condition_type, current_value, condition_value, last_value)
+                    cooldown_ok = True
+                    if last_fired:
+                        try:
+                            from datetime import timedelta
+                            elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(last_fired)
+                            cooldown_ok = elapsed.total_seconds() >= 300
+                        except Exception:
+                            pass
+                    if condition_met and cooldown_ok:
+                        fire = True
+                else:
+                    # Für Schwellwerte: einmal feuern wenn Bedingung eintritt, Reset wenn nicht mehr
+                    condition_met = self._evaluate(condition_type, current_value, condition_value, last_value)
+                    if condition_met and not condition_active:
+                        fire = True
+                    elif not condition_met and condition_active:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO notification_rule_state(rule_id, last_value, last_fired_at, condition_active) VALUES (?,?,?,0)",
+                            (rule_id, current_value, last_fired),
+                        )
 
                 if fire:
                     msg = custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
                     notif_id = self._create_notification(conn, rule_id, msg, entity_id)
                     conn.execute(
                         "INSERT OR REPLACE INTO notification_rule_state(rule_id, last_value, last_fired_at, condition_active) VALUES (?,?,?,1)",
-                        (rule_id, current_value, datetime.now(timezone.utc).isoformat()),
+                        (rule_id, current_value, now_iso),
                     )
                     triggered.append({"id": notif_id, "message": msg, "entity_id": entity_id})
                 else:
