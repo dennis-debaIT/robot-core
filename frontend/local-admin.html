@@ -2639,7 +2639,7 @@
     saveBtn.addEventListener('click', saveConfig);
     reloadBtn.addEventListener('click', boot);
 
-    boot();
+    boot().then(() => loadAttentionSettings());
 
     // ── Erika Persönlichkeit ──────────────────────────────────
     const _PERSONALITY_FIELDS = [
@@ -3309,8 +3309,10 @@
     }
 
     async function saveAttentionSettings() {
+      const btn = document.querySelector('[onclick="saveAttentionSettings()"]');
+      if (btn) { btn.disabled = true; btn.textContent = 'Speichere…'; }
       try {
-        await fetch('/local-admin/integrations/config', {
+        const r = await fetch('/local-admin/integrations/config', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -3321,7 +3323,11 @@
             },
           }),
         });
-      } catch {}
+        if (btn) { btn.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler'; }
+        setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = 'Speichern'; } }, 2000);
+      } catch (e) {
+        if (btn) { btn.textContent = '✗ Fehler'; btn.disabled = false; }
+      }
     }
 
     document.querySelector('[data-tab-target="tab-erika"]')?.addEventListener('click', () => {
