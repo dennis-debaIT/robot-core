@@ -2386,23 +2386,22 @@
     if (t.length < 2) return;
     _ttsQueue.push(t);
     _playNext();
-    // Nächsten Chunk sofort vorab synthetisieren
-    if (_ttsQueue.length > 0) {
-      const next = _ttsQueue[_ttsQueue.length - 1];
-      if (!_prefetchCache[next]) {
-        _synthesize(next).then(url => { _prefetchCache[next] = url; }).catch(() => {});
+    // Alle Chunks in der Queue gleichzeitig vorab synthetisieren → keine Lücken
+    _ttsQueue.forEach(chunk => {
+      if (!_prefetchCache[chunk]) {
+        _synthesize(chunk).then(buf => { _prefetchCache[chunk] = buf; }).catch(() => {});
       }
-    }
+    });
   }
 
-  // Aggressives Chunking: erst nach 20 Zeichen, dann nach Pausen, dann nach Satzenden
+  // Chunking: größere Stücke = weniger Anfragen = flüssigere Wiedergabe
   function feedTts(chunk, flush = false) {
     _ttsBuf += chunk;
 
-    // Erster Chunk: schon nach ~20 Zeichen (für sofortigen Start)
-    // Folge-Chunks: nach Komma/Pause ab 30 Zeichen, nach Wortgrenze ab 65 Zeichen
+    // Erster Chunk: 20 Zeichen für schnellen Start
+    // Folge-Chunks: 50 Zeichen — größer = weniger Lücken zwischen Chunks
     const isFirst = _ttsQueue.length === 0 && !_ttsPlaying;
-    const minLen  = isFirst ? 10 : 28;
+    const minLen  = isFirst ? 20 : 50;
 
     const patterns = [
       /^(.+?[.!?])\s/,                    // Satzende — immer sofort
@@ -2422,8 +2421,8 @@
         }
       }
       // Kein Muster → Wortgrenze-Schnitt wenn Buffer zu lang
-      if (!changed && _ttsBuf.length >= 70) {
-        const cut = _ttsBuf.lastIndexOf(' ', 70);
+      if (!changed && _ttsBuf.length >= 100) {
+        const cut = _ttsBuf.lastIndexOf(' ', 100);
         if (cut > minLen) {
           enqueueTts(_ttsBuf.slice(0, cut));
           _ttsBuf = _ttsBuf.slice(cut + 1);
