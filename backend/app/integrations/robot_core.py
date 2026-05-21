@@ -1613,8 +1613,10 @@ class RobotCore:
     }
 
     _CALENDAR_PATTERN = re.compile(
-        r"\b(trag[e]?|einträgen?|erstell[e]?|anlegen?|notier[e]?|setz[e]?|füg[e]?\s+ein)\b.{0,30}\b(termin|eintrag|event|kalender|appointment)\b"
-        r"|\b(termin|eintrag).{0,10}\b(tragen?|erstell|anlegen?|notier|eintragen)\b",
+        r"\bkalendereintrag\b"
+        r"|\b(trag[e]?|erstell[e]?|anlegen?|notier[e]?|füg[e]?\s+ein).{0,50}\b(termin|eintrag|event|kalender)\b"
+        r"|\b(termin|event).{0,30}\b(tragen?|erstellen?|anlegen?|eintragen?)\b"
+        r"|\b(kalender).{0,30}\b(eintragen?|erstellen?|anlegen?|notieren?|hinzufügen?)\b",
         re.IGNORECASE,
     )
 
