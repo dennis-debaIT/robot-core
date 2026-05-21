@@ -88,48 +88,72 @@ class VehicleService:
                 (cutoff_charging.isoformat(),),
             )
 
-    def charging_history(self, vehicle_id: str, period: str = "7days") -> dict[str, Any]:
-        from zoneinfo import ZoneInfo
+    def charging_history(self, vehicle_id: str, period: str = "7days", battery_entity: str = "") -> dict[str, Any]:
+        import os
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
         try:
-            tz = ZoneInfo("Europe/Berlin")
-        except Exception:
+            tz = ZoneInfo(os.environ.get("TZ", "Europe/Berlin"))
+        except ZoneInfoNotFoundError:
             tz = timezone.utc
 
         now = datetime.now(tz)
         if period == "month":
             start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        else:
-            start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
-
-        with get_connection() as conn:
-            rows = conn.execute(
-                """
-                SELECT battery_pct, is_charging, plug_connected, recorded_at
-                FROM vehicle_charging_history
-                WHERE vehicle_id = ? AND recorded_at >= ?
-                ORDER BY recorded_at ASC
-                """,
-                (vehicle_id, start.astimezone(timezone.utc).isoformat()),
-            ).fetchall()
-
-        by_day: dict[str, list[float]] = {}
-        for row in rows:
-            try:
-                dt = datetime.fromisoformat(row["recorded_at"])
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=timezone.utc)
-                day = dt.astimezone(tz).strftime("%Y-%m-%d")
-            except Exception:
-                continue
-            by_day.setdefault(day, []).append(float(row["battery_pct"]))
-
-        if period == "month":
             days_count = (now - start).days + 1
-            labels = [(start + timedelta(days=i)).strftime("%d.%m") for i in range(days_count)]
+            labels   = [(start + timedelta(days=i)).strftime("%d.%m") for i in range(days_count)]
             day_keys = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_count)]
         else:
-            labels = [(now - timedelta(days=6 - i)).strftime("%a %d.%m") for i in range(7)]
+            start    = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+            labels   = [(now - timedelta(days=6 - i)).strftime("%a %d.%m") for i in range(7)]
             day_keys = [(now - timedelta(days=6 - i)).strftime("%Y-%m-%d") for i in range(7)]
+
+        start_utc = start.astimezone(timezone.utc)
+        now_utc   = now.astimezone(timezone.utc)
+        by_day: dict[str, list[float]] = {}
+
+        # ── Primär: HA-History direkt abrufen ──────────────────
+        if battery_entity:
+            try:
+                from app.search.providers.homeassistant import HomeAssistantProvider
+                ha = HomeAssistantProvider()
+                states = ha.get_history(battery_entity, start_utc, now_utc)
+                for s in states:
+                    try:
+                        v = float(s.get("state", ""))
+                    except (TypeError, ValueError):
+                        continue
+                    raw_ts = s.get("last_changed") or s.get("last_updated") or ""
+                    try:
+                        dt = datetime.fromisoformat(raw_ts)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        day = dt.astimezone(tz).strftime("%Y-%m-%d")
+                    except Exception:
+                        continue
+                    by_day.setdefault(day, []).append(v)
+            except Exception:
+                pass
+
+        # ── Fallback: lokale DB ─────────────────────────────────
+        if not by_day:
+            with get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT battery_pct, recorded_at FROM vehicle_charging_history
+                    WHERE vehicle_id = ? AND recorded_at >= ?
+                    ORDER BY recorded_at ASC
+                    """,
+                    (vehicle_id, start_utc.isoformat()),
+                ).fetchall()
+            for row in rows:
+                try:
+                    dt = datetime.fromisoformat(row["recorded_at"])
+                    if dt.tzinfo is None:
+                        dt = dt.replace(tzinfo=timezone.utc)
+                    day = dt.astimezone(tz).strftime("%Y-%m-%d")
+                except Exception:
+                    continue
+                by_day.setdefault(day, []).append(float(row["battery_pct"]))
 
         min_pct, max_pct, charged_pct = [], [], []
         for dk in day_keys:

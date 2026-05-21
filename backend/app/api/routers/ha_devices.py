@@ -41,7 +41,15 @@ def get_vehicle_location_history(vehicle_id: str, days: int = 14) -> dict[str, A
 
 @router.get("/vehicles/{vehicle_id}/charging-history")
 def get_vehicle_charging_history(vehicle_id: str, period: str = "7days") -> dict[str, Any]:
-    return VehicleService().charging_history(vehicle_id, period)
+    config = IntegrationConfigService().get_config()
+    svc = VehicleService()
+    # battery_entity aus Config ermitteln
+    battery_entity = ""
+    for item in (config.get("vehicles") or {}).get("items") or []:
+        if str(item.get("id") or "") == vehicle_id:
+            battery_entity = str(item.get("battery_entity") or "").strip()
+            break
+    return svc.charging_history(vehicle_id, period, battery_entity)
 
 
 @router.post("/vehicles/location-history/poll")
