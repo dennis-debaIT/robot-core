@@ -1653,7 +1653,6 @@ class RobotCore:
         r"|\b(trag[e]?|erstell[e]?|anlegen?|notier[e]?|füg[e]?\s+ein|merk[e]?\s+(?:dir|vor)|speicher[e]?).{0,60}\b(termin|eintrag|event|kalender|appointment|verabredung|besprechung|meeting)\b"
         r"|\b(termin|event|besprechung|meeting|verabredung).{0,40}\b(tragen?|erstellen?|anlegen?|eintragen?|einplanen?|merken?|speichern?)\b"
         r"|\b(kalender|terminkalender).{0,40}\b(eintragen?|erstellen?|anlegen?|notieren?|hinzufügen?|ergänzen?)\b"
-        r"|\b(ich\s+habe\s+(?:morgen|übermorgen|am\s+\w+).{0,40}(?:termin|meeting|besprechung|arzt|zahnarzt|treffen))\b"
         r"|\btrag[e]?\s+(?:bitte\s+)?(?:für\s+)?(?:mich\s+)?.{0,60}\b(?:ein|im\s+kalender)\b",
         re.IGNORECASE,
     )
