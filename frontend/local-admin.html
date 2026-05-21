@@ -491,6 +491,23 @@
             </div>
             <div id="calendar-entity-grid" class="entity-grid" style="margin-top:12px;"></div>
           </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Standard-Schreibkalender</div>
+              <p>In diesen Kalender trägt Erika per Sprache neue Termine ein — wenn für die erkannte Person kein eigener Kalender hinterlegt ist.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Fallback-Kalender</span>
+                <select id="calendar-default-write" class="field-select">
+                  <option value="">– Keiner (deaktiviert) –</option>
+                </select>
+              </label>
+            </div>
+            <div class="stack-actions" style="margin-top:10px;">
+              <button type="button" class="primary" onclick="saveDefaultWriteCalendar()">Speichern</button>
+            </div>
+          </section>
         </article>
 
         <!-- ── PV-ANLAGE ─────────────────────────────────────── -->
@@ -2554,6 +2571,42 @@
     });
     document.getElementById('cameras-hide-non-live').addEventListener('change', _applyHideNonLive);
     document.getElementById('calendar-load-btn').addEventListener('click', loadCalendarEntities);
+
+    async function _loadDefaultWriteCalendar() {
+      try {
+        const [entR, cfgR] = await Promise.all([
+          fetch('/ha/calendar/entities').then(r => r.json()),
+          fetch('/config').then(r => r.json()),
+        ]);
+        const sel = document.getElementById('calendar-default-write');
+        if (!sel) return;
+        const current = (cfgR.calendar || {}).default_write_entity || '';
+        (entR.entities || []).forEach(e => {
+          const opt = document.createElement('option');
+          opt.value = e.entity_id;
+          opt.textContent = e.name;
+          if (e.entity_id === current) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        if (current && !sel.value) sel.value = '';
+      } catch {}
+    }
+
+    async function saveDefaultWriteCalendar() {
+      const val = document.getElementById('calendar-default-write')?.value || '';
+      try {
+        const cfgR = await fetch('/config').then(r => r.json());
+        cfgR.calendar = cfgR.calendar || {};
+        cfgR.calendar.default_write_entity = val || null;
+        await fetch('/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfgR),
+        });
+      } catch {}
+    }
+
+    document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
     saveBtn.addEventListener('click', saveConfig);
@@ -2864,7 +2917,32 @@
           Was Erika über diese Person weiß · ${total} Einträge
         </div>`;
 
-        el.innerHTML = relHtml + prefHtml + header
+        // Kalender-Einstellung
+        const calEntity = (prefData.find(p => p.trait_type === 'write_calendar_entity') || {}).value || '';
+        const calHtml = `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
+            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">📅 Kalender eintragen in</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="cal-entity-${id}" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:5px 8px;font-size:0.78rem;">
+                <option value="">– Globaler Fallback –</option>
+              </select>
+              <button onclick="savePersonCalendar(${id})" style="padding:4px 12px;border-radius:6px;font-size:0.76rem;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">Speichern</button>
+            </div>
+          </div>`;
+        // Kalender-Entities laden
+        fetch('/ha/calendar/entities').then(r => r.json()).then(d => {
+          const sel = document.getElementById(`cal-entity-${id}`);
+          if (!sel) return;
+          (d.entities || []).forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.entity_id;
+            opt.textContent = e.name;
+            if (e.entity_id === calEntity) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }).catch(() => {});
+
+        el.innerHTML = relHtml + calHtml + prefHtml + header
           + (pendingRows ? `<div style="margin-bottom:6px;">${pendingRows}</div>` : '')
           + factRows
           + (memRows ? `<div style="margin-top:4px;">${memRows}</div>` : '');
@@ -2878,6 +2956,16 @@
       await fetch(`/profiles/${personId}/persona/reset`, { method: 'POST' });
       await loadPersonDetail(personId);
       await loadPersons();
+    }
+
+    async function savePersonCalendar(personId) {
+      const sel = document.getElementById(`cal-entity-${personId}`);
+      const value = sel?.value || '';
+      await fetch(`/profiles/${personId}/preferences`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ write_calendar_entity: value || null }),
+      });
     }
 
     async function savePersonPref(personId, traitType, value) {

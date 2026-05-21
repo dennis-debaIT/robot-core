@@ -91,6 +91,7 @@ class PersonPreferencePatchRequest(BaseModel):
     response_humor_preference: str | None = Field(default=None, pattern="^(higher|lower|default)$")
     response_style_preference: str | None = Field(default=None, pattern="^(sachlich|locker|default)$")
     response_length_preference: str | None = Field(default=None, pattern="^(short|detailed|default)$")
+    write_calendar_entity: str | None = Field(default=None)
 
     def to_patch(self) -> dict[str, str]:
         return self.model_dump(exclude_none=True)

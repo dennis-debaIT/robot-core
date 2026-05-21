@@ -11,6 +11,7 @@ from app.api import deps
 from app.api.routers import (
     chat,
     content,
+    ha_calendar,
     ha_cameras,
     ha_devices,
     ha_lights,
@@ -181,3 +182,4 @@ app.include_router(personality_audio.router)
 app.include_router(people.router)
 app.include_router(timer.router)
 app.include_router(notifications.router)
+app.include_router(ha_calendar.router)

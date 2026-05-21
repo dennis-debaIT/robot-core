@@ -1062,6 +1062,10 @@ class RobotCore:
             if scene_reply:
                 direct_reply = scene_reply
         if direct_reply is None:
+            calendar_reply = self._try_calendar_command(captured, person_name)
+            if calendar_reply:
+                direct_reply = calendar_reply
+        if direct_reply is None:
             timer_reply = self._try_timer_command(captured)
             if timer_reply:
                 direct_reply = timer_reply
@@ -1607,6 +1611,67 @@ class RobotCore:
         "elf": 11, "zwölf": 12, "fünfzehn": 15, "zwanzig": 20,
         "dreißig": 30, "vierzig": 40, "fünfzig": 50, "sechzig": 60,
     }
+
+    _CALENDAR_PATTERN = re.compile(
+        r"\b(trag[e]?|einträgen?|erstell[e]?|anlegen?|notier[e]?|setz[e]?|füg[e]?\s+ein)\b.{0,30}\b(termin|eintrag|event|kalender|appointment)\b"
+        r"|\b(termin|eintrag).{0,10}\b(tragen?|erstell|anlegen?|notier|eintragen)\b",
+        re.IGNORECASE,
+    )
+
+    def _try_calendar_command(self, captured: str, person_name: str | None) -> str | None:
+        if not self._CALENDAR_PATTERN.search(captured):
+            return None
+        try:
+            from app.services.calendar_write_service import CalendarWriteService
+            svc = CalendarWriteService()
+            entity_id = svc.resolve_entity(person_name)
+            if not entity_id:
+                return "Kein Kalender konfiguriert. Bitte im Admin unter Personen oder Kalender einen Schreibkalender festlegen."
+
+            # LLM für strukturierte Extraktion von Datum/Zeit/Titel
+            from datetime import datetime, timezone
+            from app.brain.llm_client import LLMRouter
+            today = datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+            weekday_de = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"]
+            today_label = weekday_de[datetime.now().weekday()] + ", " + today
+            extraction_prompt = (
+                f"Heute ist {today_label}. Extrahiere aus folgendem Text einen Kalendereintrag und antworte NUR mit gültigem JSON.\n"
+                f"Format: {{\"title\": \"...\", \"date\": \"YYYY-MM-DD\", \"time\": \"HH:MM\", \"duration_min\": 60}}\n"
+                f"Wenn kein Datum/Zeit erkennbar: date=heute, time=\"12:00\". Dauer Standard 60 Min.\n"
+                f"Text: \"{captured}\""
+            )
+            router = LLMRouter()
+            result = router.generate({
+                "messages": [
+                    {"role": "system", "content": "Du extrahierst strukturierte Kalendereinträge aus natürlicher Sprache. Antworte nur mit JSON."},
+                    {"role": "user", "content": extraction_prompt},
+                ],
+            }, timeout_seconds=10)
+            reply_text = (result.get("reply") or "").strip()
+
+            # JSON aus Antwort extrahieren
+            import json, re as _re
+            m = _re.search(r'\{[^}]+\}', reply_text, _re.DOTALL)
+            if not m:
+                return "Ich konnte den Termin nicht verstehen. Bitte genauer formulieren."
+            data = json.loads(m.group(0))
+            title       = str(data.get("title") or "Termin").strip()
+            date_str    = str(data.get("date") or today)
+            time_str    = str(data.get("time") or "12:00")
+            duration_m  = int(data.get("duration_min") or 60)
+
+            from datetime import timedelta
+            start_dt = datetime.fromisoformat(f"{date_str}T{time_str}:00")
+            end_dt   = start_dt + timedelta(minutes=duration_m)
+            ok = svc.create_event(entity_id, title, start_dt, end_dt)
+            if not ok:
+                return "Fehler beim Anlegen des Termins in Home Assistant."
+
+            # Bestätigung formatieren
+            weekday = weekday_de[start_dt.weekday()]
+            return f"Termin '{title}' wurde für {weekday}, {start_dt.strftime('%d.%m.%Y')} um {start_dt.strftime('%H:%M')} Uhr eingetragen."
+        except Exception:
+            return None
 
     def _try_scene_command(self, captured: str) -> str | None:
         import re, json

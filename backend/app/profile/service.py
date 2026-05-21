@@ -430,6 +430,7 @@ class PersonProfileService:
             "response_humor_preference",
             "response_style_preference",
             "response_length_preference",
+            "write_calendar_entity",
         }
         return {
             fact["trait_type"]: fact["value"]
