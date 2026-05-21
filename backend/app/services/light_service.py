@@ -44,7 +44,9 @@ class LightService:
         if domain == "light":
             if payload.get("brightness_pct") is not None:
                 data["brightness_pct"] = int(payload["brightness_pct"])
-            if payload.get("rgb_color") is not None:
+            if payload.get("hs_color") is not None:
+                data["hs_color"] = payload["hs_color"]
+            elif payload.get("rgb_color") is not None:
                 data["rgb_color"] = payload["rgb_color"]
             if payload.get("color_temp_kelvin") is not None:
                 data["color_temp_kelvin"] = int(payload["color_temp_kelvin"])

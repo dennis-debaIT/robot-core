@@ -4670,7 +4670,7 @@
 
   // white:true → Weißton; kelvin = Zielwert (wird auf Lampen-Range geclampt)
   const _COLOR_PRESETS = [
-    { label:'Warmweiß',   white:true,  kelvin:2700, ct:370, rgb:[255,174,91]  },
+    { label:'Warmweiß',   white:true,  kelvin:2700, ct:370, rgb:[255,174,90],  hs:[30.427,64.705] },
     { label:'Neutralweiß',white:true,  kelvin:4000, ct:250, rgb:[255,228,150] },
     { label:'Kaltweiß',   white:true,  kelvin:6500, ct:154, rgb:[200,220,255] },
     { label:'Rot',        white:false, ct:null,     rgb:[255,0,0]    },
@@ -4737,8 +4737,13 @@
         colorArg = '{color_temp_kelvin:' + k + '}';
         if (light.color_mode === 'color_temp' && light.color_temp_kelvin)
           active = Math.abs(light.color_temp_kelvin - k) < 200;
+      } else if (c.hs) {
+        // Preset hat exakte HS-Werte → direkt senden, kein Konversionsfehler
+        colorArg = '{hs_color:[' + c.hs.join(',') + ']}';
+        if (light.hs_color)
+          active = Math.abs(light.hs_color[0]-c.hs[0]) < 5
+                && Math.abs(light.hs_color[1]-c.hs[1]) < 5;
       } else {
-        // Nur HS/RGB (z.B. IKEA Tradfri) → weiter per RGB
         colorArg = '{rgb_color:[' + c.rgb.join(',') + ']}';
         if (light.rgb_color)
           active = Math.abs(light.rgb_color[0]-c.rgb[0]) < 50
