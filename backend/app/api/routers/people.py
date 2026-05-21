@@ -4,6 +4,9 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
+import json
+from datetime import datetime, timezone
+
 from app.api.deps import get_core
 from app.api.schemas import FactUpdateRequest, PersonPreferencePatchRequest
 from app.database.db import get_connection, read_state, write_state
@@ -110,3 +113,44 @@ def set_active_person(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     with get_connection() as conn:
         write_state(conn, "active_person_name", name)
     return {"name": name}
+
+
+# ── Gesichtserkennung ─────────────────────────────────────────────────────────
+
+@router.post("/profiles/{person_id}/face-descriptors")
+def save_face_descriptors(person_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    descriptors = payload.get("descriptors")
+    if not isinstance(descriptors, list) or not descriptors:
+        raise HTTPException(status_code=400, detail="descriptors (Liste von Arrays) fehlen")
+    now = datetime.now(timezone.utc).isoformat()
+    with get_connection() as conn:
+        conn.execute("DELETE FROM person_face_descriptors WHERE person_id = ?", (person_id,))
+        for desc in descriptors:
+            conn.execute(
+                "INSERT INTO person_face_descriptors(person_id, descriptor, created_at) VALUES (?,?,?)",
+                (person_id, json.dumps(desc), now),
+            )
+    return {"ok": True, "count": len(descriptors)}
+
+
+@router.delete("/profiles/{person_id}/face-descriptors")
+def delete_face_descriptors(person_id: int) -> dict[str, Any]:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM person_face_descriptors WHERE person_id = ?", (person_id,))
+    return {"ok": True}
+
+
+@router.get("/profiles/face-descriptors/all")
+def get_all_face_descriptors() -> dict[str, Any]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT p.id, p.name, pfd.descriptor
+               FROM person_face_descriptors pfd
+               JOIN persons p ON p.id = pfd.person_id
+               ORDER BY p.name"""
+        ).fetchall()
+    persons: dict[str, list] = {}
+    for row in rows:
+        name = row["name"]
+        persons.setdefault(name, []).append(json.loads(row["descriptor"]))
+    return {"persons": [{"name": n, "descriptors": d} for n, d in persons.items()]}

@@ -5332,6 +5332,153 @@
   setInterval(_pollNotifications, 15000);
   _pollNotifications();
 
+  // ── Wake Word + Gesichtserkennung ─────────────────────────
+  let _attentionConfig = { wake_word_enabled: false, wake_word: 'erika', face_recognition_enabled: false };
+  let _wakeRec = null;
+  let _wakeActive = false;
+  let _faceVideo = null;
+  let _faceLoopTimer = null;
+  let _faceMatcher = null;
+  let _lastFacePerson = null;
+  const _FACEAPI_CDN   = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+  const _FACEAPI_MODELS = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+  let _faceApiReady = false;
+
+  async function _loadAttentionConfig() {
+    try {
+      const cfg = await fetch('/config').then(r => r.json());
+      _attentionConfig = { ..._attentionConfig, ...(cfg.attention || {}) };
+    } catch {}
+    if (_attentionConfig.wake_word_enabled) _startWakeWord();
+    if (_attentionConfig.face_recognition_enabled) _startFaceRecognition();
+  }
+
+  // ── Wake Word ──────────────────────────────────────────────
+  function _startWakeWord() {
+    if (_wakeActive) return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    _wakeActive = true;
+    _wakeRec = new SR();
+    _wakeRec.lang = 'de-DE';
+    _wakeRec.continuous = false;
+    _wakeRec.interimResults = false;
+    _wakeRec.onresult = (e) => {
+      const text = (e.results[0]?.[0]?.transcript || '').toLowerCase();
+      if (text.includes((_attentionConfig.wake_word || 'erika').toLowerCase())) {
+        _onWakeDetected();
+      }
+    };
+    _wakeRec.onend = () => {
+      if (_wakeActive && !_listening) {
+        setTimeout(() => { try { _wakeRec.start(); } catch {} }, 300);
+      }
+    };
+    try { _wakeRec.start(); } catch {}
+  }
+
+  function _stopWakeWord() {
+    _wakeActive = false;
+    try { _wakeRec?.stop(); } catch {}
+  }
+
+  function _onWakeDetected() {
+    if (_listening) return;
+    // Kurzes visuelles Feedback
+    const mic = document.getElementById('mic-btn');
+    if (mic) { mic.style.boxShadow = '0 0 20px 6px rgba(0,200,255,0.8)'; setTimeout(() => mic.style.boxShadow = '', 600); }
+    unlockAudio();
+    startSpeech();
+    // Wake-Word-Listener pausieren während STT aktiv
+    _stopWakeWord();
+  }
+
+  // Wenn STT endet, Wake Word wieder starten
+  const _origStopSpeech = stopSpeech;
+  stopSpeech = function() {
+    _origStopSpeech();
+    if (_attentionConfig.wake_word_enabled) setTimeout(_startWakeWord, 500);
+  };
+
+  // ── Gesichtserkennung ──────────────────────────────────────
+  async function _loadFaceApiLib() {
+    if (_faceApiReady) return true;
+    if (!window.faceapi) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = _FACEAPI_CDN;
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri(_FACEAPI_MODELS),
+      faceapi.nets.faceLandmark68Net.loadFromUri(_FACEAPI_MODELS),
+      faceapi.nets.faceRecognitionNet.loadFromUri(_FACEAPI_MODELS),
+    ]);
+    _faceApiReady = true;
+    return true;
+  }
+
+  async function _loadFaceMatcher() {
+    const d = await fetch('/profiles/face-descriptors/all').then(r => r.json()).catch(() => ({ persons: [] }));
+    if (!d.persons?.length) { _faceMatcher = null; return; }
+    const labeled = d.persons.map(p =>
+      new faceapi.LabeledFaceDescriptors(p.name, p.descriptors.map(arr => new Float32Array(arr)))
+    );
+    _faceMatcher = new faceapi.FaceMatcher(labeled, 0.55);
+  }
+
+  async function _startFaceRecognition() {
+    try {
+      await _loadFaceApiLib();
+      await _loadFaceMatcher();
+      if (!_faceMatcher) return;
+
+      _faceVideo = document.createElement('video');
+      _faceVideo.autoplay = true;
+      _faceVideo.muted = true;
+      _faceVideo.playsInline = true;
+      _faceVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+      document.body.appendChild(_faceVideo);
+
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 320, height: 240 } });
+      _faceVideo.srcObject = stream;
+      await new Promise(r => { _faceVideo.onloadedmetadata = r; });
+
+      _faceLoopTimer = setInterval(_faceDetectionTick, 1500);
+    } catch {}
+  }
+
+  async function _faceDetectionTick() {
+    if (!_faceVideo || !_faceMatcher || !_faceApiReady) return;
+    try {
+      const det = await faceapi.detectSingleFace(_faceVideo, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+        .withFaceLandmarks().withFaceDescriptor();
+      if (!det) { _lastFacePerson = null; return; }
+
+      const match = _faceMatcher.findBestMatch(det.descriptor);
+      if (match.label === 'unknown') { _lastFacePerson = null; return; }
+
+      if (match.label !== _lastFacePerson) {
+        _lastFacePerson = match.label;
+        // Aktive Person setzen
+        fetch('/active-person', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: match.label }),
+        }).catch(() => {});
+        // Wenn nicht schon in Gespräch → STT aktivieren
+        if (!_listening && !_chatBusy) {
+          unlockAudio();
+          setTimeout(startSpeech, 500);
+        }
+      }
+    } catch {}
+  }
+
+  setTimeout(_loadAttentionConfig, 2000);
+
   // ── INIT ──────────────────────────────────────────────────
   applyMode('idle');
   setInterval(pollDisplayState, 2000);

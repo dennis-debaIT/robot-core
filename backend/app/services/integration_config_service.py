@@ -86,6 +86,11 @@ class IntegrationConfigService:
                 "colors": {},
                 "open_trigger": "both",
             },
+            "attention": {
+                "wake_word_enabled": True,
+                "wake_word": "erika",
+                "face_recognition_enabled": False,
+            },
             "printer": {
                 "enabled":        False,
                 "printer_ip":     "",

@@ -792,6 +792,36 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">👁 Aufmerksamkeit & Wake Word</div>
+              <p>Erika aktiviert sich automatisch wenn sie angesprochen oder erkannt wird.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block checkbox-block">
+                <span class="field-label">Wake Word</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-wake-enabled">
+                  <span>Aktiviert</span>
+                </label>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Wake Word (Auslösewort)</span>
+                <input class="field-input" id="attention-wake-word" type="text" placeholder="erika">
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Gesichtserkennung</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-face-enabled">
+                  <span>Aktiviert (Kamera erforderlich)</span>
+                </label>
+              </label>
+            </div>
+            <div class="stack-actions" style="margin-top:10px;">
+              <button type="button" class="primary" onclick="saveAttentionSettings()">Speichern</button>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">API-Auslastung</div>
               <p>Wird nach jedem Gespräch automatisch aktualisiert. "Aktualisieren" macht einen Minimal-Request.</p>
             </div>
@@ -2735,7 +2765,7 @@
       await loadPersonality();
     }
 
-    document.querySelector('[data-tab-target="tab-erika"]')?.addEventListener('click', loadPersonality);
+    // tab-erika listener → in saveAttentionSettings Block zusammengeführt
 
     // ── Personen ──────────────────────────────────────────────
     let _personsData = [];
@@ -2917,6 +2947,29 @@
           Was Erika über diese Person weiß · ${total} Einträge
         </div>`;
 
+        // Gesichtserkennung: hat Person bereits Deskriptoren?
+        const hasFace = await fetch(`/profiles/face-descriptors/all`).then(r => r.json())
+          .then(d => (d.persons || []).some(p => p.name === (ws.person?.name || ''))).catch(() => false);
+        const faceHtml = `
+          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
+            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+              👁 Personenerkennung
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:0.78rem;color:${hasFace ? '#4caf50' : 'var(--muted)'};">
+                ${hasFace ? '✓ Gesicht hinterlegt' : 'Kein Gesicht gespeichert'}
+              </span>
+              <button onclick="startFaceCapture(${id},'${escapeHtml(ws.person?.name||'')}')"
+                style="padding:5px 14px;border-radius:8px;font-size:0.76rem;cursor:pointer;
+                       background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;font-weight:700;">
+                ${hasFace ? '↺ Neu aufnehmen' : '+ Gesicht einrichten'}
+              </button>
+              ${hasFace ? `<button onclick="deleteFaceDescriptors(${id})"
+                style="padding:5px 12px;border-radius:8px;font-size:0.76rem;cursor:pointer;
+                       background:none;border:1px solid var(--border);color:var(--muted);">Löschen</button>` : ''}
+            </div>
+          </div>`;
+
         // Kalender-Einstellung (aus workspace-Facts lesen, da prefData kein Array ist)
         const calEntity = (ws.person?.facts || []).find(f => f.trait_type === 'write_calendar_entity')?.value || '';
         const calHtml = `
@@ -2943,7 +2996,7 @@
           });
         }).catch(() => {});
 
-        el.innerHTML = relHtml + calHtml + prefHtml + header
+        el.innerHTML = relHtml + faceHtml + calHtml + prefHtml + header
           + (pendingRows ? `<div style="margin-bottom:6px;">${pendingRows}</div>` : '')
           + factRows
           + (memRows ? `<div style="margin-top:4px;">${memRows}</div>` : '');
@@ -2957,6 +3010,92 @@
       await fetch(`/profiles/${personId}/persona/reset`, { method: 'POST' });
       await loadPersonDetail(personId);
       await loadPersons();
+    }
+
+    const FACEAPI_CDN = 'https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js';
+    const FACEAPI_MODELS = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+    let _faceApiLoaded = false;
+
+    async function _loadFaceApi() {
+      if (_faceApiLoaded) return true;
+      if (!document.querySelector(`script[src="${FACEAPI_CDN}"]`)) {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = FACEAPI_CDN;
+          s.onload = res; s.onerror = rej;
+          document.head.appendChild(s);
+        });
+      }
+      await Promise.all([
+        faceapi.nets.ssdMobilenetv1.loadFromUri(FACEAPI_MODELS),
+        faceapi.nets.faceLandmark68Net.loadFromUri(FACEAPI_MODELS),
+        faceapi.nets.faceRecognitionNet.loadFromUri(FACEAPI_MODELS),
+      ]);
+      _faceApiLoaded = true;
+      return true;
+    }
+
+    async function startFaceCapture(personId, personName) {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;';
+      modal.innerHTML = `
+        <div style="font-size:1rem;font-weight:700;color:#fff;">Gesicht einrichten: <span style="color:#00c8ff;">${escapeHtml(personName)}</span></div>
+        <div style="position:relative;border-radius:12px;overflow:hidden;border:2px solid rgba(0,200,255,0.4);">
+          <video id="face-capture-video" autoplay muted playsinline style="width:320px;height:240px;object-fit:cover;display:block;transform:scaleX(-1);"></video>
+          <div id="face-capture-status" style="position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:0.82rem;font-weight:700;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,0.8);">Lade Modelle…</div>
+        </div>
+        <div style="display:flex;gap:10px;">
+          <button id="face-capture-btn" disabled style="padding:10px 24px;border-radius:10px;font-weight:800;font-size:0.88rem;cursor:pointer;background:rgba(0,200,255,0.15);border:1px solid rgba(0,200,255,0.4);color:#00c8ff;">Aufnehmen</button>
+          <button onclick="this.closest('[style*=\"position:fixed\"]').remove();document.getElementById('face-capture-stream')?.getTracks().forEach(t=>t.stop());" style="padding:10px 18px;border-radius:10px;font-size:0.84rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">Abbrechen</button>
+        </div>`;
+      document.body.appendChild(modal);
+
+      const video = document.getElementById('face-capture-video');
+      const status = document.getElementById('face-capture-status');
+      const captureBtn = document.getElementById('face-capture-btn');
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        video.srcObject = stream;
+        video.id = 'face-capture-video';
+        status.textContent = 'Lade Modelle…';
+        await _loadFaceApi();
+        status.textContent = 'Bereit — Gesicht in die Kamera halten';
+        captureBtn.disabled = false;
+
+        captureBtn.onclick = async () => {
+          captureBtn.disabled = true;
+          const descriptors = [];
+          for (let i = 0; i < 8; i++) {
+            status.textContent = `Aufnahme ${i+1}/8…`;
+            await new Promise(r => setTimeout(r, 400));
+            const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+            if (det) descriptors.push(Array.from(det.descriptor));
+          }
+          stream.getTracks().forEach(t => t.stop());
+          if (descriptors.length < 3) {
+            status.textContent = '❌ Zu wenig Gesichter erkannt. Bitte erneut versuchen.';
+            captureBtn.disabled = false;
+            return;
+          }
+          status.textContent = `✓ ${descriptors.length} Aufnahmen — speichere…`;
+          await fetch(`/profiles/${personId}/face-descriptors`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ descriptors }),
+          });
+          status.textContent = '✓ Gesicht gespeichert!';
+          setTimeout(() => { modal.remove(); loadPersonDetail(personId); }, 1200);
+        };
+      } catch (e) {
+        status.textContent = '❌ Kamera nicht verfügbar: ' + e.message;
+      }
+    }
+
+    async function deleteFaceDescriptors(personId) {
+      if (!await showConfirm('Gesichtsdaten dieser Person löschen?', 'Löschen')) return;
+      await fetch(`/profiles/${personId}/face-descriptors`, { method: 'DELETE' });
+      loadPersonDetail(personId);
     }
 
     async function savePersonCalendar(personId) {
@@ -3147,6 +3286,40 @@
 
     document.getElementById('notif-add-btn')?.addEventListener('click', showAddNotifForm);
     document.querySelector('[data-tab-target="tab-notifications"]')?.addEventListener('click', loadNotifRules);
+
+    // ── Aufmerksamkeit / Wake Word ────────────────────────────
+    async function loadAttentionSettings() {
+      try {
+        const cfg = await fetch('/config').then(r => r.json());
+        const att = cfg.attention || {};
+        const wakeEl = document.getElementById('attention-wake-enabled');
+        const wordEl = document.getElementById('attention-wake-word');
+        const faceEl = document.getElementById('attention-face-enabled');
+        if (wakeEl) wakeEl.checked = att.wake_word_enabled !== false;
+        if (wordEl) wordEl.value = att.wake_word || 'erika';
+        if (faceEl) faceEl.checked = !!att.face_recognition_enabled;
+      } catch {}
+    }
+
+    async function saveAttentionSettings() {
+      try {
+        const cfg = await fetch('/config').then(r => r.json());
+        cfg.attention = cfg.attention || {};
+        cfg.attention.wake_word_enabled = document.getElementById('attention-wake-enabled')?.checked ?? true;
+        cfg.attention.wake_word = document.getElementById('attention-wake-word')?.value.trim() || 'erika';
+        cfg.attention.face_recognition_enabled = document.getElementById('attention-face-enabled')?.checked ?? false;
+        await fetch('/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(cfg),
+        });
+      } catch {}
+    }
+
+    document.querySelector('[data-tab-target="tab-erika"]')?.addEventListener('click', () => {
+      loadPersonality();
+      loadAttentionSettings();
+    });
 
     // ── LLM Konfiguration ─────────────────────────────────────
     let _llmProviders = {};
