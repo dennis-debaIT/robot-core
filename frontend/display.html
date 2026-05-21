@@ -5516,6 +5516,26 @@
 
   setTimeout(_loadAttentionConfig, 2000);
 
+  // ── Follow-Up Listening — nach TTS automatisch lauschen ───
+  let _ttsWasActive = false;
+  let _followUpTimer = null;
+
+  setInterval(() => {
+    const ttsActive = _ttsPlaying || _ttsQueue.length > 0;
+    if (_ttsWasActive && !ttsActive && !_listening && !_chatBusy) {
+      // TTS gerade beendet → kurz warten dann automatisch lauschen
+      clearTimeout(_followUpTimer);
+      _followUpTimer = setTimeout(() => {
+        if (!_listening && !_ttsPlaying && !_chatBusy) {
+          startSpeech();
+          // Auto-Stop nach 7 Sekunden falls kein Input kommt
+          setTimeout(() => { if (_listening) stopSpeech(); }, 7000);
+        }
+      }, 600);
+    }
+    _ttsWasActive = ttsActive;
+  }, 300);
+
   // ── INIT ──────────────────────────────────────────────────
   applyMode('idle');
   setInterval(pollDisplayState, 2000);
