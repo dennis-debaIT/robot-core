@@ -3198,7 +3198,7 @@
         return;
       }
       list.innerHTML = rules.map(r => `
-        <div class="module-card" style="margin-bottom:10px;">
+        <div class="module-card" style="margin-bottom:10px;" id="notif-rule-${r.id}">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
             <strong style="font-size:0.9rem;">${escapeHtml(r.label)}</strong>
             <div style="display:flex;gap:8px;align-items:center;">
@@ -3207,15 +3207,73 @@
                 <span>Aktiv</span>
               </label>
               <button type="button" class="secondary" style="padding:4px 12px;font-size:0.78rem;"
+                onclick="editNotifRule(${r.id})">Bearbeiten</button>
+              <button type="button" class="secondary" style="padding:4px 12px;font-size:0.78rem;"
                 onclick="deleteNotifRule(${r.id})">Löschen</button>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.78rem;color:var(--muted);">
+          <div id="notif-rule-view-${r.id}" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.78rem;color:var(--muted);">
             <span>Entity: <strong style="color:var(--text);">${escapeHtml(r.entity_id)}</strong></span>
             <span>Bedingung: <strong style="color:var(--text);">${CONDITION_TYPES.find(c=>c.value===r.condition_type)?.label || r.condition_type}${r.condition_value ? ' ' + r.condition_value : ''}</strong></span>
             ${r.message ? `<span style="grid-column:1/-1;">Text: <em>${escapeHtml(r.message)}</em></span>` : ''}
           </div>
+          <div id="notif-rule-edit-${r.id}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Bezeichnung</span>
+                <input class="field-input" id="ne-label-${r.id}" type="text" value="${escapeHtml(r.label)}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Entity-ID</span>
+                <input class="field-input" id="ne-entity-${r.id}" type="text" value="${escapeHtml(r.entity_id)}">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Bedingung</span>
+                <select class="field-select" id="ne-ctype-${r.id}">
+                  ${CONDITION_TYPES.map(c => `<option value="${c.value}" ${c.value===r.condition_type?'selected':''}>${c.label}</option>`).join('')}
+                </select>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Wert</span>
+                <input class="field-input" id="ne-cval-${r.id}" type="text" value="${escapeHtml(r.condition_value||'')}">
+              </label>
+              <label class="field-block" style="grid-column:1/-1;">
+                <span class="field-label">Eigener Text</span>
+                <input class="field-input" id="ne-msg-${r.id}" type="text" value="${escapeHtml(r.message||'')}">
+              </label>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button type="button" class="primary" onclick="saveEditNotifRule(${r.id})">Speichern</button>
+              <button type="button" class="secondary" onclick="cancelEditNotifRule(${r.id})">Abbrechen</button>
+            </div>
+          </div>
         </div>`).join('');
+    }
+
+    function editNotifRule(id) {
+      document.getElementById(`notif-rule-view-${id}`)?.style.setProperty('display','none');
+      document.getElementById(`notif-rule-edit-${id}`)?.style.setProperty('display','block');
+    }
+
+    function cancelEditNotifRule(id) {
+      document.getElementById(`notif-rule-edit-${id}`)?.style.setProperty('display','none');
+      document.getElementById(`notif-rule-view-${id}`)?.style.setProperty('display','grid');
+    }
+
+    async function saveEditNotifRule(id) {
+      const label  = document.getElementById(`ne-label-${id}`)?.value.trim();
+      const entity = document.getElementById(`ne-entity-${id}`)?.value.trim();
+      const ctype  = document.getElementById(`ne-ctype-${id}`)?.value;
+      const cval   = document.getElementById(`ne-cval-${id}`)?.value.trim();
+      const msg    = document.getElementById(`ne-msg-${id}`)?.value.trim();
+      if (!label || !entity) return;
+      const enabled = document.querySelector(`#notif-rule-${id} input[type=checkbox]`)?.checked ?? true;
+      await fetch(`/notification-rules/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, entity_id: entity, condition_type: ctype, condition_value: cval || null, message: msg || null, enabled }),
+      });
+      loadNotifRules();
     }
 
     async function toggleNotifRule(id, enabled) {
