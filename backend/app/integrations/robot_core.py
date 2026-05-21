@@ -866,7 +866,7 @@ class RobotCore:
             m = _re.search(pattern, message, _re.IGNORECASE)
             if m:
                 value = m.group(1).strip().rstrip('.,!? ')
-                if not value or len(value) < 2:
+                if not value or (not value.isdigit() and len(value) < 2):
                     continue
                 value = value[0].upper() + value[1:]
                 try:
