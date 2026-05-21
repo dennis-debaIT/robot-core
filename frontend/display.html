@@ -5355,6 +5355,8 @@
   }
 
   // ── Wake Word ──────────────────────────────────────────────
+  let _wakeWordPending = false; // warten auf erste User-Interaktion
+
   function _startWakeWord() {
     if (_wakeActive) return;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -5375,24 +5377,37 @@
         setTimeout(() => { try { _wakeRec.start(); } catch {} }, 300);
       }
     };
-    try { _wakeRec.start(); } catch {}
+    try {
+      _wakeRec.start();
+    } catch {
+      // Noch kein User-Gesture — beim nächsten Antippen starten
+      _wakeActive = false;
+      _wakeWordPending = true;
+    }
   }
 
   function _stopWakeWord() {
     _wakeActive = false;
+    _wakeWordPending = false;
     try { _wakeRec?.stop(); } catch {}
   }
 
   function _onWakeDetected() {
     if (_listening) return;
-    // Kurzes visuelles Feedback
     const mic = document.getElementById('mic-btn');
     if (mic) { mic.style.boxShadow = '0 0 20px 6px rgba(0,200,255,0.8)'; setTimeout(() => mic.style.boxShadow = '', 600); }
     unlockAudio();
     startSpeech();
-    // Wake-Word-Listener pausieren während STT aktiv
     _stopWakeWord();
   }
+
+  // Beim ersten Touch/Klick: Wake Word starten falls noch ausstehend
+  document.addEventListener('pointerdown', () => {
+    if (_wakeWordPending && _attentionConfig.wake_word_enabled) {
+      _wakeWordPending = false;
+      setTimeout(_startWakeWord, 200);
+    }
+  }, { passive: true });
 
   // Wenn STT endet, Wake Word wieder starten
   const _origStopSpeech = stopSpeech;
@@ -5437,15 +5452,23 @@
       if (!_faceMatcher) return;
 
       _faceVideo = document.createElement('video');
-      _faceVideo.autoplay = true;
+      _faceVideo.setAttribute('autoplay', '');
+      _faceVideo.setAttribute('muted', '');
+      _faceVideo.setAttribute('playsinline', '');  // iOS + Android
       _faceVideo.muted = true;
-      _faceVideo.playsInline = true;
-      _faceVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;';
+      _faceVideo.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:320px;height:240px;pointer-events:none;';
       document.body.appendChild(_faceVideo);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 320, height: 240 } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'user' }, width: { ideal: 320 }, height: { ideal: 240 } },
+      });
       _faceVideo.srcObject = stream;
-      await new Promise(r => { _faceVideo.onloadedmetadata = r; });
+      await new Promise((res, rej) => {
+        _faceVideo.onloadedmetadata = res;
+        _faceVideo.onerror = rej;
+        setTimeout(res, 3000); // Timeout-Fallback
+      });
+      await _faceVideo.play().catch(() => {});
 
       _faceLoopTimer = setInterval(_faceDetectionTick, 1500);
     } catch {}
