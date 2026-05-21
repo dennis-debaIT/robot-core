@@ -2296,6 +2296,8 @@
     }
   }
 
+  let _ttsFormat = 'audio/wav';
+
   async function _synthesize(text) {
     const r = await fetch('/tts/synthesize', {
       method: 'POST',
@@ -2303,7 +2305,8 @@
       body: JSON.stringify({ text }),
     });
     if (!r.ok) throw new Error('TTS failed');
-    return r.arrayBuffer();  // ArrayBuffer statt Blob-URL — für Web Audio API
+    _ttsFormat = r.headers.get('X-TTS-Format') === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+    return r.arrayBuffer();
   }
 
   async function _playNext() {
@@ -2333,7 +2336,8 @@
       delete _prefetchCache[text];
 
       // Blob-URL aus ArrayBuffer — für beide Wiedergabe-Wege nutzbar
-      const blob = new Blob([buf], { type: 'audio/wav' });
+      const fmt  = _ttsFormat || 'audio/wav';
+      const blob = new Blob([buf], { type: fmt });
       const url  = URL.createObjectURL(blob);
 
       // ── Weg 1: _ttsAudio (durch silent-WAV bereits aktiviert) ──

@@ -822,6 +822,37 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">🔊 Sprachausgabe (TTS)</div>
+              <p>Edge TTS nutzt Microsoft Azure (kostenlos, Internet erforderlich) und klingt deutlich natürlicher. Sherpa ONNX läuft vollständig lokal.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">TTS Provider</span>
+                <select class="field-select" id="tts-provider-select">
+                  <option value="disabled">Deaktiviert</option>
+                  <option value="edge_tts">Edge TTS (Microsoft, empfohlen)</option>
+                  <option value="sherpa_onnx">Sherpa ONNX (lokal)</option>
+                </select>
+              </label>
+              <label class="field-block" id="edge-voice-field">
+                <span class="field-label">Edge TTS Stimme</span>
+                <select class="field-select" id="tts-edge-voice">
+                  <option value="de-DE-KatjaNeural">Katja (weiblich, Standard)</option>
+                  <option value="de-DE-ConradNeural">Conrad (männlich)</option>
+                  <option value="de-DE-AmalaNeural">Amala (weiblich)</option>
+                  <option value="de-AT-IngridNeural">Ingrid (österreichisch)</option>
+                  <option value="de-CH-LeniNeural">Leni (schweizerdeutsch)</option>
+                </select>
+              </label>
+            </div>
+            <div class="stack-actions" style="margin-top:10px;">
+              <button type="button" class="primary" onclick="saveTtsSettings()">Speichern</button>
+              <span id="tts-save-status" style="font-size:0.76rem;color:var(--muted);margin-left:10px;"></span>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">API-Auslastung</div>
               <p>Wird nach jedem Gespräch automatisch aktualisiert. "Aktualisieren" macht einen Minimal-Request.</p>
             </div>
@@ -3477,6 +3508,36 @@
       } catch {}
     }
 
+    async function loadTtsSettings() {
+      try {
+        const d = await fetch('/tts/status').then(r => r.json());
+        const provider = d.provider || 'disabled';
+        const voice = d.edge_voice || 'de-DE-KatjaNeural';
+        const sel = document.getElementById('tts-provider-select');
+        const vsEl = document.getElementById('tts-edge-voice');
+        if (sel) sel.value = provider;
+        if (vsEl) vsEl.value = voice;
+        document.getElementById('edge-voice-field').style.display = provider === 'edge_tts' ? '' : 'none';
+        document.getElementById('tts-provider-select')?.addEventListener('change', e => {
+          document.getElementById('edge-voice-field').style.display = e.target.value === 'edge_tts' ? '' : 'none';
+        });
+      } catch {}
+    }
+
+    async function saveTtsSettings() {
+      const provider = document.getElementById('tts-provider-select')?.value || 'disabled';
+      const voice = document.getElementById('tts-edge-voice')?.value || 'de-DE-KatjaNeural';
+      try {
+        await fetch('/system/tts-config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tts_provider: provider, edge_voice: voice }),
+        });
+        const s = document.getElementById('tts-save-status');
+        if (s) { s.textContent = '✓ Gespeichert — Neustart erforderlich'; setTimeout(() => s.textContent = '', 4000); }
+      } catch {}
+    }
+
     async function saveAttentionSettings() {
       const btn = document.querySelector('[onclick="saveAttentionSettings()"]');
       if (btn) { btn.disabled = true; btn.textContent = 'Speichere…'; }
@@ -3502,6 +3563,7 @@
     document.querySelector('[data-tab-target="tab-erika"]')?.addEventListener('click', () => {
       loadPersonality();
       loadAttentionSettings();
+      loadTtsSettings();
     });
 
     // ── LLM Konfiguration ─────────────────────────────────────

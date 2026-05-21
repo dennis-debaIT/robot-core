@@ -245,6 +245,8 @@ class ConversationService:
             for topic in topics:
                 if self._is_known_person_name(conn, topic):
                     continue
+                if self._is_known_dislike(conn, person_name, topic):
+                    continue
                 row = conn.execute(
                     """
                     SELECT COALESCE(SUM(score), 0) AS total_score
@@ -364,6 +366,21 @@ class ConversationService:
         row = conn.execute(
             "SELECT 1 FROM persons WHERE lower(name) = lower(?) LIMIT 1",
             (topic,),
+        ).fetchone()
+        return bool(row)
+
+    @staticmethod
+    def _is_known_dislike(conn: Any, person_name: str, topic: str) -> bool:
+        row = conn.execute(
+            """
+            SELECT 1 FROM person_profile_facts f
+            JOIN persons p ON p.id = f.person_id
+            WHERE lower(p.name) = lower(?)
+              AND f.trait_type = 'dislike'
+              AND lower(f.value) LIKE lower(?)
+            LIMIT 1
+            """,
+            (person_name, f"%{topic}%"),
         ).fetchone()
         return bool(row)
 

@@ -5,3 +5,4 @@ sherpa-onnx>=1.12.34,<1.13
 duckduckgo-search>=6.0,<8.0
 websockets>=12.0,<14.0
 python-multipart>=0.0.9
+edge-tts>=6.1.9

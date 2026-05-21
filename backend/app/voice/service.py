@@ -19,6 +19,7 @@ class SynthesisResult:
     sample_rate: int
     duration_seconds: float
     audio_bytes: bytes
+    audio_format: str = "wav"
 
 
 class TtsService:
@@ -54,6 +55,20 @@ class TtsService:
                 "ready": True,
                 "reason": "mock_provider",
                 "voice_label": config.tts_voice_label or "Mock",
+                "speaker_id": config.tts_speaker_id,
+                "speed": config.tts_speed,
+            }
+        if provider == "edge_tts":
+            try:
+                importlib.import_module("edge_tts")
+                ready, reason = True, "ok"
+            except Exception as exc:
+                ready, reason = False, f"package_unavailable: {exc}"
+            return {
+                "provider": provider,
+                "ready": ready,
+                "reason": reason,
+                "voice_label": config.tts_voice_label or "Edge TTS",
                 "speaker_id": config.tts_speaker_id,
                 "speed": config.tts_speed,
             }
@@ -233,9 +248,52 @@ class TtsService:
             raise RuntimeError("TTS ist aktuell deaktiviert.")
         if provider == "mock":
             return self._synthesize_mock(normalized)
+        if provider == "edge_tts":
+            return self._synthesize_edge(normalized)
         if provider != "sherpa_onnx":
             raise RuntimeError(f"Unbekannter TTS-Provider: {provider}")
         return self._synthesize_sherpa(normalized)
+
+    def _synthesize_edge(self, text: str) -> SynthesisResult:
+        import asyncio, io, os, struct
+        try:
+            import edge_tts
+        except ImportError as exc:
+            raise RuntimeError("edge-tts nicht installiert. Bitte 'pip install edge-tts' ausführen.") from exc
+
+        try:
+            from app.database.db import get_connection, read_state
+            with get_connection() as conn:
+                tts_cfg = read_state(conn, "tts_runtime_config", {})
+            voice = tts_cfg.get("edge_voice") or os.getenv("ROBOT_TTS_EDGE_VOICE", "de-DE-KatjaNeural")
+        except Exception:
+            voice = os.getenv("ROBOT_TTS_EDGE_VOICE", "de-DE-KatjaNeural")
+
+        async def _run() -> bytes:
+            communicate = edge_tts.Communicate(text, voice)
+            audio = b""
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio += chunk["data"]
+            return audio
+
+        try:
+            loop = asyncio.new_event_loop()
+            mp3_bytes = loop.run_until_complete(_run())
+            loop.close()
+        except Exception as exc:
+            raise RuntimeError(f"Edge TTS Fehler: {exc}") from exc
+
+        if not mp3_bytes:
+            raise RuntimeError("Edge TTS: keine Audiodaten erhalten.")
+
+        return SynthesisResult(
+            provider="edge_tts",
+            sample_rate=24000,
+            duration_seconds=len(mp3_bytes) / 24000,
+            audio_bytes=mp3_bytes,
+            audio_format="mp3",
+        )
 
     def _synthesize_mock(self, text: str) -> SynthesisResult:
         sample_rate = 22050

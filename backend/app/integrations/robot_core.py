@@ -796,7 +796,8 @@ class RobotCore:
         # Abneigungen (dislike) — VOR preference, da "ich mag kein/keine" sonst als Vorliebe gilt
         (r'\bich\s+mag\s+(?:kein|keine|keinen)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
         (r'\bich\s+(?:hasse|verabscheue|ekle\s+mich\s+vor)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
-        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+mag\s+ich\s+(?:gar\s+)?nicht\b', 'dislike'),
+        (r'\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+mag\s+ich\s+(?:gar\s+|überhaupt\s+)?nicht\b', 'dislike'),
+        (r'\bich\s+mag\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)\s+(?:gar\s+nicht|überhaupt\s+nicht|so\s+gar\s+nicht|wirklich\s+nicht)\b', 'dislike'),
         (r'\bich\s+esse?\s+(?:kein|keine|keinen)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,25}?)(?:\.|,|$)', 'dislike'),
         # Vorlieben (preference) — kein "kein/keine/keinen" (würde Abneigung sein)
         (r'\bich\s+liebe\s+(?:es\s+)?([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß\s\-]{1,30}?)(?:\.|,|$|\s+sehr|\s+wirklich)', 'preference'),

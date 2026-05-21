@@ -132,6 +132,7 @@ class DecisionEngine:
     )
     DISLIKE_PATTERN = re.compile(
         r"\bich mag\s+keine[nrms]?\s+(.+?)(?:[.!?]|$)"
+        r"|\bich mag\s+(.+?)\s+(?:gar\s+nicht|überhaupt\s+nicht|so\s+gar\s+nicht|wirklich\s+nicht)(?:[.!?]|$)"
         r"|\bich mag\s+(.+?)\s+nicht(?:[.!?]|$)"
         r"|\bich hasse\s+(.+?)(?:[.!?]|$)",
         re.IGNORECASE,
