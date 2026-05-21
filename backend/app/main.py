@@ -93,6 +93,7 @@ async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
         try:
             config = config_service.get_config()
             vehicle_service.record_locations(config)
+            vehicle_service.record_charging(config)
             interval_seconds = int((config.get("vehicles") or {}).get("poll_seconds", interval_seconds))
         except Exception:
             pass

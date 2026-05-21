@@ -39,6 +39,11 @@ def get_vehicle_location_history(vehicle_id: str, days: int = 14) -> dict[str, A
     return VehicleService().location_history(vehicle_id, days)
 
 
+@router.get("/vehicles/{vehicle_id}/charging-history")
+def get_vehicle_charging_history(vehicle_id: str, period: str = "7days") -> dict[str, Any]:
+    return VehicleService().charging_history(vehicle_id, period)
+
+
 @router.post("/vehicles/location-history/poll")
 def poll_vehicle_location_history() -> dict[str, Any]:
     return VehicleService().record_locations(IntegrationConfigService().get_config())

@@ -2915,6 +2915,10 @@
     overlay.classList.remove('vehicle-map-expanded');
     setPanel('right', 'Karte', renderVehicleHistoryPanel(vehicle, history));
     setTimeout(() => initVehicleMap(vehicle, history, 'vehicle-map'), 380);
+    if (vehicle.ev_profile_enabled) {
+      const cap = vehicle.battery_capacity_kwh || null;
+      showVehicleChargingTab(vehicle.id, '7days', cap);
+    }
   }
 
   function renderVehicleList(vehicles) {
@@ -2955,10 +2959,36 @@
     if (vehicle.adblue_level) evRows.push(['AdBlue', `${vehicle.adblue_level.state} ${adblueUnitDet}`]);
     if (vehicle.charging) evRows.push(['Ladestatus', vehicleChargeStateLabel(vehicle.charging.state)]);
     if (vehicle.remaining_charge_time) evRows.push(['Restladezeit', formatMinutesAsHHMM(vehicle.remaining_charge_time.state)]);
+    const plugState = (vehicle.plug?.state || '').toLowerCase();
+    const isPlugged = ['on','plugged_in','connected','true','1','charging','in_charge'].includes(plugState)
+                   || (!vehicle.plug && ['charging','in_charge','plugged_in'].includes((vehicle.charging?.state||'').toLowerCase()));
+    const capacityKwh = vehicle.battery_capacity_kwh || null;
+    const capArg = capacityKwh ? capacityKwh : 'null';
+
     const actions = [];
     if (vehicle.climate_button_entity) {
       actions.push(`<button class="vehicle-action-btn" onclick="pressVehicleButton('${escapeAttr(vehicle.climate_button_entity)}', this, 'Klima gestartet')">&#127777; Klima starten</button>`);
     }
+    if (vehicle.stop_charging_button_entity && isPlugged) {
+      actions.push(`<button class="vehicle-action-btn vehicle-action-btn--danger" onclick="pressVehicleButton('${escapeAttr(vehicle.stop_charging_button_entity)}', this, 'Ladevorgang gestoppt')">&#9211; Laden stoppen</button>`);
+    }
+
+    const chartSection = vehicle.ev_profile_enabled ? `
+      <div style="margin-top:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;">LADEVERLAUF</div>
+          <div style="display:flex;gap:10px;">
+            <span id="veh-tab-7days" style="font-size:0.72rem;cursor:pointer;font-weight:800;color:var(--accent);"
+              onclick="showVehicleChargingTab('${escapeAttr(vehicle.id)}','7days',${capArg})">7 Tage</span>
+            <span id="veh-tab-month" style="font-size:0.72rem;cursor:pointer;color:var(--muted);"
+              onclick="showVehicleChargingTab('${escapeAttr(vehicle.id)}','month',${capArg})">Monat</span>
+          </div>
+        </div>
+        <div id="veh-chart-inner" style="min-height:60px;">
+          <div style="color:var(--muted);font-size:0.78rem;text-align:center;padding:18px 0;">Lade…</div>
+        </div>
+      </div>` : '';
+
     return `
       <div class="vehicle-detail-wrap">
         <div class="vehicle-detail-header">
@@ -2982,6 +3012,7 @@
           ${renderVehicleSection('Fahrdaten', coreRows)}
           ${renderVehicleSection(vehicle.ev_profile_enabled ? 'E-Antrieb' : 'Antrieb', evRows)}
         </div>
+        ${chartSection}
         ${actions.length ? `<div class="vehicle-actions">${actions.join('')}</div>` : ''}
       </div>`;
   }
@@ -3053,6 +3084,89 @@
           <div class="vehicle-history-sub">seit ${formatDateTime(first.recorded_at)}</div>
         </div>
       </div>`;
+  }
+
+  async function loadVehicleChargingHistory(vehicleId, period) {
+    try {
+      const r = await fetch(`/vehicles/${encodeURIComponent(vehicleId)}/charging-history?period=${period}`, { cache: 'no-store' });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  function _svgChargingBar(labels, minPct, maxPct, chargedPct, capacityKwh, w, h) {
+    const pad = { t: 14, r: 8, b: 32, l: 38 };
+    const cw = w - pad.l - pad.r;
+    const ch = h - pad.t - pad.b;
+    const bw = Math.max(4, cw / Math.max(labels.length, 1) * 0.68);
+    const gap = cw / Math.max(labels.length, 1);
+    let bars = '', lbls = '', vals = '';
+    labels.forEach((lbl, i) => {
+      const lo = minPct[i] ?? null, hi = maxPct[i] ?? null, gain = chargedPct[i] ?? null;
+      const x = pad.l + gap * i + (gap - bw) / 2;
+      const isToday = (i === labels.length - 1);
+      if (lo !== null && hi !== null) {
+        const yHi = pad.t + ch * (1 - hi / 100);
+        const yLo = pad.t + ch * (1 - lo / 100);
+        const totalH = Math.max(2, yLo - yHi);
+        // Gesamtbalken (dunkel = Basis)
+        bars += `<rect x="${x.toFixed(1)}" y="${yHi.toFixed(1)}" width="${bw.toFixed(1)}" height="${totalH.toFixed(1)}"
+          fill="${isToday ? 'rgba(0,200,255,0.25)' : 'rgba(0,200,255,0.12)'}" rx="3"/>`;
+        // Geladener Anteil (hell oben)
+        if (gain && gain > 0) {
+          const gainH = ch * gain / 100;
+          bars += `<rect x="${x.toFixed(1)}" y="${yHi.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(2,gainH).toFixed(1)}"
+            fill="${isToday ? '#00c832' : 'rgba(0,200,50,0.65)'}" rx="3"
+            title="${lbl}: +${gain}% geladen"/>`;
+        }
+        // Max-Wert Label
+        if (capacityKwh) {
+          const kwh = (hi * capacityKwh / 100).toFixed(1);
+          vals += `<text x="${(x+bw/2).toFixed(1)}" y="${(yHi-3).toFixed(1)}" text-anchor="middle" font-size="8" fill="rgba(127,141,203,0.75)">${kwh}</text>`;
+        }
+      }
+      if (i % Math.max(1, Math.floor(labels.length / 7)) === 0 || i === labels.length - 1)
+        lbls += `<text x="${(x+bw/2).toFixed(1)}" y="${(h-6).toFixed(1)}" text-anchor="middle" font-size="9" fill="rgba(127,141,203,0.9)">${lbl}</text>`;
+    });
+    const ySteps = [0, 25, 50, 75, 100];
+    const yLines = ySteps.map(pct => {
+      const y = pad.t + ch * (1 - pct / 100);
+      return `<line x1="${pad.l}" x2="${w-pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
+        <text x="${(pad.l-3).toFixed(1)}" y="${(y+3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${pct}%</text>`;
+    }).join('');
+    const kwhLabel = capacityKwh ? `<text x="${(w-pad.r).toFixed(1)}" y="${(pad.t-3).toFixed(1)}" text-anchor="end" font-size="8" fill="rgba(127,141,203,0.6)">kWh</text>` : '';
+    return `<svg width="${w}" height="${h}" style="width:100%;max-width:${w}px;">${yLines}${bars}${vals}${lbls}${kwhLabel}</svg>`;
+  }
+
+  function renderVehicleChargingChart(histData, capacityKwh) {
+    if (!histData || !histData.labels?.length) {
+      return '<div style="color:var(--muted);font-size:0.78rem;text-align:center;padding:18px 0;">Noch keine Daten — werden beim nächsten Poll gespeichert.</div>';
+    }
+    const { labels, min_pct, max_pct, charged_pct } = histData;
+    const hasAny = charged_pct.some(v => v !== null && v > 0);
+    const totalCharged = charged_pct.reduce((s, v) => s + (v ?? 0), 0).toFixed(1);
+    const totalKwh = capacityKwh ? (totalCharged * capacityKwh / 100).toFixed(1) : null;
+    const summary = `<div style="display:flex;gap:16px;margin-bottom:10px;font-size:0.74rem;color:var(--muted);">
+      <span>⚡ Geladen gesamt: <strong style="color:var(--text);">${totalCharged}%${totalKwh ? ' · ' + totalKwh + ' kWh' : ''}</strong></span>
+    </div>`;
+    const legend = `<div style="display:flex;gap:14px;font-size:0.7rem;color:var(--muted);margin-top:8px;">
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(0,200,50,0.65);border-radius:2px;margin-right:4px;"></span>Ladegewinn</span>
+      <span><span style="display:inline-block;width:10px;height:10px;background:rgba(0,200,255,0.25);border-radius:2px;margin-right:4px;"></span>Akkustand Min→Max</span>
+    </div>`;
+    return summary + _svgChargingBar(labels, min_pct, max_pct, charged_pct, capacityKwh, 580, 200) + (hasAny ? legend : '');
+  }
+
+  async function showVehicleChargingTab(vehicleId, period, capacityKwh) {
+    const wrap = document.getElementById('veh-chart-inner');
+    if (!wrap) return;
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;text-align:center;padding:18px 0;">Lade…</div>';
+    ['veh-tab-7days','veh-tab-month'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.fontWeight = (id === 'veh-tab-' + period) ? '800' : '400';
+      if (el) el.style.color = (id === 'veh-tab-' + period) ? 'var(--accent)' : 'var(--muted)';
+    });
+    const histData = await loadVehicleChargingHistory(vehicleId, period);
+    wrap.innerHTML = renderVehicleChargingChart(histData, capacityKwh);
   }
 
   function renderVehicleMapExpanded(vehicle, history) {
@@ -4507,7 +4621,8 @@
   async function callLightService(entity_id, service, brightness_pct, colorData) {
     const body = { entity_id, service };
     if (brightness_pct !== undefined && brightness_pct !== null) body.brightness_pct = brightness_pct;
-    if (colorData?.rgb_color) body.rgb_color = colorData.rgb_color;
+    if (colorData?.hs_color) body.hs_color = colorData.hs_color;
+    else if (colorData?.rgb_color) body.rgb_color = colorData.rgb_color;
     if (colorData?.color_temp_kelvin) body.color_temp_kelvin = colorData.color_temp_kelvin;
     else if (colorData?.color_temp) body.color_temp = colorData.color_temp;
     try {

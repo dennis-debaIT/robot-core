@@ -27,8 +27,10 @@ class VehicleService:
             "adblue_level_entity": "",
             "charging_entity": "",
             "remaining_charge_time_entity": "",
+            "plug_entity": "",
             "stop_charging_button_entity": "",
             "climate_button_entity": "",
+            "battery_capacity_kwh": None,
         }
 
     @staticmethod
@@ -44,6 +46,112 @@ class VehicleService:
         vehicles = [self._resolve_vehicle(item) for item in vehicle_configs]
         vehicles = [item for item in vehicles if item]
         return {"enabled": bool((config.get("vehicles") or {}).get("enabled", True)), "vehicles": vehicles}
+
+    def record_charging(self, config: dict[str, Any]) -> None:
+        now = datetime.now(timezone.utc)
+        cutoff_charging = now - timedelta(days=35)
+        with get_connection() as conn:
+            for vehicle_cfg in self._vehicle_configs(config):
+                if not vehicle_cfg.get("enabled", True) or not vehicle_cfg.get("ev_profile_enabled"):
+                    continue
+                battery_entity = self._read_entity(vehicle_cfg.get("battery_entity"))
+                if not battery_entity:
+                    continue
+                try:
+                    battery_pct = float(battery_entity["state"])
+                except (TypeError, ValueError):
+                    continue
+                charging_entity = self._read_entity(vehicle_cfg.get("charging_entity"))
+                plug_entity = self._read_entity(vehicle_cfg.get("plug_entity"))
+                is_charging = int(
+                    (charging_entity or {}).get("state", "").lower()
+                    in ("on", "charging", "in_charge", "true", "1")
+                )
+                plug_connected = int(
+                    (plug_entity or {}).get("state", "").lower()
+                    in ("on", "plugged_in", "connected", "true", "1", "charging", "in_charge")
+                ) if plug_entity else is_charging
+                try:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO vehicle_charging_history(
+                            vehicle_id, battery_pct, is_charging, plug_connected, recorded_at, imported_at
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (vehicle_cfg["id"], battery_pct, is_charging, plug_connected,
+                         now.replace(microsecond=0).isoformat(), now.isoformat()),
+                    )
+                except Exception:
+                    pass
+            conn.execute(
+                "DELETE FROM vehicle_charging_history WHERE recorded_at < ?",
+                (cutoff_charging.isoformat(),),
+            )
+
+    def charging_history(self, vehicle_id: str, period: str = "7days") -> dict[str, Any]:
+        from zoneinfo import ZoneInfo
+        try:
+            tz = ZoneInfo("Europe/Berlin")
+        except Exception:
+            tz = timezone.utc
+
+        now = datetime.now(tz)
+        if period == "month":
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT battery_pct, is_charging, plug_connected, recorded_at
+                FROM vehicle_charging_history
+                WHERE vehicle_id = ? AND recorded_at >= ?
+                ORDER BY recorded_at ASC
+                """,
+                (vehicle_id, start.astimezone(timezone.utc).isoformat()),
+            ).fetchall()
+
+        by_day: dict[str, list[float]] = {}
+        for row in rows:
+            try:
+                dt = datetime.fromisoformat(row["recorded_at"])
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                day = dt.astimezone(tz).strftime("%Y-%m-%d")
+            except Exception:
+                continue
+            by_day.setdefault(day, []).append(float(row["battery_pct"]))
+
+        if period == "month":
+            days_count = (now - start).days + 1
+            labels = [(start + timedelta(days=i)).strftime("%d.%m") for i in range(days_count)]
+            day_keys = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days_count)]
+        else:
+            labels = [(now - timedelta(days=6 - i)).strftime("%a %d.%m") for i in range(7)]
+            day_keys = [(now - timedelta(days=6 - i)).strftime("%Y-%m-%d") for i in range(7)]
+
+        min_pct, max_pct, charged_pct = [], [], []
+        for dk in day_keys:
+            vals = by_day.get(dk, [])
+            if vals:
+                lo, hi = min(vals), max(vals)
+                min_pct.append(round(lo, 1))
+                max_pct.append(round(hi, 1))
+                charged_pct.append(round(max(0.0, hi - lo), 1))
+            else:
+                min_pct.append(None)
+                max_pct.append(None)
+                charged_pct.append(None)
+
+        return {
+            "vehicle_id": vehicle_id,
+            "period": period,
+            "labels": labels,
+            "min_pct": min_pct,
+            "max_pct": max_pct,
+            "charged_pct": charged_pct,
+        }
 
     def record_locations(self, config: dict[str, Any]) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
@@ -164,7 +272,16 @@ class VehicleService:
                 entity = self._read_entity(vehicle_cfg.get(key))
                 if entity:
                     result[target] = entity
+            plug = self._read_entity(vehicle_cfg.get("plug_entity"))
+            if plug:
+                result["plug"] = plug
             result["stop_charging_button_entity"] = str(vehicle_cfg.get("stop_charging_button_entity") or "").strip()
+            cap = vehicle_cfg.get("battery_capacity_kwh")
+            if cap is not None:
+                try:
+                    result["battery_capacity_kwh"] = float(cap)
+                except (TypeError, ValueError):
+                    pass
         else:
             for key, target in (
                 ("fuel_level_entity", "fuel_level"),
@@ -247,10 +364,17 @@ class VehicleService:
             "adblue_level_entity",
             "charging_entity",
             "remaining_charge_time_entity",
+            "plug_entity",
             "stop_charging_button_entity",
             "climate_button_entity",
         ):
             result[key] = str(result.get(key) or "").strip()
+        cap = result.get("battery_capacity_kwh")
+        if cap is not None:
+            try:
+                result["battery_capacity_kwh"] = float(cap)
+            except (TypeError, ValueError):
+                result["battery_capacity_kwh"] = None
         return result
 
     @staticmethod

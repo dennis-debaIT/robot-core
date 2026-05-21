@@ -1090,6 +1090,12 @@
     .vehicle-action-btn:disabled {
       opacity: 0.55; cursor: default;
     }
+    .vehicle-action-btn--danger {
+      border-color: rgba(255,61,61,0.4); color: var(--danger);
+    }
+    .vehicle-action-btn--danger:hover {
+      border-color: var(--danger); background: rgba(255,61,61,0.1); color: var(--danger);
+    }
     .vehicle-map-card {
       background: #05050a; border: 1px solid var(--border); border-radius: 14px;
       overflow: hidden; min-height: 0; position: relative;
