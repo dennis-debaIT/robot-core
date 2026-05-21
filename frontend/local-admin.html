@@ -2932,7 +2932,8 @@
         // Kalender-Entities laden
         fetch('/ha/calendar/entities').then(r => r.json()).then(d => {
           const sel = document.getElementById(`cal-entity-${id}`);
-          if (!sel) return;
+          if (!sel || sel.dataset.loaded) return;
+          sel.dataset.loaded = '1';
           (d.entities || []).forEach(e => {
             const opt = document.createElement('option');
             opt.value = e.entity_id;
