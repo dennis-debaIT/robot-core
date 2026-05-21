@@ -227,6 +227,33 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_vehicle_location_history_vehicle_recorded
             ON vehicle_location_history(vehicle_id, recorded_at DESC);
 
+            CREATE TABLE IF NOT EXISTS notification_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                label TEXT NOT NULL,
+                entity_id TEXT NOT NULL,
+                condition_type TEXT NOT NULL,
+                condition_value TEXT,
+                message TEXT,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER,
+                message TEXT NOT NULL,
+                entity_id TEXT,
+                read INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS notification_rule_state (
+                rule_id INTEGER PRIMARY KEY,
+                last_value TEXT,
+                last_fired_at TEXT,
+                condition_active INTEGER NOT NULL DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS light_scenes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,

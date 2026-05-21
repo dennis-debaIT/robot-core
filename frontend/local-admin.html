@@ -42,6 +42,7 @@
 
         <div class="sidebar-group">
           <div class="sidebar-group-label">Konfiguration</div>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-notifications"><span class="si-icon">🔔</span><span>Benachrichtigungen</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-erika"><span class="si-icon">🤖</span><span>Erika</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-llm"><span class="si-icon">🧠</span><span>KI / LLM</span></button>
@@ -607,6 +608,18 @@
               Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
             </div>
           </section>
+        </article>
+
+        <!-- ── BENACHRICHTIGUNGEN ─────────────────────────────── -->
+        <article id="tab-notifications" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-title">Benachrichtigungen</div>
+              <div class="panel-subtitle">Regeln definieren — Erika spricht und zeigt Meldungen an</div>
+            </div>
+            <button type="button" class="primary" id="notif-add-btn">+ Regel hinzufügen</button>
+          </header>
+          <div id="notif-rule-list" class="field-stack"></div>
         </article>
 
         <!-- ── ERIKA ─────────────────────────────────────────── -->
@@ -2930,6 +2943,121 @@
     }
 
     document.querySelector('[data-tab-target="tab-persons"]')?.addEventListener('click', loadPersons);
+
+    // ── Benachrichtigungsregeln ────────────────────────────────
+    const CONDITION_TYPES = [
+      { value: 'lt',         label: 'unter (< Wert)' },
+      { value: 'gt',         label: 'über (> Wert)' },
+      { value: 'eq',         label: 'gleich (= Wert)' },
+      { value: 'changed_to', label: 'wechselt zu Wert' },
+      { value: 'changed',    label: 'ändert sich (beliebig)' },
+    ];
+
+    async function loadNotifRules() {
+      const list = document.getElementById('notif-rule-list');
+      if (!list) return;
+      list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">Lade…</div>';
+      const { rules } = await fetch('/notification-rules').then(r => r.json()).catch(() => ({ rules: [] }));
+      if (!rules.length) {
+        list.innerHTML = '<div class="empty-state">Noch keine Regeln. Füge eine Regel hinzu.</div>';
+        return;
+      }
+      list.innerHTML = rules.map(r => `
+        <div class="module-card" style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+            <strong style="font-size:0.9rem;">${escapeHtml(r.label)}</strong>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <label class="mini-check" style="margin:0;">
+                <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleNotifRule(${r.id}, this.checked)">
+                <span>Aktiv</span>
+              </label>
+              <button type="button" class="secondary" style="padding:4px 12px;font-size:0.78rem;"
+                onclick="deleteNotifRule(${r.id})">Löschen</button>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.78rem;color:var(--muted);">
+            <span>Entity: <strong style="color:var(--text);">${escapeHtml(r.entity_id)}</strong></span>
+            <span>Bedingung: <strong style="color:var(--text);">${CONDITION_TYPES.find(c=>c.value===r.condition_type)?.label || r.condition_type}${r.condition_value ? ' ' + r.condition_value : ''}</strong></span>
+            ${r.message ? `<span style="grid-column:1/-1;">Text: <em>${escapeHtml(r.message)}</em></span>` : ''}
+          </div>
+        </div>`).join('');
+    }
+
+    async function toggleNotifRule(id, enabled) {
+      const rules = await fetch('/notification-rules').then(r => r.json()).then(d => d.rules);
+      const rule = rules.find(r => r.id === id);
+      if (!rule) return;
+      await fetch(`/notification-rules/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...rule, enabled }),
+      });
+    }
+
+    async function deleteNotifRule(id) {
+      if (!confirm('Regel löschen?')) return;
+      await fetch(`/notification-rules/${id}`, { method: 'DELETE' });
+      loadNotifRules();
+    }
+
+    function showAddNotifForm() {
+      const list = document.getElementById('notif-rule-list');
+      if (document.getElementById('notif-add-form')) return;
+      const form = document.createElement('div');
+      form.id = 'notif-add-form';
+      form.className = 'module-card';
+      form.style.marginBottom = '10px';
+      form.innerHTML = `
+        <div style="font-size:0.8rem;font-weight:700;margin-bottom:10px;">Neue Regel</div>
+        <div class="field-grid">
+          <label class="field-block">
+            <span class="field-label">Bezeichnung</span>
+            <input class="field-input" id="nf-label" type="text" placeholder="z.B. Robert Akku niedrig">
+          </label>
+          <label class="field-block">
+            <span class="field-label">Entity-ID</span>
+            <input class="field-input" id="nf-entity" type="text" placeholder="z.B. sensor.robert_battery">
+          </label>
+          <label class="field-block">
+            <span class="field-label">Bedingung</span>
+            <select class="field-select" id="nf-ctype">
+              ${CONDITION_TYPES.map(c => `<option value="${c.value}">${c.label}</option>`).join('')}
+            </select>
+          </label>
+          <label class="field-block">
+            <span class="field-label">Wert</span>
+            <input class="field-input" id="nf-cval" type="text" placeholder="z.B. 10 oder charging">
+          </label>
+          <label class="field-block" style="grid-column:1/-1;">
+            <span class="field-label">Eigener Text (leer = automatisch)</span>
+            <input class="field-input" id="nf-msg" type="text" placeholder='z.B. "Robert muss geladen werden"'>
+          </label>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px;">
+          <button type="button" class="primary" onclick="saveNotifRule()">Speichern</button>
+          <button type="button" class="secondary" onclick="document.getElementById('notif-add-form').remove()">Abbrechen</button>
+        </div>`;
+      list.prepend(form);
+    }
+
+    async function saveNotifRule() {
+      const label   = document.getElementById('nf-label')?.value.trim();
+      const entity  = document.getElementById('nf-entity')?.value.trim();
+      const ctype   = document.getElementById('nf-ctype')?.value;
+      const cval    = document.getElementById('nf-cval')?.value.trim();
+      const msg     = document.getElementById('nf-msg')?.value.trim();
+      if (!label || !entity) return alert('Bezeichnung und Entity-ID sind Pflicht.');
+      await fetch('/notification-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, entity_id: entity, condition_type: ctype, condition_value: cval || null, message: msg || null, enabled: true }),
+      });
+      document.getElementById('notif-add-form')?.remove();
+      loadNotifRules();
+    }
+
+    document.getElementById('notif-add-btn')?.addEventListener('click', showAddNotifForm);
+    document.querySelector('[data-tab-target="tab-notifications"]')?.addEventListener('click', loadNotifRules);
 
     // ── LLM Konfiguration ─────────────────────────────────────
     let _llmProviders = {};
