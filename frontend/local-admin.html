@@ -2606,11 +2606,11 @@
       try {
         const [entR, cfgR] = await Promise.all([
           fetch('/ha/calendar/entities').then(r => r.json()),
-          fetch('/config').then(r => r.json()),
+          fetch('/local-admin/integrations/config').then(r => r.json()),
         ]);
         const sel = document.getElementById('calendar-default-write');
         if (!sel) return;
-        const current = (cfgR.calendar || {}).default_write_entity || '';
+        const current = ((cfgR.config || cfgR).calendar || {}).default_write_entity || '';
         (entR.entities || []).forEach(e => {
           const opt = document.createElement('option');
           opt.value = e.entity_id;
@@ -2625,13 +2625,10 @@
     async function saveDefaultWriteCalendar() {
       const val = document.getElementById('calendar-default-write')?.value || '';
       try {
-        const cfgR = await fetch('/config').then(r => r.json());
-        cfgR.calendar = cfgR.calendar || {};
-        cfgR.calendar.default_write_entity = val || null;
-        await fetch('/config', {
-          method: 'POST',
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cfgR),
+          body: JSON.stringify({ calendar: { default_write_entity: val || null } }),
         });
       } catch {}
     }
@@ -3300,8 +3297,8 @@
     // ── Aufmerksamkeit / Wake Word ────────────────────────────
     async function loadAttentionSettings() {
       try {
-        const cfg = await fetch('/config').then(r => r.json());
-        const att = cfg.attention || {};
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const att = (cfg.config || cfg).attention || {};
         const wakeEl = document.getElementById('attention-wake-enabled');
         const wordEl = document.getElementById('attention-wake-word');
         const faceEl = document.getElementById('attention-face-enabled');
@@ -3313,15 +3310,16 @@
 
     async function saveAttentionSettings() {
       try {
-        const cfg = await fetch('/config').then(r => r.json());
-        cfg.attention = cfg.attention || {};
-        cfg.attention.wake_word_enabled = document.getElementById('attention-wake-enabled')?.checked ?? true;
-        cfg.attention.wake_word = document.getElementById('attention-wake-word')?.value.trim() || 'erika';
-        cfg.attention.face_recognition_enabled = document.getElementById('attention-face-enabled')?.checked ?? false;
-        await fetch('/config', {
-          method: 'POST',
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cfg),
+          body: JSON.stringify({
+            attention: {
+              wake_word_enabled: document.getElementById('attention-wake-enabled')?.checked ?? true,
+              wake_word: document.getElementById('attention-wake-word')?.value.trim() || 'erika',
+              face_recognition_enabled: document.getElementById('attention-face-enabled')?.checked ?? false,
+            },
+          }),
         });
       } catch {}
     }
