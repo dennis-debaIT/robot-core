@@ -4867,7 +4867,8 @@
       }
       const bdr = active ? '3px solid #fff'                    : '3px solid transparent';
       const shd = active ? '0 0 0 2px rgba(255,255,255,0.7)'  : '0 0 0 1px rgba(255,255,255,0.15)';
-      dots += '<div onclick="callLightService(\'' + eid + '\',\'turn_on\',null,' + colorArg + ')"'
+      const curBri = (light.state === 'on' && light.brightness_pct) ? light.brightness_pct : null;
+      dots += '<div onclick="callLightService(\'' + eid + '\',\'turn_on\',' + curBri + ',' + colorArg + ')"'
             + ' title="' + c.label + '"'
             + ' style="width:38px;height:38px;border-radius:50%;background:' + _rgbToHex(c.rgb) + ';cursor:pointer;'
             + 'flex-shrink:0;border:' + bdr + ';box-shadow:' + shd + ';transition:transform 0.1s;"'
