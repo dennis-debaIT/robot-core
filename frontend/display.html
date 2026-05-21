@@ -5517,21 +5517,33 @@
   setTimeout(_loadAttentionConfig, 2000);
 
   // ── Follow-Up Listening — nach TTS automatisch lauschen ───
-  let _ttsWasActive = false;
+  let _ttsWasActive  = false;
+  let _ttsHadQuestion = false;
   let _followUpTimer = null;
+
+  const _origFeedTts = feedTts;
+  feedTts = function(chunk, flush = false) {
+    if (chunk && chunk.includes('?')) _ttsHadQuestion = true;
+    if (flush) {
+      // Flush = TTS-Runde abgeschlossen; Flag für nächste Runde vorbereiten
+    }
+    _origFeedTts(chunk, flush);
+  };
 
   setInterval(() => {
     const ttsActive = _ttsPlaying || _ttsQueue.length > 0;
-    if (_ttsWasActive && !ttsActive && !_listening && !_chatBusy) {
-      // TTS gerade beendet → kurz warten dann automatisch lauschen
-      clearTimeout(_followUpTimer);
-      _followUpTimer = setTimeout(() => {
-        if (!_listening && !_ttsPlaying && !_chatBusy) {
-          startSpeech();
-          // Auto-Stop nach 7 Sekunden falls kein Input kommt
-          setTimeout(() => { if (_listening) stopSpeech(); }, 7000);
-        }
-      }, 600);
+    if (_ttsWasActive && !ttsActive) {
+      // TTS gerade beendet
+      if (_ttsHadQuestion && !_listening && !_chatBusy) {
+        clearTimeout(_followUpTimer);
+        _followUpTimer = setTimeout(() => {
+          if (!_listening && !_ttsPlaying && !_chatBusy) {
+            startSpeech();
+            setTimeout(() => { if (_listening) stopSpeech(); }, 7000);
+          }
+        }, 600);
+      }
+      _ttsHadQuestion = false; // Reset für nächste Antwort
     }
     _ttsWasActive = ttsActive;
   }, 300);
