@@ -1806,44 +1806,82 @@ class RobotCore:
         except Exception:
             return None
 
+    @staticmethod
+    def _pct(state: Any) -> str:
+        try:
+            return f"{round(float(state))} Prozent"
+        except (TypeError, ValueError):
+            return str(state)
+
+    @staticmethod
+    def _km(state: Any, unit: str = "km") -> str:
+        try:
+            val = round(float(state))
+            return f"{val} Kilometer"
+        except (TypeError, ValueError):
+            return f"{state} {unit}"
+
     def _format_vehicle_reply(self, v: dict) -> str:
         label = v.get("label") or v.get("id") or "Fahrzeug"
         parts: list[str] = []
-        # E-Auto
+
+        # ── E-Auto ────────────────────────────────────────────
         battery = v.get("battery")
         if battery:
-            pct = battery.get("state")
-            parts.append(f"{label} hat {pct}% Akku.")
+            pct = self._pct(battery.get("state"))
+            parts.append(f"Der {label} hat gerade {pct} Akku.")
+
             rng = v.get("range")
             if rng:
-                parts.append(f"Reichweite: {rng['state']} {rng.get('unit','km')}.")
-            charging = v.get("charging")
+                km = self._km(rng.get("state"), rng.get("unit", "km"))
+                parts.append(f"Damit kommst du noch etwa {km} weit.")
+
             plug = v.get("plug")
+            charging = v.get("charging")
+            is_plugged = False
             if plug:
-                plug_state = (plug.get("state") or "").lower()
-                is_plugged = plug_state in ("on", "plugged_in", "connected", "true", "1", "charging", "in_charge")
-                parts.append("Das Fahrzeug ist angesteckt." if is_plugged else "Das Fahrzeug ist nicht angesteckt.")
+                is_plugged = (plug.get("state") or "").lower() in (
+                    "on", "plugged_in", "connected", "true", "1", "charging", "in_charge"
+                )
             elif charging:
-                charge_state = (charging.get("state") or "").lower()
-                if charge_state in ("charging", "in_charge", "on"):
-                    rct = v.get("remaining_charge_time")
-                    rct_text = f" Noch {rct['state']} Minuten." if rct else ""
-                    parts.append(f"Es wird gerade geladen.{rct_text}")
+                is_plugged = (charging.get("state") or "").lower() in (
+                    "charging", "in_charge", "on", "plugged_in"
+                )
+
+            if is_plugged:
+                rct = v.get("remaining_charge_time")
+                if rct:
+                    try:
+                        mins = int(float(rct.get("state", 0)))
+                        if mins > 0:
+                            parts.append(f"Das Auto lädt gerade — noch etwa {mins} Minuten.")
+                        else:
+                            parts.append("Das Auto ist vollständig geladen.")
+                    except (TypeError, ValueError):
+                        parts.append("Das Auto lädt gerade.")
                 else:
-                    parts.append("Es wird aktuell nicht geladen.")
-        # Verbrenner
+                    parts.append("Das Auto ist angesteckt und lädt.")
+            else:
+                parts.append("Das Auto ist aktuell nicht angesteckt.")
+
+        # ── Verbrenner ────────────────────────────────────────
         fuel = v.get("fuel_level")
         if fuel:
-            pct = fuel.get("state")
-            unit = fuel.get("unit") or "%"
-            parts.append(f"{label}: Tank {pct} {unit}.")
+            pct = self._pct(fuel.get("state"))
+            parts.append(f"Der Tank vom {label} ist zu {pct} gefüllt.")
             rng = v.get("range")
             if rng:
-                parts.append(f"Reichweite: {rng['state']} {rng.get('unit','km')}.")
-        return " ".join(parts) if parts else f"Keine Daten für {label}."
+                km = self._km(rng.get("state"), rng.get("unit", "km"))
+                parts.append(f"Damit kommst du noch etwa {km} weit.")
+
+        return " ".join(parts) if parts else f"Ich habe keine aktuellen Daten für {label}."
 
     def _format_vehicles_reply(self, vehicles: list) -> str:
-        return " ".join(self._format_vehicle_reply(v) for v in vehicles)
+        if len(vehicles) == 1:
+            return self._format_vehicle_reply(vehicles[0])
+        count = len(vehicles)
+        intro = f"Du hast {count} Fahrzeuge. "
+        return intro + " ".join(self._format_vehicle_reply(v) for v in vehicles)
 
     def _try_summary_command(self, captured: str, person_name: str | None) -> str | None:
         if not person_name:
