@@ -5346,8 +5346,9 @@
 
   async function _loadAttentionConfig() {
     try {
-      const cfg = await fetch('/config').then(r => r.json());
-      _attentionConfig = { ..._attentionConfig, ...(cfg.attention || {}) };
+      const r = await fetch('/local-admin/integrations/config').then(r => r.json());
+      const att = (r.config || r).attention || {};
+      _attentionConfig = { ..._attentionConfig, ...att };
     } catch {}
     if (_attentionConfig.wake_word_enabled) _startWakeWord();
     if (_attentionConfig.face_recognition_enabled) _startFaceRecognition();
