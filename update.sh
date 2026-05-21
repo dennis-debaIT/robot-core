@@ -57,4 +57,11 @@ pgrep -f setup-watcher.sh   > /dev/null || nohup bash "$INSTALL_DIR/setup-watche
 # Nur verwaiste Images entfernen — Build-Cache NICHT löschen (würde nächsten Build verlangsamen)
 docker image prune -f >> "$LOG" 2>&1 || true
 
+# Monatlichen Cron-Job für Build-Cache-Bereinigung einrichten (einmalig, idempotent)
+CRON_JOB="0 3 1 * * docker builder prune --keep-storage=2GB -f >> $INSTALL_DIR/update.log 2>&1"
+if ! crontab -l 2>/dev/null | grep -qF "docker builder prune"; then
+    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    echo "[update] Monatlicher Docker-Cache-Cron eingerichtet" | tee -a "$LOG"
+fi
+
 echo "[update] Abgeschlossen: $(date)" | tee -a "$LOG"
