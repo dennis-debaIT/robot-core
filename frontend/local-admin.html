@@ -2999,6 +2999,28 @@
         const MODULE_LABELS = {calendar:'📅 Kalender',reminders:'⏰ Erinnerungen',weather:'🌤️ Wetter',pv:'☀️ PV-Anlage',vehicles:'🚗 Fahrzeuge',robots:'🤖 Roboter',notifications:'🔔 Benachrichtigungen'};
         const sumModules = sumCfg?.modules || [{type:'calendar',enabled:true},{type:'reminders',enabled:true},{type:'weather',enabled:true},{type:'pv',enabled:true},{type:'vehicles',enabled:true},{type:'robots',enabled:true},{type:'notifications',enabled:true}];
 
+        // Fahrzeuge + Kalender für Auswahl laden
+        const [vehicleData, calData] = await Promise.all([
+          fetch('/vehicles').then(r=>r.json()).catch(()=>({vehicles:[]})),
+          fetch('/ha/calendar/entities').then(r=>r.json()).catch(()=>({entities:[]})),
+        ]);
+        const allVehicles = vehicleData.vehicles || [];
+        const allCalendars = calData.entities || [];
+        const sumSelVehicles = sumCfg?.modules?.find(m=>m.type==='vehicles')?.vehicle_ids || [];
+        const sumExclCalendars = sumCfg?.modules?.find(m=>m.type==='calendar')?.exclude_calendars || [];
+
+        const vehicleChecks = allVehicles.map(v=>`
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.76rem;cursor:pointer;">
+            <input type="checkbox" class="sum-vehicle-${id}" value="${escapeHtml(v.id)}" ${sumSelVehicles.length===0||sumSelVehicles.includes(v.id)?'checked':''}>
+            ${escapeHtml(v.label||v.id)}
+          </label>`).join('');
+
+        const calChecks = allCalendars.map(c=>`
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.76rem;cursor:pointer;">
+            <input type="checkbox" class="sum-cal-excl-${id}" value="${escapeHtml(c.entity_id)}" ${sumExclCalendars.includes(c.entity_id)?'checked':''}>
+            <span style="color:var(--danger);">✕</span> ${escapeHtml(c.name)}
+          </label>`).join('');
+
         const sumHtml = `
           <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
             <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">📋 Tageszusammenfassung</div>
@@ -3010,14 +3032,18 @@
             <div id="sum-modules-${id}" style="display:flex;flex-direction:column;gap:5px;">
               ${sumModules.map((m,i)=>`
                 <div draggable="true" data-idx="${i}" data-type="${m.type}"
-                     style="display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);
-                            border-radius:8px;padding:6px 10px;cursor:grab;font-size:0.78rem;"
+                     style="display:flex;flex-direction:column;gap:6px;background:var(--panel);border:1px solid var(--border);
+                            border-radius:8px;padding:8px 10px;cursor:grab;font-size:0.78rem;"
                      ondragstart="sumDragStart(event,${id})" ondragover="event.preventDefault()" ondrop="sumDrop(event,${id})">
-                  <span style="color:var(--muted);cursor:grab;">⠿</span>
-                  <label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;">
-                    <input type="checkbox" ${m.enabled?'checked':''} onchange="saveSummaryConfig(${id})">
-                    <span>${MODULE_LABELS[m.type]||m.type}</span>
-                  </label>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="color:var(--muted);cursor:grab;">⠿</span>
+                    <label style="display:flex;align-items:center;gap:6px;flex:1;cursor:pointer;">
+                      <input type="checkbox" ${m.enabled?'checked':''} onchange="saveSummaryConfig(${id})">
+                      <strong>${MODULE_LABELS[m.type]||m.type}</strong>
+                    </label>
+                  </div>
+                  ${m.type==='vehicles'&&allVehicles.length?`<div style="padding-left:22px;display:flex;flex-wrap:wrap;gap:8px;">${vehicleChecks}</div>`:''}
+                  ${m.type==='calendar'&&allCalendars.length?`<div style="padding-left:22px;"><div style="font-size:0.68rem;color:var(--muted);margin-bottom:4px;">Ausschließen:</div><div style="display:flex;flex-wrap:wrap;gap:8px;">${calChecks}</div></div>`:''}
                 </div>`).join('')}
             </div>
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
@@ -3167,10 +3193,20 @@
       const triggers = (document.getElementById(`sum-triggers-${personId}`)?.value || '')
         .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
       const container = document.getElementById(`sum-modules-${personId}`);
-      const modules = [...(container?.children || [])].map(el => ({
-        type: el.dataset.type,
-        enabled: el.querySelector('input[type=checkbox]')?.checked ?? true,
-      }));
+      const modules = [...(container?.children || [])].map(el => {
+        const type = el.dataset.type;
+        const enabled = el.querySelector('input[type=checkbox]')?.checked ?? true;
+        const mod = { type, enabled };
+        if (type === 'vehicles') {
+          const checked = [...el.querySelectorAll(`.sum-vehicle-${personId}:checked`)].map(i => i.value);
+          mod.vehicle_ids = checked;
+        }
+        if (type === 'calendar') {
+          const excl = [...el.querySelectorAll(`.sum-cal-excl-${personId}:checked`)].map(i => i.value);
+          mod.exclude_calendars = excl;
+        }
+        return mod;
+      });
       const r = await fetch(`/profiles/${personId}/summary-config`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },

@@ -229,39 +229,107 @@ def _module_vehicles(mod: dict, int_cfg: dict) -> str | None:
     parts = []
     for v in vehicles:
         label = v.get("label") or v.get("id")
+        # E-Auto: Akku + Reichweite
         battery = v.get("battery")
         if battery:
             pct = battery.get("state")
             rng = v.get("range")
             rng_text = f", Reichweite {rng['state']} {rng.get('unit','km')}" if rng else ""
             parts.append(f"{label}: {pct}%{rng_text}.")
+            continue
+        # Verbrenner: Tank + Reichweite
+        fuel = v.get("fuel_level")
+        if fuel:
+            pct = fuel.get("state")
+            unit = fuel.get("unit") or "%"
+            rng = v.get("range")
+            rng_text = f", Reichweite {rng['state']} {rng.get('unit','km')}" if rng else ""
+            parts.append(f"{label}: {pct} {unit} Tank{rng_text}.")
     return " ".join(parts) if parts else None
 
 
+# Vollständige Übersetzungstabelle für Roboter-States
+_ROBOT_STATE_DE: dict[str, str] = {
+    # Saugroboter (iRobot, Roborock, Ecovacs, Dreame, Viomi …)
+    "docked":              "steht in der Basis",
+    "charging":            "lädt",
+    "cleaning":            "saugt gerade",
+    "returning":           "fährt zur Basis",
+    "returning_to_dock":   "fährt zur Basis",
+    "idle":                "ist bereit",
+    "paused":              "ist pausiert",
+    "error":               "hat einen Fehler",
+    "unavailable":         "nicht erreichbar",
+    "unknown":             "Status unbekannt",
+    "manual":              "manuelle Steuerung",
+    "mapping":             "erstellt Karte",
+    "spot":                "reinigt einen Bereich",
+    "auto":                "saugt automatisch",
+    "edge":                "reinigt Kanten",
+    "moving":              "ist unterwegs",
+    # Dreame / Roborock erweitert
+    "washing":             "reinigt Wischpad",
+    "drying":              "trocknet Wischpad",
+    "self_cleaning":       "reinigt sich selbst",
+    "self_drying":         "trocknet Wischpad",
+    "charging_completed":  "ist voll geladen",
+    "charge":              "lädt",
+    "sleep":               "schläft",
+    "standby":             "wartet",
+    "full_charge":         "ist voll geladen",
+    "sweeping":            "saugt gerade",
+    "sweeping_and_mopping":"saugt und wischt",
+    "mopping":             "wischt gerade",
+    "cruising":            "patrouilliert",
+    # Mähroboter (Husqvarna Automower, Worx Landroid …)
+    "mowing":              "mäht gerade",
+    "going_home":          "fährt zur Basis",
+    "parked":              "parkt",
+    "stopped":             "ist gestoppt",
+    "cutting":             "mäht gerade",
+    "leaving":             "verlässt Basis",
+    "searching_zone":      "sucht Mähzone",
+    "zone_out":            "mäht außerhalb Zone",
+    "week_timer":          "Wochenplan aktiv",
+    "completed":           "ist fertig",
+    "not_applicable":      "nicht verfügbar",
+    "connection_issue":    "Verbindungsproblem",
+}
+
+
+def _translate_robot_state(state: str, custom_mappings: dict | None = None) -> str:
+    s = state.strip().lower()
+    # 1. Custom-Mapping aus HA-Konfiguration (höchste Priorität)
+    if custom_mappings:
+        for k, v in custom_mappings.items():
+            if k.lower() == s:
+                return v
+    # 2. Eingebaute Tabelle
+    if s in _ROBOT_STATE_DE:
+        return _ROBOT_STATE_DE[s]
+    # 3. Rohtext als Fallback (lesbarer machen)
+    return state.replace("_", " ")
+
+
 def _module_robots(int_cfg: dict, ha: Any) -> str | None:
-    from app.services.homeassistant_service import HomeAssistantService
     from app.services.robot_service import RobotService
     try:
         svc = RobotService()
         robots = svc.list_robots()
         if not robots:
             return None
+        # Custom state_mappings aus Konfiguration laden
+        robots_cfg = int_cfg.get("robots") or {}
+        state_mappings = robots_cfg.get("state_mappings") or {}
+
         parts = []
-        for r in robots[:3]:
+        for r in robots[:5]:
             name = r.get("name") or r.get("entity_id", "Roboter")
             state = r.get("state") or ""
-            if state not in ("unavailable", "unknown", ""):
-                from app.integrations.robot_core import RobotCore
-                state_labels = {
-                    "docked": "steht in der Basis",
-                    "cleaning": "ist aktiv",
-                    "returning": "fährt zur Basis",
-                    "error": "hat einen Fehler",
-                    "mowing": "mäht gerade",
-                    "idle": "ist bereit",
-                }
-                label = state_labels.get(state.lower(), state)
-                parts.append(f"{name} {label}.")
+            if state.lower() in ("unavailable", "unknown", ""):
+                continue
+            label = _translate_robot_state(state, state_mappings)
+            parts.append(f"{name} {label}.")
         return " ".join(parts) if parts else None
     except Exception:
         return None
