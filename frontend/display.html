@@ -5364,23 +5364,31 @@
     _wakeActive = true;
     _wakeRec = new SR();
     _wakeRec.lang = 'de-DE';
-    _wakeRec.continuous = false;
-    _wakeRec.interimResults = false;
+    _wakeRec.continuous = true;   // Eine lange Session statt vieler kurzer → kein Mikro-Cycling
+    _wakeRec.interimResults = true;
+    _wakeRec.maxAlternatives = 1;
     _wakeRec.onresult = (e) => {
-      const text = (e.results[0]?.[0]?.transcript || '').toLowerCase();
-      if (text.includes((_attentionConfig.wake_word || 'erika').toLowerCase())) {
-        _onWakeDetected();
+      const word = (_attentionConfig.wake_word || 'erika').toLowerCase();
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const text = (e.results[i][0]?.transcript || '').toLowerCase();
+        if (text.includes(word)) { _onWakeDetected(); break; }
       }
     };
     _wakeRec.onend = () => {
+      // Nur neu starten wenn nicht absichtlich gestoppt und kein Hauptmikro aktiv
       if (_wakeActive && !_listening) {
-        setTimeout(() => { try { _wakeRec.start(); } catch {} }, 300);
+        setTimeout(() => { try { _wakeRec.start(); } catch {} }, 1000);
+      }
+    };
+    _wakeRec.onerror = (e) => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        _wakeActive = false;
+        _wakeWordPending = true;
       }
     };
     try {
       _wakeRec.start();
     } catch {
-      // Noch kein User-Gesture — beim nächsten Antippen starten
       _wakeActive = false;
       _wakeWordPending = true;
     }
@@ -5394,11 +5402,20 @@
 
   function _onWakeDetected() {
     if (_listening) return;
+    // Wake Word pausieren — STT übernimmt das Mikro
+    try { _wakeRec?.stop(); } catch {}
+    _wakeActive = false;
     const mic = document.getElementById('mic-btn');
     if (mic) { mic.style.boxShadow = '0 0 20px 6px rgba(0,200,255,0.8)'; setTimeout(() => mic.style.boxShadow = '', 600); }
     unlockAudio();
     startSpeech();
-    _stopWakeWord();
+    // Wake Word nach STT-Ende wieder starten
+    const checkDone = setInterval(() => {
+      if (!_listening) {
+        clearInterval(checkDone);
+        setTimeout(() => { if (!_listening) _startWakeWord(); }, 800);
+      }
+    }, 500);
   }
 
   // Beim ersten Touch/Klick: Wake Word starten falls noch ausstehend
@@ -5409,12 +5426,8 @@
     }
   }, { passive: true });
 
-  // Wenn STT endet, Wake Word wieder starten
-  const _origStopSpeech = stopSpeech;
-  stopSpeech = function() {
-    _origStopSpeech();
-    if (_attentionConfig.wake_word_enabled) setTimeout(_startWakeWord, 500);
-  };
+  // Nach STT-Ende: Wake Word wieder aktivieren (onend-Handler kümmert sich um Neustart)
+  // Kein Override von stopSpeech nötig — _wakeRec.onend startet automatisch neu
 
   // ── Gesichtserkennung ──────────────────────────────────────
   async function _loadFaceApiLib() {
