@@ -1731,7 +1731,8 @@ class RobotCore:
     )
 
     ROBOT_COMMAND_PATTERN = re.compile(
-        r"\b(?:schick(?:e)?|send[e]?|lass|fahr(?:e)?|starte?|reinig(?:e)?|saug(?:e)?|wisch(?:e)?|putz(?:e)?|schick\s+los)\b",
+        r"\b(?:schick(?:e)?|send[e]?|lass|fahr(?:e)?|starte?|reinig(?:e)?|saug(?:e)?|wisch(?:e)?|putz(?:e)?|schick\s+los"
+        r"|mäh(?:en|e)?|mow|leg\s+los|soll\s+(?:mähen|saugen|wischen|reinigen|starten|loslegen))\b",
         re.IGNORECASE,
     )
 
@@ -1810,12 +1811,35 @@ class RobotCore:
             full_cfg = IntegrationConfigService().get_config() or {}
             robots_cfg = full_cfg.get("robots") or {}
             vacuum_configs = robots_cfg.get("vacuum_configs") or {}
+            all_robots = svc.list_robots_with_config(full_cfg)
 
-            vacuums = [r for r in svc.list_robots() if r.get("domain") == "vacuum"]
+            q = query.lower()
+
+            # ── Mähroboter-Pfad ─────────────────────────────────────────────
+            _MOWER_INTENT = re.compile(
+                r"\b(?:mäh(?:en|e)?|rasenmäher|mähroboter|mäher"
+                r"|soll\s+mähen|starte?\s+(?:den\s+)?(?:mähroboter|mäher|rasenmäher))\b",
+                re.IGNORECASE,
+            )
+            mowers = [r for r in all_robots if r.get("domain") == "lawn_mower"]
+            if mowers and (_MOWER_INTENT.search(query) or not [r for r in all_robots if r.get("domain") == "vacuum"]):
+                mower = None
+                for r in mowers:
+                    name_words = [w for w in re.split(r"\s+", r.get("name", "").lower()) if len(w) > 2]
+                    if any(w in q for w in name_words):
+                        mower = r
+                        break
+                if not mower and len(mowers) == 1:
+                    mower = mowers[0]
+                if mower:
+                    svc.command(mower["entity_id"], "start_mowing")
+                    return f"Okay, {mower['name']} fängt jetzt an zu mähen."
+
+            # ── Saugroboter-Pfad ─────────────────────────────────────────────
+            vacuums = [r for r in all_robots if r.get("domain") == "vacuum"]
             if not vacuums:
                 return None
 
-            q = query.lower()
             robot = None
             for r in vacuums:
                 name_words = [w for w in re.split(r"\s+", r.get("name", "").lower()) if len(w) > 2]
