@@ -1713,9 +1713,13 @@ class RobotCore:
                 continue
         return None, None
 
+    _ROBOT_WORDS = r"(?:roboter|saugroboter|mähroboter|staubsauger|mäher|rasenmäher|roborock|roomba)"
+    _ROBOT_ART   = r"(?:der|die|den|mein(?:en?)?|man|unser(?:en?)?)"  # 'man' = STT-Fehler für 'mein'
+
     ROBOT_QUERY_PATTERN = re.compile(
         r"\b(?:"
-        r"was\s+macht\s+(?:der|mein(?:en?)?|die|den)?\s*(?:roboter|saugroboter|mähroboter|staubsauger|mäher|rasenmäher|roborock|roomba)"
+        r"was\s+macht\s+" + r"(?:der|die|den|mein(?:en?)?|man|unser(?:en?)?)?\s*" + r"(?:roboter|saugroboter|mähroboter|staubsauger|mäher|rasenmäher|roborock|roomba)"
+        r"|was\s+macht\s+(?:roboter|saugroboter|mähroboter|staubsauger|mäher)\s+\w+"
         r"|wie\s+(?:ist|steht|viel|weit|lange)\s+.{0,20}(?:roboter|saugroboter|mähroboter|staubsauger|mäher|rasenmäher)"
         r"|(?:ist|sind)\s+.{0,20}(?:roboter|saugroboter|mähroboter|staubsauger|mäher)\s+.{0,20}(?:fertig|zuhause|laden|fehler|aktiv|beschäftigt|kaputt)"
         r"|status\s+.{0,20}(?:roboter|saugroboter|mähroboter|staubsauger|mäher)"
