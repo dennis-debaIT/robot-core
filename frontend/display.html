@@ -2804,6 +2804,8 @@
 
   function _speakText(text) {
     if (!text) return;
+    // Sicherstellen dass der TTS-Buffer leer ist bevor die Begrüßung rein kommt
+    if (_ttsBuf && _ttsBuf.trim()) feedTts('', true);
     feedTts(text, true);
   }
 
