@@ -1735,25 +1735,6 @@ class RobotCore:
         re.IGNORECASE,
     )
 
-    _ROBOT_STATE_DE: dict[str, str] = {
-        "cleaning": "fährt gerade und reinigt",
-        "sweeping": "saugt gerade",
-        "mopping": "wischt gerade",
-        "sweeping_and_mopping": "saugt und wischt gerade",
-        "docked": "ist in der Ladestation",
-        "charging": "lädt gerade",
-        "returning": "fährt zur Ladestation zurück",
-        "idle": "steht bereit",
-        "paused": "ist pausiert",
-        "error": "meldet einen Fehler",
-        "mowing": "mäht gerade",
-        "edgecut": "schneidet die Kanten",
-        "rain_delay": "wartet wegen Regen",
-        "rain_delayed": "wartet wegen Regen",
-        "going_home": "fährt nach Hause",
-        "unknown": "ist unbekannt",
-    }
-
     def _try_robot_query(self, query: str) -> str | None:
         """Beantwortet Statusfragen zu Robotern direkt aus HA-Daten."""
         if not self.ROBOT_QUERY_PATTERN.search(query):
@@ -1761,13 +1742,13 @@ class RobotCore:
         try:
             from app.services.robot_service import RobotService
             from app.services.integration_config_service import IntegrationConfigService
+            from app.services.summary_service import _translate_robot_state
             cfg = IntegrationConfigService().get_config() or {}
             svc = RobotService()
             robots = svc.list_robots_with_config(cfg)
             if not robots:
                 return None
 
-            # Gezielt nach einem bestimmten Roboter suchen
             q = query.lower()
             matched = None
             for r in robots:
@@ -1777,11 +1758,14 @@ class RobotCore:
                     break
             targets = [matched] if matched else robots
 
+            _ACTIVE_STATES = {"cleaning", "sweeping", "mopping", "sweeping_and_mopping",
+                              "mowing", "cutting", "edgecut", "spot", "auto", "cruising"}
+
             parts = []
             for r in targets:
                 name = r["name"]
                 state_raw = (r.get("state") or "unknown").lower()
-                state_de = self._ROBOT_STATE_DE.get(state_raw, state_raw)
+                state_de = _translate_robot_state(state_raw)
                 battery = r.get("battery")
                 extras = r.get("extras", {})
 
@@ -1792,19 +1776,19 @@ class RobotCore:
                     except (ValueError, TypeError):
                         pass
 
-                # Fehler aus extras
+                # Fehler
                 error = (extras.get("fehler", {}).get("state") or "").strip().lower()
                 if error and error not in {"kein fehler", "no_error", "none", "ok", "", "unknown"}:
-                    err_de = svc._translate_error_state(error)
-                    line += f" — Fehler: {err_de}"
+                    line += f" — Fehler: {svc._translate_error_state(error)}"
 
-                # Gereinigte Fläche
-                area = extras.get("total_cleaned_area", {}).get("state")
-                if area:
-                    try:
-                        line += f", gereinigte Fläche: {round(float(area))} m²"
-                    except (ValueError, TypeError):
-                        pass
+                # Gereinigte Fläche nur bei aktivem Reinigen (nicht bei Trocknen, Laden etc.)
+                if state_raw in _ACTIVE_STATES:
+                    area = extras.get("total_cleaned_area", {}).get("state")
+                    if area:
+                        try:
+                            line += f", bisher {round(float(area))} m² gereinigt"
+                        except (ValueError, TypeError):
+                            pass
 
                 parts.append(line)
 
