@@ -56,6 +56,23 @@ class MemoryService:
                 (subject,),
             ).rowcount
 
+    def delete_by_value(self, subject: str, categories: list[str], value: str) -> int:
+        """Löscht Memories zu einem bestimmten Wert (z.B. 'Kaffee') für eine Person.
+        Matching: subject + category in Liste + content enthält den Wert (case-insensitive)."""
+        if not categories or not value.strip():
+            return 0
+        placeholders = ",".join("?" for _ in categories)
+        with get_connection() as conn:
+            return conn.execute(
+                f"""
+                DELETE FROM memory_entries
+                WHERE lower(coalesce(subject, '')) = lower(?)
+                  AND category IN ({placeholders})
+                  AND lower(content) LIKE lower(?)
+                """,
+                (subject, *categories, f"%{value.strip()}%"),
+            ).rowcount
+
     def find_duplicate(
         self,
         *,

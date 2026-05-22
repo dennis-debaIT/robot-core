@@ -4,10 +4,26 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.database.db import get_connection
+from app.memory.service import MemoryService as _MemSvc
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+_TRAIT_TO_MEM_CATS: dict[str, list[str]] = {
+    "preference": ["preference"],
+    "dislike":    ["dislike"],
+    "interest":   ["interest", "interest_signal"],
+    "age":        ["age"],
+    "favorite_color":  ["favorite_color", "favorite_colour"],
+    "favorite_food":   ["favorite_food"],
+    "favorite_drink":  ["favorite_drink"],
+    "occupation":      ["occupation"],
+    "residence":       ["residence"],
+    "hometown":        ["hometown"],
+    "nickname":        ["nickname"],
+}
 
 
 class PersonProfileService:
@@ -162,7 +178,7 @@ class PersonProfileService:
                     SELECT id, value, source_memory_id, confidence
                     FROM person_profile_facts
                     WHERE person_id = ?
-                      AND trait_type = 'preference'
+                      AND trait_type IN ('preference', 'interest')
                       AND lower(value) = lower(?)
                     """,
                     (person_id, normalized_value),
@@ -178,7 +194,7 @@ class PersonProfileService:
                         """
                         DELETE FROM person_profile_facts
                         WHERE person_id = ?
-                          AND trait_type = 'preference'
+                          AND trait_type IN ('preference', 'interest')
                           AND lower(value) = lower(?)
                         """,
                         (person_id, normalized_value),
@@ -207,6 +223,22 @@ class PersonProfileService:
             conn.execute(
                 "UPDATE persons SET updated_at = ? WHERE id = ?",
                 (timestamp, person_id),
+            )
+
+        # Memories der verdrängten Gegenkategorie bereinigen
+        if trait_type == "dislike":
+            # Preference- und Interest-Memories für diesen Wert löschen
+            _MemSvc().delete_by_value(
+                normalized_person_name,
+                ["preference", "interest", "interest_signal"],
+                normalized_value,
+            )
+        elif trait_type == "preference" and conflict and conflict.get("type") == "preference_overrode_dislike":
+            # Dislike-Memories für diesen Wert löschen
+            _MemSvc().delete_by_value(
+                normalized_person_name,
+                ["dislike"],
+                normalized_value,
             )
 
         return {
@@ -376,12 +408,25 @@ class PersonProfileService:
         person = self.get_person_by_id(person_id)
         if not person:
             return None
+        # Fakt vorher auslesen um danach Memories zu bereinigen
         with get_connection() as conn:
+            fact_row = conn.execute(
+                "SELECT trait_type, value FROM person_profile_facts WHERE id = ? AND person_id = ?",
+                (fact_id, person_id),
+            ).fetchone()
             conn.execute(
                 "DELETE FROM person_profile_facts WHERE id = ? AND person_id = ?",
                 (fact_id, person_id),
             )
             conn.execute("UPDATE persons SET updated_at = ? WHERE id = ?", (now_iso(), person_id))
+
+        if fact_row:
+            trait_type = fact_row["trait_type"]
+            value = fact_row["value"]
+            mem_cats = _TRAIT_TO_MEM_CATS.get(trait_type)
+            if mem_cats:
+                _MemSvc().delete_by_value(person["name"], mem_cats, value)
+
         return self.get_person_by_id(person_id)
 
     def update_fact(self, person_id: int, fact_id: int, new_value: str) -> dict[str, Any] | None:
