@@ -3002,11 +3002,13 @@
             <button onclick="resetPersonRelationship(${id})" style="padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>`;
         const relHtml = _sec('💙', 'Beziehungsstatus', relInner, false);
 
-        // Reaktions-Vorlieben der Person — API gibt dict zurück, in Array umwandeln
+        // Reaktions-Vorlieben — nur bekannte Preference-Typen, kein write_calendar_entity o.ä.
+        const _PREF_TYPES = new Set(['response_humor_preference','response_style_preference','response_length_preference']);
         const _prefsRaw = prefs.preferences || {};
-        const prefData = Array.isArray(_prefsRaw)
+        const prefData = (Array.isArray(_prefsRaw)
           ? _prefsRaw
-          : Object.entries(_prefsRaw).map(([trait_type, value]) => ({ trait_type, value }));
+          : Object.entries(_prefsRaw).map(([trait_type, value]) => ({ trait_type, value }))
+        ).filter(p => _PREF_TYPES.has(p.trait_type));
         const prefInner = prefData.map(p => {
           const _PREF_OPTIONS = {
             response_humor_preference: [{v:'higher',l:'Mehr Humor'},{v:'lower',l:'Weniger Humor'},{v:'default',l:'Standard'}],
@@ -3053,19 +3055,7 @@
               <button onclick="savePersonCalendar(${id})" style="padding:4px 12px;border-radius:6px;font-size:0.76rem;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">Speichern</button>
             </div>`;
         const calHtml = _sec('📅', 'Kalender eintragen in', calInner, false);
-        // Kalender-Entities laden
-        fetch('/ha/calendar/entities').then(r => r.json()).then(d => {
-          const sel = document.getElementById(`cal-entity-${id}`);
-          if (!sel || sel.dataset.loaded) return;
-          sel.dataset.loaded = '1';
-          (d.entities || []).forEach(e => {
-            const opt = document.createElement('option');
-            opt.value = e.entity_id;
-            opt.textContent = e.name;
-            if (e.entity_id === calEntity) opt.selected = true;
-            sel.appendChild(opt);
-          });
-        }).catch(() => {});
+        // Kalender-Entities werden NACH el.innerHTML geladen (Fetch läuft nach DOM-Update)
 
         // Tageszusammenfassung-Konfiguration
         const sumCfg = await fetch(`/profiles/${id}/summary-config`).then(r=>r.json()).then(d=>d.config).catch(()=>null);
@@ -3144,21 +3134,43 @@
           </div>`;
         }).join('');
 
+        const _details = (label, content, open = false) =>
+          `<details${open ? ' open' : ''} style="margin-bottom:4px;">
+            <summary style="font-size:0.66rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;
+                            color:var(--muted);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;
+                            padding:5px 2px;user-select:none;">
+              <span style="font-size:0.6rem;">▸</span> ${label}
+            </summary>
+            <div style="margin-top:4px;">${content}</div>
+          </details>`;
+
         const wissenInner = `
           ${pendingRows ? `<div style="margin-bottom:8px;"><div style="font-size:0.66rem;color:#ffab00;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">● Vorschläge (${pending.length})</div>${pendingRows}</div>` : ''}
-          <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">Profil-Fakten (${facts.length})</div>
-          ${factRows || '<div style="font-size:0.76rem;color:var(--muted);padding:4px 0;">Keine Profil-Fakten.</div>'}
-          ${memFilteredRows ? `
-            <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin:10px 0 4px;">Beobachtungen (${memFiltered.length})</div>
-            ${memFilteredRows}` : ''}
+          ${_details(`Profil-Fakten (${facts.length})`,
+            factRows || '<div style="font-size:0.76rem;color:var(--muted);padding:4px 0;">Keine Profil-Fakten.</div>',
+            true)}
+          ${memFilteredRows ? _details(`Beobachtungen (${memFiltered.length})`, memFilteredRows, true) : ''}
           ${approved.length > memFiltered.length ? `
             <div style="font-size:0.68rem;color:var(--muted);margin-top:6px;padding:4px 6px;border-radius:6px;background:rgba(255,255,255,0.03);">
-              ${approved.length - memFiltered.length} weitere Einträge (Vorlieben/Abneigungen) sind bereits im Profil gespeichert und werden hier nicht doppelt angezeigt.
+              ${approved.length - memFiltered.length} Einträge (Vorlieben/Abneigungen) bereits im Profil – hier nicht doppelt angezeigt.
             </div>` : ''}`;
 
         const wissenHtml = _sec('🧠', `Was Erika weiß · ${facts.length + approved.length} Einträge`, wissenInner, true);
 
         el.innerHTML = relHtml + faceHtml + sumHtml + calHtml + prefHtml + wissenHtml;
+
+        // Kalender-Entities NACH DOM-Update laden (vermeidet Race Condition)
+        fetch('/ha/calendar/entities').then(r => r.json()).then(d => {
+          const sel = document.getElementById(`cal-entity-${id}`);
+          if (!sel) return;
+          (d.entities || []).forEach(e => {
+            const opt = document.createElement('option');
+            opt.value = e.entity_id;
+            opt.textContent = e.name;
+            if (e.entity_id === calEntity) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }).catch(() => {});
       } catch {
         el.innerHTML = '<div style="color:var(--danger);font-size:0.78rem;">Fehler beim Laden.</div>';
       }
