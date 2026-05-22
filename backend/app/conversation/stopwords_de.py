@@ -1,0 +1,215 @@
+"""
+Deutsche Stopwörter für die Themen-/Interessenerkennung.
+Wörter auf dieser Liste werden nie als Interessen oder Themen gewertet.
+"""
+from __future__ import annotations
+
+STOPWORDS_DE: frozenset[str] = frozenset({
+
+    # ── Artikel, Demonstrativ- und Indefinitpronomen ──────────────────────────
+    "der", "die", "das", "des", "dem", "den",
+    "ein", "eine", "einem", "einen", "einer", "eines",
+    "dieser", "diese", "dieses", "diesem", "diesen",
+    "jener", "jene", "jenes", "jenem", "jenen",
+    "solche", "solchen", "solcher", "solchem", "solches",
+    "kein", "keine", "keinem", "keinen", "keiner", "keines",
+    "alle", "alles", "allem", "allen", "aller",
+    "viele", "vielen", "vieler", "vielem",
+    "etwas", "nichts", "jemand", "niemand",
+    "man", "jede", "jeden", "jeder", "jedem", "jedes",
+
+    # ── Interrogativ- und Relativpronomen ─────────────────────────────────────
+    "welche", "welchen", "welcher", "welches", "welchem",
+    "wessen", "woher", "wohin", "womit", "worüber", "wozu",
+    "wofür", "worin", "wobei", "wovon", "worauf", "wodurch",
+    "wieso", "weshalb", "warum", "wann", "wer", "was", "wie",
+    "woran", "worum", "wieviel", "wieviele",
+
+    # ── Personalpronomen und Reflexivpronomen ─────────────────────────────────
+    "ich", "du", "er", "sie", "wir", "ihr",
+    "mich", "dich", "sich", "uns", "euch",
+    "mir", "dir", "ihm", "ihr", "ihnen",
+    "ihn", "es",
+    "mein", "meine", "meinem", "meinen", "meiner", "meines",
+    "dein", "deine", "deinem", "deinen", "deiner", "deines",
+    "sein", "seine", "seinem", "seinen", "seiner", "seines",
+    "unser", "unsere", "unserem", "unseren", "unserer",
+
+    # ── Hilfsverben ───────────────────────────────────────────────────────────
+    "habe", "haben", "hast", "hat", "hatte", "hatten", "hattest", "habt",
+    "hätte", "hätten", "hättest", "hättet",
+    "sein", "sind", "bist", "ist", "war", "waren", "warst",
+    "wäre", "wären", "wärst",
+    "werde", "werden", "wirst", "wird", "werdet",
+    "wurde", "wurden", "wardst",
+    "kann", "kannst", "können", "konnte", "konnten",
+    "könnten", "könnte", "könntet",
+    "soll", "sollst", "sollen", "sollte", "sollten", "solltest", "solltet",
+    "darf", "darfst", "dürfen", "durfte", "durften", "dürfte", "dürften",
+    "muss", "musst", "müssen", "musste", "mussten", "müsste", "müssten",
+    "mag", "magst", "mögen", "mochte", "mochten",
+    "möchte", "möchten", "möchtest", "möchtet",
+    "will", "willst", "wollen", "wollte", "wollten", "wolltest", "wollt",
+    "würde", "würden", "würdest", "würdet",
+
+    # ── Häufige Vollverben — generisch, kein sinnvolles Interesse ─────────────
+    "fragt", "frage", "fragen", "fragst",
+    "sagt", "sage", "sagen", "sagst",
+    "macht", "mache", "machen", "machst",
+    "geht", "gehe", "gehen", "gehst",
+    "gibt", "geben", "gibst",
+    "weiß", "weißt", "wissen", "wusste", "wussten",
+    "kennst", "kenne", "kennen", "kannte", "kannten",
+    "denkst", "denke", "denken", "dachte", "dachten", "gedacht",
+    "glaubst", "glaube", "glauben", "glaubte",
+    "meinst", "meine", "meinen", "meinte",
+    "findest", "finde", "finden", "fand", "gefunden",
+    "siehst", "sehe", "sehen", "sah", "gesehen",
+    "hörst", "höre", "hören", "hörte", "gehört",
+    "brauchst", "brauche", "brauchen", "brauchte",
+    "kommst", "komme", "kommen", "kam", "kamen", "gekommen",
+    "merke", "merken", "merkt", "bemerkt",
+    "hoffe", "hoffen", "hofft",
+    "steht", "stehen", "stand", "stände",
+    "liegt", "liegen", "lag", "lagen",
+    "läuft", "laufen", "lief", "liefen",
+    "sitzt", "sitzen", "saß", "saßen",
+    "stellt", "stellen", "stellte",
+    "passiert", "passieren", "passierte",
+    "existiert", "existieren",
+    "funktioniert", "funktionieren", "funktionierte",
+    "klingt", "klingen", "klang",
+    "bedeutet", "bedeuten", "bedeute", "bedeutest", "bedeutete",
+    "heißt", "heißen", "heiße", "hieß",
+    "reden", "redet", "rede", "redest", "redete",
+    "sprechen", "spricht", "spreche", "sprichst", "sprach",
+    "erzähle", "erzähl", "erzählt", "erzählen", "erzählst", "erzählte", "erzählung",
+    "erkläre", "erklärt", "erklären", "erklärst", "erklärte",
+    "beschreibe", "beschreibt", "beschreiben", "beschreibst",
+    "zeig", "zeigt", "zeigen", "zeigst", "zeigte", "gezeigt",
+    "verstehe", "versteht", "verstehen", "verstehst", "verstand",
+    "erinnere", "erinnert", "erinnern", "erinnerst", "erinnerte",
+    "versuche", "versucht", "versuchen", "versuchst", "versuchte",
+    "benutze", "benutzt", "benutzen", "benutzt",
+    "nenne", "nennt", "nennen", "nennst", "nannte",
+    "helfe", "hilft", "helfen", "hilfst", "half",
+    "warte", "wartet", "warten", "wartest", "wartete",
+    "vergiss", "vergessen", "vergisst", "vergaß",
+    "teste", "testet", "testen", "testest",
+    "probiere", "probiert", "probieren", "probierst",
+
+    # ── Partizipien Perfekt ───────────────────────────────────────────────────
+    "gespielt", "gemacht", "gesagt", "geworden", "gegeben", "gegangen",
+    "gekommen", "gestellt", "gestanden", "gelegen", "gefahren", "geflogen",
+    "gesehen", "gefunden", "gelesen", "geschrieben", "gedacht",
+    "gezeigt", "gesucht", "gefragt", "geöffnet", "geschlossen",
+    "gestartet", "gestoppt", "geladen", "gesendet", "gespeichert",
+    "geboren", "gestorben", "bekannt", "berühmt",
+
+    # ── Zeitangaben — nie Interessen ──────────────────────────────────────────
+    "heute", "gestern", "morgen", "jetzt", "dann", "früher",
+    "später", "gleich", "bald", "gerade", "damals",
+    "immer", "manchmal", "meistens", "selten", "nie",
+    "täglich", "wöchentlich", "monatlich", "jährlich",
+    "einmal", "nochmal", "nochmals", "überall", "nirgends", "irgendwo",
+
+    # ── Präpositionen ─────────────────────────────────────────────────────────
+    "als", "an", "auf", "aus", "außer", "bei", "bis", "durch",
+    "für", "gegen", "hinter", "in", "mit", "nach", "neben",
+    "ohne", "seit", "über", "um", "unter", "vor", "von", "zu", "zwischen",
+    "beim", "im", "ins", "zum", "zur",
+
+    # ── Konjunktionen und Adverbien ───────────────────────────────────────────
+    "aber", "also", "auch", "außerdem", "dabei", "dafür", "damit",
+    "dann", "denn", "dennoch", "deshalb", "deswegen",
+    "dort", "doch", "ebenfalls", "erst", "falls",
+    "hier", "jedoch", "indem", "irgendwie", "kurz",
+    "lang", "mal", "mehr", "nach", "nicht", "nein",
+    "noch", "nun", "obwohl", "oder", "schon", "sehr",
+    "seit", "sodass", "sofern", "sonst", "trotzdem",
+    "über", "und", "unter", "viel", "vielleicht",
+    "weil", "wenn", "wieder", "wo", "wohl", "zurück",
+    "bereits", "bisher", "eigentlich", "natürlich", "übrigens",
+    "halt", "eben", "zwar", "dazu", "daran", "dabei",
+
+    # ── Generische Nomen — kein sinnvolles Interesse ──────────────────────────
+    "platz", "stelle", "ort", "punkt", "lage", "bereich",
+    "fall", "fälle", "schritt", "teil", "teile",
+    "art", "weise", "form", "grund", "gründe",
+    "tage", "wochen", "monat", "monate", "jahr", "jahre",
+    "uhr", "zeit", "stunde", "stunden", "minute", "minuten",
+    "zahl", "zahlen", "wert", "werte", "anzahl", "menge",
+    "name", "namen", "titel",
+    "idee", "ideen", "vorschlag", "vorschläge",
+    "beispiel", "beispiele", "ansatz", "ansätze",
+    "lösung", "lösungen", "möglichkeit", "möglichkeiten",
+    "ergebnis", "ergebnisse", "resultat",
+    "anfang", "ende", "beginn",
+    "ding", "dinge", "sache", "sachen",
+    "thema", "themen", "info", "infos",
+    "frage", "antwort",
+    "tipp", "tipps",
+    "leute", "mensch", "menschen",
+    "kind", "kinder",
+
+    # ── Adjektive / Adverbien — generisch, kein Interesse ────────────────────
+    "weitere", "weiteren", "weiterer", "weiteres", "weiterem",
+    "aktuell", "aktuelle", "aktuellen", "aktueller", "aktuelles",
+    "interessant", "interessante", "interessanten",
+    "bestimmte", "bestimmten", "bestimmter",
+    "ähnliche", "ähnlichen", "ähnlicher",
+    "andere", "anderen", "anderer", "anderes",
+    "gleiche", "gleichen", "gleicher",
+    "direkt", "direkte", "direkten",
+    "einfach", "einfache", "einfachen",
+    "komplex", "komplexe", "komplexen",
+    "wichtig", "wichtige", "wichtigen",
+    "möglich", "mögliche", "möglichen",
+    "nötig", "nötige", "nötigen",
+    "fertig", "fertige", "fertigen",
+    "richtig", "richtige", "richtigen",
+    "falsch", "falsche", "falschen",
+    "groß", "große", "großen", "großer",
+    "klein", "kleine", "kleinen", "kleiner",
+    "neu", "neue", "neuen", "neuer",
+    "alt", "alte", "alten", "alter",
+    "schnell", "schnelle", "schnellen",
+    "kurze", "kurzen", "kurzer",
+    "lange", "langen", "langer",
+    "eigene", "eigenen", "eigener", "eigenes",
+    "total", "totale", "totalen",
+    "absolut", "absolute", "absoluten",
+    "ziemlich", "ungefähr", "etwa",
+
+    # ── Meta-Konversation / Bestätigung ──────────────────────────────────────
+    "test", "okay", "danke", "bitte", "gerne", "genau", "klar",
+    "stimmt", "echt", "wirklich", "super", "prima", "toll",
+    "ah", "aha", "hm", "hmm", "ja", "nein", "ne", "jo",
+    "danach", "weisst",
+
+    # ── Ordinalzahlen (Basis) ─────────────────────────────────────────────────
+    "ersten", "erster", "erstes", "erstem", "erste",
+    "letzten", "letzter", "letztes", "letztem", "letzte",
+    "nächsten", "nächster", "nächstes", "nächstem", "nächste",
+
+    # ── Erika-spezifisch — System-/Roboterbegriffe ───────────────────────────
+    "erika", "interessiere",
+    "roboter", "system", "backend", "docker", "container", "server",
+    "modell", "stimme", "sprache", "ausgabe", "eingabe", "display",
+    "bildschirm", "button", "funktion", "feature", "fehler", "problem",
+    "version", "update", "code", "daten", "liste",
+
+    # ── Smart-Home / Lichtsteuerung ───────────────────────────────────────────
+    "licht", "lampe", "lampen", "lichter", "schalter", "gruppe",
+    "gruppen", "szene", "automation", "steckdose",
+    "helligkeit", "dimmer",
+
+    # ── Web / Suche / Internet ────────────────────────────────────────────────
+    "internet", "suche", "suchen", "google", "browser", "webseite",
+    "seite", "seiten", "link", "links",
+
+    # ── Grüße und Abschiedsformeln ────────────────────────────────────────────
+    "guten", "gute", "guter", "gutem", "gutes",
+    "abend", "nacht", "hallo", "hello",
+    "moin", "servus", "ciao", "tschüss", "tschuss", "tschüs",
+})

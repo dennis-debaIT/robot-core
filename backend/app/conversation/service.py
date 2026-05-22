@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.conversation.stopwords_de import STOPWORDS_DE
 from app.database.db import get_connection
 
 
@@ -12,135 +13,7 @@ def now_utc() -> datetime:
 
 
 class ConversationService:
-    STOPWORDS = {
-        # Artikel und Demonstrativpronomen
-        "aber", "also", "beim", "dafür", "dann", "dein", "deine", "deinem",
-        "deinen", "deiner", "denn", "der", "des", "die", "dir", "doch",
-        "ein", "eine", "einem", "einen", "einer", "eines",
-        "dieser", "diese", "dieses", "diesem", "diesen",
-        "jener", "jene", "jenes", "jenem", "jenen",
-        "solche", "solchen", "solcher", "solchem", "solches",
-        # Interrogativ- und Relativpronomen
-        "welche", "welchen", "welcher", "welches", "welchem",
-        "wessen", "woher", "wohin", "womit", "worüber", "wozu",
-        "wofür", "worin", "wobei", "wovon", "worauf", "wodurch",
-        "wieso", "weshalb", "warum", "wann", "wer", "was", "wie",
-        "woran", "worum", "wieviel", "wieviele", "wievieles", "wievielmal",
-        # Personalpronomen und Reflexivpronomen
-        "sich", "dich", "euch", "ihnen", "ihn", "ihr", "ihre", "ihrem",
-        "ihren", "ihrer", "ihres", "mich", "mein", "meine", "meinem",
-        "meinen", "meiner", "meines", "uns", "ich",
-        # Hilfsverben und häufige Verbformen (alle Personen)
-        "habe", "haben", "hast", "hatte", "hatten", "hattest", "hätte", "hätten", "hättest",
-        "sein", "sind", "bist", "wäre", "wären", "wärst", "wirst", "wird",
-        "wurde", "wurden", "wardst",
-        "kann", "kannst", "könnten", "könnte", "konnte", "konnten",
-        "soll", "sollte", "sollten", "solltest",
-        "darf", "dürfte", "dürften",
-        "muss", "müsste", "müssten", "musste",
-        "mag", "magst", "möchte", "möchten", "möchtest", "mögen",
-        "würde", "würden", "würdest", "werden", "werdet", "werde",
-        "will", "wollen", "wollte", "wollten", "wolltest",
-        "fragt", "frage", "fragen", "fragst",
-        "sagt", "sage", "sagen", "sagst",
-        "erzähle", "erzähl", "erzählt", "erzählen", "erzählst", "erzählte", "erzählung",
-        "macht", "mache", "machen", "machst",
-        "geht", "gehe", "gehen", "gehst",
-        "gibt", "geben", "gibst",
-        "weißt", "weiß", "wissen",
-        "weißt", "sagst", "kennst", "denkst", "glaubst", "meinst",
-        "findest", "siehst", "hörst", "brauchst", "willst", "wollt",
-        "kommst", "gehst", "machst", "sagst", "weißt",
-        "denke", "denken", "dachte", "dachten", "gedacht",
-        "glaube", "glauben", "glaubte", "kenne", "kennen", "kannte",
-        "merke", "merken", "merkt", "bemerkt",
-        "hoffe", "hoffen", "hofft", "gehört", "gestellt",
-        # Zeitwörter — nie Interessen
-        "heute", "gestern", "morgen", "jetzt", "dann", "früher",
-        "später", "gleich", "bald", "gerade", "damals", "immer",
-        "manchmal", "meistens", "selten", "täglich", "wöchentlich",
-        # Präpositionen und Adverbien
-        "aber", "also", "auch", "außer", "bitte", "dafür", "damit",
-        "dort", "doch", "einfach", "erst", "etwas",
-        "falls", "für", "gegen", "hier", "indem",
-        "irgendwie", "kurz", "lang", "mal", "mehr",
-        "nach", "nicht", "nein", "noch", "nun", "obwohl", "oder",
-        "ohne", "schon", "sehr", "seit", "sodass", "sofern",
-        "über", "und", "unter", "viel", "vielleicht", "weil",
-        "wenn", "wieder", "wo", "wohl", "zurück",
-        "bereits", "bisher", "dennoch", "jedoch", "trotzdem",
-        "außerdem", "ebenfalls", "eigentlich", "natürlich", "übrigens",
-        "einmal", "nochmal", "überall", "nirgends", "irgendwo",
-        "kein", "keine", "keinem", "keinen", "keiner", "keines",
-        "letzten", "letzter", "letztes", "letztem", "letzte",
-        "ersten", "erster", "erstes", "erstem", "erste",
-        "nächsten", "nächster", "nächstes", "nächstem", "nächste",
-        # Verben (Partizip Perfekt & häufige Verbformen) — nie Interessen
-        "gespielt", "gemacht", "gesagt", "geworden", "gegeben", "gegangen",
-        "gekommen", "gestellt", "gestanden", "gelegen", "gefahren", "geflogen",
-        "gesehen", "gehört", "gefunden", "gelesen", "geschrieben", "gedacht",
-        "gezeigt", "gehört", "gesucht", "gefragt", "geöffnet", "geschlossen",
-        "gestartet", "gestoppt", "geladen", "gesendet", "gespeichert",
-        "steht", "stehen", "stand", "stände", "stünde",
-        "liegt", "liegen", "läuft", "laufen", "lief",
-        "sitzt", "sitzen", "saß", "stellt", "stellt",
-        "passiert", "passieren", "existiert", "existieren",
-        # Zu generische Einzelnomen — kein sinnvolles Interesse
-        "platz", "stelle", "ort", "punkt", "lage", "bereich",
-        "fall", "fälle", "schritt", "teil", "teile",
-        "art", "weise", "form", "grund", "gründe",
-        "tage", "wochen", "monat", "monate", "jahr", "jahre",
-        "uhr", "zeit", "stunde", "stunden", "minute", "minuten",
-        "zahl", "zahlen", "wert", "werte", "anzahl", "menge",
-        "name", "namen", "titel",
-        "idee", "ideen", "vorschlag", "vorschläge",
-        "beispiel", "beispiele", "ansatz", "ansätze",
-        "lösung", "lösungen", "möglichkeit", "möglichkeiten",
-        "ergebnis", "ergebnisse", "resultat",
-        # Adjektive / Adverbien die keine Interessen sind
-        "weitere", "weiteren", "weiterer", "weiteres", "weiterem",
-        "aktuell", "aktuelle", "aktuellen", "aktueller", "aktuelles",
-        "interessant", "interessante", "interessanten",
-        "bestimmte", "bestimmten", "bestimmter",
-        "ähnliche", "ähnlichen", "ähnlicher",
-        "andere", "anderen", "anderer", "anderes",
-        "gleiche", "gleichen", "gleicher",
-        "solche", "solchen", "solcher",
-        "direkt", "direkte", "direkten",
-        "einfach", "einfache", "einfachen",
-        "komplex", "komplexe", "komplexen",
-        # Partizipien & Adjektive (generisch)
-        "geboren", "gestorben", "bekannt", "berühmt", "wichtig",
-        "groß", "kleine", "neue", "alten", "letzten", "erste",
-        "richtig", "falsch", "möglich", "nötig", "fertig",
-        # Testwörter / Meta-Konversation
-        "test", "teste", "testen", "probiere", "probier", "ausprobieren",
-        "danach", "danke", "okay", "alles", "nochmal", "weisst", "weißt",
-        "eigentlich", "genau", "stimmt", "richtig", "falsch", "echt", "wirklich",
-        "nochmal", "nochmals", "wieder", "immer", "noch", "schon", "bereits",
-        # Erika-spezifisch — System/Roboter-Begriffe sind nie echte Interessen
-        "erika", "interessiere",
-        "roboter", "system", "backend", "docker", "container", "server",
-        "modell", "stimme", "sprache", "ausgabe", "eingabe", "display",
-        "bildschirm", "button", "funktion", "feature", "fehler", "problem",
-        "version", "update", "code", "daten", "wert", "liste",
-        # Smart-Home / Lichtsteuerung (Konfiguration, kein Interesse)
-        "licht", "lampe", "lampen", "lichter", "schalter", "gruppe",
-        "gruppen", "szene", "automation", "steckdose", "tresenlicht",
-        "helligkeit", "dimmer",
-        # Web / Suche / Internet (technische Diskussion)
-        "internet", "suche", "suchen", "google", "browser", "webseite",
-        "seite", "link", "ergebnis", "ergebnisse",
-        # Zu generisch — keine sinnvollen Interessen
-        "alles", "alle", "viele", "etwas", "ding", "dinge", "sache",
-        "sachen", "thema", "themen", "bereich", "punkt", "info", "infos",
-        "frage", "antwort", "gerne", "genau", "klar", "bitte",
-        # Grüße und Abschiedsformeln
-        "guten", "gute", "guter", "gutem", "gutes",
-        "morgen", "abend", "nacht", "hallo", "hello",
-        "moin", "servus", "ciao", "tschüss", "tschuss",
-        "okay", "danke", "super", "prima", "genau",
-    }
+    STOPWORDS = STOPWORDS_DE
 
     # Trifft auf Nachrichten zu, die NUR aus einem Gruß bestehen
     GREETING_ONLY_PATTERN = re.compile(
