@@ -3157,7 +3157,29 @@
 
         const wissenHtml = _sec('🧠', `Was Erika weiß · ${facts.length + approved.length} Einträge`, wissenInner, true);
 
-        el.innerHTML = relHtml + faceHtml + sumHtml + calHtml + prefHtml + wissenHtml;
+        // Notizen dieser Person
+        const notesData = await fetch(`/profiles/${id}/notes`).then(r=>r.json()).catch(()=>({items:[]}));
+        const notesList = notesData.items || [];
+        const notesInner = `
+          <div id="notes-list-${id}">
+            ${notesList.length ? notesList.map(n => `
+              <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:8px;margin-bottom:4px;background:var(--panel);">
+                <div style="flex:1;">
+                  <div style="font-size:0.78rem;font-weight:700;">${escapeHtml(n.title)}</div>
+                  <div style="font-size:0.74rem;color:var(--muted);margin-top:2px;">${escapeHtml(n.content)}</div>
+                </div>
+                <button onclick="deletePersonNote(${n.id},${id})" title="Löschen"
+                  style="padding:2px 7px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);flex-shrink:0;">✕</button>
+              </div>`).join('') : '<div style="font-size:0.76rem;color:var(--muted);padding:4px 0;">Keine Notizen.</div>'}
+          </div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <input id="note-title-${id}" placeholder="Titel" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:4px 8px;font-size:0.76rem;">
+            <input id="note-content-${id}" placeholder="Inhalt" style="flex:2;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:4px 8px;font-size:0.76rem;">
+            <button onclick="addPersonNote(${id})" style="padding:4px 12px;border-radius:6px;font-size:0.76rem;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;font-weight:700;">+ Hinzufügen</button>
+          </div>`;
+        const notesHtml = _sec('📝', `Notizen (${notesList.length})`, notesInner, false);
+
+        el.innerHTML = relHtml + faceHtml + sumHtml + calHtml + prefHtml + wissenHtml + notesHtml;
 
         // Kalender-Entities NACH DOM-Update laden (vermeidet Race Condition)
         fetch('/ha/calendar/entities').then(r => r.json()).then(d => {
@@ -3354,6 +3376,24 @@
       await fetch(`/memory/${memoryId}`, { method: 'DELETE' });
       await loadPersonDetail(personId);
       await loadPersons();
+    }
+
+    async function addPersonNote(personId) {
+      const title   = document.getElementById(`note-title-${personId}`)?.value.trim();
+      const content = document.getElementById(`note-content-${personId}`)?.value.trim();
+      if (!title || !content) return;
+      await fetch('/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, person_id: personId }),
+      });
+      await loadPersonDetail(personId);
+    }
+
+    async function deletePersonNote(noteId, personId) {
+      if (!await showConfirm('Notiz löschen?', 'Löschen')) return;
+      await fetch(`/notes/${noteId}`, { method: 'DELETE' });
+      await loadPersonDetail(personId);
     }
 
     async function deletePersonFact(personId, factId) {

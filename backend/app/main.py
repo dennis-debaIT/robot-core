@@ -21,6 +21,7 @@ from app.api.routers import (
     ha_robots,
     local_admin,
     memory,
+    notes as notes_router,
     notifications,
     people,
     personality_audio,
@@ -205,3 +206,4 @@ app.include_router(timer.router)
 app.include_router(notifications.router)
 app.include_router(ha_calendar.router)
 app.include_router(reminders_router.router)
+app.include_router(notes_router.router)

@@ -5535,7 +5535,12 @@
       const word = (_attentionConfig.wake_word || 'erika').toLowerCase();
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const text = (e.results[i][0]?.transcript || '').toLowerCase();
-        if (text.includes(word)) { _onWakeDetected(); break; }
+        if (!text.includes(word)) continue;
+        // "Erika stop/halt/abbruch" → TTS abbrechen, nicht zuhören
+        if (/\b(stop|halt|abbruch|abbrechen|aufhören|aufhoeren|ruhig|leise)\b/.test(text)) {
+          _onWakeStop(); break;
+        }
+        _onWakeDetected(); break;
       }
     };
     _wakeRec.onend = () => {
@@ -5568,15 +5573,29 @@
     try { _wakeRec?.stop(); } catch {}
   }
 
+  function _onWakeStop() {
+    // TTS sofort abbrechen, zurück zu idle
+    resetTts();
+    _chatBusy = false;
+    applyMode('idle');
+    showReplyText('', false);
+    // Wake Word direkt wieder aktivieren
+    setTimeout(_startWakeWord, 800);
+  }
+
   function _onWakeDetected() {
     if (_listening) return;
+    // TTS unterbrechen falls gerade Erika spricht
+    if (_ttsPlaying || _ttsQueue.length > 0) {
+      resetTts();
+      _chatBusy = false;
+    }
     try { _wakeRec?.stop(); } catch {}
     _wakeActive = false;
     const mic = document.getElementById('mic-btn');
     if (mic) { mic.style.boxShadow = '0 0 20px 6px rgba(0,200,255,0.8)'; setTimeout(() => mic.style.boxShadow = '', 600); }
     unlockAudio();
     startSpeech();
-    // Kein manuelles checkDone — Watchdog unten übernimmt den Neustart
   }
 
   // Beim ersten Touch/Klick: Wake Word starten falls noch ausstehend

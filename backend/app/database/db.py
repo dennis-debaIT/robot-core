@@ -297,6 +297,18 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_vehicle_charging_history_vehicle_recorded
             ON vehicle_charging_history(vehicle_id, recorded_at DESC);
+
+            CREATE TABLE IF NOT EXISTS person_notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_id INTEGER,
+                title TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_person_notes_person
+            ON person_notes(person_id);
             """
         )
 

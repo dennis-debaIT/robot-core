@@ -1257,6 +1257,10 @@ class RobotCore:
             if reminder_reply:
                 direct_reply = reminder_reply
         if direct_reply is None:
+            note_reply = self._try_note_command(captured, person_name)
+            if note_reply:
+                direct_reply = note_reply
+        if direct_reply is None:
             timer_reply = self._try_timer_command(captured)
             if timer_reply:
                 direct_reply = timer_reply
@@ -2103,6 +2107,90 @@ class RobotCore:
             return build_summary(person["id"], person_name)
         except Exception:
             return None
+
+    _NOTE_SAVE_PATTERN = re.compile(
+        r"\b(?:merk(?:e|)\s+dir|notier(?:e|)|speicher(?:e|)\s+(?:die\s+)?notiz|leg(?:e|)\s+(?:eine?\s+)?notiz\s+an)"
+        r"\s*[:\-–]?\s*(.+)",
+        re.IGNORECASE,
+    )
+    _NOTE_QUERY_PATTERN = re.compile(
+        r"\b(?:was\s+(?:hast\s+du\s+dir\s+gemerkt|ist|sind|weißt\s+du)\s+(?:über|zu|bei|vom?|der|die|das)\s+(.+?)"
+        r"|was\s+(?:ist|war|sind)\s+(?:der|die|das|mein(?:e)?)?\s*(.+?)\s*\?"
+        r"|zeig(?:e?)\s+mir\s+(?:die\s+)?notiz(?:en)?\s+(?:zu|über|von)\s+(.+)"
+        r"|(?:meine?\s+)?notiz(?:en)?\s+(?:zu|über|von)\s+(.+)"
+        r"|hast\s+du\s+(?:eine?\s+)?notiz\s+(?:zu|über|von)\s+(.+))\b",
+        re.IGNORECASE,
+    )
+    _NOTE_LIST_PATTERN = re.compile(
+        r"\b(?:zeig(?:e?)\s+(?:mir\s+)?(?:alle\s+)?(?:meine\s+)?notizen"
+        r"|was\s+hast\s+du\s+(?:dir\s+)?(?:alles\s+)?(?:gemerkt|notiert|gespeichert)"
+        r"|welche\s+notizen\s+(?:hast\s+du|gibt\s+es))\b",
+        re.IGNORECASE,
+    )
+    _NOTE_DELETE_PATTERN = re.compile(
+        r"\b(?:lösch(?:e?)|entfern(?:e?)|vergiss)\s+(?:die\s+)?notiz\s+(?:zu|über|von|mit\s+dem\s+titel)?\s*(.+)",
+        re.IGNORECASE,
+    )
+
+    def _try_note_command(self, captured: str, person_name: str | None) -> str | None:
+        from app.services.note_service import NoteService
+        svc = NoteService()
+
+        person_id: int | None = None
+        if person_name:
+            p = self.profile.get_person(person_name)
+            if p:
+                person_id = p["id"]
+
+        # Notiz speichern
+        m = self._NOTE_SAVE_PATTERN.search(captured)
+        if m:
+            raw = m.group(1).strip().rstrip(".,!?")
+            # Titel: erstes Wort / Phrase bis zum Doppelpunkt oder erstem Satzzeichen
+            # Inhalt: der Rest (oder alles wenn kein klarer Split)
+            if ":" in raw:
+                parts = raw.split(":", 1)
+                title, content = parts[0].strip(), parts[1].strip()
+            elif " ist " in raw.lower():
+                idx = raw.lower().index(" ist ")
+                title, content = raw[:idx].strip(), raw[idx + 5:].strip()
+            else:
+                title = raw[:40].rsplit(" ", 1)[0] if len(raw) > 40 else raw
+                content = raw
+            if title and content:
+                svc.create(title=title, content=content, person_id=person_id)
+                return f"Notiert: {title} — {content}"
+            return None
+
+        # Alle Notizen auflisten
+        if self._NOTE_LIST_PATTERN.search(captured):
+            notes = svc.list_notes(person_id=person_id)
+            if not notes:
+                return "Ich habe noch keine Notizen gespeichert."
+            lines = [f"• {n['title']}: {n['content']}" for n in notes[:8]]
+            return "Meine Notizen: " + ". ".join(lines)
+
+        # Notiz löschen
+        m = self._NOTE_DELETE_PATTERN.search(captured)
+        if m:
+            query = m.group(1).strip()
+            hits = svc.search(query, person_id=person_id)
+            if not hits:
+                return f"Ich habe keine Notiz zu '{query}' gefunden."
+            svc.delete(hits[0]["id"])
+            return f"Notiz '{hits[0]['title']}' gelöscht."
+
+        # Notiz abfragen
+        m = self._NOTE_QUERY_PATTERN.search(captured)
+        if m:
+            query = next(g for g in m.groups() if g)
+            hits = svc.search(query.strip(), person_id=person_id)
+            if not hits:
+                return None  # kein Treffer → LLM übernimmt
+            n = hits[0]
+            return f"{n['title']}: {n['content']}"
+
+        return None
 
     _REMINDER_PATTERN = re.compile(
         r"\b(?:erinner[e]?\s+(?:mich|uns)|setz[e]?\s+(?:eine?\s+)?erinnerung|stell[e]?\s+(?:eine?\s+)?erinnerung|leg[e]?\s+(?:eine?\s+)?erinnerung)\b"
