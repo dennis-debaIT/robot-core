@@ -823,29 +823,51 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">🔊 Sprachausgabe (TTS)</div>
-              <p>Edge TTS nutzt Microsoft Azure (kostenlos, Internet erforderlich) und klingt deutlich natürlicher. Sherpa ONNX läuft vollständig lokal.</p>
+              <p>Edge TTS nutzt Microsoft Azure (kostenlos, Internet erforderlich) und klingt natürlich. Sherpa ONNX läuft vollständig lokal.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
                 <span class="field-label">TTS Provider</span>
-                <select class="field-select" id="tts-provider-select">
+                <select class="field-select" id="tts-provider-select" onchange="onTtsProviderChange()">
                   <option value="disabled">Deaktiviert</option>
                   <option value="edge_tts">Edge TTS (Microsoft, empfohlen)</option>
                   <option value="sherpa_onnx">Sherpa ONNX (lokal)</option>
                 </select>
               </label>
-              <label class="field-block" id="edge-voice-field">
-                <span class="field-label">Edge TTS Stimme</span>
-                <select class="field-select" id="tts-edge-voice">
-                  <option value="de-DE-KatjaNeural">Katja (weiblich, Standard)</option>
-                  <option value="de-DE-ConradNeural">Conrad (männlich)</option>
-                  <option value="de-DE-AmalaNeural">Amala (weiblich)</option>
-                  <option value="de-AT-IngridNeural">Ingrid (österreichisch)</option>
-                  <option value="de-CH-LeniNeural">Leni (schweizerdeutsch)</option>
-                </select>
-              </label>
             </div>
-            <div class="stack-actions" style="margin-top:10px;">
+
+            <!-- Edge TTS Felder -->
+            <div id="tts-edge-fields" style="display:none;">
+              <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:14px 0 8px;text-transform:uppercase;">Edge TTS Einstellungen</div>
+              <div class="field-grid">
+                <label class="field-block">
+                  <span class="field-label">Stimme</span>
+                  <select class="field-select" id="tts-edge-voice">
+                    <option value="de-DE-KatjaNeural">Katja (Deutsch, ♀) — wird geladen…</option>
+                  </select>
+                </label>
+                <label class="field-block">
+                  <span class="field-label">Geschwindigkeit</span>
+                  <select class="field-select" id="tts-edge-rate">
+                    <option value="-20%">Langsam (-20%)</option>
+                    <option value="-10%">Etwas langsamer (-10%)</option>
+                    <option value="+0%" selected>Normal (Standard)</option>
+                    <option value="+10%">Etwas schneller (+10%)</option>
+                    <option value="+20%">Schnell (+20%)</option>
+                    <option value="+35%">Sehr schnell (+35%)</option>
+                    <option value="+50%">Sehr schnell (+50%)</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <!-- Sherpa ONNX Felder -->
+            <div id="tts-sherpa-fields" style="display:none;">
+              <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:14px 0 8px;text-transform:uppercase;">Sherpa ONNX Einstellungen</div>
+              <div id="tts-sherpa-status" style="font-size:0.8rem;color:var(--muted);padding:8px 0;"></div>
+            </div>
+
+            <div class="stack-actions" style="margin-top:14px;">
               <button type="button" class="primary" onclick="saveTtsSettings()">Speichern</button>
               <span id="tts-save-status" style="font-size:0.76rem;color:var(--muted);margin-left:10px;"></span>
             </div>
@@ -3514,33 +3536,63 @@
       } catch {}
     }
 
+    function onTtsProviderChange() {
+      const provider = document.getElementById('tts-provider-select')?.value || 'disabled';
+      document.getElementById('tts-edge-fields').style.display = provider === 'edge_tts' ? '' : 'none';
+      document.getElementById('tts-sherpa-fields').style.display = provider === 'sherpa_onnx' ? '' : 'none';
+    }
+
+    async function loadTtsVoices(selectedVoice) {
+      const sel = document.getElementById('tts-edge-voice');
+      if (!sel) return;
+      try {
+        const voices = await fetch('/tts/voices').then(r => r.json());
+        if (!voices.length) return;
+        sel.innerHTML = voices.map(v =>
+          `<option value="${v.value}"${v.value === selectedVoice ? ' selected' : ''}>${v.label}</option>`
+        ).join('');
+        if (!voices.find(v => v.value === selectedVoice)) sel.value = voices[0].value;
+      } catch {
+        if (selectedVoice) sel.value = selectedVoice;
+      }
+    }
+
     async function loadTtsSettings() {
       try {
         const d = await fetch('/tts/status').then(r => r.json());
         const provider = d.provider || 'disabled';
         const voice = d.edge_voice || 'de-DE-KatjaNeural';
+        const rate = d.edge_rate || '+0%';
         const sel = document.getElementById('tts-provider-select');
-        const vsEl = document.getElementById('tts-edge-voice');
         if (sel) sel.value = provider;
-        if (vsEl) vsEl.value = voice;
-        document.getElementById('edge-voice-field').style.display = provider === 'edge_tts' ? '' : 'none';
-        document.getElementById('tts-provider-select')?.addEventListener('change', e => {
-          document.getElementById('edge-voice-field').style.display = e.target.value === 'edge_tts' ? '' : 'none';
-        });
+        onTtsProviderChange();
+        const rateEl = document.getElementById('tts-edge-rate');
+        if (rateEl) rateEl.value = rate;
+        if (provider === 'edge_tts') await loadTtsVoices(voice);
+        // Sherpa Status anzeigen
+        if (provider === 'sherpa_onnx') {
+          const statusEl = document.getElementById('tts-sherpa-status');
+          if (statusEl) {
+            const ready = d.ready ? '✓ Bereit' : `✗ Nicht bereit: ${d.reason || ''}`;
+            statusEl.textContent = ready;
+            statusEl.style.color = d.ready ? 'var(--success)' : 'var(--danger)';
+          }
+        }
       } catch {}
     }
 
     async function saveTtsSettings() {
       const provider = document.getElementById('tts-provider-select')?.value || 'disabled';
       const voice = document.getElementById('tts-edge-voice')?.value || 'de-DE-KatjaNeural';
+      const rate = document.getElementById('tts-edge-rate')?.value || '+0%';
       try {
         await fetch('/system/tts-config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tts_provider: provider, edge_voice: voice }),
+          body: JSON.stringify({ tts_provider: provider, edge_voice: voice, edge_rate: rate }),
         });
         const s = document.getElementById('tts-save-status');
-        if (s) { s.textContent = '✓ Gespeichert — Neustart erforderlich'; setTimeout(() => s.textContent = '', 4000); }
+        if (s) { s.textContent = '✓ Gespeichert'; setTimeout(() => s.textContent = '', 3000); }
       } catch {}
     }
 

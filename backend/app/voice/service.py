@@ -266,11 +266,13 @@ class TtsService:
             with get_connection() as conn:
                 tts_cfg = read_state(conn, "tts_runtime_config", {})
             voice = tts_cfg.get("edge_voice") or os.getenv("ROBOT_TTS_EDGE_VOICE", "de-DE-KatjaNeural")
+            rate = tts_cfg.get("edge_rate") or "+0%"
         except Exception:
             voice = os.getenv("ROBOT_TTS_EDGE_VOICE", "de-DE-KatjaNeural")
+            rate = "+0%"
 
         async def _run() -> bytes:
-            communicate = edge_tts.Communicate(text, voice)
+            communicate = edge_tts.Communicate(text, voice, rate=rate)
             audio = b""
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
