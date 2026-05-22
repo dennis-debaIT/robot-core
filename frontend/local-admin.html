@@ -2918,6 +2918,33 @@
           return;
         }
 
+        // ── Hilfsfunktion: einklappbarer Abschnitt ─────────────────────────
+        const _secKey = (label) => `person-sec-${id}-${label.replace(/\W/g,'_')}`;
+        const _sec = (icon, label, content, defaultOpen = false) => {
+          const key = _secKey(label);
+          const open = localStorage.getItem(key) !== null
+            ? localStorage.getItem(key) === '1'
+            : defaultOpen;
+          return `
+            <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--panel-soft);overflow:hidden;">
+              <div onclick="(function(el){
+                  const body=el.nextElementSibling;
+                  const arrow=el.querySelector('.sec-arrow');
+                  const open=body.style.display==='none';
+                  body.style.display=open?'':'none';
+                  arrow.textContent=open?'▾':'▸';
+                  localStorage.setItem('${key}',open?'1':'0');
+                })(this)"
+                style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;">
+                <span class="sec-arrow" style="font-size:0.7rem;color:var(--muted);min-width:10px;">${open ? '▾' : '▸'}</span>
+                <span style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">${icon} ${label}</span>
+              </div>
+              <div style="padding:0 14px 12px;display:${open ? '' : 'none'};">
+                ${content}
+              </div>
+            </div>`;
+        };
+
         // Vorschläge oben mit Aktionen
         const pendingRows = pending.map(m => `
           <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:8px;margin-bottom:3px;background:rgba(255,171,0,0.06);border:1px solid rgba(255,171,0,0.18);">
@@ -2993,33 +3020,6 @@
           </div>`;
         }).join('');
         const prefHtml = prefData.length ? _sec('⚙️', 'Reaktions-Vorlieben', prefInner, false) : '';
-
-        // ── Hilfsfunktion: einklappbarer Abschnitt ─────────────────────────
-        const _secKey = (label) => `person-sec-${id}-${label.replace(/\s/g,'_')}`;
-        const _sec = (icon, label, content, defaultOpen = false) => {
-          const key = _secKey(label);
-          const open = localStorage.getItem(key) !== null
-            ? localStorage.getItem(key) === '1'
-            : defaultOpen;
-          return `
-            <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--panel-soft);overflow:hidden;">
-              <div onclick="(function(el){
-                  const body=el.nextElementSibling;
-                  const arrow=el.querySelector('.sec-arrow');
-                  const open=body.style.display==='none';
-                  body.style.display=open?'':'none';
-                  arrow.textContent=open?'▾':'▸';
-                  localStorage.setItem('${key}',open?'1':'0');
-                })(this)"
-                style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;">
-                <span class="sec-arrow" style="font-size:0.7rem;color:var(--muted);min-width:10px;">${open ? '▾' : '▸'}</span>
-                <span style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">${icon} ${label}</span>
-              </div>
-              <div style="padding:0 14px 12px;display:${open ? '' : 'none'};">
-                ${content}
-              </div>
-            </div>`;
-        };
 
         // Gesichtserkennung: hat Person bereits Deskriptoren?
         const hasFace = await fetch(`/profiles/face-descriptors/all`).then(r => r.json())
