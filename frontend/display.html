@@ -2782,7 +2782,8 @@
       document.getElementById('sb-person').textContent = name || 'N/A';
 
       if (name && name !== prev) {
-        // Person gewechselt → Begrüßung anfragen
+        // Person gewechselt → Audio entsperren (Browser-Policy) und Begrüßung anfragen
+        unlockAudio();
         _triggerGreeting(name);
       }
       _scheduleProactive();
