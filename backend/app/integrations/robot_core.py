@@ -146,6 +146,29 @@ class RobotCore:
                 lines.append(f"{tt.replace('_', ' ').capitalize()}: {v}.")
         return lines
 
+    # Kategorie-Boost: wie wertvoll ist eine Memory-Kategorie als Kontext
+    _MEM_CAT_BOOST: dict[str, float] = {
+        "interest_signal":  1.4,
+        "support_signal":   1.1,
+        "general":          0.9,
+        "recherche":        0.85,
+    }
+
+    @staticmethod
+    def _recency_weight(created_at: str | None) -> float:
+        """Neuere Erinnerungen stärker gewichten."""
+        if not created_at:
+            return 1.0
+        try:
+            dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            age_days = (datetime.now(timezone.utc) - dt).days
+            if age_days <= 7:   return 1.5
+            if age_days <= 30:  return 1.2
+            if age_days <= 90:  return 1.0
+            return 0.7
+        except Exception:
+            return 1.0
+
     def _approved_memories_for_prompt(
         self,
         person_name: str | None,
@@ -155,30 +178,69 @@ class RobotCore:
         if not person_name:
             return []
 
-        # Profil-Fakten immer vollständig einschließen
         fact_lines = self._profile_facts_for_prompt(person_name)
 
         items = self.memory.list_approved_for_subject(person_name)
         if not items:
             return fact_lines
 
-        # Themen-relevante Erinnerungen per Keyword-Überschneidung — max. 4
         SKIP_CATEGORIES = {"person_profile", "preference", "dislike", "interest", "age",
                            "occupation", "favorite_food", "favorite_drink", "favorite_color"}
         query_tokens = self._prompt_keywords(message or "")
-        scored: list[tuple[int, int, str]] = []
+
+        # Scoring: keyword_overlap × kategorie_boost × recency × confidence
+        scored: list[tuple[float, int, str]] = []
         for index, item in enumerate(items):
             if item.get("category") in SKIP_CATEGORIES:
                 continue
             content = item["content"]
-            overlap = len(query_tokens & self._prompt_keywords(content)) if query_tokens else 0
-            scored.append((overlap, index, content))
+            content_tokens = self._prompt_keywords(content)
+            overlap = len(query_tokens & content_tokens) if query_tokens else 0
+            if overlap == 0:
+                continue
+            cat_boost   = self._MEM_CAT_BOOST.get(item.get("category", ""), 1.0)
+            recency     = self._recency_weight(item.get("created_at"))
+            confidence  = float(item.get("confidence") or 0.7)
+            score = overlap * cat_boost * recency * confidence
+            scored.append((score, index, content))
 
-        scored.sort(key=lambda e: (e[0], e[1]), reverse=True)
-        topic_items = [self._to_second_person(c, person_name)
-                       for _, _, c in scored if _ > 0][:limit]
+        scored.sort(key=lambda e: (e[0], -e[1]), reverse=True)
 
+        # Duplikate entfernen: ähnliche Contents (>50% Token-Overlap) → nur besten behalten
+        seen_tokens: list[set[str]] = []
+        deduped: list[str] = []
+        for _, _, content in scored:
+            ctoks = self._prompt_keywords(content)
+            duplicate = any(
+                len(ctoks & s) / max(len(ctoks | s), 1) > 0.5
+                for s in seen_tokens
+            )
+            if not duplicate:
+                seen_tokens.append(ctoks)
+                deduped.append(content)
+
+        # Dynamisches Limit: bei hoher Relevanz mehr Kontext mitgeben
+        top_score = scored[0][0] if scored else 0.0
+        dynamic_limit = min(limit + 2, 8) if top_score >= 2.0 else limit
+
+        topic_items = [self._to_second_person(c, person_name) for c in deduped[:dynamic_limit]]
         return fact_lines + topic_items
+
+    _COMPLEX_QUESTION = re.compile(
+        r"\b(?:erkläre?|beschreibe?|erzähl|nenn(?:e|)\s+mir|liste?\s+auf|"
+        r"wie\s+funktioniert|was\s+ist\s+der\s+unterschied|was\s+ist\s+besser|"
+        r"was\s+sind\s+die|vergleiche?|fasse?\s+zusammen|warum|weshalb|wieso)\b",
+        re.IGNORECASE,
+    )
+
+    @staticmethod
+    def _dynamic_max_tokens(message: str, base: int) -> int:
+        """Erhöht max_tokens für komplexe/lange Fragen."""
+        if len(message) > 80 or RobotCore._COMPLEX_QUESTION.search(message):
+            return min(base + 150, 500)
+        if len(message) > 50:
+            return min(base + 80, 400)
+        return base
 
     @staticmethod
     def _to_second_person(content: str, person_name: str) -> str:
@@ -1211,6 +1273,7 @@ class RobotCore:
                 except Exception:
                     pass
             payload = self.preview_chat_prompt(captured, person_name, search_context=search_context)
+            payload["llm_max_tokens"] = self._dynamic_max_tokens(captured, payload.get("llm_max_tokens", settings.llm_max_tokens))
             self._record_direct_chat_input(captured, person_name)
 
             # Interest-Signal erkennen und als Vorschlag speichern
