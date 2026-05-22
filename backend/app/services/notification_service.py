@@ -89,6 +89,10 @@ class NotificationService:
         with get_connection() as conn:
             conn.execute("DELETE FROM notifications WHERE id=?", (notification_id,))
 
+    def delete_all(self) -> None:
+        with get_connection() as conn:
+            conn.execute("DELETE FROM notifications")
+
     def _create_notification(self, conn: Any, rule_id: int | None, message: str, entity_id: str | None) -> int:
         now = datetime.now(timezone.utc).isoformat()
         cur = conn.execute(

@@ -31,6 +31,12 @@ def mark_all_read() -> dict[str, Any]:
     return {"ok": True}
 
 
+@router.delete("/notifications")
+def delete_all_notifications() -> dict[str, Any]:
+    NotificationService().delete_all()
+    return {"ok": True}
+
+
 @router.delete("/notifications/{notification_id}")
 def delete_notification(notification_id: int) -> dict[str, Any]:
     NotificationService().delete_notification(notification_id)
