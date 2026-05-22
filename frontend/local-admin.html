@@ -3636,6 +3636,12 @@
       const provider = document.getElementById('tts-provider-select')?.value || 'disabled';
       document.getElementById('tts-edge-fields').style.display = provider === 'edge_tts' ? '' : 'none';
       document.getElementById('tts-sherpa-fields').style.display = provider === 'sherpa_onnx' ? '' : 'none';
+      // Stimmen laden wenn Edge TTS gewählt wird (und noch nicht geladen)
+      if (provider === 'edge_tts') {
+        const sel = document.getElementById('tts-edge-voice');
+        const alreadyLoaded = sel && sel.options.length > 0 && !sel.options[0].label.includes('geladen');
+        if (!alreadyLoaded) loadTtsVoices(sel?.value);
+      }
     }
 
     const _TTS_VOICE_FALLBACK = [
