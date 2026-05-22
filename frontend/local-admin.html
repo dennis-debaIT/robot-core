@@ -3002,8 +3002,11 @@
             <button onclick="resetPersonRelationship(${id})" style="padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>`;
         const relHtml = _sec('💙', 'Beziehungsstatus', relInner, false);
 
-        // Reaktions-Vorlieben der Person
-        const prefData = prefs.preferences || [];
+        // Reaktions-Vorlieben der Person — API gibt dict zurück, in Array umwandeln
+        const _prefsRaw = prefs.preferences || {};
+        const prefData = Array.isArray(_prefsRaw)
+          ? _prefsRaw
+          : Object.entries(_prefsRaw).map(([trait_type, value]) => ({ trait_type, value }));
         const prefInner = prefData.map(p => {
           const _PREF_OPTIONS = {
             response_humor_preference: [{v:'higher',l:'Mehr Humor'},{v:'lower',l:'Weniger Humor'},{v:'default',l:'Standard'}],
