@@ -61,7 +61,7 @@ def get_tts_voices() -> list[dict[str, Any]]:
     try:
         import edge_tts
     except ImportError:
-        return []
+        return _edge_voices_fallback()
     try:
         async def _list() -> list[dict]:
             return await edge_tts.list_voices()

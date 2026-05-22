@@ -3638,19 +3638,30 @@
       document.getElementById('tts-sherpa-fields').style.display = provider === 'sherpa_onnx' ? '' : 'none';
     }
 
+    const _TTS_VOICE_FALLBACK = [
+      {value:'de-DE-KatjaNeural',    label:'Katja (Deutsch, ♀)'},
+      {value:'de-DE-ConradNeural',   label:'Conrad (Deutsch, ♂)'},
+      {value:'de-DE-AmalaNeural',    label:'Amala (Deutsch, ♀)'},
+      {value:'de-DE-BerndNeural',    label:'Bernd (Deutsch, ♂)'},
+      {value:'de-DE-SeraphinaNeural',label:'Seraphina (Deutsch, ♀)'},
+      {value:'de-AT-IngridNeural',   label:'Ingrid (Österreich, ♀)'},
+      {value:'de-AT-JonasNeural',    label:'Jonas (Österreich, ♂)'},
+      {value:'de-CH-LeniNeural',     label:'Leni (Schweiz, ♀)'},
+    ];
+
     async function loadTtsVoices(selectedVoice) {
       const sel = document.getElementById('tts-edge-voice');
       if (!sel) return;
+      let voices = [];
       try {
-        const voices = await fetch('/tts/voices').then(r => r.json());
-        if (!voices.length) return;
-        sel.innerHTML = voices.map(v =>
-          `<option value="${v.value}"${v.value === selectedVoice ? ' selected' : ''}>${v.label}</option>`
-        ).join('');
-        if (!voices.find(v => v.value === selectedVoice)) sel.value = voices[0].value;
-      } catch {
-        if (selectedVoice) sel.value = selectedVoice;
-      }
+        voices = await fetch('/tts/voices').then(r => r.json());
+      } catch {}
+      // Fallback wenn Server-Liste leer oder Fehler
+      if (!voices.length) voices = _TTS_VOICE_FALLBACK;
+      sel.innerHTML = voices.map(v =>
+        `<option value="${v.value}"${v.value === selectedVoice ? ' selected' : ''}>${v.label}</option>`
+      ).join('');
+      if (selectedVoice && !voices.find(v => v.value === selectedVoice)) sel.value = voices[0].value;
     }
 
     async function loadTtsSettings() {
