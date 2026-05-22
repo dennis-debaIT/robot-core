@@ -115,6 +115,13 @@ def set_active_person(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     return {"name": name}
 
 
+@router.get("/profiles/{person_id}/greeting")
+def get_greeting(person_id: int) -> dict[str, Any]:
+    """Gibt eine kontextuelle Begrüßung zurück basierend auf Beziehungsstatus und Gesprächspause."""
+    result = get_core().generate_greeting(person_id)
+    return result or {"text": None, "skip": True}
+
+
 # ── Tageszusammenfassung ──────────────────────────────────────────────────────
 
 @router.get("/profiles/{person_id}/summary-config")

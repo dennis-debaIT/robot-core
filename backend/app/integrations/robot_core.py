@@ -491,6 +491,94 @@ class RobotCore:
     def list_audit_entries(self, limit: int = 100) -> list[dict[str, Any]]:
         return self.audit.list_entries(limit=limit)
 
+    def generate_greeting(self, person_id: int) -> dict[str, Any] | None:
+        """Erzeugt eine kontextuelle Begrüßung basierend auf Beziehungsstatus und Zeit seit letztem Gespräch."""
+        import random
+        person = self.profile.get_person_by_id(person_id)
+        if not person:
+            return None
+
+        name = person["name"]
+        state = self.relationship.get_person_state(person_id)
+        warmth  = float(state.get("warmth", 0.0))
+        tension = float(state.get("tension", 0.0))
+
+        # Zeit seit letztem Gespräch
+        with get_connection() as conn:
+            last_at = read_state(conn, "last_conversation_at")
+        minutes_since = 99999
+        if last_at:
+            try:
+                dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
+                minutes_since = int((datetime.now(timezone.utc) - dt).total_seconds() / 60)
+            except Exception:
+                pass
+
+        # Weniger als 8 Minuten → keine Begrüßung
+        if minutes_since < 8:
+            return {"text": None, "skip": True, "reason": "too_recent"}
+
+        # Abwesenheitskontext
+        if minutes_since > 1440:  # > 1 Tag
+            absence = "long"
+        elif minutes_since > 240:  # > 4 Stunden
+            absence = "medium"
+        elif minutes_since > 30:
+            absence = "short"
+        else:
+            absence = "none"
+
+        # Ton basierend auf Beziehungsstatus
+        if tension >= 0.45 and warmth <= 0.1:
+            tone = "reserved"
+        elif warmth >= 0.5 and tension <= 0.25:
+            tone = "warm"
+        elif warmth >= 0.2:
+            tone = "friendly"
+        else:
+            tone = "neutral"
+
+        # Begrüßungstexte nach Ton und Abwesenheit
+        _GREETINGS: dict[str, dict[str, list[str]]] = {
+            "warm": {
+                "long":   [f"Oh, {name}! Schön, dass du wieder da bist.", f"Hey {name}, ich hab dich vermisst! Wie war's?", f"Willkommen zurück, {name}! Schön, dich zu sehen."],
+                "medium": [f"Hey {name}! Schön, dich wieder zu sehen.", f"Da bist du ja wieder, {name}! Alles gut?"],
+                "short":  [f"Hallo {name}!", f"Hey {name}!"],
+                "none":   [f"Hallo {name}!", f"Hey {name}!"],
+            },
+            "friendly": {
+                "long":   [f"Hallo {name}, lange nicht gesehen!", f"Oh, {name}! Schön, dass du wieder da bist."],
+                "medium": [f"Hallo {name}!", f"Hey {name}, wie geht's?"],
+                "short":  [f"Hallo {name}!"],
+                "none":   [f"Hallo {name}!"],
+            },
+            "neutral": {
+                "long":   [f"Hallo {name}.", f"{name}."],
+                "medium": [f"Hallo {name}."],
+                "short":  [f"Hallo."],
+                "none":   [f"Hallo."],
+            },
+            "reserved": {
+                "long":   [f"{name}."],
+                "medium": [f"Hm."],
+                "short":  [f"Hm."],
+                "none":   [f"Hm."],
+            },
+        }
+
+        options = _GREETINGS.get(tone, _GREETINGS["neutral"]).get(absence, ["Hallo."])
+        text = random.choice(options)
+
+        return {
+            "text": text,
+            "skip": False,
+            "tone": tone,
+            "absence": absence,
+            "minutes_since": minutes_since,
+            "warmth": warmth,
+            "tension": tension,
+        }
+
     def list_conversation_messages(self, person_name: str | None = None, limit: int = 40) -> list[dict[str, Any]]:
         with get_connection() as conn:
             if person_name:

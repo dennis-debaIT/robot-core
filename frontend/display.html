@@ -2557,6 +2557,8 @@
       r.interimResults = true;
 
       r.onresult = (e) => {
+        _lastSpeechAt = Date.now();
+        _scheduleProactive(); // Proaktiv-Timer zurücksetzen bei Aktivität
         let interim = '';
         for (let i = 0; i < e.results.length; i++) {
           const t = e.results[i][0].transcript.trim();
@@ -2748,7 +2750,7 @@
       const persons = d.items || [];
       const items = [{ name: null, label: '— Niemand —' }, ...persons.map(p => ({ name: p.name, label: p.name }))];
       dd.innerHTML = items.map(p => `
-        <div onclick="setActivePerson(${p.name ? `'${p.name.replace(/'/g,"\\'")}` : 'null'}')" style="
+        <div onclick="setActivePerson(${p.name === null ? 'null' : `'${p.name.replace(/'/g, "\\'")}'`})" style="
           padding:8px 14px;font-size:0.78rem;cursor:pointer;
           color:${_activePersonName === p.name ? '#00c8ff' : '#e8eaf0'};
           font-weight:${_activePersonName === p.name ? 700 : 400};
@@ -2761,10 +2763,15 @@
     }
   }
 
+  let _greetingPersonId = null; // Person-ID der aktuell aktiven Person (für Greeting)
+  let _lastSpeechAt = Date.now(); // Zeitpunkt der letzten Spracheingabe
+  let _proactiveTimer = null;    // Timer für proaktive Ansprache
+
   async function setActivePerson(name) {
     const dd = document.getElementById('person-dropdown');
     if (dd) dd.style.display = 'none';
     _personDropdownOpen = false;
+    const prev = _activePersonName;
     try {
       await fetch('/active-person', {
         method: 'POST',
@@ -2773,7 +2780,69 @@
       });
       _activePersonName = name || null;
       document.getElementById('sb-person').textContent = name || 'N/A';
+
+      if (name && name !== prev) {
+        // Person gewechselt → Begrüßung anfragen
+        _triggerGreeting(name);
+      }
+      _scheduleProactive();
     } catch {}
+  }
+
+  async function _triggerGreeting(name) {
+    try {
+      // Person-ID herausfinden
+      const d = await fetch('/profiles').then(r => r.json());
+      const person = (d.items || []).find(p => p.name === name);
+      if (!person) return;
+      const g = await fetch(`/profiles/${person.id}/greeting`).then(r => r.json());
+      if (g && g.text && !g.skip) {
+        _speakText(g.text);
+      }
+    } catch {}
+  }
+
+  async function _speakText(text) {
+    if (!text) return;
+    try {
+      const resp = await fetch('/tts/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!resp.ok) return;
+      const fmt = resp.headers.get('X-TTS-Format') === 'mp3' ? 'audio/mpeg' : 'audio/wav';
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(new Blob([blob], { type: fmt }));
+      if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio.src = ''; }
+      _ttsAudio = new Audio(url);
+      _ttsAudio.play().catch(() => {});
+    } catch {}
+  }
+
+  function _scheduleProactive() {
+    if (_proactiveTimer) clearTimeout(_proactiveTimer);
+    if (!_activePersonName) return;
+    // Nach 25 Minuten Stille proaktiv ansprechen
+    _proactiveTimer = setTimeout(_triggerProactive, 25 * 60 * 1000);
+  }
+
+  async function _triggerProactive() {
+    if (!_activePersonName || _ttsPlaying || _chatBusy || _listening) return;
+    // Nur wenn wirklich lange keine Eingabe war
+    const silentMins = (Date.now() - _lastSpeechAt) / 60000;
+    if (silentMins < 20) { _scheduleProactive(); return; }
+    try {
+      const d = await fetch('/profiles').then(r => r.json());
+      const person = (d.items || []).find(p => p.name === _activePersonName);
+      if (!person) return;
+      const g = await fetch(`/profiles/${person.id}/greeting`).then(r => r.json());
+      if (g && g.text && !g.skip) {
+        _speakText(g.text);
+      }
+    } catch {}
+    // Nächste proaktive Ansprache erst nach weiterer Pause
+    _proactiveTimer = setTimeout(_triggerProactive, 30 * 60 * 1000);
   }
 
   document.addEventListener('click', (e) => {
