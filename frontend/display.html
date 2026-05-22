@@ -2802,22 +2802,9 @@
     } catch {}
   }
 
-  async function _speakText(text) {
+  function _speakText(text) {
     if (!text) return;
-    try {
-      const resp = await fetch('/tts/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      if (!resp.ok) return;
-      const fmt = resp.headers.get('X-TTS-Format') === 'mp3' ? 'audio/mpeg' : 'audio/wav';
-      const blob = await resp.blob();
-      const url = URL.createObjectURL(new Blob([blob], { type: fmt }));
-      if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio.src = ''; }
-      _ttsAudio = new Audio(url);
-      _ttsAudio.play().catch(() => {});
-    } catch {}
+    feedTts(text, true);
   }
 
   function _scheduleProactive() {

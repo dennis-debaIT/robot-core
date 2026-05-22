@@ -503,10 +503,17 @@ class RobotCore:
         warmth  = float(state.get("warmth", 0.0))
         tension = float(state.get("tension", 0.0))
 
-        # Zeit seit letztem Gespräch
-        with get_connection() as conn:
-            last_at = read_state(conn, "last_conversation_at")
+        # Zeit seit letztem Gespräch dieser Person (nicht global)
         minutes_since = 99999
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT MAX(created_at) as last_at FROM conversation_messages
+                WHERE lower(coalesce(person_name,'')) = lower(?) AND role = 'user'
+                """,
+                (name,),
+            ).fetchone()
+            last_at = row["last_at"] if row else None
         if last_at:
             try:
                 dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
