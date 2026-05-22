@@ -20,6 +20,7 @@ from app.search.providers.football import FootballProvider
 from app.search.providers.homeassistant import HomeAssistantProvider
 from app.search.providers.weather import WeatherProvider
 from app.search.providers.web import WebProvider
+from app.search.providers.wikipedia import WikipediaProvider
 
 
 @dataclass
@@ -71,6 +72,22 @@ class SearchService:
             r"\b(aktuelle[rns]?\s+news|was\s+(?:ist|passiert)\s+(?:gerade|aktuell|heute|gestern)"
             r"|was\s+(?:gibt\s+es\s+)?neues\s+(?:über|zu|bei|mit)"
             r"|heute\s+(?:passiert|gemeldet|bekannt|angekündigt))\b",
+            re.IGNORECASE,
+        ),
+        # Faktenfragen: Wer/Was ist X, Wie alt/groß/hoch, Wann wurde X gegründet/geboren
+        re.compile(
+            r"\bwer\s+(?:ist|war|sind|waren)\s+(?!(?:du|ich|das|hier|da)\b).{2,50}"
+            r"|\bwas\s+(?:ist|war|bedeutet|heißt)\s+(?!(?:du|dein|los|passiert|hier|da)\b).{2,50}"
+            r"|\bwie\s+funktioniert\s+.{2,50}"
+            r"|\bwie\s+(?:alt|groß|hoch|lang|weit)\s+ist\s+.{2,50}"
+            r"|\bwann\s+(?:wurde|ist|hat)\s+.{2,40}\s+(?:geboren|gegründet|erfunden|gebaut|entdeckt|gestorben|erschienen)\b",
+            re.IGNORECASE,
+        ),
+        # Explizite Info/Erklär-Anfragen
+        re.compile(
+            r"\b(?:erkläre?\s+(?:mir\s+)?|was\s+weißt\s+du\s+(?:über|zu|von)\s+"
+            r"|erzähl\s+(?:mir\s+)?(?:etwas\s+)?(?:über|von)\s+"
+            r"|informier(?:e|iere)\s+(?:mich\s+)?(?:über|zu)\s+)\b",
             re.IGNORECASE,
         ),
         re.compile(
@@ -134,6 +151,7 @@ class SearchService:
             FootballProvider(),
             WeatherProvider(),
             HomeAssistantProvider(),  # Kalender-Anfragen via HA
+            WikipediaProvider(),      # Faktenfragen (wer/was ist X)
             WebProvider(),            # immer letzter (Fallback)
         ]
 
@@ -145,9 +163,20 @@ class SearchService:
             return False
         return any(p.search(message) for p in self._STABLE_PATTERNS)
 
+    _QUERY_SUBJECT = re.compile(
+        r"^(?:wer|was|wie|wann|welche[rs]?)\s+"
+        r"(?:ist|war|sind|waren|bedeutet|heißt|funktioniert"
+        r"|alt|groß|hoch|lang|weit|wurde|hat)\s+(?:der|die|das|ein|eine|der\s+|die\s+|das\s+)?",
+        re.IGNORECASE,
+    )
+
     def extract_query(self, message: str) -> str:
-        cleaned = self._QUERY_CLEANUP.sub("", message.strip())
-        return cleaned.strip(" ,?!.") or message.strip()
+        cleaned = self._QUERY_CLEANUP.sub("", message.strip()).strip(" ,?!.")
+        # Für Faktenfragen: Kernbegriff extrahieren (bessere DDG/Wikipedia-Treffer)
+        core = self._QUERY_SUBJECT.sub("", cleaned).strip(" ,?!.")
+        if core and len(core) >= 3 and len(core) < len(cleaned):
+            return core
+        return cleaned or message.strip()
 
     def search(self, query: str) -> SearchResult | None:
         stable = self.is_stable_fact(query)
@@ -176,10 +205,12 @@ class SearchService:
         return None
 
     def format_prompt_block(self, result: SearchResult) -> str:
+        source = "Wikipedia" if "wikipedia.org" in (result.url or "") else "Web-Recherche"
         kind = "stabiler Fakt" if result.is_stable else "aktuelle Information"
         return (
-            f"[Web-Recherche — {kind}]: {result.snippet} "
-            f"(Quelle: {result.url})"
+            f"[{source} — {kind}]: {result.snippet} "
+            f"(Quelle: {result.title or result.url}) "
+            f"Beantworte die Frage auf Basis dieser Information — fasse sie kurz und natürlich zusammen."
         )
 
     @staticmethod
