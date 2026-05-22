@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Erika Display</title>
-  <link rel="stylesheet" href="/display.css?v=76">
+  <link rel="stylesheet" href="/display.css?v=77">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <!-- HLS.js für go2rtc Live-Streams -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
@@ -675,11 +675,16 @@
     const unit  = vehicle.range?.unit || 'km';
     const bc    = level == null ? 'var(--muted)' : level > 40 ? 'var(--success)' : level > 20 ? 'var(--warning)' : 'var(--danger)';
     const chargingRaw = String(vehicle.charging?.state || '').toLowerCase();
-    const isCharging = ['an','true','1','charging','ja','yes','on'].includes(chargingRaw);
+    const plugRaw = String(vehicle.plug?.state || '').toLowerCase();
+    const _EV_NOT_CHARGING = ['off','false','0','not_in_charge','not charging','no_charging','charge error','charge_error','stopped'];
+    const _EV_PLUGGED = ['on','plugged_in','connected','true','1','charging','in_charge','plugged','charge error','charge_error'];
+    const isCharging = ['an','true','1','charging','ja','yes','on','in_charge','charge_in_progress'].includes(chargingRaw);
+    const isPlugged = _EV_PLUGGED.includes(plugRaw) || (!vehicle.plug && ['charging','in_charge','plugged_in'].includes(chargingRaw));
+    const canStart = isEv && isPlugged && _EV_NOT_CHARGING.includes(chargingRaw) && vehicle.start_charging_button_entity;
     const chargeTime = isCharging ? formatChargeTime(vehicle.remaining_charge_time?.state) : '';
     const levelHtml = level != null ? `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-        <span style="font-size:0.85rem;">${isEv ? (isCharging ? '&#9889;' : '&#128267;') : '&#9981;'}</span>
+        <span style="font-size:0.85rem;">${isEv ? (isCharging ? '&#9889;' : (isPlugged ? '&#128268;' : '&#128267;')) : '&#9981;'}</span>
         <span style="font-weight:700;color:${bc};font-size:0.82rem;min-width:36px;">${level}%</span>
         <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
           <div style="width:${level}%;height:100%;background:${bc};border-radius:3px;"></div>
@@ -702,10 +707,17 @@
       </div>` : '';
     const statusHtml = isEv && vehicle.charging != null ? `
       <div style="font-size:0.74rem;margin-bottom:5px;color:${isCharging ? 'var(--success)' : 'var(--muted)'};">
-        ${isCharging ? `&#9679; L&auml;dt gerade${chargeTime ? ` &bull; Restladezeit ${chargeTime}` : ''}` : '&#9675; Nicht am Laden'}
+        ${isCharging ? `&#9679; L&auml;dt gerade${chargeTime ? ` &bull; Restladezeit ${chargeTime}` : ''}` : (isPlugged ? '&#9675; Angesteckt &ndash; nicht am Laden' : '&#9675; Nicht am Laden')}
       </div>` : '';
     const rangeHtml = range ? `
       <div style="font-size:0.78rem;color:var(--text);margin-bottom:8px;">&#128663; ${range} ${unit} Reichweite</div>` : '';
+    const startBtn = canStart ? `
+      <button onclick="pressVehicleButton('${vehicle.start_charging_button_entity}', this, 'Gestartet')"
+        style="width:100%;padding:5px 0;border-radius:8px;background:none;margin-bottom:4px;
+               border:1px solid var(--success);color:var(--success);
+               font-size:0.72rem;font-weight:700;cursor:pointer;transition:background 0.15s;"
+        onmouseover="this.style.background='rgba(0,200,100,0.1)'"
+        onmouseout="this.style.background='none'">&#9889; Laden starten</button>` : '';
     const stopBtn = isCharging && vehicle.stop_charging_button_entity ? `
       <button onclick="evStopCharging('${vehicle.stop_charging_button_entity}', this)"
         style="width:100%;padding:5px 0;border-radius:8px;background:none;
@@ -717,7 +729,7 @@
       <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px;">
         <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.13em;color:var(--accent);
                     text-transform:uppercase;margin-bottom:7px;">${vehicle.label || vehicle.name || 'Fahrzeug'}</div>
-        ${levelHtml}${statusHtml}${rangeHtml}${adblueHtml}${stopBtn}
+        ${levelHtml}${statusHtml}${rangeHtml}${adblueHtml}${startBtn}${stopBtn}
       </div>`;
   }
 
@@ -3020,16 +3032,23 @@
     const plugState = (vehicle.plug?.state || '').toLowerCase();
     const chargingState = (vehicle.charging?.state || '').toLowerCase();
     const _NOT_CHARGING = ['off','false','0','not_in_charge','not charging','no_charging','charge error','charge_error','stopped'];
-    const isPlugged = ['on','plugged_in','connected','true','1','charging','in_charge'].includes(plugState)
+    const _PLUGGED_STATES = ['on','plugged_in','connected','true','1','charging','in_charge','plugged','charge error','charge_error'];
+    // Stecker gesteckt = Steckerzustand-Sensor sagt "drin" ODER kein Steckersensor aber Ladestatus ist charging/plugged
+    const isPlugged = _PLUGGED_STATES.includes(plugState)
                    || (!vehicle.plug && ['charging','in_charge','plugged_in'].includes(chargingState));
-    // Nur "Laden stoppen" zeigen wenn tatsächlich geladen wird (nicht bei Ladefehler)
+    // Lädt wirklich = Stecker drin UND Ladezustand ist KEIN explizites "nicht laden"
     const isActuallyCharging = isPlugged && !_NOT_CHARGING.includes(chargingState);
+    // Stecker drin aber nicht am Laden → "Laden starten" anzeigen
+    const canStartCharging = isPlugged && _NOT_CHARGING.includes(chargingState);
     const capacityKwh = vehicle.battery_capacity_kwh || null;
     const capArg = capacityKwh ? capacityKwh : 'null';
 
     const actions = [];
     if (vehicle.climate_button_entity) {
       actions.push(`<button class="vehicle-action-btn" onclick="pressVehicleButton('${escapeAttr(vehicle.climate_button_entity)}', this, 'Klima gestartet')">&#127777; Klima starten</button>`);
+    }
+    if (vehicle.start_charging_button_entity && canStartCharging) {
+      actions.push(`<button class="vehicle-action-btn vehicle-action-btn--success" onclick="pressVehicleButton('${escapeAttr(vehicle.start_charging_button_entity)}', this, 'Ladevorgang gestartet')">&#9889; Laden starten</button>`);
     }
     if (vehicle.stop_charging_button_entity && isActuallyCharging) {
       actions.push(`<button class="vehicle-action-btn vehicle-action-btn--danger" onclick="pressVehicleButton('${escapeAttr(vehicle.stop_charging_button_entity)}', this, 'Ladevorgang gestoppt')">&#9211; Laden stoppen</button>`);

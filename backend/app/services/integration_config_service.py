@@ -459,6 +459,7 @@ class IntegrationConfigService:
             "charging_entity": sorted(sensor_options, key=sort_key),
             "remaining_charge_time_entity": sorted(sensor_options, key=sort_key),
             "stop_charging_button_entity": sorted(button_options, key=sort_key),
+            "start_charging_button_entity": sorted(button_options, key=sort_key),
             "climate_button_entity": sorted(button_options, key=sort_key),
         }
 
@@ -663,6 +664,7 @@ class IntegrationConfigService:
                     "charging_entity": str(item.get("charging_entity") or "").strip(),
                     "remaining_charge_time_entity": str(item.get("remaining_charge_time_entity") or "").strip(),
                     "stop_charging_button_entity": str(item.get("stop_charging_button_entity") or "").strip(),
+                    "start_charging_button_entity": str(item.get("start_charging_button_entity") or "").strip(),
                     "climate_button_entity": str(item.get("climate_button_entity") or "").strip(),
                 }
             )

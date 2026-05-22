@@ -1540,6 +1540,7 @@
         remaining_charge_time_entity: '',
         plug_entity: '',
         stop_charging_button_entity: '',
+        start_charging_button_entity: '',
         climate_button_entity: '',
         battery_capacity_kwh: '',
       };
@@ -1617,8 +1618,12 @@
               <select class="field-select ev-field" data-vehicle-index="${index}" data-field="plug_entity">${buildEntityOptions('plug_entity', vehicle.plug_entity)}</select>
             </label>
             <label class="field-block ev-only">
-              <span class="field-label">Stop-Button</span>
+              <span class="field-label">Laden stoppen (Button)</span>
               <select class="field-select ev-field" data-vehicle-index="${index}" data-field="stop_charging_button_entity">${buildEntityOptions('stop_charging_button_entity', vehicle.stop_charging_button_entity)}</select>
+            </label>
+            <label class="field-block ev-only">
+              <span class="field-label">Laden starten (Button)</span>
+              <select class="field-select ev-field" data-vehicle-index="${index}" data-field="start_charging_button_entity">${buildEntityOptions('start_charging_button_entity', vehicle.start_charging_button_entity)}</select>
             </label>
             <label class="field-block">
               <span class="field-label">Klima starten</span>
@@ -1671,6 +1676,7 @@
           remaining_charge_time_entity: getField('remaining_charge_time_entity'),
           plug_entity: getField('plug_entity'),
           stop_charging_button_entity: getField('stop_charging_button_entity'),
+          start_charging_button_entity: getField('start_charging_button_entity'),
           climate_button_entity: getField('climate_button_entity'),
           battery_capacity_kwh: getField('battery_capacity_kwh') ? parseFloat(getField('battery_capacity_kwh')) : null,
         };

@@ -1096,6 +1096,12 @@
     .vehicle-action-btn--danger:hover {
       border-color: var(--danger); background: rgba(255,61,61,0.1); color: var(--danger);
     }
+    .vehicle-action-btn--success {
+      border-color: rgba(0,200,100,0.4); color: var(--success);
+    }
+    .vehicle-action-btn--success:hover {
+      border-color: var(--success); background: rgba(0,200,100,0.1); color: var(--success);
+    }
     .vehicle-map-card {
       background: #05050a; border: 1px solid var(--border); border-radius: 14px;
       overflow: hidden; min-height: 0; position: relative;

@@ -29,6 +29,7 @@ class VehicleService:
             "remaining_charge_time_entity": "",
             "plug_entity": "",
             "stop_charging_button_entity": "",
+            "start_charging_button_entity": "",
             "climate_button_entity": "",
             "battery_capacity_kwh": None,
         }
@@ -300,6 +301,7 @@ class VehicleService:
             if plug:
                 result["plug"] = plug
             result["stop_charging_button_entity"] = str(vehicle_cfg.get("stop_charging_button_entity") or "").strip()
+            result["start_charging_button_entity"] = str(vehicle_cfg.get("start_charging_button_entity") or "").strip()
             cap = vehicle_cfg.get("battery_capacity_kwh")
             if cap is not None:
                 try:
@@ -390,6 +392,7 @@ class VehicleService:
             "remaining_charge_time_entity",
             "plug_entity",
             "stop_charging_button_entity",
+            "start_charging_button_entity",
             "climate_button_entity",
         ):
             result[key] = str(result.get(key) or "").strip()
