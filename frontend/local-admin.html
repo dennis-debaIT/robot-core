@@ -2961,9 +2961,7 @@
           return `<div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
             <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div>`;
         };
-        const relHtml = `
-          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
-            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Beziehungsstatus</div>
+        const relInner = `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
               <span style="font-size:0.72rem;color:var(--muted);min-width:80px;">Wärme</span>
               ${_miniBar(warmth, '#4caf50')}
@@ -2974,43 +2972,59 @@
               ${_miniBar(tension, '#ff3d3d')}
               <span style="font-size:0.72rem;font-weight:700;color:${tension > 0.3 ? '#ff3d3d' : 'var(--muted)'};min-width:36px;text-align:right;">${tension.toFixed(2)}</span>
             </div>
-            <button onclick="resetPersonRelationship(${id})" style="padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>
-          </div>`;
+            <button onclick="resetPersonRelationship(${id})" style="padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>`;
+        const relHtml = _sec('💙', 'Beziehungsstatus', relInner, false);
 
-        // Vorlieben der Person
+        // Reaktions-Vorlieben der Person
         const prefData = prefs.preferences || [];
-        const prefHtml = prefData.length ? `
-          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
-            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Reaktions-Vorlieben</div>
-            ${prefData.map(p => {
-              const _PREF_OPTIONS = {
-                response_humor_preference: [{v:'higher',l:'Mehr Humor'},{v:'lower',l:'Weniger Humor'},{v:'default',l:'Standard'}],
-                response_style_preference: [{v:'sachlich',l:'Sachlich'},{v:'locker',l:'Locker'},{v:'default',l:'Standard'}],
-                response_length_preference: [{v:'short',l:'Kürzer'},{v:'detailed',l:'Ausführlicher'},{v:'default',l:'Standard'}],
-              };
-              const opts = _PREF_OPTIONS[p.trait_type] || [];
-              const label = {response_humor_preference:'Humor',response_style_preference:'Stil',response_length_preference:'Länge'}[p.trait_type] || p.trait_type;
-              return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-                <span style="font-size:0.72rem;color:var(--muted);min-width:60px;">${label}</span>
-                <select onchange="savePersonPref(${id},'${p.trait_type}',this.value)" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:3px 6px;font-size:0.72rem;">
-                  ${opts.map(o => `<option value="${o.v}" ${p.value===o.v?'selected':''}>${o.l}</option>`).join('')}
-                </select>
-              </div>`;
-            }).join('')}
-          </div>` : '';
+        const prefInner = prefData.map(p => {
+          const _PREF_OPTIONS = {
+            response_humor_preference: [{v:'higher',l:'Mehr Humor'},{v:'lower',l:'Weniger Humor'},{v:'default',l:'Standard'}],
+            response_style_preference: [{v:'sachlich',l:'Sachlich'},{v:'locker',l:'Locker'},{v:'default',l:'Standard'}],
+            response_length_preference: [{v:'short',l:'Kürzer'},{v:'detailed',l:'Ausführlicher'},{v:'default',l:'Standard'}],
+          };
+          const opts = _PREF_OPTIONS[p.trait_type] || [];
+          const label = {response_humor_preference:'Humor',response_style_preference:'Stil',response_length_preference:'Länge'}[p.trait_type] || p.trait_type;
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+            <span style="font-size:0.72rem;color:var(--muted);min-width:60px;">${label}</span>
+            <select onchange="savePersonPref(${id},'${p.trait_type}',this.value)" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:3px 6px;font-size:0.72rem;">
+              ${opts.map(o => `<option value="${o.v}" ${p.value===o.v?'selected':''}>${o.l}</option>`).join('')}
+            </select>
+          </div>`;
+        }).join('');
+        const prefHtml = prefData.length ? _sec('⚙️', 'Reaktions-Vorlieben', prefInner, false) : '';
 
-        const header = `<div style="font-size:0.68rem;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;">
-          Was Erika über diese Person weiß · ${total} Einträge
-        </div>`;
+        // ── Hilfsfunktion: einklappbarer Abschnitt ─────────────────────────
+        const _secKey = (label) => `person-sec-${id}-${label.replace(/\s/g,'_')}`;
+        const _sec = (icon, label, content, defaultOpen = false) => {
+          const key = _secKey(label);
+          const open = localStorage.getItem(key) !== null
+            ? localStorage.getItem(key) === '1'
+            : defaultOpen;
+          return `
+            <div style="border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--panel-soft);overflow:hidden;">
+              <div onclick="(function(el){
+                  const body=el.nextElementSibling;
+                  const arrow=el.querySelector('.sec-arrow');
+                  const open=body.style.display==='none';
+                  body.style.display=open?'':'none';
+                  arrow.textContent=open?'▾':'▸';
+                  localStorage.setItem('${key}',open?'1':'0');
+                })(this)"
+                style="display:flex;align-items:center;gap:8px;padding:10px 14px;cursor:pointer;user-select:none;">
+                <span class="sec-arrow" style="font-size:0.7rem;color:var(--muted);min-width:10px;">${open ? '▾' : '▸'}</span>
+                <span style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);">${icon} ${label}</span>
+              </div>
+              <div style="padding:0 14px 12px;display:${open ? '' : 'none'};">
+                ${content}
+              </div>
+            </div>`;
+        };
 
         // Gesichtserkennung: hat Person bereits Deskriptoren?
         const hasFace = await fetch(`/profiles/face-descriptors/all`).then(r => r.json())
           .then(d => (d.persons || []).some(p => p.name === (ws.person?.name || ''))).catch(() => false);
-        const faceHtml = `
-          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
-            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
-              👁 Personenerkennung
-            </div>
+        const faceInner = `
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:0.78rem;color:${hasFace ? '#4caf50' : 'var(--muted)'};">
                 ${hasFace ? '✓ Gesicht hinterlegt' : 'Kein Gesicht gespeichert'}
@@ -3023,21 +3037,19 @@
               ${hasFace ? `<button onclick="deleteFaceDescriptors(${id})"
                 style="padding:5px 12px;border-radius:8px;font-size:0.76rem;cursor:pointer;
                        background:none;border:1px solid var(--border);color:var(--muted);">Löschen</button>` : ''}
-            </div>
-          </div>`;
+            </div>`;
+        const faceHtml = _sec('👁', 'Personenerkennung', faceInner, false);
 
         // Kalender-Einstellung (aus workspace-Facts lesen, da prefData kein Array ist)
         const calEntity = (ws.person?.facts || []).find(f => f.trait_type === 'write_calendar_entity')?.value || '';
-        const calHtml = `
-          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
-            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">📅 Kalender eintragen in</div>
+        const calInner = `
             <div style="display:flex;gap:8px;align-items:center;">
               <select id="cal-entity-${id}" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--ink);padding:5px 8px;font-size:0.78rem;">
                 <option value="">– Globaler Fallback –</option>
               </select>
               <button onclick="savePersonCalendar(${id})" style="padding:4px 12px;border-radius:6px;font-size:0.76rem;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">Speichern</button>
-            </div>
-          </div>`;
+            </div>`;
+        const calHtml = _sec('📅', 'Kalender eintragen in', calInner, false);
         // Kalender-Entities laden
         fetch('/ha/calendar/entities').then(r => r.json()).then(d => {
           const sel = document.getElementById(`cal-entity-${id}`);
@@ -3080,9 +3092,7 @@
             <span style="color:var(--danger);">✕</span> ${escapeHtml(c.name)}
           </label>`).join('');
 
-        const sumHtml = `
-          <div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:10px;background:var(--panel-soft);">
-            <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">📋 Tageszusammenfassung</div>
+        const sumInner = `
             <label class="field-block" style="margin-bottom:10px;">
               <span class="field-label">Auslöse-Phrasen (kommagetrennt)</span>
               <input class="field-input" id="sum-triggers-${id}" type="text" value="${escapeHtml(sumTriggers)}" placeholder="guten morgen, was steht heute an">
@@ -3108,13 +3118,44 @@
             <div style="margin-top:10px;display:flex;gap:8px;align-items:center;">
               <button onclick="saveSummaryConfig(${id})" style="padding:5px 14px;border-radius:8px;font-size:0.76rem;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;font-weight:700;">Speichern</button>
               <span id="sum-status-${id}" style="font-size:0.72rem;color:var(--muted);"></span>
-            </div>
-          </div>`;
+            </div>`;
+        const sumHtml = _sec('📋', 'Tageszusammenfassung', sumInner, false);
 
-        el.innerHTML = relHtml + faceHtml + sumHtml + calHtml + prefHtml + header
-          + (pendingRows ? `<div style="margin-bottom:6px;">${pendingRows}</div>` : '')
-          + factRows
-          + (memRows ? `<div style="margin-top:4px;">${memRows}</div>` : '');
+        // "Was Erika weiß" — Profil-Fakten + gefilterte Erinnerungen
+        // Kategorien die bereits als Profil-Fakten gespeichert sind → im Erinnerungsblock nicht doppelt zeigen
+        const _PROFILE_CATS = new Set(['preference','dislike','interest','age','occupation',
+          'favorite_food','favorite_drink','favorite_color','favorite_colour',
+          'residence','hometown','nickname','height']);
+        const memFiltered = approved.filter(m => !_PROFILE_CATS.has(m.category));
+        const memFilteredRows = memFiltered.map(m => {
+          const cat = m.category || 'general';
+          const tagLabel = _CAT_LABELS[cat] || cat;
+          const tagStyle = cat === 'interest_signal'
+            ? 'background:rgba(120,100,200,0.12);border:1px solid rgba(120,100,200,0.3);color:#9080cc;'
+            : 'background:rgba(60,120,180,0.12);border:1px solid rgba(60,120,180,0.3);color:#5090bb;';
+          return `
+          <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 10px;border-radius:8px;margin-bottom:3px;background:var(--panel);">
+            <span style="flex:1;font-size:0.76rem;">${escapeHtml(m.content||'')}</span>
+            ${_tag(tagLabel, tagStyle)}
+            <button onclick="deleteMemory(${m.id},${id})" title="Löschen" style="padding:2px 7px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);flex-shrink:0;">✕</button>
+          </div>`;
+        }).join('');
+
+        const wissenInner = `
+          ${pendingRows ? `<div style="margin-bottom:8px;"><div style="font-size:0.66rem;color:#ffab00;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">● Vorschläge (${pending.length})</div>${pendingRows}</div>` : ''}
+          <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:4px;">Profil-Fakten (${facts.length})</div>
+          ${factRows || '<div style="font-size:0.76rem;color:var(--muted);padding:4px 0;">Keine Profil-Fakten.</div>'}
+          ${memFilteredRows ? `
+            <div style="font-size:0.66rem;color:var(--muted);font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin:10px 0 4px;">Beobachtungen (${memFiltered.length})</div>
+            ${memFilteredRows}` : ''}
+          ${approved.length > memFiltered.length ? `
+            <div style="font-size:0.68rem;color:var(--muted);margin-top:6px;padding:4px 6px;border-radius:6px;background:rgba(255,255,255,0.03);">
+              ${approved.length - memFiltered.length} weitere Einträge (Vorlieben/Abneigungen) sind bereits im Profil gespeichert und werden hier nicht doppelt angezeigt.
+            </div>` : ''}`;
+
+        const wissenHtml = _sec('🧠', `Was Erika weiß · ${facts.length + approved.length} Einträge`, wissenInner, true);
+
+        el.innerHTML = relHtml + faceHtml + sumHtml + calHtml + prefHtml + wissenHtml;
       } catch {
         el.innerHTML = '<div style="color:var(--danger);font-size:0.78rem;">Fehler beim Laden.</div>';
       }
