@@ -1732,7 +1732,8 @@ class RobotCore:
 
     ROBOT_COMMAND_PATTERN = re.compile(
         r"\b(?:schick(?:e)?|send[e]?|lass|fahr(?:e)?|starte?|reinig(?:e)?|saug(?:e)?|wisch(?:e)?|putz(?:e)?|schick\s+los"
-        r"|mäh(?:en|e)?|mow|leg\s+los|soll\s+(?:mähen|saugen|wischen|reinigen|starten|loslegen))\b",
+        r"|mäh(?:en|e)?|mow|leg\s+los|soll\s+(?:mähen|saugen|wischen|reinigen|starten|loslegen|nach\s+hause|pausieren)"
+        r"|schick\s+\w+\s+nach\s+hause|fahr\s+\w+\s+(?:nach\s+hause|zur\s+basis))\b",
         re.IGNORECASE,
     )
 
@@ -1818,7 +1819,18 @@ class RobotCore:
             # ── Mähroboter-Pfad ─────────────────────────────────────────────
             _MOWER_INTENT = re.compile(
                 r"\b(?:mäh(?:en|e)?|rasenmäher|mähroboter|mäher"
-                r"|soll\s+mähen|starte?\s+(?:den\s+)?(?:mähroboter|mäher|rasenmäher))\b",
+                r"|soll\s+mähen|starte?\s+(?:den\s+)?(?:mähroboter|mäher|rasenmäher)"
+                r"|nach\s+hause|zur\s+basis|zurück(?:\s+zur\s+basis)?|dock(?:en)?"
+                r"|pausier(?:en|e)?|anhalten|stopp(?:en)?)\b",
+                re.IGNORECASE,
+            )
+            _MOWER_DOCK = re.compile(
+                r"\b(?:nach\s+hause|zur\s+(?:basis|ladestation)|zurück|dock(?:en)?"
+                r"|aufhören|hör\s+auf|abbrechen|stopp)\b",
+                re.IGNORECASE,
+            )
+            _MOWER_PAUSE = re.compile(
+                r"\b(?:pausier(?:en|e)?|anhalten|halt)\b",
                 re.IGNORECASE,
             )
             mowers = [r for r in all_robots if r.get("domain") == "lawn_mower"]
@@ -1832,8 +1844,15 @@ class RobotCore:
                 if not mower and len(mowers) == 1:
                     mower = mowers[0]
                 if mower:
-                    svc.command(mower["entity_id"], "start_mowing")
-                    return f"Okay, {mower['name']} fängt jetzt an zu mähen."
+                    if _MOWER_DOCK.search(query):
+                        svc.command(mower["entity_id"], "dock")
+                        return f"Okay, {mower['name']} fährt jetzt nach Hause."
+                    elif _MOWER_PAUSE.search(query):
+                        svc.command(mower["entity_id"], "pause")
+                        return f"Okay, {mower['name']} ist pausiert."
+                    else:
+                        svc.command(mower["entity_id"], "start_mowing")
+                        return f"Okay, {mower['name']} fängt jetzt an zu mähen."
 
             # ── Saugroboter-Pfad ─────────────────────────────────────────────
             vacuums = [r for r in all_robots if r.get("domain") == "vacuum"]
