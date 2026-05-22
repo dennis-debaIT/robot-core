@@ -43,6 +43,7 @@ class ConversationService:
         "will", "wollen", "wollte", "wollten", "wolltest",
         "fragt", "frage", "fragen", "fragst",
         "sagt", "sage", "sagen", "sagst",
+        "erzähle", "erzähl", "erzählt", "erzählen", "erzählst", "erzählte", "erzählung",
         "macht", "mache", "machen", "machst",
         "geht", "gehe", "gehen", "gehst",
         "gibt", "geben", "gibst",
