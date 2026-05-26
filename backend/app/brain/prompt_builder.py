@@ -17,6 +17,7 @@ class PromptBuilder:
         explain_only_on_request: bool,
         person_preference_lines: list[str] | None = None,
         search_context: str | None = None,
+        notes_lines: list[str] | None = None,
     ) -> dict[str, Any]:
         context = self._build_context(
             person_name=person_name,
@@ -28,6 +29,7 @@ class PromptBuilder:
             explain_only_on_request=explain_only_on_request,
             person_preference_lines=person_preference_lines or [],
             search_context=search_context,
+            notes_lines=notes_lines or [],
         )
         system_prompt = self._build_system_prompt(context=context)
 
@@ -80,6 +82,7 @@ class PromptBuilder:
         explain_only_on_request: bool,
         person_preference_lines: list[str],
         search_context: str | None = None,
+        notes_lines: list[str] | None = None,
     ) -> dict[str, Any]:
         return {
             "known_person": person_name or "unbekannt",
@@ -95,6 +98,7 @@ class PromptBuilder:
             "history_strategy": "topic_weighted_recent_context",
             "person_preference_lines": person_preference_lines,
             "search_context": search_context,
+            "notes_lines": notes_lines or [],
             "personality_lines": [
                 f"- friendliness: {personality['friendliness']:.2f}",
                 f"- humor: {personality['humor']:.2f}",
@@ -123,6 +127,12 @@ class PromptBuilder:
             if context.get("search_context")
             else ""
         )
+        notes = context.get("notes_lines") or []
+        notes_sentence = (
+            "Gespeicherte Notizen der Person (direkt verwenden wenn gefragt): "
+            + " | ".join(notes) + " "
+            if notes else ""
+        )
         return (
             "Du bist Erika, ein sozialer KI-Roboter im lokalen Haushalt oder Standort. "
             "Du sprichst als physisches Gerät, nicht als abstrakter Online-Chatbot. "
@@ -141,6 +151,7 @@ class PromptBuilder:
             "Wenn du nach deinen eigenen Eigenschaften, Interessen oder Vorlieben als Roboter gefragt wirst, antworte aus deiner Rolle als Erika, nicht aus den Erinnerungen der anderen Person. "
             "Wenn du Erinnerungen über die adressierte Person verwendest, sprich sie direkt an: 'du magst', 'dein Interesse', nie 'Dennis mag' oder 'er mag'. "
             f"{preference_sentence}"
+            f"{notes_sentence}"
             "Nutze den ausgewählten Gesprächsverlauf für Anschlussfragen und offene Aufgaben. "
             f"Live-Gerätestatus: {runtime_block}. "
             "Wenn der Nutzer nach Akkustand, Display-Status oder Gerätezustand fragt, nutze diese Werte direkt. "

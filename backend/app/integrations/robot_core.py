@@ -169,6 +169,21 @@ class RobotCore:
         except Exception:
             return 1.0
 
+    def _notes_for_prompt(self, person_name: str | None) -> list[str]:
+        try:
+            from app.services.note_service import NoteService
+            from app.profile.service import ProfileService
+            person_id = None
+            if person_name:
+                p = ProfileService().get_by_name(person_name)
+                if p:
+                    person_id = p["id"]
+            svc = NoteService()
+            notes = svc.list_notes(person_id=person_id)[:15]
+            return [f"[{n['title']}]: {n['content']}" for n in notes]
+        except Exception:
+            return []
+
     def _approved_memories_for_prompt(
         self,
         person_name: str | None,
@@ -763,6 +778,7 @@ class RobotCore:
             current_message=message,
             limit=settings.llm_history_turns,
         )
+        notes_lines = self._notes_for_prompt(person_name)
         payload = self.prompt_builder.build_chat_payload(
             message=message,
             person_name=person_name,
@@ -778,6 +794,7 @@ class RobotCore:
             explain_only_on_request=settings.explain_only_on_request,
             person_preference_lines=preference_lines,
             search_context=search_context,
+            notes_lines=notes_lines,
         )
         payload["llm_max_tokens"] = settings.llm_max_tokens
         payload["context"]["selection"] = selection_meta
