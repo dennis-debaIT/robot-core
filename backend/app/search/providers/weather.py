@@ -273,56 +273,46 @@ class WeatherProvider:
     def search(self, query: str) -> dict[str, Any] | None:
         from datetime import date, timedelta
 
+        settings = _get_weather_settings()
         location = self._extract_location(query) or _get_device_location() or _FALLBACK_LOCATION
-        coords = self._geocode(location)
-        if not coords:
+        data = get_weather_display_data(settings, location)
+        if not data or not data.get("current"):
             return None
 
-        lat, lon, resolved_name = coords
+        resolved_name = data.get("location", location)
         q = query.lower()
 
-        # Tages-Erkennung: morgen / übermorgen / Wochentag
-        wants_tomorrow   = bool(re.search(r"\bmorgen\b", q))
-        wants_day_after  = bool(re.search(r"\bübermorgen\b", q))
-        target_weekday   = next((i for name, i in self._DE_WEEKDAY_MAP.items() if name in q), None)
-
-        needs_forecast = wants_tomorrow or wants_day_after or target_weekday is not None
+        wants_tomorrow  = bool(re.search(r"\bmorgen\b", q))
+        wants_day_after = bool(re.search(r"\bübermorgen\b", q))
+        target_weekday  = next((i for name, i in self._DE_WEEKDAY_MAP.items() if name in q), None)
+        needs_forecast  = wants_tomorrow or wants_day_after or target_weekday is not None
 
         if needs_forecast:
-            weather = self._fetch_weather_forecast(lat, lon, days=8)
-            if not weather:
-                return None
-            daily = weather.get("daily", {})
-            times = daily.get("time", [])
-
             today = date.today()
             if wants_day_after:
-                target_date = today + timedelta(days=2)
+                target_str = (today + timedelta(days=2)).isoformat()
                 day_label = "übermorgen"
             elif wants_tomorrow:
-                target_date = today + timedelta(days=1)
+                target_str = (today + timedelta(days=1)).isoformat()
                 day_label = "morgen"
             else:
                 days_ahead = (target_weekday - today.weekday()) % 7 or 7
-                target_date = today + timedelta(days=days_ahead)
+                target_str = (today + timedelta(days=days_ahead)).isoformat()
                 day_label = self._DE_WEEKDAY_NAMES[target_weekday]
 
-            target_str = target_date.isoformat()
-            idx = next((i for i, t in enumerate(times) if t == target_str), None)
-            if idx is None:
+            day_data = None
+            if (data.get("tomorrow") or {}).get("iso_date") == target_str:
+                day_data = data["tomorrow"]
+            else:
+                day_data = next((d for d in (data.get("forecast_days") or []) if d.get("iso_date") == target_str), None)
+            if not day_data:
                 return None
 
-            t_max  = daily.get("temperature_2m_max", [])[idx] if idx < len(daily.get("temperature_2m_max", [])) else None
-            t_min  = daily.get("temperature_2m_min", [])[idx] if idx < len(daily.get("temperature_2m_min", [])) else None
-            code   = int(daily.get("weathercode", [])[idx]) if idx < len(daily.get("weathercode", [])) else 0
-            rain   = daily.get("precipitation_sum", [])[idx] if idx < len(daily.get("precipitation_sum", [])) else 0
-            desc   = _WEATHER_CODES.get(code, "unbekannt")
-
-            parts = [f"Wetter {day_label} in {resolved_name}: {desc}."]
-            if t_max is not None:
-                parts.append(f"Höchsttemperatur {round(t_max)} °C, Tiefstwert {round(t_min)} °C.")
-            if rain and float(rain) > 0:
-                parts.append(f"Niederschlag: {round(float(rain), 1)} mm.")
+            parts = [f"Wetter {day_label} in {resolved_name}: {day_data.get('description', 'unbekannt')}."]
+            if day_data.get("temp_max") is not None:
+                parts.append(f"Höchsttemperatur {day_data['temp_max']} °C, Tiefstwert {day_data['temp_min']} °C.")
+            if float(day_data.get("precipitation") or 0) > 0:
+                parts.append(f"Niederschlag: {day_data['precipitation']} mm.")
             return {
                 "snippet": " ".join(parts),
                 "title": f"Wetter {day_label} {resolved_name}",
@@ -331,39 +321,24 @@ class WeatherProvider:
                 "resolved_name": resolved_name,
             }
 
-        # Aktuelles Wetter
-        weather = self._fetch_weather(lat, lon)
-        if not weather:
-            return None
-
-        current = weather.get("current", {})
-        temp    = current.get("temperature_2m")
-        feels   = current.get("apparent_temperature")
-        wind    = current.get("windspeed_10m")
-        humidity = current.get("relative_humidity_2m")
-        precip  = current.get("precipitation")
-        code    = current.get("weathercode", 0)
-        desc    = _WEATHER_CODES.get(int(code), "unbekannt")
-
+        c = data.get("current", {})
         parts = [
-            f"Aktuelles Wetter in {resolved_name}: {desc}.",
-            f"Temperatur: {temp} °C (gefühlt {feels} °C).",
+            f"Aktuelles Wetter in {resolved_name}: {c.get('description', 'unbekannt')}.",
+            f"Temperatur: {c.get('temperature')} °C (gefühlt {c.get('feels_like')} °C).",
         ]
-        if wind is not None:
-            parts.append(f"Wind: {wind} km/h.")
-        if humidity is not None:
-            parts.append(f"Luftfeuchtigkeit: {humidity} %.")
-        if precip is not None and float(precip) > 0:
-            parts.append(f"Niederschlag: {precip} mm.")
-
-        coat = self._fetch_coat_of_arms(resolved_name)
+        if c.get("windspeed") is not None:
+            parts.append(f"Wind: {c['windspeed']} km/h.")
+        if c.get("humidity") is not None:
+            parts.append(f"Luftfeuchtigkeit: {c['humidity']} %.")
+        if float(c.get("precipitation") or 0) > 0:
+            parts.append(f"Niederschlag: {c['precipitation']} mm.")
         return {
             "snippet": " ".join(parts),
             "title": f"Wetter {resolved_name}",
             "url": "https://open-meteo.com/",
             "is_stable": False,
             "resolved_name": resolved_name,
-            "coat_of_arms_url": coat,
+            "coat_of_arms_url": data.get("coat_of_arms_url"),
         }
 
     # ── Stadtwappen via Wikidata ─────────────────────────────────────────────
