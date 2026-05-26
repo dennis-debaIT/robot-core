@@ -1295,16 +1295,16 @@
     _timerInterval = null;
   }
 
-  function _dismissTimer(id) {
-    fetch('/timer/' + id + '/dismiss', {method:'POST'}).catch(()=>{});
+  async function _dismissTimer(id) {
+    await fetch('/timer/' + id + '/dismiss', {method:'POST'}).catch(()=>{});
     _timerBeepDoneIds.delete(id);
     _timerFinishedAtMap.delete(id);
     if (_timerFinishedAtMap.size === 0) _stopTimerBeepLoop();
     _pollTimer();
   }
 
-  function _cancelTimer(id) {
-    fetch('/timer/' + id + '/cancel', {method:'POST'}).catch(()=>{});
+  async function _cancelTimer(id) {
+    await fetch('/timer/' + id + '/cancel', {method:'POST'}).catch(()=>{});
     _pollTimer();
   }
 
@@ -1352,7 +1352,8 @@
     return `
       <div style="display:flex;flex-direction:column;align-items:center;gap:8px;
         background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.12);
-        border-radius:16px;padding:16px 20px;">
+        border-radius:16px;padding:16px 20px;min-width:150px;">
+        ${label ? `<div style="font-size:0.92rem;font-weight:700;color:${color};letter-spacing:0.03em;text-align:center;">${label}</div>` : ''}
         <svg width="130" height="130" viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>
           <circle cx="60" cy="60" r="54" fill="none"
@@ -1360,11 +1361,10 @@
             stroke-dasharray="${(circ * pct).toFixed(1)} ${circ.toFixed(1)}"
             stroke-linecap="round" transform="rotate(-90 60 60)"
             style="transition:stroke-dasharray 0.9s linear;"/>
-          <text x="60" y="${label ? '52' : '66'}" text-anchor="middle"
+          <text x="60" y="66" text-anchor="middle"
             fill="${color}" font-size="${rem >= 3600 ? '16' : '21'}" font-weight="800" font-family="inherit">
             ${fin ? '⏰' : _fmt(rem)}
           </text>
-          ${label ? `<text x="60" y="70" text-anchor="middle" fill="rgba(255,255,255,0.5)" font-size="10" font-family="inherit">${label}</text>` : ''}
         </svg>
         ${fin ? `
           <div style="font-size:0.78rem;font-weight:700;color:#ff3d3d;">+${_fmt(overdue)} überfällig</div>
