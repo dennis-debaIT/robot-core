@@ -1917,9 +1917,10 @@ class RobotCore:
         re.IGNORECASE,
     )
     _TIMER_CANCEL_PATTERN = re.compile(
-        r"\b(?:stopp?|abbr[eü]ch?|beend[e]?|lösch[e]?|cancel|reset|abschalten)\s+(?:den\s+)?(?:timer|alarm|wecker)\b"
+        r"\b(?:stopp?|abbr[eü]ch?|beend[e]?|lösch[e]?|cancel|reset|abschalten)\s+(?:den\s+|alle\s+)?(?:timer|alarm|wecker)\b"
         r"|\b(?:timer|alarm|wecker)\s+(?:stopp?|abbr[eü]ch?|beend[e]?|lösch[e]?|aus|weg)\b"
-        r"|\b(?:timer|alarm|wecker)\s+(?:nicht\s+mehr|deaktivieren)\b",
+        r"|\b(?:timer|alarm|wecker)\s+(?:nicht\s+mehr|deaktivieren)\b"
+        r"|\balle\s+(?:timer|alarme?|wecker)\b",
         re.IGNORECASE,
     )
     _TIMER_DISMISS_PATTERN = re.compile(
@@ -1927,7 +1928,9 @@ class RobotCore:
         re.IGNORECASE,
     )
     _TIMER_LABEL_RE = re.compile(
-        r'\bfür\s+(?:die\s+|den\s+|das\s+|dem\s+|einen?\s+|einem\s+)?([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)',
+        r'\bmit\s+namen?\s+([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)'
+        r'|\bnamens\s+([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)'
+        r'|\bfür\s+(?:die\s+|den\s+|das\s+|dem\s+|einen?\s+|einem\s+)?([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)',
         re.IGNORECASE,
     )
     _TIMER_LABEL_BLACKLIST = frozenset([
@@ -2424,7 +2427,10 @@ class RobotCore:
         m = self._TIMER_LABEL_RE.search(text)
         if not m:
             return None
-        candidate = m.group(1).strip().rstrip(".,!?")
+        candidate = next((g for g in m.groups() if g), None)
+        if not candidate:
+            return None
+        candidate = candidate.strip().rstrip(".,!?")
         if candidate.lower() in self._TIMER_LABEL_BLACKLIST:
             return None
         return candidate.capitalize()
