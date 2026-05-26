@@ -95,6 +95,7 @@ def _news_response(items: list[dict[str, Any]], cached: bool) -> dict[str, Any]:
     lookback_hours = settings.get_news_lookback_hours()
     selected_sources = settings.get_news_selected_sources()
     display_settings = settings.get_news_display_settings()
+    custom_feeds = settings.get_news_custom_feeds()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback_hours)
 
     def _pd(value: str) -> datetime:
@@ -110,14 +111,16 @@ def _news_response(items: list[dict[str, Any]], cached: bool) -> dict[str, Any]:
         "cached": cached,
         "lookback_hours": lookback_hours,
         "display": display_settings,
-        "sources": NewsFeedService().active_sources_payload(selected_sources),
+        "sources": NewsFeedService(custom_feeds).active_sources_payload(selected_sources),
     }
 
 
 @router.get("/news")
 def get_news() -> dict[str, Any]:
     now = _t.time()
-    selected_source_ids = IntegrationConfigService().get_news_selected_sources()
+    cfg = IntegrationConfigService()
+    selected_source_ids = cfg.get_news_selected_sources()
+    custom_feeds = cfg.get_news_custom_feeds()
     if (
         now - _news_cache["fetched_at"] < _NEWS_TTL
         and _news_cache["items"]
@@ -126,7 +129,7 @@ def get_news() -> dict[str, Any]:
         return _news_response(_news_cache["items"], cached=True)
 
     try:
-        feeds = NewsFeedService().active_feeds(selected_source_ids)
+        feeds = NewsFeedService(custom_feeds).active_feeds(selected_source_ids)
         with _cf.ThreadPoolExecutor(max_workers=2) as ex:
             results = list(ex.map(_fetch_feed, feeds))
         combined = [item for feed_items in results for item in feed_items]

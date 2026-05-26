@@ -138,6 +138,7 @@ class IntegrationConfigService:
         news["selected_sources"] = self._sanitize_news_selected_sources(news.get("selected_sources"))
         news["default_collapsed"] = bool(news.get("default_collapsed", False))
         news["collapsed_count"] = self._sanitize_news_collapsed_count(news.get("collapsed_count", 3))
+        news["custom_feeds"] = self._sanitize_news_custom_feeds(news.get("custom_feeds"))
         lights_config = merged.setdefault("lights", {})
         lights_config["enabled"] = bool(lights_config.get("enabled", True))
         lights_config["selected_entities"] = self._sanitize_string_list(lights_config.get("selected_entities"))
@@ -217,6 +218,7 @@ class IntegrationConfigService:
         news["selected_sources"] = self._sanitize_news_selected_sources(news.get("selected_sources"))
         news["default_collapsed"] = bool(news.get("default_collapsed", False))
         news["collapsed_count"] = self._sanitize_news_collapsed_count(news.get("collapsed_count", 3))
+        news["custom_feeds"] = self._sanitize_news_custom_feeds(news.get("custom_feeds"))
         lights_config = updated.setdefault("lights", {})
         lights_config["enabled"] = bool(lights_config.get("enabled", True))
         lights_config["selected_entities"] = self._sanitize_string_list(lights_config.get("selected_entities"))
@@ -292,6 +294,9 @@ class IntegrationConfigService:
     def get_news_selected_sources(self) -> list[str]:
         config = self.get_config()
         return self._sanitize_news_selected_sources(config.get("news", {}).get("selected_sources"))
+
+    def get_news_custom_feeds(self) -> list[dict]:
+        return self._sanitize_news_custom_feeds(self.get_config().get("news", {}).get("custom_feeds"))
 
     def get_news_display_settings(self) -> dict[str, Any]:
         news = self.get_config().get("news", {})
@@ -396,7 +401,7 @@ class IntegrationConfigService:
             ],
             "entities": {
                 "lights": lights,
-                "news_sources": NewsFeedService().list_catalog(),
+                "news_sources": NewsFeedService(self.get_news_custom_feeds()).list_catalog(),
                 "robots": robots,
                 "fuel_type_options": FuelService().type_options(),
                 "fuel_stations": FuelService(self.ha).station_catalog(),
@@ -513,7 +518,27 @@ class IntegrationConfigService:
         if not isinstance(value, list):
             return []
         allowed = {feed["id"] for feed in NewsFeedService().list_catalog()}
-        return [str(item) for item in value if str(item) in allowed]
+        return [str(item) for item in value if str(item) in allowed or str(item).startswith("custom_")]
+
+    @staticmethod
+    def _sanitize_news_custom_feeds(value: Any) -> list[dict]:
+        if not isinstance(value, list):
+            return []
+        result = []
+        seen_urls: set[str] = set()
+        for item in value:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("url") or "").strip()
+            label = str(item.get("label") or "").strip()
+            if not url or not label or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            fmt = item.get("fmt", "rss")
+            if fmt not in ("rss", "atom"):
+                fmt = "rss"
+            result.append({"url": url, "label": label, "fmt": fmt, "icon_url": str(item.get("icon_url") or "").strip()})
+        return result
 
     @staticmethod
     def _sanitize_fuel_types(value: Any) -> list[str]:

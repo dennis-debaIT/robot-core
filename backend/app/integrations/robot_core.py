@@ -1968,6 +1968,18 @@ class RobotCore:
         r"|\btimer\s+(?:status|rest|wie\s+lang[e]?)\b",
         re.IGNORECASE,
     )
+    _TIMER_LIST_PATTERN = re.compile(
+        r"\bwelch[e]?\s+timer\b"
+        r"|\bwie\s+viele?\s+timer\b"
+        r"|\bzeig[e]?\s+(?:mir\s+)?(?:alle?\s+)?timer\b"
+        r"|\bwas\s+(?:für\s+)?timer\s+(?:laufen?|sind|l[aä]uft|aktiv)\b",
+        re.IGNORECASE,
+    )
+    _TIMER_RENAME_PATTERN = re.compile(
+        r"\b(?:nenn[e]?|benenn[e]?|umbenennen?|umbenenn[e]?|umtaufen?)\b.{0,60}\btimer\b"
+        r"|\btimer\b.{0,60}\b(?:nenn[e]?|benenn[e]?|heißt?|soll\s+heißen?|umbenennen?)\b",
+        re.IGNORECASE,
+    )
     _TIMER_LABEL_BLACKLIST = frozenset([
         "timer", "alarm", "wecker", "mich", "dich", "uns", "euch", "ihn", "sie", "es",
         "minuten", "sekunden", "stunden", "minute", "sekunde", "stunde", "mal",
@@ -2575,8 +2587,29 @@ class RobotCore:
             return None
         return candidate.capitalize()
 
+    _TIMER_ORDINALS = {"ersten": 0, "erste": 0, "zweiten": 1, "zweite": 1, "dritten": 2, "dritte": 2}
+
     def _try_timer_command(self, captured: str) -> str | None:
+        try:
+            return self._try_timer_command_inner(captured)
+        except Exception:
+            return None
+
+    def _try_timer_command_inner(self, captured: str) -> str | None:
         q = captured.lower().strip()
+
+        if self._TIMER_LIST_PATTERN.search(q):
+            from app.api.routers.timer import get_timer_status
+            status = get_timer_status()
+            timers = [t for t in (status.get("timers") or []) if not t.get("finished")]
+            if not timers:
+                return "Es läuft gerade kein Timer."
+            if len(timers) == 1:
+                t = timers[0]
+                return f"Ein Timer läuft: {t.get('label') or 'Timer'}, noch {self._format_duration(int(t.get('remaining_seconds') or 0))}."
+            parts = [f"{t.get('label') or 'Timer'} ({self._format_duration(int(t.get('remaining_seconds') or 0))})" for t in timers]
+            return f"{len(timers)} Timer laufen: " + ", ".join(parts) + "."
+
         if self._TIMER_REMAINING_PATTERN.search(q):
             from app.api.routers.timer import get_timer_status
             status = get_timer_status()
@@ -2584,34 +2617,67 @@ class RobotCore:
             if not timers:
                 return "Es läuft gerade kein Timer."
             label_m = self._TIMER_LABEL_RE.search(captured)
-            query_label = None
-            if label_m:
-                query_label = next((g for g in label_m.groups() if g), None)
+            query_label = next((g for g in label_m.groups() if g), None) if label_m else None
             if query_label:
                 ql = query_label.lower()
                 match = next((t for t in timers if ql in (t.get("label") or "").lower()), None)
                 if not match:
                     return f"Ich habe keinen Timer mit dem Namen '{query_label.capitalize()}' gefunden."
-                remaining = int(match.get("remaining_seconds") or 0)
-                label = match.get("label") or "Timer"
-                return f"Beim {label}-Timer noch {self._format_duration(remaining)}."
+                return f"Beim {match.get('label') or 'Timer'}-Timer noch {self._format_duration(int(match.get('remaining_seconds') or 0))}."
             if len(timers) == 1:
                 t = timers[0]
-                remaining = int(t.get("remaining_seconds") or 0)
-                label = t.get("label") or "Timer"
-                return f"Beim {label}-Timer noch {self._format_duration(remaining)}."
+                return f"Beim {t.get('label') or 'Timer'}-Timer noch {self._format_duration(int(t.get('remaining_seconds') or 0))}."
             parts = [f"{t.get('label') or 'Timer'}: noch {self._format_duration(int(t.get('remaining_seconds') or 0))}" for t in timers]
             return "Laufende Timer — " + ", ".join(parts) + "."
+
+        if self._TIMER_RENAME_PATTERN.search(q):
+            from app.api.routers.timer import get_timer_status, rename_timer
+            status = get_timer_status()
+            timers = [t for t in (status.get("timers") or []) if not t.get("finished")]
+            if not timers:
+                return "Es läuft gerade kein Timer."
+            target = None
+            for word, idx in self._TIMER_ORDINALS.items():
+                if word in q and idx < len(timers):
+                    target = timers[idx]
+                    break
+            if not target and len(timers) == 1:
+                target = timers[0]
+            if not target:
+                label_m = self._TIMER_LABEL_RE.search(captured)
+                ql = (next((g for g in label_m.groups() if g), None) or "").lower() if label_m else ""
+                if ql:
+                    target = next((t for t in timers if ql in (t.get("label") or "").lower()), None)
+            if not target:
+                return "Ich konnte nicht erkennen welchen Timer du umbenennen möchtest."
+            new_name_m = re.search(
+                r'\b(?:in|als|auf|heißt?|namen?)\s+([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)\b',
+                captured, re.IGNORECASE,
+            )
+            if not new_name_m:
+                new_name_m = re.search(
+                    r'\btimer\b\s*(?:\w+\s*){0,4}([A-Za-zÄÖÜäöüß]{3,})[\s.,!?]*$',
+                    captured, re.IGNORECASE,
+                )
+            if not new_name_m:
+                return "Ich konnte den neuen Namen nicht erkennen."
+            new_label = new_name_m.group(1).strip().capitalize()
+            old_label = target.get("label") or "Timer"
+            rename_timer(target["id"], new_label)
+            return f"Timer '{old_label}' wurde in '{new_label}' umbenannt."
+
         if self._TIMER_CANCEL_PATTERN.search(q):
             from app.api.routers.timer import cancel_timer
             cancel_timer()
             return "Timer gestoppt."
+
         if self._TIMER_DISMISS_PATTERN.match(q):
             from app.api.routers.timer import get_timer_status, dismiss_timer
             status = get_timer_status()
             if any(t.get("finished") for t in status.get("timers", [])):
                 dismiss_timer()
                 return "Timer quittiert."
+
         if not self._TIMER_PATTERN.search(q):
             return None
         m = self._DURATION_RE.search(q)

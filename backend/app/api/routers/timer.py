@@ -126,3 +126,17 @@ def dismiss_timer_by_id(timer_id: int) -> dict[str, Any]:
         timers = [t for t in _get_timers(conn) if t["id"] != timer_id]
         _save_timers(conn, timers)
     return {"ok": True}
+
+
+def rename_timer(timer_id: int, new_label: str) -> dict[str, Any]:
+    with get_connection() as conn:
+        timers = _get_timers(conn)
+        found = False
+        for t in timers:
+            if t["id"] == timer_id:
+                t["label"] = new_label.strip()
+                found = True
+                break
+        if found:
+            _save_timers(conn, timers)
+    return {"ok": found}

@@ -204,6 +204,15 @@
             <div id="source-grid" class="source-grid"></div>
           </section>
 
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Eigene RSS-Quellen</div>
+              <p>Füge beliebige RSS- oder Atom-Feeds hinzu. Eigene Quellen erscheinen danach in der Quellenliste und können dort aktiviert werden.</p>
+            </div>
+            <div id="custom-feeds-list"></div>
+            <button type="button" id="add-custom-feed-btn" class="btn-secondary" style="margin-top:12px;">+ Feed hinzufügen</button>
+          </section>
+
         </article>
 
         <article id="tab-weather" class="panel-card tab-panel">
@@ -1195,6 +1204,8 @@
     const overviewActiveChipEl = document.getElementById('overview-active-chip');
     const sourceGridEl = document.getElementById('source-grid');
     const selectedCountChipEl = document.getElementById('selected-count-chip');
+    const customFeedsListEl = document.getElementById('custom-feeds-list');
+    const addCustomFeedBtn = document.getElementById('add-custom-feed-btn');
     const newsDefaultCollapsedEl = document.getElementById('news-default-collapsed');
     const newsCollapsedCountEl = document.getElementById('news-collapsed-count');
     const evEnabledEl = document.getElementById('ev-enabled');
@@ -1299,6 +1310,37 @@
     function getSelectedSourceIds() {
       return Array.from(document.querySelectorAll('input[name="news-source"]:checked')).map((input) => input.value);
     }
+
+    function getCustomFeeds() {
+      return Array.from(customFeedsListEl.querySelectorAll('.custom-feed-row')).map((row) => ({
+        label: row.querySelector('.cf-label').value.trim(),
+        url:   row.querySelector('.cf-url').value.trim(),
+        fmt:   row.querySelector('.cf-fmt').value,
+      })).filter((f) => f.label && f.url);
+    }
+
+    function renderCustomFeeds(feeds) {
+      customFeedsListEl.innerHTML = '';
+      (feeds || []).forEach((feed) => addCustomFeedRow(feed));
+    }
+
+    function addCustomFeedRow(feed) {
+      const row = document.createElement('div');
+      row.className = 'custom-feed-row';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 2fr auto auto;gap:8px;align-items:center;margin-bottom:8px;';
+      row.innerHTML = `
+        <input class="field-input cf-label" type="text" placeholder="Name (z.B. Mein Blog)" value="${escapeHtml(feed?.label || '')}">
+        <input class="field-input cf-url" type="url" placeholder="https://example.com/feed.xml" value="${escapeHtml(feed?.url || '')}">
+        <select class="field-input cf-fmt" style="width:auto;">
+          <option value="rss" ${(feed?.fmt || 'rss') === 'rss' ? 'selected' : ''}>RSS</option>
+          <option value="atom" ${feed?.fmt === 'atom' ? 'selected' : ''}>Atom</option>
+        </select>
+        <button type="button" class="btn-danger-sm cf-remove" title="Entfernen" style="padding:6px 10px;border-radius:8px;background:rgba(255,60,60,0.12);border:1px solid rgba(255,60,60,0.3);color:#ff6060;cursor:pointer;font-size:0.85rem;">✕</button>`;
+      row.querySelector('.cf-remove').addEventListener('click', () => { row.remove(); syncSummary(); });
+      customFeedsListEl.appendChild(row);
+    }
+
+    addCustomFeedBtn.addEventListener('click', () => { addCustomFeedRow({}); });
 
     function getSelectedFuelTypeIds() {
       return Array.from(document.querySelectorAll('input[name="fuel-type"]:checked')).map((input) => input.value);
@@ -2403,6 +2445,7 @@
       rangeEl.value = hours;
       newsDefaultCollapsedEl.checked = Boolean(newsConfig.default_collapsed);
       newsCollapsedCountEl.value = newsConfig.collapsed_count ?? 3;
+      renderCustomFeeds(newsConfig.custom_feeds || []);
       fuelEnabledEl.checked = Boolean(fuelConfig.enabled);
       fuelAssignments = fuelConfig.fuel_assignments || {};
       evEnabledEl.checked = vehicleConfig.enabled !== false;
@@ -2496,6 +2539,7 @@
               selected_sources: getSelectedSourceIds(),
               default_collapsed: newsDefaultCollapsedEl.checked,
               collapsed_count: Number(newsCollapsedCountEl.value),
+              custom_feeds: getCustomFeeds(),
             },
             lights: {
               enabled: lightsEnabledEl.checked,

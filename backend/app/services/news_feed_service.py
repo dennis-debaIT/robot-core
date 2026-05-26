@@ -153,6 +153,25 @@ class NewsFeedService:
         },
     ]
 
+    def __init__(self, custom_feeds: list[dict[str, Any]] | None = None) -> None:
+        self._all_feeds = list(self._FEEDS)
+        for cf in (custom_feeds or []):
+            url = (cf.get("url") or "").strip()
+            label = (cf.get("label") or "").strip()
+            if not url or not label:
+                continue
+            feed_id = f"custom_{url}"
+            fmt = cf.get("fmt", "rss") if cf.get("fmt") in ("rss", "atom") else "rss"
+            self._all_feeds.append({
+                "id": feed_id,
+                "label": label,
+                "url": url,
+                "fmt": fmt,
+                "icon_url": cf.get("icon_url") or "",
+                "default_selected": False,
+                "custom": True,
+            })
+
     def list_catalog(self) -> list[dict[str, Any]]:
         return [
             {
@@ -161,17 +180,18 @@ class NewsFeedService:
                 "url": feed["url"],
                 "icon_url": feed.get("icon_url"),
                 "default_selected": feed.get("default_selected", False),
+                "custom": feed.get("custom", False),
             }
-            for feed in self._FEEDS
+            for feed in self._all_feeds
         ]
 
     def default_selected_source_ids(self) -> list[str]:
-        return [feed["id"] for feed in self._FEEDS if feed.get("default_selected")]
+        return [feed["id"] for feed in self._all_feeds if feed.get("default_selected")]
 
     def active_feeds(self, selected_source_ids: list[str] | None) -> list[dict[str, Any]]:
         selected = {value for value in (selected_source_ids or self.default_selected_source_ids()) if value}
-        active = [feed for feed in self._FEEDS if feed["id"] in selected]
-        return active or [feed for feed in self._FEEDS if feed.get("default_selected")]
+        active = [feed for feed in self._all_feeds if feed["id"] in selected]
+        return active or [feed for feed in self._all_feeds if feed.get("default_selected")]
 
     def active_sources_payload(self, selected_source_ids: list[str] | None) -> list[dict[str, Any]]:
         return [
