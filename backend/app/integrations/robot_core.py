@@ -2247,7 +2247,8 @@ class RobotCore:
             return None
 
     _NOTE_SAVE_PATTERN = re.compile(
-        r"\b(?:merk(?:e|)\s+dir|notier(?:e|)|speicher(?:e|)\s+(?:die\s+)?notiz|leg(?:e|)\s+(?:eine?\s+)?notiz\s+an)"
+        r"\b(?:merk(?:e|)\s+dir|notier(?:e|)|speicher(?:e|)\s+(?:die\s+)?notiz|leg(?:e|)\s+(?:eine?\s+)?notiz\s+an"
+        r"|erinner(?:e|)\s+dich\s+an|denk\s+daran\s+dass?|behalte?\s+(?:im\s+kopf|in\s+erinnerung))"
         r"\s*[:\-–]?\s*(.+)",
         re.IGNORECASE,
     )
