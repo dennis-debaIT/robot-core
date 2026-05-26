@@ -171,7 +171,7 @@ class HomeAssistantProvider:
         "schalte", "schalten", "mach", "mache", "machen", "dreh", "drehe",
         "stell", "stelle", "dimm", "dimme", "bitte", "mal", "doch", "auch",
         "das", "die", "der", "den", "dem", "eine", "einen", "einem",
-        "im", "in", "von", "zu", "bei", "mit", "auf",
+        "im", "in", "von", "zu", "bei", "mit", "auf", "uhr",
         "licht", "lichter", "lampe", "lampen", "ein", "an", "aus",
         "prozent", "hell", "heller", "dunkler", "alle", "alles", "gesamt",
         "und", "sowie", "außerdem",

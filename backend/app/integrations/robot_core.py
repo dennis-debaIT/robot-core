@@ -1198,6 +1198,10 @@ class RobotCore:
         if direct_reply is None:
             direct_reply = self._try_answer_person_knowledge_question(captured)
         if direct_reply is None:
+            light_sched_reply = self._try_light_schedule_command(captured, person_name)
+            if light_sched_reply:
+                direct_reply = light_sched_reply
+        if direct_reply is None:
             light_reply = self._try_light_command(captured)
             if light_reply:
                 direct_reply = light_reply
@@ -2706,33 +2710,36 @@ class RobotCore:
         return f"Timer auf {duration_label} gestellt. Ich melde mich wenn die Zeit um ist."
 
     _LIGHT_SCHEDULE_PATTERN = re.compile(
-        r"\b(?:schalte?|mach[e]?|stell[e]?|dimm[e]?|dreh[e]?)\b.{0,80}"
-        r"\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,60}"
-        r"\bum\s+\d{1,2}(?::\d{2})?\s*Uhr\b"
-        r"|\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,60}"
-        r"\bum\s+\d{1,2}(?::\d{2})?\s*Uhr\b",
+        # verb → um Uhr → licht  (z.B. "Schalte um 19 Uhr das Licht ein")
+        r"\b(?:schalte?|mach[e]?|stell[e]?|dimm[e]?|dreh[e]?)\b.{0,60}"
+        r"\bum\s+\d{1,2}(?::\d{2})?\s*Uhr\b.{0,80}\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b"
+        # verb → licht → um Uhr  (z.B. "Schalte das Licht um 19 Uhr ein")
+        r"|\b(?:schalte?|mach[e]?|stell[e]?|dimm[e]?|dreh[e]?)\b.{0,80}"
+        r"\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,60}\bum\s+\d{1,2}(?::\d{2})?\s*Uhr\b"
+        # licht → um Uhr  (ohne explizites Verb, z.B. "Licht im Wohnzimmer um 19 Uhr einschalten")
+        r"|\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,80}\bum\s+\d{1,2}(?::\d{2})?\s*Uhr\b",
         re.IGNORECASE | re.DOTALL,
     )
 
     def _try_light_schedule_command(self, captured: str, person_name: str | None) -> str | None:
         """Erkennt zeitgesteuerte Lichtbefehle ('Schalte um 19 Uhr das Licht X auf 50% ein')."""
-        if not self._CLOCK_TIME_RE.search(captured):
+        if not self._LIGHT_SCHEDULE_PATTERN.search(captured):
             return None
-        if not self.LIGHT_COMMAND_PATTERN.search(captured):
-            return None
-        # Nur wenn eine Uhrzeit UND ein Lichtbefehl vorliegen, aber KEIN sofortiger Befehl gewünscht ist
-        # (Sofortiger Befehl wäre ohne Zeitangabe — hier müssen BEIDE gleichzeitig vorkommen)
         tm = self._CLOCK_TIME_RE.search(captured)
         if not tm:
             return None
         try:
+            from datetime import timedelta
             hour = int(tm.group(1) if tm.group(1) is not None else tm.group(3))
             minute = int(tm.group(2) if tm.group(2) is not None else (tm.group(4) or 0))
             now_local = datetime.now(timezone.utc).astimezone()
             target = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
             if target <= now_local:
-                target += __import__('datetime').timedelta(days=1)
+                target += timedelta(days=1)
             fire_at = target.astimezone(timezone.utc).isoformat()
+            # Zeit-Angabe aus dem Befehl entfernen, damit execute_light_command sauber parsen kann
+            clean_cmd = re.sub(r'\bum\s+\d{1,2}(?::\d{2})?\s*Uhr\b', '', captured, flags=re.IGNORECASE)
+            clean_cmd = re.sub(r'\s{2,}', ' ', clean_cmd).strip()
             with get_connection() as conn:
                 conn.execute(
                     "INSERT INTO reminders(text, fire_at, person_name, light_command, notified, dismissed, created_at) "
@@ -2741,7 +2748,7 @@ class RobotCore:
                         f"Lichtbefehl um {hour:02d}:{minute:02d} Uhr",
                         fire_at,
                         person_name,
-                        captured,
+                        clean_cmd,
                         datetime.now(timezone.utc).isoformat(),
                     ),
                 )
