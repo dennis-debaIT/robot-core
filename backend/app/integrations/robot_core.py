@@ -2387,7 +2387,7 @@ class RobotCore:
         if self._TIMER_DISMISS_PATTERN.match(q):
             from app.api.routers.timer import get_timer_status, dismiss_timer
             status = get_timer_status()
-            if status.get("finished"):
+            if any(t.get("finished") for t in status.get("timers", [])):
                 dismiss_timer()
                 return "Timer quittiert."
         if not self._TIMER_PATTERN.search(q):
