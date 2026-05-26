@@ -9,65 +9,26 @@ Format: neueste Einträge oben.
 
 ---
 
-## 2026-05-26 (6)
-
-### Behoben
-- **Zeitgesteuerte Befehle 2 Stunden zu spät**: Der `robot-core`-Container hatte keine Zeitzone gesetzt und lief in UTC. "Schalte um 19 Uhr das Licht an" wurde als 19:00 UTC (= 21:00 CEST) gespeichert statt 17:00 UTC (= 19:00 CEST). Behoben durch `TZ: ${TZ:-Europe/Berlin}` im Docker-Compose (gleich wie der `homeassistant`-Container). Betrifft sowohl Lichtpläne als auch reguläre Erinnerungen.
-
-### Neu
-- **Zeitpläne-Tab im Admin**: Unter **Konfiguration → Zeitpläne** sind alle aktiven Erinnerungen und zeitgesteuerten Lichtbefehle sichtbar — mit Feuerzeitpunkt, Status (ausstehend/ausgelöst) und Lösch-Button.
-
-### Verbessert
-- **Debug-Endpoint `/debug/light-schedule`**: Gibt jetzt zusätzlich `server_time_utc`, alle Licht-Reminder-Einträge aus der DB und offene Einträge zurück — erleichtert die Diagnose von Zeitplan-Problemen.
-
----
-
-## 2026-05-26 (5)
-
-### Neu
-- **Timer per Sprache auflisten**: "Welche Timer laufen gerade?" gibt alle aktiven Timer mit Restzeit aus
-- **Timer umbenennen per Sprache**: "Nenn den ersten Timer Nudeln" — erkennt Ordinalzahl, vorhandenes Label oder (bei einem Timer) automatisch den einzigen laufenden Timer
-- **Eigene RSS-Quellen im Admin**: Unter News → Eigene RSS-Quellen können beliebige RSS- oder Atom-Feed-URLs hinzugefügt werden; erscheinen danach in der Quellenliste und können aktiviert werden
-
-### Behoben
-- **Timer-Fehlerresistenz**: `_try_timer_command()` fängt nun alle Exceptions ab — kein stiller Crash mehr wenn der Timer-Router-Import fehlschlägt
-
----
-
-## 2026-05-26 (4)
-
-### Neu
-- **Timer-Restzeit per Sprache**: "Wie lange noch beim Nudel-Timer?" liefert die verbleibende Zeit; bei mehreren Timern ohne Namensangabe werden alle aufgelistet
-
-### Behoben
-- **Timer-Label "Nudeln auf"**: `_TIMER_LABEL_RE` fing im `für`-Zweig fälschlich zwei Wörter ein — jetzt wird nur ein Wort extrahiert (kein nachfolgendes "auf", "ein" o.ä.)
-- **Wetter-Sprachbefehle**: `WeatherProvider.search()` rief Open-Meteo direkt auf statt den konfigurierten Provider zu nutzen — jetzt wird `get_weather_display_data()` gerufen (gleicher Pfad wie `/weather`-Endpoint)
-
----
-
-## 2026-05-26 (3)
-
-### Neu
-- **Wetter-Anbieter auswählbar**: Im Admin unter Wetter → Datenquelle kann zwischen drei Anbietern gewählt werden:
-  - **Open-Meteo** (Standard, kein API-Key, open-meteo.com)
-  - **Yr.no / MET Norway** (kein API-Key, Norwegischer Wetterdienst, sehr zuverlässig)
-  - **OpenWeatherMap** (kostenloser API-Key nötig, 1M Calls/Monat gratis)
-  - Geocoding (Ortsauflösung) läuft weiterhin über Open-Meteo bei allen Anbietern
-
-## 2026-05-26 (2)
-
-### Behoben
-- **Wetter-Widget verschwindet bei API-Fehler**: Wenn Open-Meteo nicht erreichbar ist, wurde das Wetter-Widget komplett ausgeblendet. Jetzt zeigt es einen Platzhalter "Wetterdaten nicht verfügbar" statt ganz zu verschwinden. Backend gibt bei Fehler JSON zurück statt HTTP 503 (kein Browser-Fehler mehr).
-
----
-
 ## 2026-05-26
 
 ### Neu
-- **Zeitgesteuerte Lichtbefehle per Sprache**: "Schalte um 19 Uhr das Licht im Wohnzimmer auf 50% ein" — Erika legt einen internen Zeitplan an (nutzt das Reminder-System mit `light_command`-Feld). Der Watcher-Loop führt den HA-Lichtbefehl zur angegebenen Uhrzeit still aus; bei vergangener Uhrzeit automatisch auf morgen verschoben.
-- **Gesprächs-Zusammenfassung**: Sprachbefehl "Was haben wir heute besprochen?" liefert eine kompakte Zusammenfassung der heutigen Konversationsthemen (ohne LLM-Aufruf, direkt aus `conversation_messages`)
-- **Tägliches Fazit**: Erika fragt abends proaktiv "Wie war dein Tag heute?" — Uhrzeit im Admin konfigurierbar; Antwort wird automatisch als Notiz ("Tagesfazit DD.MM.YYYY") gespeichert; LocalStorage verhindert mehrfaches Fragen pro Tag
-- **`/chat/log` Endpoint**: Interner Endpoint zum Loggen von Assistenten-Nachrichten (für Kontext-Erkennung im Backend)
+- **Zeitgesteuerte Lichtbefehle per Sprache**: "Schalte um 19 Uhr das Licht im Wohnzimmer auf 50% ein" — Erika legt einen internen Zeitplan an. Der Watcher-Loop führt den HA-Lichtbefehl zur angegebenen Uhrzeit still aus; bei vergangener Uhrzeit automatisch auf morgen verschoben.
+- **Timer-Restzeit per Sprache**: "Wie lange noch beim Nudel-Timer?" liefert die verbleibende Zeit; ohne Namensangabe werden alle laufenden Timer aufgelistet.
+- **Timer per Sprache auflisten**: "Welche Timer laufen gerade?" gibt alle aktiven Timer mit Restzeit aus.
+- **Timer umbenennen per Sprache**: "Nenn den ersten Timer Nudeln" — erkennt Ordinalzahl, vorhandenes Label oder (bei einem Timer) automatisch den einzigen laufenden.
+- **Eigene RSS-Quellen im Admin**: Unter News → Eigene RSS-Quellen können beliebige RSS- oder Atom-Feed-URLs hinzugefügt werden; Favicon wird automatisch befüllt; erscheinen danach in der Quellenliste und können aktiviert werden.
+- **Wetter-Anbieter auswählbar**: Im Admin unter Wetter → Datenquelle kann zwischen Open-Meteo (Standard, kein Key), Yr.no/MET Norway (kein Key) und OpenWeatherMap (kostenloser Key) gewählt werden.
+- **Gesprächs-Zusammenfassung**: "Was haben wir heute besprochen?" liefert eine kompakte Zusammenfassung der heutigen Konversationsthemen.
+- **Tägliches Fazit**: Erika fragt abends proaktiv "Wie war dein Tag heute?" — Uhrzeit im Admin konfigurierbar; Antwort wird als Notiz gespeichert.
+- **Zeitpläne-Tab im Admin**: Unter Konfiguration → Zeitpläne sind alle aktiven Erinnerungen und zeitgesteuerten Lichtbefehle sichtbar — mit Feuerzeitpunkt, Status und Lösch-Button.
+
+### Behoben
+- **Zeitgesteuerte Befehle 2 Stunden zu spät**: `robot-core`-Container lief in UTC (keine `TZ`-Variable gesetzt). Zeiten wie "19 Uhr" wurden als 19:00 UTC statt 17:00 UTC gespeichert. Behoben durch `TZ: ${TZ:-Europe/Berlin}` im Docker-Compose. Betrifft Lichtpläne und reguläre Erinnerungen.
+- **Timer-Label "Nudeln auf"**: `_TIMER_LABEL_RE` extrahierte fälschlich zwei Wörter im `für`-Zweig — jetzt nur ein Wort (kein nachfolgendes "auf", "ein" o.ä.).
+- **Wetter-Sprachbefehle**: `WeatherProvider.search()` rief Open-Meteo direkt auf statt den konfigurierten Provider zu nutzen.
+- **Wetter-Widget verschwindet bei API-Fehler**: Zeigt jetzt einen Platzhalter statt das Widget komplett auszublenden.
+- **Timer-Fehlerresistenz**: `_try_timer_command()` fängt nun alle Exceptions ab.
+- **`/chat/log` Endpoint**: Interner Endpoint zum Loggen von Assistenten-Nachrichten.
 
 ---
 
