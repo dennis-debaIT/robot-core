@@ -1922,6 +1922,10 @@ class RobotCore:
         r"|\b(?:timer|alarm|wecker)\s+(?:nicht\s+mehr|deaktivieren)\b",
         re.IGNORECASE,
     )
+    _TIMER_DISMISS_PATTERN = re.compile(
+        r"^(?:stopp?|stop|aus|ok(?:ay)?|fertig|danke|ruhe|genug|hör\s+auf)$",
+        re.IGNORECASE,
+    )
     _DURATION_RE = re.compile(
         r"(eine?|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf|fünfzehn|zwanzig|dreißig|vierzig|fünfzig|sechzig|\d+(?:[.,]\d+)?)"
         r"\s*(stunde[n]?|std?|h(?:our)?|minute[n]?|min?|sekunde[n]?|sek?|s(?:ec)?)\b",
@@ -2375,11 +2379,17 @@ class RobotCore:
             return None
 
     def _try_timer_command(self, captured: str) -> str | None:
-        q = captured.lower()
+        q = captured.lower().strip()
         if self._TIMER_CANCEL_PATTERN.search(q):
             from app.api.routers.timer import cancel_timer
             cancel_timer()
             return "Timer gestoppt."
+        if self._TIMER_DISMISS_PATTERN.match(q):
+            from app.api.routers.timer import get_timer_status, dismiss_timer
+            status = get_timer_status()
+            if status.get("finished"):
+                dismiss_timer()
+                return "Timer quittiert."
         if not self._TIMER_PATTERN.search(q):
             return None
         m = self._DURATION_RE.search(q)

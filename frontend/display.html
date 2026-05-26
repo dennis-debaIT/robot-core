@@ -1300,9 +1300,9 @@
     try {
       const d = await fetch('/timer/status', { cache: 'no-store' }).then(r => r.json());
       if (!d.active) {
-        if (!document.getElementById('timer-overlay')) {
-          _stopTimerPolling();
-        }
+        _stopTimerBeepLoop();
+        _hideTimerOverlay();
+        _stopTimerPolling();
         return;
       }
       _startTimerPolling();
