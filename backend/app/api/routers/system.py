@@ -588,11 +588,27 @@ def get_audit_log(limit: int = 100) -> dict[str, Any]:
 
 @router.get("/debug/light-schedule")
 def debug_light_schedule() -> dict[str, Any]:
-    """Letztes Ergebnis eines zeitgesteuerten Lichtbefehls + bekannte HA-Licht-Entities."""
+    """Letztes Ergebnis eines zeitgesteuerten Lichtbefehls + bekannte HA-Licht-Entities + DB-Reminders."""
     from app.database.db import get_connection, read_state
     from app.search.providers.homeassistant import HomeAssistantProvider
+    from datetime import datetime, timezone
+    now_iso = datetime.now(timezone.utc).isoformat()
     with get_connection() as conn:
         last = read_state(conn, "last_light_schedule_result")
+        all_light_reminders = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, fire_at, light_command, notified, dismissed, created_at "
+                "FROM reminders WHERE light_command IS NOT NULL ORDER BY id DESC LIMIT 20"
+            ).fetchall()
+        ]
+        pending_light_reminders = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT id, fire_at, light_command, notified, dismissed "
+                "FROM reminders WHERE light_command IS NOT NULL AND notified=0 AND dismissed=0"
+            ).fetchall()
+        ]
     try:
         lights = [
             {"entity_id": l["entity_id"], "name": l["name"], "is_group": l["is_group"]}
@@ -600,4 +616,10 @@ def debug_light_schedule() -> dict[str, Any]:
         ]
     except Exception as exc:
         lights = [{"error": str(exc)}]
-    return {"last_execution": last, "known_lights": lights}
+    return {
+        "server_time_utc": now_iso,
+        "last_execution": last,
+        "all_light_reminders": all_light_reminders,
+        "pending_light_reminders": pending_light_reminders,
+        "known_lights": lights,
+    }

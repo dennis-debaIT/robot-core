@@ -9,6 +9,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      TZ: ${TZ:-Europe/Berlin}
       ROBOT_CORE_DB_PATH: /data/robot_core.db
       LLM_API_URL: ${LLM_API_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
