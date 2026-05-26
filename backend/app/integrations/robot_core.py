@@ -2344,6 +2344,7 @@ class RobotCore:
             if not hits:
                 return None  # kein Treffer → LLM übernimmt
             n = hits[0]
+            self._set_notes_display_intent()
             return f"{n['title']}: {n['content']}"
 
         return None
@@ -2498,6 +2499,18 @@ class RobotCore:
             return None
         from app.search.providers.homeassistant import HomeAssistantProvider
         return HomeAssistantProvider().execute_light_command(captured)
+
+    def _set_notes_display_intent(self) -> None:
+        from datetime import timedelta
+        import json as _json
+        expires = (datetime.now(timezone.utc) + timedelta(seconds=10)).isoformat()
+        try:
+            with get_connection() as conn:
+                write_state(conn, "display_intent", _json.dumps(
+                    {"mode": "notes", "expires_at": expires}
+                ))
+        except Exception:
+            pass
 
     def _set_lights_display_intent(self) -> None:
         from datetime import timedelta
