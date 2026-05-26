@@ -2698,7 +2698,7 @@
     saveBtn.addEventListener('click', saveConfig);
     reloadBtn.addEventListener('click', boot);
 
-    boot().then(() => loadAttentionSettings());
+    boot().then(() => { loadAttentionSettings(); loadTtsSettings(); });
 
     // ── Erika Persönlichkeit ──────────────────────────────────
     const _PERSONALITY_FIELDS = [
