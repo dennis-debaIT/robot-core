@@ -9,6 +9,13 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-26 (2)
+
+### Behoben
+- **Wetter-Widget verschwindet bei API-Fehler**: Wenn Open-Meteo nicht erreichbar ist, wurde das Wetter-Widget komplett ausgeblendet. Jetzt zeigt es einen Platzhalter "Wetterdaten nicht verfügbar" statt ganz zu verschwinden. Backend gibt bei Fehler JSON zurück statt HTTP 503 (kein Browser-Fehler mehr).
+
+---
+
 ## 2026-05-26
 
 ### Neu

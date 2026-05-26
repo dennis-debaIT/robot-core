@@ -157,7 +157,7 @@ def get_weather_display(location: str | None = None) -> dict[str, Any]:
         return {"enabled": False}
     result = WeatherProvider().get_display_data(location=location)
     if not result:
-        raise HTTPException(status_code=503, detail="Wetterdaten nicht verfügbar")
+        return {"enabled": True, "error": "unavailable"}
     return result
 
 

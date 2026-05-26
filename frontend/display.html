@@ -471,6 +471,7 @@
   // ── WEATHER WIDGET ────────────────────────────────────────
   function renderWeather(w) {
     if (!w || w.enabled === false) return '';
+    if (w._error) return '<div class="cal-placeholder">Wetterdaten nicht verf&uuml;gbar</div>';
     const c = w.current;
     if (!c) return '<div class="cal-placeholder">Keine Wetterdaten</div>';
     const t = w.today;
@@ -517,54 +518,15 @@
       </div>` : ''}
       </div>
     `;
-    return `
-      <div class="weather-main">
-        <div class="weather-icon">${wmoIcon(c.weathercode)}</div>
-        <div>
-          <div class="weather-temp">${c.temperature}°</div>
-          <div class="weather-desc">${c.description}</div>
-        </div>
-      </div>
-      <div class="weather-grid">
-        <div class="weather-stat">
-          <div class="weather-stat-label">Gefühlt wie</div>
-          <div class="weather-stat-val">${c.feels_like}°C</div>
-        </div>
-        <div class="weather-stat">
-          <div class="weather-stat-label">Wind</div>
-          <div class="weather-stat-val">${c.windspeed} km/h${c.winddirection != null ? ' ' + windDir(c.winddirection) : ''}</div>
-        </div>
-        <div class="weather-stat">
-          <div class="weather-stat-label">Luftfeuchtigkeit</div>
-          <div class="weather-stat-val">${c.humidity}%</div>
-        </div>
-        <div class="weather-stat">
-          <div class="weather-stat-label">Niederschlag</div>
-          <div class="weather-stat-val">${c.precipitation} mm</div>
-        </div>
-      </div>
-      ${t ? `<div class="weather-minmax">
-        <span>↑ <span class="temp-high">${t.temp_max}°C</span></span>
-        <span>↓ <span class="temp-low">${t.temp_min}°C</span></span>
-      </div>` : ''}
-      <div class="forecast-hours">
-        ${hours.map(h => `
-          <div class="forecast-hour">
-            <div class="fh-time">${h.time}</div>
-            <div class="fh-icon">${wmoIcon(h.code)}</div>
-            <div class="fh-temp">${h.temp}°</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
   }
 
   let _lastWeatherData = null;
+  const _WEATHER_ERROR = { _error: true, enabled: true };
   async function loadWeather() {
     const cached = cacheGet('weather');
     try {
       const resp = await fetch('/weather?_=' + Date.now(), { cache: 'no-store' });
-      if (!resp.ok) return cached || _lastWeatherData || null;
+      if (!resp.ok) return cached || _lastWeatherData || _WEATHER_ERROR;
       const d = await resp.json();
       if (d?.enabled === false) {
         localStorage.removeItem('weather');
@@ -576,8 +538,8 @@
         cacheSet('weather', d, TTL_15M);
         return d;
       }
-      return cached || _lastWeatherData || null;
-    } catch { return cached || _lastWeatherData || null; }
+      return cached || _lastWeatherData || _WEATHER_ERROR;
+    } catch { return cached || _lastWeatherData || _WEATHER_ERROR; }
   }
 
   // ── FUEL PRICES ───────────────────────────────────────────
@@ -822,7 +784,7 @@
     const seq = ++_homeLeftRenderSeq;
     const [w, fuel, ev] = await Promise.all([loadWeather(), loadFuel(), loadEV()]);
     if (seq !== _homeLeftRenderSeq) return;
-    const weather = w?.enabled === false ? w : (w?.current ? w : (_lastWeatherData || cacheGet('weather')));
+    const weather = w?.enabled === false ? w : (w?.current ? w : (_lastWeatherData || cacheGet('weather') || w || _WEATHER_ERROR));
     applyHomeLeftModules(buildHomeLeftModules(weather, fuel, ev));
   }
 
