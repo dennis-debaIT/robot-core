@@ -815,6 +815,21 @@
                   <span>Aktiviert (Kamera erforderlich)</span>
                 </label>
               </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Proaktive Ansprache</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-proactive-enabled">
+                  <span>Aktiviert (Erika spricht von sich aus)</span>
+                </label>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Zeitfenster Von</span>
+                <input class="field-input" id="attention-proactive-start" type="time" value="08:00">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Zeitfenster Bis</span>
+                <input class="field-input" id="attention-proactive-end" type="time" value="22:00">
+              </label>
             </div>
             <div class="stack-actions" style="margin-top:10px;">
               <button type="button" class="primary" onclick="saveAttentionSettings()">Speichern</button>
@@ -3683,9 +3698,15 @@
         const wakeEl = document.getElementById('attention-wake-enabled');
         const wordEl = document.getElementById('attention-wake-word');
         const faceEl = document.getElementById('attention-face-enabled');
+        const proactiveEl = document.getElementById('attention-proactive-enabled');
+        const startEl = document.getElementById('attention-proactive-start');
+        const endEl = document.getElementById('attention-proactive-end');
         if (wakeEl) wakeEl.checked = att.wake_word_enabled !== false;
         if (wordEl) wordEl.value = att.wake_word || 'erika';
         if (faceEl) faceEl.checked = !!att.face_recognition_enabled;
+        if (proactiveEl) proactiveEl.checked = att.proactive_enabled !== false;
+        if (startEl) startEl.value = att.proactive_start || '08:00';
+        if (endEl) endEl.value = att.proactive_end || '22:00';
       } catch {}
     }
 
@@ -3778,6 +3799,9 @@
               wake_word_enabled: document.getElementById('attention-wake-enabled')?.checked ?? true,
               wake_word: document.getElementById('attention-wake-word')?.value.trim() || 'erika',
               face_recognition_enabled: document.getElementById('attention-face-enabled')?.checked ?? false,
+              proactive_enabled: document.getElementById('attention-proactive-enabled')?.checked ?? true,
+              proactive_start: document.getElementById('attention-proactive-start')?.value || '08:00',
+              proactive_end: document.getElementById('attention-proactive-end')?.value || '22:00',
             },
           }),
         });

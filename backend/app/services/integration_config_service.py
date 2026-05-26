@@ -90,6 +90,9 @@ class IntegrationConfigService:
                 "wake_word_enabled": True,
                 "wake_word": "erika",
                 "face_recognition_enabled": False,
+                "proactive_enabled": True,
+                "proactive_start": "08:00",
+                "proactive_end": "22:00",
             },
             "printer": {
                 "enabled":        False,
@@ -185,6 +188,13 @@ class IntegrationConfigService:
         pv_sensors = pv.setdefault("sensors", {})
         for _k in ("power", "daily", "temperature", "last_update"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
+        attention = merged.setdefault("attention", {})
+        attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
+        attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
+        attention["face_recognition_enabled"] = bool(attention.get("face_recognition_enabled", False))
+        attention["proactive_enabled"] = bool(attention.get("proactive_enabled", True))
+        attention["proactive_start"] = self._sanitize_time_hhmm(attention.get("proactive_start"), "08:00")
+        attention["proactive_end"] = self._sanitize_time_hhmm(attention.get("proactive_end"), "22:00")
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -251,6 +261,13 @@ class IntegrationConfigService:
         pv_sensors = pv.setdefault("sensors", {})
         for _k in ("power", "daily", "temperature", "last_update"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
+        attention = updated.setdefault("attention", {})
+        attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
+        attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
+        attention["face_recognition_enabled"] = bool(attention.get("face_recognition_enabled", False))
+        attention["proactive_enabled"] = bool(attention.get("proactive_enabled", True))
+        attention["proactive_start"] = self._sanitize_time_hhmm(attention.get("proactive_start"), "08:00")
+        attention["proactive_end"] = self._sanitize_time_hhmm(attention.get("proactive_end"), "22:00")
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:
@@ -698,6 +715,14 @@ class IntegrationConfigService:
         except (TypeError, ValueError):
             seconds = 30
         return max(10, min(seconds, 300))
+
+    @staticmethod
+    def _sanitize_time_hhmm(value: Any, default: str) -> str:
+        import re as _re
+        s = str(value or "").strip()
+        if _re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", s):
+            return s
+        return default
 
     @staticmethod
     def _sanitize_config_version(value: Any) -> int:

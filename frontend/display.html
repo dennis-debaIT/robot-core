@@ -2897,6 +2897,18 @@
     // Nur wenn wirklich lange keine Eingabe war
     const silentMins = (Date.now() - _lastSpeechAt) / 60000;
     if (silentMins < 20) { _scheduleProactive(); return; }
+    // Zeitfenster-Prüfung
+    const att = _attentionConfig || {};
+    if (att.proactive_enabled === false) return;
+    if (att.proactive_start && att.proactive_end) {
+      const now = new Date();
+      const cur = now.getHours() * 60 + now.getMinutes();
+      const [sh, sm] = att.proactive_start.split(':').map(Number);
+      const [eh, em] = att.proactive_end.split(':').map(Number);
+      const start = sh * 60 + sm, end = eh * 60 + em;
+      const inWindow = start <= end ? (cur >= start && cur < end) : (cur >= start || cur < end);
+      if (!inWindow) { _scheduleProactive(); return; }
+    }
     try {
       const d = await fetch('/profiles').then(r => r.json());
       const person = (d.items || []).find(p => p.name === _activePersonName);
