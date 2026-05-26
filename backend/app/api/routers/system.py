@@ -584,3 +584,20 @@ def patch_config(payload: ConfigPatchRequest) -> dict[str, Any]:
 def get_audit_log(limit: int = 100) -> dict[str, Any]:
     from app.audit.service import AuditService
     return {"entries": AuditService().list_entries(limit)}
+
+
+@router.get("/debug/light-schedule")
+def debug_light_schedule() -> dict[str, Any]:
+    """Letztes Ergebnis eines zeitgesteuerten Lichtbefehls + bekannte HA-Licht-Entities."""
+    from app.database.db import get_connection, read_state
+    from app.search.providers.homeassistant import HomeAssistantProvider
+    with get_connection() as conn:
+        last = read_state(conn, "last_light_schedule_result")
+    try:
+        lights = [
+            {"entity_id": l["entity_id"], "name": l["name"], "is_group": l["is_group"]}
+            for l in HomeAssistantProvider().get_lights()
+        ]
+    except Exception as exc:
+        lights = [{"error": str(exc)}]
+    return {"last_execution": last, "known_lights": lights}

@@ -108,17 +108,26 @@ async def _reminder_watcher_loop() -> None:
             # Jede Licht-Erinnerung in eigener Transaktion — so ist das Commit unabhängig
             # vom Erfolg/Misserfolg der HA-Ausführung und von anderen parallelen Schreibern
             from app.search.providers.homeassistant import HomeAssistantProvider
+            from app.database.db import write_state
             for row in light_rows:
+                result = None
+                error = None
                 try:
-                    HomeAssistantProvider().execute_light_command(row["light_command"])
-                except Exception:
-                    pass
+                    result = HomeAssistantProvider().execute_light_command(row["light_command"])
+                except Exception as exc:
+                    error = str(exc)
                 try:
                     with get_connection() as conn:
                         conn.execute(
                             "UPDATE reminders SET notified=1, dismissed=1 WHERE id=?",
                             (row["id"],),
                         )
+                        write_state(conn, "last_light_schedule_result", {
+                            "command": row["light_command"],
+                            "result": result,
+                            "error": error,
+                            "executed_at": datetime.now(timezone.utc).isoformat(),
+                        })
                 except Exception:
                     pass
 
