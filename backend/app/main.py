@@ -96,22 +96,34 @@ async def _reminder_watcher_loop() -> None:
         try:
             from datetime import datetime, timezone
             now_iso = datetime.now(timezone.utc).isoformat()
+
+            # Rows erst fetchen, Verbindung danach schließen
             with get_connection() as conn:
-                # Fällige Licht-Erinnerungen vor dem notified-Update abgreifen und ausführen
                 light_rows = conn.execute(
                     "SELECT id, light_command FROM reminders "
                     "WHERE notified=0 AND dismissed=0 AND fire_at <= ? AND light_command IS NOT NULL",
                     (now_iso,),
                 ).fetchall()
-                for row in light_rows:
-                    try:
-                        from app.search.providers.homeassistant import HomeAssistantProvider
-                        HomeAssistantProvider().execute_light_command(row["light_command"])
-                    except Exception:
-                        pass
-                    # Licht-Erinnerungen direkt dismissed setzen (keine Overlay-Anzeige nötig)
-                    conn.execute("UPDATE reminders SET notified=1, dismissed=1 WHERE id=?", (row["id"],))
 
+            # Jede Licht-Erinnerung in eigener Transaktion — so ist das Commit unabhängig
+            # vom Erfolg/Misserfolg der HA-Ausführung und von anderen parallelen Schreibern
+            from app.search.providers.homeassistant import HomeAssistantProvider
+            for row in light_rows:
+                try:
+                    HomeAssistantProvider().execute_light_command(row["light_command"])
+                except Exception:
+                    pass
+                try:
+                    with get_connection() as conn:
+                        conn.execute(
+                            "UPDATE reminders SET notified=1, dismissed=1 WHERE id=?",
+                            (row["id"],),
+                        )
+                except Exception:
+                    pass
+
+            # Normale Erinnerungen (ohne light_command) als notified markieren
+            with get_connection() as conn:
                 conn.execute(
                     "UPDATE reminders SET notified=1 WHERE notified=0 AND dismissed=0 AND fire_at <= ?",
                     (now_iso,),
