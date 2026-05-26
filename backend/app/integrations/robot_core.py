@@ -1956,7 +1956,16 @@ class RobotCore:
     _TIMER_LABEL_RE = re.compile(
         r'\bmit\s+namen?\s+([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)'
         r'|\bnamens\s+([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)'
-        r'|\bfür\s+(?:die\s+|den\s+|das\s+|dem\s+|einen?\s+|einem\s+)?([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)',
+        r'|\bfür\s+(?:die\s+|den\s+|das\s+|dem\s+|einen?\s+|einem\s+)?([A-Za-zÄÖÜäöüß]{2,})',
+        re.IGNORECASE,
+    )
+    _TIMER_REMAINING_PATTERN = re.compile(
+        r"\bwie\s+lang[e]?\s+(?:noch|dauert)\b"
+        r"|\bnoch\s+wie\s+lang[e]?\b"
+        r"|\bwie\s+viel\s+zeit\b"
+        r"|\bnoch\s+(?:wie\s+lang[e]?|viel\s+zeit)\b"
+        r"|\b(?:rest(?:zeit)?|verbleibend[e]?)\s+(?:beim?\s+)?timer\b"
+        r"|\btimer\s+(?:status|rest|wie\s+lang[e]?)\b",
         re.IGNORECASE,
     )
     _TIMER_LABEL_BLACKLIST = frozenset([
@@ -2538,6 +2547,22 @@ class RobotCore:
         except Exception:
             return None
 
+    @staticmethod
+    def _format_duration(seconds: int) -> str:
+        if seconds <= 0:
+            return "0 Sekunden"
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        parts = []
+        if h:
+            parts.append(f"{h} Stunde{'n' if h != 1 else ''}")
+        if m:
+            parts.append(f"{m} Minute{'n' if m != 1 else ''}")
+        if s and not h:
+            parts.append(f"{s} Sekunde{'n' if s != 1 else ''}")
+        return " und ".join(parts) if len(parts) <= 2 else ", ".join(parts[:-1]) + " und " + parts[-1]
+
     def _extract_timer_label(self, text: str) -> str | None:
         m = self._TIMER_LABEL_RE.search(text)
         if not m:
@@ -2552,6 +2577,31 @@ class RobotCore:
 
     def _try_timer_command(self, captured: str) -> str | None:
         q = captured.lower().strip()
+        if self._TIMER_REMAINING_PATTERN.search(q):
+            from app.api.routers.timer import get_timer_status
+            status = get_timer_status()
+            timers = [t for t in (status.get("timers") or []) if not t.get("finished")]
+            if not timers:
+                return "Es läuft gerade kein Timer."
+            label_m = self._TIMER_LABEL_RE.search(captured)
+            query_label = None
+            if label_m:
+                query_label = next((g for g in label_m.groups() if g), None)
+            if query_label:
+                ql = query_label.lower()
+                match = next((t for t in timers if ql in (t.get("label") or "").lower()), None)
+                if not match:
+                    return f"Ich habe keinen Timer mit dem Namen '{query_label.capitalize()}' gefunden."
+                remaining = int(match.get("remaining_seconds") or 0)
+                label = match.get("label") or "Timer"
+                return f"Beim {label}-Timer noch {self._format_duration(remaining)}."
+            if len(timers) == 1:
+                t = timers[0]
+                remaining = int(t.get("remaining_seconds") or 0)
+                label = t.get("label") or "Timer"
+                return f"Beim {label}-Timer noch {self._format_duration(remaining)}."
+            parts = [f"{t.get('label') or 'Timer'}: noch {self._format_duration(int(t.get('remaining_seconds') or 0))}" for t in timers]
+            return "Laufende Timer — " + ", ".join(parts) + "."
         if self._TIMER_CANCEL_PATTERN.search(q):
             from app.api.routers.timer import cancel_timer
             cancel_timer()

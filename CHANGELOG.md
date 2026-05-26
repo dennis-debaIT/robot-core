@@ -9,6 +9,17 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-26 (4)
+
+### Neu
+- **Timer-Restzeit per Sprache**: "Wie lange noch beim Nudel-Timer?" liefert die verbleibende Zeit; bei mehreren Timern ohne Namensangabe werden alle aufgelistet
+
+### Behoben
+- **Timer-Label "Nudeln auf"**: `_TIMER_LABEL_RE` fing im `für`-Zweig fälschlich zwei Wörter ein — jetzt wird nur ein Wort extrahiert (kein nachfolgendes "auf", "ein" o.ä.)
+- **Wetter-Sprachbefehle**: `WeatherProvider.search()` rief Open-Meteo direkt auf statt den konfigurierten Provider zu nutzen — jetzt wird `get_weather_display_data()` gerufen (gleicher Pfad wie `/weather`-Endpoint)
+
+---
+
 ## 2026-05-26 (3)
 
 ### Neu
