@@ -1313,10 +1313,18 @@
 
     function getCustomFeeds() {
       return Array.from(customFeedsListEl.querySelectorAll('.custom-feed-row')).map((row) => ({
-        label: row.querySelector('.cf-label').value.trim(),
-        url:   row.querySelector('.cf-url').value.trim(),
-        fmt:   row.querySelector('.cf-fmt').value,
+        label:    row.querySelector('.cf-label').value.trim(),
+        url:      row.querySelector('.cf-url').value.trim(),
+        fmt:      row.querySelector('.cf-fmt').value,
+        icon_url: row.querySelector('.cf-icon').value.trim(),
       })).filter((f) => f.label && f.url);
+    }
+
+    function _faviconUrlFromFeedUrl(feedUrl) {
+      try {
+        const u = new URL(feedUrl);
+        return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(u.hostname)}&sz=64`;
+      } catch { return ''; }
     }
 
     function renderCustomFeeds(feeds) {
@@ -1327,15 +1335,27 @@
     function addCustomFeedRow(feed) {
       const row = document.createElement('div');
       row.className = 'custom-feed-row';
-      row.style.cssText = 'display:grid;grid-template-columns:1fr 2fr auto auto;gap:8px;align-items:center;margin-bottom:8px;';
+      row.style.cssText = 'display:grid;grid-template-columns:32px 1fr 2fr auto auto;gap:8px;align-items:center;margin-bottom:8px;';
+      const existingIcon = feed?.icon_url || (feed?.url ? _faviconUrlFromFeedUrl(feed.url) : '');
       row.innerHTML = `
+        <img class="cf-favicon-preview" src="${escapeHtml(existingIcon)}" alt=""
+          style="width:24px;height:24px;border-radius:4px;object-fit:contain;background:rgba(255,255,255,0.06);"
+          onerror="this.style.opacity='0'" onload="this.style.opacity='1'">
         <input class="field-input cf-label" type="text" placeholder="Name (z.B. Mein Blog)" value="${escapeHtml(feed?.label || '')}">
         <input class="field-input cf-url" type="url" placeholder="https://example.com/feed.xml" value="${escapeHtml(feed?.url || '')}">
+        <input class="cf-icon" type="hidden" value="${escapeHtml(existingIcon)}">
         <select class="field-input cf-fmt" style="width:auto;">
           <option value="rss" ${(feed?.fmt || 'rss') === 'rss' ? 'selected' : ''}>RSS</option>
           <option value="atom" ${feed?.fmt === 'atom' ? 'selected' : ''}>Atom</option>
         </select>
         <button type="button" class="btn-danger-sm cf-remove" title="Entfernen" style="padding:6px 10px;border-radius:8px;background:rgba(255,60,60,0.12);border:1px solid rgba(255,60,60,0.3);color:#ff6060;cursor:pointer;font-size:0.85rem;">✕</button>`;
+      const urlInput  = row.querySelector('.cf-url');
+      const iconInput = row.querySelector('.cf-icon');
+      const iconImg   = row.querySelector('.cf-favicon-preview');
+      urlInput.addEventListener('blur', () => {
+        const derived = _faviconUrlFromFeedUrl(urlInput.value.trim());
+        if (derived) { iconInput.value = derived; iconImg.src = derived; iconImg.style.opacity = '1'; }
+      });
       row.querySelector('.cf-remove').addEventListener('click', () => { row.remove(); syncSummary(); });
       customFeedsListEl.appendChild(row);
     }
