@@ -79,6 +79,8 @@ Erika steuert alle in Home Assistant konfigurierten Lichter per Sprache.
 
 > Bei vergangener Uhrzeit wird der Befehl automatisch für den nächsten Tag geplant.
 
+> Alle geplanten Lichtbefehle können im Admin-Panel unter **Konfiguration → Zeitpläne** eingesehen und gelöscht werden.
+
 ### Szenen
 
 | Befehl | Funktion |
@@ -92,11 +94,28 @@ Szenen können im Admin-Panel unter **Licht → Szenen** gespeichert werden.
 
 ## 3. Timer
 
+### Setzen
+
 | Befehl | Funktion |
 |---|---|
 | `Stell einen Timer auf 5 Minuten` | Timer für 5 Minuten |
 | `Timer auf 1 Stunde 30 Minuten` | Timer für 90 Minuten |
 | `Stell einen Timer für die Nudeln auf 10 Minuten` | Timer mit Label |
+
+### Abfragen
+
+| Befehl | Funktion |
+|---|---|
+| `Wie lange noch?` | Restzeit aller laufenden Timer |
+| `Wie lange noch beim Nudel-Timer?` | Restzeit eines bestimmten Timers |
+| `Welche Timer laufen gerade?` | Alle aktiven Timer auflisten |
+
+### Verwalten
+
+| Befehl | Funktion |
+|---|---|
+| `Nenn den ersten Timer Nudeln` | Timer umbenennen (nach Position: ersten/zweiten/…) |
+| `Nenn den Nudel-Timer Pasta` | Timer nach aktuellem Label umbenennen |
 | `Stopp den Timer` | Laufenden Timer abbrechen |
 | `Alle Timer löschen` | Alle Timer beenden |
 | `Stop` / `Ok` / `Fertig` | Fertigen Timer quittieren |
@@ -336,7 +355,8 @@ Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
 | **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |
 | **Wetter** | Anzeige-Optionen |
-| **Nachrichten** | RSS-Quellen auswählen |
+| **Nachrichten** | RSS-Quellen auswählen, eigene RSS/Atom-Feeds hinzufügen |
+| **Zeitpläne** | Aktive Erinnerungen und zeitgesteuerte Lichtbefehle einsehen/löschen |
 | **Benachrichtigungen** | Proaktive Regeln (HA-Entitäten) |
 | **Licht** | Szenen verwalten |
 | **Audit-Log** | Verlauf aller Aktionen |

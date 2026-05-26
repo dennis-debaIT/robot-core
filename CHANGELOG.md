@@ -9,6 +9,19 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-26 (6)
+
+### Behoben
+- **Zeitgesteuerte Befehle 2 Stunden zu spät**: Der `robot-core`-Container hatte keine Zeitzone gesetzt und lief in UTC. "Schalte um 19 Uhr das Licht an" wurde als 19:00 UTC (= 21:00 CEST) gespeichert statt 17:00 UTC (= 19:00 CEST). Behoben durch `TZ: ${TZ:-Europe/Berlin}` im Docker-Compose (gleich wie der `homeassistant`-Container). Betrifft sowohl Lichtpläne als auch reguläre Erinnerungen.
+
+### Neu
+- **Zeitpläne-Tab im Admin**: Unter **Konfiguration → Zeitpläne** sind alle aktiven Erinnerungen und zeitgesteuerten Lichtbefehle sichtbar — mit Feuerzeitpunkt, Status (ausstehend/ausgelöst) und Lösch-Button.
+
+### Verbessert
+- **Debug-Endpoint `/debug/light-schedule`**: Gibt jetzt zusätzlich `server_time_utc`, alle Licht-Reminder-Einträge aus der DB und offene Einträge zurück — erleichtert die Diagnose von Zeitplan-Problemen.
+
+---
+
 ## 2026-05-26 (5)
 
 ### Neu
