@@ -43,7 +43,7 @@ class RobotCore:
     )
     LIGHT_COMMAND_PATTERN = re.compile(
         r"\b(?:schalte?|mach[e]?|dreh[e]?|tu[e]?|dimm[e]?|stell[e]?|setz[e]?|bring[e]?|regulier[e]?)\b.{0,80}\b(?:licht(?:er)?|lampe[n]?|beleuchtung|aus|ein|an)\b"
-        r"|\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,50}\b(?:an|ein|aus|hell|dunkel|\d+\s*(?:%|prozent))\b"
+        r"|\b(?:licht(?:er)?|lampe[n]?|beleuchtung)\b.{0,50}\b(?:an|ein|aus|hell|dunkel|\d+\s*(?:prozent\b|%))"
         r"|\ball[e]?\s+(?:licht(?:er)?|lampe[n]?|beleuchtung|aus|an|ein)\b"
         r"|\b(?:alles?|alle)\s+(?:aus|an|ein)\b"
         r"|\b(?:kannst\s+du|bitte)\b.{0,40}\b(?:licht|lampe|beleuchtung)\b.{0,30}\b(?:aus|an|ein|hell|dunkler|dimmen)\b"
