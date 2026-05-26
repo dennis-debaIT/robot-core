@@ -1466,7 +1466,7 @@
       const personId = _greetingPersonId;
       const url = personId ? `/profiles/${personId}/notes` : '/notes';
       const data = await fetch(url, { cache: 'no-store' }).then(r => r.json());
-      const notes = data.notes || [];
+      const notes = data.notes || data.items || [];
       const list = document.getElementById('notes-list');
       if (!list) return;
       if (!notes.length) {
