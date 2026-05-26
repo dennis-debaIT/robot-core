@@ -2854,6 +2854,7 @@
         body: JSON.stringify({ name: name || null }),
       });
       _activePersonName = name || null;
+      if (!name) _greetingPersonId = null;
       document.getElementById('sb-person').textContent = name || 'N/A';
 
       if (name && name !== prev) {
@@ -2867,10 +2868,11 @@
 
   async function _triggerGreeting(name) {
     try {
-      // Person-ID herausfinden
+      // Person-ID herausfinden und global speichern
       const d = await fetch('/profiles').then(r => r.json());
       const person = (d.items || []).find(p => p.name === name);
       if (!person) return;
+      _greetingPersonId = person.id;
       const g = await fetch(`/profiles/${person.id}/greeting`).then(r => r.json());
       if (g && g.text && !g.skip) {
         _speakText(g.text);
