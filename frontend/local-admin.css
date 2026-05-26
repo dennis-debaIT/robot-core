@@ -18,6 +18,17 @@
   --radius-md: 18px;
 }
 
+/* ── Scrollbars ─────────────────────────────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) var(--panel-soft);
+}
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--panel-soft); border-radius: 6px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-corner { background: var(--panel-soft); }
+
 @keyframes update-bar-slide {
   0%   { left: -45%; width: 40%; }
   50%  { left: 35%;  width: 55%; }
