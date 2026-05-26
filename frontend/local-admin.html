@@ -51,6 +51,7 @@
         <div class="sidebar-group">
           <div class="sidebar-group-label">System</div>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-system"><span class="si-icon">⚙️</span><span>System</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-auditlog"><span class="si-icon">📋</span><span>Protokoll</span></button>
         </div>
       </nav>
 
@@ -1095,6 +1096,33 @@
             <div class="section-copy">
               <div class="section-title">Aktueller Stand</div>
               <p>Die lokale Admin-Oberfläche läuft separat unter <code>/local-admin</code> und ersetzt die bestehende Console nicht. Weitere Module wie Lichter, Roboter und Kameras können auf derselben Struktur folgen. Benutzername und Passwort werden bereits gespeichert, die API-Anbindung nutzt aktuell aber stabil den Token-Pfad.</p>
+            </div>
+          </section>
+        </article>
+
+        <!-- ── PROTOKOLL / AUDIT-LOG ─────────────────────────── -->
+        <article id="tab-auditlog" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-title">Protokoll</div>
+              <div class="panel-subtitle">Letzte Aktionen und Ereignisse</div>
+            </div>
+            <button type="button" class="secondary" onclick="loadAuditLog()" style="font-size:0.8rem;padding:6px 14px;">Aktualisieren</button>
+          </header>
+          <section class="module-card" style="padding:0;overflow:hidden;">
+            <div id="audit-log-container" style="overflow-x:auto;">
+              <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                <thead>
+                  <tr style="background:rgba(255,255,255,0.04);border-bottom:1px solid var(--border);">
+                    <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Zeit</th>
+                    <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Aktion</th>
+                    <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Zusammenfassung</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-log-body">
+                  <tr><td colspan="3" style="padding:16px;color:var(--text-muted);text-align:center;">Wird geladen…</td></tr>
+                </tbody>
+              </table>
             </div>
           </section>
         </article>
@@ -3617,6 +3645,35 @@
 
     document.getElementById('notif-add-btn')?.addEventListener('click', showAddNotifForm);
     document.querySelector('[data-tab-target="tab-notifications"]')?.addEventListener('click', loadNotifRules);
+
+    // ── Audit-Log ─────────────────────────────────────────────
+    async function loadAuditLog() {
+      const tbody = document.getElementById('audit-log-body');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;color:var(--text-muted);text-align:center;">Wird geladen…</td></tr>';
+      try {
+        const { entries } = await fetch('/audit-log?limit=200').then(r => r.json());
+        if (!entries?.length) {
+          tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;color:var(--text-muted);text-align:center;">Keine Einträge vorhanden.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = entries.map(e => {
+          const ts = e.created_at ? new Date(e.created_at).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'}) : '—';
+          const action = `<code style="font-size:0.78rem;color:var(--accent);">${escHtml(e.action)}</code>`;
+          return `<tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:9px 12px;white-space:nowrap;color:var(--text-muted);">${ts}</td>
+            <td style="padding:9px 12px;">${action}</td>
+            <td style="padding:9px 12px;">${escHtml(e.summary || '')}</td>
+          </tr>`;
+        }).join('');
+      } catch {
+        tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;color:var(--danger);text-align:center;">Fehler beim Laden.</td></tr>';
+      }
+    }
+
+    function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    document.querySelector('[data-tab-target="tab-auditlog"]')?.addEventListener('click', loadAuditLog);
 
     // ── Aufmerksamkeit / Wake Word ────────────────────────────
     async function loadAttentionSettings() {

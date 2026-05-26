@@ -577,3 +577,10 @@ def patch_config(payload: ConfigPatchRequest) -> dict[str, Any]:
         "effective": effective.model_dump(),
         "runtime_overrides": get_settings_service().get_runtime_overrides(),
     }
+
+
+
+@router.get("/audit-log")
+def get_audit_log(limit: int = 100) -> dict[str, Any]:
+    from app.audit.service import AuditService
+    return {"entries": AuditService().list_entries(limit)}

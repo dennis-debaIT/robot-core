@@ -1926,6 +1926,14 @@ class RobotCore:
         r"^(?:stopp?|stop|aus|ok(?:ay)?|fertig|danke|ruhe|genug|hör\s+auf)$",
         re.IGNORECASE,
     )
+    _TIMER_LABEL_RE = re.compile(
+        r'\bfür\s+(?:die\s+|den\s+|das\s+|dem\s+|einen?\s+|einem\s+)?([A-Za-zÄÖÜäöüß]{2,}(?:\s+[A-Za-zÄÖÜäöüß]{2,})?)',
+        re.IGNORECASE,
+    )
+    _TIMER_LABEL_BLACKLIST = frozenset([
+        "timer", "alarm", "wecker", "mich", "dich", "uns", "euch", "ihn", "sie", "es",
+        "minuten", "sekunden", "stunden", "minute", "sekunde", "stunde", "mal",
+    ])
     _DURATION_RE = re.compile(
         r"(eine?|zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn|elf|zwölf|fünfzehn|zwanzig|dreißig|vierzig|fünfzig|sechzig|\d+(?:[.,]\d+)?)"
         r"\s*(stunde[n]?|std?|h(?:our)?|minute[n]?|min?|sekunde[n]?|sek?|s(?:ec)?)\b",
@@ -2325,8 +2333,42 @@ class RobotCore:
         r"|\b(?:vergiss?\s+nicht\b.{0,30}\bin\s+\d)",
         re.IGNORECASE,
     )
+    _REMINDER_LIST_PATTERN = re.compile(
+        r"\b(?:welche|was\s+für|zeig[e]?\s+(?:mir\s+)?(?:alle\s+)?|alle\s+)erinnerungen?\b"
+        r"|\berinnerungen?\s+(?:anzeigen|auflisten|zeigen|habe\s+ich)\b"
+        r"|\bhabe\s+ich\s+(?:noch\s+)?erinnerungen?\b",
+        re.IGNORECASE,
+    )
+    _REMINDER_CANCEL_PATTERN = re.compile(
+        r"\b(?:lösch[e]?|abbr[eü]ch?|beend[e]?|cancel|stopp?)\s+(?:die\s+|alle\s+)?erinnerung(?:en)?\b"
+        r"|\berinnerung(?:en)?\s+(?:lösch[e]?|abbr[eü]ch?|aus|weg|löschen)\b",
+        re.IGNORECASE,
+    )
 
     def _try_reminder_command(self, captured: str, person_name: str | None) -> str | None:
+        from app.database.db import get_connection
+        # Erinnerungen auflisten
+        if self._REMINDER_LIST_PATTERN.search(captured):
+            with get_connection() as conn:
+                rows = conn.execute(
+                    "SELECT text, fire_at FROM reminders WHERE dismissed=0 ORDER BY fire_at ASC"
+                ).fetchall()
+            if not rows:
+                return "Du hast keine aktiven Erinnerungen."
+            from datetime import datetime, timezone
+            parts = []
+            for r in rows:
+                try:
+                    fire = datetime.fromisoformat(r["fire_at"]).astimezone()
+                    parts.append(f"{r['text']} um {fire.strftime('%H:%M')} Uhr")
+                except Exception:
+                    parts.append(r["text"])
+            return "Deine Erinnerungen: " + ", ".join(parts) + "."
+        # Erinnerungen löschen
+        if self._REMINDER_CANCEL_PATTERN.search(captured):
+            with get_connection() as conn:
+                conn.execute("UPDATE reminders SET dismissed=1 WHERE dismissed=0")
+            return "Alle Erinnerungen gelöscht."
         if not self._REMINDER_PATTERN.search(captured):
             return None
         try:
@@ -2378,6 +2420,15 @@ class RobotCore:
         except Exception:
             return None
 
+    def _extract_timer_label(self, text: str) -> str | None:
+        m = self._TIMER_LABEL_RE.search(text)
+        if not m:
+            return None
+        candidate = m.group(1).strip().rstrip(".,!?")
+        if candidate.lower() in self._TIMER_LABEL_BLACKLIST:
+            return None
+        return candidate.capitalize()
+
     def _try_timer_command(self, captured: str) -> str | None:
         q = captured.lower().strip()
         if self._TIMER_CANCEL_PATTERN.search(q):
@@ -2400,18 +2451,22 @@ class RobotCore:
         unit   = m.group(2).lower()
         if unit.startswith("s"):
             seconds = int(amount)
-            label = f"{seconds} Sekunden"
+            duration_label = f"{seconds} Sekunden"
         elif unit.startswith("m") or unit == "min":
             seconds = int(amount * 60)
-            label = f"{int(amount)} Minuten" if amount == int(amount) else f"{amount} Minuten"
+            duration_label = f"{int(amount)} Minuten" if amount == int(amount) else f"{amount} Minuten"
         else:
             seconds = int(amount * 3600)
-            label = f"{int(amount)} Stunde{'n' if amount != 1 else ''}"
+            duration_label = f"{int(amount)} Stunde{'n' if amount != 1 else ''}"
         if seconds <= 0 or seconds > 86400:
             return None
+        subject = self._extract_timer_label(captured)
+        label = subject or duration_label
         from app.api.routers.timer import set_timer
         set_timer({"duration_seconds": seconds, "label": label})
-        return f"Timer auf {label} gestellt. Ich melde mich wenn die Zeit um ist."
+        if subject:
+            return f"Timer für {subject} auf {duration_label} gestellt. Ich melde mich wenn die Zeit um ist."
+        return f"Timer auf {duration_label} gestellt. Ich melde mich wenn die Zeit um ist."
 
     def _try_light_command(self, captured: str) -> str | None:
         """Führt Lichtbefehl via HA aus und gibt Bestätigungstext zurück oder None."""
