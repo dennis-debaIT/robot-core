@@ -1,13 +1,35 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.api.deps import get_core
 from app.api.schemas import ChatRequest
+from app.database.db import get_connection
 
 
 router = APIRouter()
+
+
+class LogMessageRequest(BaseModel):
+    role: str
+    message: str
+    person_name: str | None = None
+
+
+@router.post("/chat/log")
+def log_message(payload: LogMessageRequest) -> dict[str, object]:
+    if payload.role not in ("assistant",):
+        return {"ok": False, "error": "only assistant role allowed"}
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO conversation_messages(role, person_name, message, created_at) VALUES (?,?,?,?)",
+            (payload.role, payload.person_name, payload.message, datetime.now(timezone.utc).isoformat()),
+        )
+    return {"ok": True}
 
 
 @router.post("/chat")

@@ -93,6 +93,8 @@ class IntegrationConfigService:
                 "proactive_enabled": True,
                 "proactive_start": "08:00",
                 "proactive_end": "22:00",
+                "evening_recap_enabled": False,
+                "evening_recap_time": "20:00",
             },
             "printer": {
                 "enabled":        False,
@@ -195,6 +197,8 @@ class IntegrationConfigService:
         attention["proactive_enabled"] = bool(attention.get("proactive_enabled", True))
         attention["proactive_start"] = self._sanitize_time_hhmm(attention.get("proactive_start"), "08:00")
         attention["proactive_end"] = self._sanitize_time_hhmm(attention.get("proactive_end"), "22:00")
+        attention["evening_recap_enabled"] = bool(attention.get("evening_recap_enabled", False))
+        attention["evening_recap_time"] = self._sanitize_time_hhmm(attention.get("evening_recap_time"), "20:00")
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -268,6 +272,8 @@ class IntegrationConfigService:
         attention["proactive_enabled"] = bool(attention.get("proactive_enabled", True))
         attention["proactive_start"] = self._sanitize_time_hhmm(attention.get("proactive_start"), "08:00")
         attention["proactive_end"] = self._sanitize_time_hhmm(attention.get("proactive_end"), "22:00")
+        attention["evening_recap_enabled"] = bool(attention.get("evening_recap_enabled", False))
+        attention["evening_recap_time"] = self._sanitize_time_hhmm(attention.get("evening_recap_time"), "20:00")
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:

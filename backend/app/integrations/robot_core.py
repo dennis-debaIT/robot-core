@@ -1243,6 +1243,7 @@ class RobotCore:
         settings = self.settings.get_effective()
         captured = self.microphone.capture_text(message)
         self._learn_from_interaction(person_name, captured)
+        self._save_evening_recap_response(captured, person_name)
         if person_name:
             self._try_extract_fact_update(captured, person_name)
         direct_reply = self._try_answer_runtime_question(captured)
@@ -1265,6 +1266,10 @@ class RobotCore:
             vehicle_reply = self._try_vehicle_query(captured)
             if vehicle_reply:
                 direct_reply = vehicle_reply
+        if direct_reply is None:
+            conv_summary = self._try_conversation_summary(captured, person_name)
+            if conv_summary:
+                direct_reply = conv_summary
         if direct_reply is None:
             summary_reply = self._try_summary_command(captured, person_name)
             if summary_reply:
@@ -2263,6 +2268,15 @@ class RobotCore:
         except Exception:
             return None
 
+    _CONVERSATION_SUMMARY_PATTERN = re.compile(
+        r"\b(?:was\s+haben\s+wir\s+(?:heute|bisher|gerade)\s+(?:so\s+)?(?:besprochen|geredet|gemacht|diskutiert)"
+        r"|fass(?:e|t)?\s+(?:unser(?:e|n)?|das)\s+(?:gespräch|unterhaltung|session)\s+zusammen"
+        r"|worüber\s+haben\s+wir\s+(?:heute|gerade)\s+(?:gesprochen|geredet)"
+        r"|was\s+war\s+(?:das\s+)?thema\s+(?:heute|unserer\s+unterhaltung)"
+        r"|zusammenfassung\s+(?:unserer|des)\s+(?:heutig(?:en)?\s+)?(?:gespräch|unterhaltung))\b",
+        re.IGNORECASE,
+    )
+
     _NOTE_SAVE_PATTERN = re.compile(
         r"\b(?:merk(?:e|)\s+dir|notier(?:e|)|speicher(?:e|)\s+(?:die\s+)?notiz|leg(?:e|)\s+(?:eine?\s+)?notiz\s+an"
         r"|erinner(?:e|)\s+dich\s+an|denk\s+daran\s+dass?|behalte?\s+(?:im\s+kopf|in\s+erinnerung))"
@@ -2287,6 +2301,69 @@ class RobotCore:
         r"\b(?:lösch(?:e?)|entfern(?:e?)|vergiss)\s+(?:die\s+)?notiz\s+(?:zu|über|von|mit\s+dem\s+titel)?\s*(.+)",
         re.IGNORECASE,
     )
+
+    def _try_conversation_summary(self, captured: str, person_name: str | None) -> str | None:
+        if not self._CONVERSATION_SUMMARY_PATTERN.search(captured):
+            return None
+        try:
+            today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            with get_connection() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT message FROM conversation_messages
+                    WHERE role = 'user' AND created_at >= ?
+                      AND (? IS NULL OR lower(coalesce(person_name,'')) = lower(?))
+                    ORDER BY id ASC
+                    """,
+                    (today_start, person_name, person_name),
+                ).fetchall()
+            if not rows:
+                return "Wir haben heute noch nicht miteinander gesprochen."
+            all_topics: list[str] = []
+            seen: set[str] = set()
+            for row in rows:
+                for topic in self.conversation.extract_topics(row["message"]):
+                    if topic not in seen:
+                        seen.add(topic)
+                        all_topics.append(topic)
+            count = len(rows)
+            if not all_topics:
+                return f"Heute haben wir {count} Mal miteinander gesprochen, aber ich konnte keine klaren Themen erkennen."
+            topic_labels = [t.capitalize() for t in all_topics[:6]]
+            if len(topic_labels) > 1:
+                topic_str = ", ".join(topic_labels[:-1]) + " und " + topic_labels[-1]
+            else:
+                topic_str = topic_labels[0]
+            return f"Heute haben wir {count} Mal miteinander gesprochen. Themen waren unter anderem: {topic_str}."
+        except Exception:
+            return None
+
+    def _save_evening_recap_response(self, captured: str, person_name: str | None) -> None:
+        """Erkennt Antwort auf Abend-Recap-Frage und speichert sie als Tagesfazit-Notiz."""
+        try:
+            with get_connection() as conn:
+                row = conn.execute(
+                    "SELECT message FROM conversation_messages WHERE role='assistant' ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+            if not row:
+                return
+            if "wie war dein tag heute" not in (row["message"] or "").lower():
+                return
+            from app.services.note_service import NoteService
+            from datetime import date
+            person_id = None
+            if person_name:
+                p = self.profile.get_person(person_name)
+                if p:
+                    person_id = p["id"]
+            today_str = date.today().strftime("%d.%m.%Y")
+            NoteService().create(
+                title=f"Tagesfazit {today_str}",
+                content=captured,
+                person_id=person_id,
+            )
+        except Exception:
+            pass
 
     def _try_note_command(self, captured: str, person_name: str | None) -> str | None:
         from app.services.note_service import NoteService

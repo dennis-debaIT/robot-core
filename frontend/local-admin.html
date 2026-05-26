@@ -830,6 +830,17 @@
                 <span class="field-label">Zeitfenster Bis</span>
                 <input class="field-input" id="attention-proactive-end" type="time" value="22:00">
               </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Tägliches Fazit</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-evening-recap-enabled">
+                  <span>Aktiviert (Erika fragt abends nach dem Tag)</span>
+                </label>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Fazit-Uhrzeit</span>
+                <input class="field-input" id="attention-evening-recap-time" type="time" value="20:00">
+              </label>
             </div>
             <div class="stack-actions" style="margin-top:10px;">
               <button type="button" class="primary" onclick="saveAttentionSettings()">Speichern</button>
@@ -3701,12 +3712,16 @@
         const proactiveEl = document.getElementById('attention-proactive-enabled');
         const startEl = document.getElementById('attention-proactive-start');
         const endEl = document.getElementById('attention-proactive-end');
+        const recapEl = document.getElementById('attention-evening-recap-enabled');
+        const recapTimeEl = document.getElementById('attention-evening-recap-time');
         if (wakeEl) wakeEl.checked = att.wake_word_enabled !== false;
         if (wordEl) wordEl.value = att.wake_word || 'erika';
         if (faceEl) faceEl.checked = !!att.face_recognition_enabled;
         if (proactiveEl) proactiveEl.checked = att.proactive_enabled !== false;
         if (startEl) startEl.value = att.proactive_start || '08:00';
         if (endEl) endEl.value = att.proactive_end || '22:00';
+        if (recapEl) recapEl.checked = !!att.evening_recap_enabled;
+        if (recapTimeEl) recapTimeEl.value = att.evening_recap_time || '20:00';
       } catch {}
     }
 
@@ -3802,6 +3817,8 @@
               proactive_enabled: document.getElementById('attention-proactive-enabled')?.checked ?? true,
               proactive_start: document.getElementById('attention-proactive-start')?.value || '08:00',
               proactive_end: document.getElementById('attention-proactive-end')?.value || '22:00',
+              evening_recap_enabled: document.getElementById('attention-evening-recap-enabled')?.checked ?? false,
+              evening_recap_time: document.getElementById('attention-evening-recap-time')?.value || '20:00',
             },
           }),
         });

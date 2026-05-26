@@ -2899,6 +2899,29 @@
     if (silentMins < 20) { _scheduleProactive(); return; }
     // Zeitfenster-Prüfung
     const att = _attentionConfig || {};
+    // Tägliches Fazit: prüfen ob Abend-Recap-Zeit innerhalb ±10 Minuten
+    if (att.evening_recap_enabled && att.evening_recap_time) {
+      const _now = new Date();
+      const _cur = _now.getHours() * 60 + _now.getMinutes();
+      const [_rh, _rm] = att.evening_recap_time.split(':').map(Number);
+      const _recapMin = _rh * 60 + _rm;
+      if (Math.abs(_cur - _recapMin) <= 10) {
+        const _todayKey = 'erika_evening_recap_' + _now.toISOString().slice(0, 10);
+        if (!localStorage.getItem(_todayKey)) {
+          localStorage.setItem(_todayKey, '1');
+          const _recapText = 'Wie war dein Tag heute?';
+          try {
+            await fetch('/chat/log', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'assistant', message: _recapText, person_name: _activePersonName }),
+            });
+          } catch {}
+          _speakText(_recapText);
+          _proactiveTimer = setTimeout(_triggerProactive, 30 * 60 * 1000);
+          return;
+        }
+      }
+    }
     if (att.proactive_enabled === false) return;
     if (att.proactive_start && att.proactive_end) {
       const now = new Date();
