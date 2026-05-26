@@ -46,6 +46,6 @@ def dismiss_reminder(reminder_id: int) -> dict[str, Any]:
 def get_active_reminders() -> dict[str, Any]:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT id, text, fire_at, person_name, notified FROM reminders WHERE dismissed=0 ORDER BY fire_at ASC"
+            "SELECT id, text, fire_at, person_name, notified, light_command FROM reminders WHERE dismissed=0 ORDER BY fire_at ASC"
         ).fetchall()
     return {"reminders": [dict(r) for r in rows]}

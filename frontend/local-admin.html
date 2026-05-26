@@ -42,6 +42,7 @@
 
         <div class="sidebar-group">
           <div class="sidebar-group-label">Konfiguration</div>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-schedules"><span class="si-icon">⏱</span><span>Zeitpläne</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-notifications"><span class="si-icon">🔔</span><span>Benachrichtigungen</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-erika"><span class="si-icon">🤖</span><span>Erika</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
@@ -654,6 +655,22 @@
             </div>
             <div style="margin-top:8px;padding:10px 12px;background:rgba(0,200,255,0.05);border:1px solid rgba(0,200,255,0.15);border-radius:8px;font-size:0.75rem;color:var(--color-muted,#7f8dcb);line-height:1.6;">
               Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
+            </div>
+          </section>
+        </article>
+
+        <!-- ── ZEITPLÄNE ─────────────────────────────── -->
+        <article id="tab-schedules" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-title">Zeitpläne</div>
+              <div class="panel-subtitle">Aktive Erinnerungen &amp; zeitgesteuerte Lichtbefehle</div>
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="loadSchedules()">↻ Aktualisieren</button>
+          </header>
+          <section class="panel-section">
+            <div id="schedules-list" style="display:flex;flex-direction:column;gap:8px;">
+              <div class="panel-placeholder">Lade …</div>
             </div>
           </section>
         </article>
@@ -3768,6 +3785,49 @@
 
     document.getElementById('notif-add-btn')?.addEventListener('click', showAddNotifForm);
     document.querySelector('[data-tab-target="tab-notifications"]')?.addEventListener('click', loadNotifRules);
+
+    // ── Zeitpläne ──────────────────────────────────────────────
+    async function loadSchedules() {
+      const list = document.getElementById('schedules-list');
+      if (!list) return;
+      list.innerHTML = '<div class="panel-placeholder">Lade …</div>';
+      try {
+        const { reminders } = await fetch('/reminders/active').then(r => r.json());
+        if (!reminders?.length) {
+          list.innerHTML = '<div class="panel-placeholder">Keine aktiven Zeitpläne.</div>';
+          return;
+        }
+        list.innerHTML = reminders.map(r => {
+          const isLight = !!(r.light_command ?? false);
+          const icon = isLight ? '💡' : '⏰';
+          let timeStr = r.fire_at;
+          try { timeStr = new Date(r.fire_at).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'}); } catch {}
+          const label = isLight
+            ? `Lichtbefehl: <em>${escHtml(r.light_command || r.text)}</em>`
+            : escHtml(r.text);
+          const statusBadge = r.notified
+            ? '<span style="font-size:0.72rem;color:#f59e0b;margin-left:6px;">ausgelöst</span>'
+            : '<span style="font-size:0.72rem;color:#34d399;margin-left:6px;">ausstehend</span>';
+          return `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;">
+            <span style="font-size:1.2rem;">${icon}</span>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.85rem;">${label}${statusBadge}</div>
+              <div style="font-size:0.75rem;color:var(--color-muted,#7f8dcb);margin-top:2px;">Feuert: ${escHtml(timeStr)}</div>
+            </div>
+            <button type="button" class="btn btn-danger" style="padding:4px 10px;font-size:0.78rem;" onclick="deleteSchedule(${r.id})">Löschen</button>
+          </div>`;
+        }).join('');
+      } catch (e) {
+        list.innerHTML = `<div class="panel-placeholder" style="color:#f87171;">Fehler: ${escHtml(String(e))}</div>`;
+      }
+    }
+
+    async function deleteSchedule(id) {
+      await fetch(`/reminders/${id}/dismiss`, { method: 'POST' });
+      loadSchedules();
+    }
+
+    document.querySelector('[data-tab-target="tab-schedules"]')?.addEventListener('click', loadSchedules);
 
     // ── Audit-Log ─────────────────────────────────────────────
     async function loadAuditLog() {
