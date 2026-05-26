@@ -337,6 +337,10 @@ def init_db() -> None:
         conn.execute("UPDATE topic_mentions SET topic_kind = 'neutral' WHERE topic_kind IS NULL")
         conn.execute("UPDATE topic_mentions SET score = 1.0 WHERE score IS NULL")
 
+        reminder_columns = {row["name"] for row in conn.execute("PRAGMA table_info(reminders)").fetchall()}
+        if "light_command" not in reminder_columns:
+            conn.execute("ALTER TABLE reminders ADD COLUMN light_command TEXT")
+
         rows = conn.execute(
             """
             SELECT id, subject, category, content

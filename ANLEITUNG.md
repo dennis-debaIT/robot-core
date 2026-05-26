@@ -1,0 +1,351 @@
+# Erika — Benutzeranleitung
+
+Erika ist ein KI-gestützter Haushaltsassistent, der per Sprache gesteuert wird.  
+Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen.
+
+---
+
+## Inhaltsverzeichnis
+
+1. [Sprachaktivierung](#1-sprachaktivierung)
+2. [Lichtsteuerung](#2-lichtsteuerung)
+3. [Timer](#3-timer)
+4. [Erinnerungen](#4-erinnerungen)
+5. [Notizen](#5-notizen)
+6. [Kalender](#6-kalender)
+7. [Wetter](#7-wetter)
+8. [Fußball](#8-fußball)
+9. [Fahrzeuge](#9-fahrzeuge)
+10. [Roboter](#10-roboter)
+11. [Smart Home](#11-smart-home)
+12. [Zusammenfassungen & Briefing](#12-zusammenfassungen--briefing)
+13. [Tägliches Fazit](#13-tägliches-fazit)
+14. [Persönliches](#14-persönliches)
+15. [System](#15-system)
+
+---
+
+## 1. Sprachaktivierung
+
+### Wake Word
+Erika hört ständig passiv zu und reagiert auf das Auslösewort (Standard: **"Erika"**).
+
+| Befehl | Funktion |
+|---|---|
+| `Erika, [dein Befehl]` | Aktiviert Erika und startet die Erkennung |
+| `Erika stop` / `Erika halt` | Unterbricht laufende Sprachausgabe sofort |
+
+Das Wake Word kann im Admin-Panel unter **Erika → Aufmerksamkeit** geändert werden.
+
+### Manuelle Aktivierung
+Am Display kann alternativ ein Mikrofon-Button gedrückt werden.
+
+### Proaktive Ansprache
+Wenn Erika erkennt, dass du längere Zeit nichts gesagt hast (Standard: 25 Minuten), spricht sie dich eigenständig an. Das Zeitfenster (z. B. 08:00–22:00 Uhr) ist im Admin konfigurierbar.
+
+---
+
+## 2. Lichtsteuerung
+
+Erika steuert alle in Home Assistant konfigurierten Lichter per Sprache.
+
+### Ein-/Ausschalten
+
+| Befehl | Funktion |
+|---|---|
+| `Mach das Licht im Wohnzimmer an` | Licht einschalten |
+| `Schalte das Licht im Arbeitszimmer aus` | Licht ausschalten |
+| `Mach alle Lichter aus` | Alle Lichter ausschalten |
+| `Licht an` / `Licht aus` | Alle Lichter ein/aus |
+
+### Helligkeit
+
+| Befehl | Funktion |
+|---|---|
+| `Licht im Wohnzimmer auf 50%` | Helligkeit auf 50 % setzen |
+| `Licht im Arbeitszimmer auf 100 Prozent` | Vollhelligkeit |
+| `Mach das Licht heller` / `dunkler` | Relative Anpassung |
+| `Dimm das Licht im Schlafzimmer` | Licht dimmen |
+
+> **Hinweis:** Prozentwerte funktionieren auch wenn das Licht gerade ausgeschaltet ist.
+
+### Zeitgesteuert
+
+| Befehl | Funktion |
+|---|---|
+| `Schalte um 19 Uhr das Licht im Wohnzimmer auf 50% ein` | Licht zu fester Uhrzeit einschalten |
+| `Mach um 22 Uhr alle Lichter aus` | Alle Lichter um 22 Uhr ausschalten |
+| `Dimm um 20 Uhr das Wohnzimmerlicht auf 30%` | Helligkeit zu bestimmter Uhrzeit |
+
+> Bei vergangener Uhrzeit wird der Befehl automatisch für den nächsten Tag geplant.
+
+### Szenen
+
+| Befehl | Funktion |
+|---|---|
+| `Aktiviere Szene Kinoabend` | Gespeicherte Szene laden |
+| `Starte Szene Entspannung` | Szene starten |
+
+Szenen können im Admin-Panel unter **Licht → Szenen** gespeichert werden.
+
+---
+
+## 3. Timer
+
+| Befehl | Funktion |
+|---|---|
+| `Stell einen Timer auf 5 Minuten` | Timer für 5 Minuten |
+| `Timer auf 1 Stunde 30 Minuten` | Timer für 90 Minuten |
+| `Stell einen Timer für die Nudeln auf 10 Minuten` | Timer mit Label |
+| `Stopp den Timer` | Laufenden Timer abbrechen |
+| `Alle Timer löschen` | Alle Timer beenden |
+| `Stop` / `Ok` / `Fertig` | Fertigen Timer quittieren |
+
+Mehrere Timer gleichzeitig sind möglich. Wenn ein Timer abläuft, ertönt ein Piepton und Erika sagt dir Bescheid.
+
+---
+
+## 4. Erinnerungen
+
+### Erinnerung setzen
+
+| Befehl | Funktion |
+|---|---|
+| `Erinnere mich in 30 Minuten an die Wäsche` | Relative Erinnerung |
+| `Erinnere mich in 2 Stunden an den Arzt` | Erinnerung in 2 Stunden |
+| `Erinnere mich um 14:15 Uhr an Kind abholen` | Erinnerung zu fester Uhrzeit |
+| `Erinnere mich um 19 Uhr an Müll rausbringen` | Erinnerung am Abend |
+
+> Wenn die angegebene Uhrzeit heute schon verstrichen ist, wird die Erinnerung auf morgen gesetzt.
+
+### Erinnerungen verwalten
+
+| Befehl | Funktion |
+|---|---|
+| `Welche Erinnerungen habe ich?` | Alle aktiven Erinnerungen auflisten |
+| `Lösch alle Erinnerungen` | Alle Erinnerungen löschen |
+
+### Was passiert wenn die Erinnerung fällig ist?
+Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
+
+---
+
+## 5. Notizen
+
+### Notiz speichern
+
+| Befehl | Funktion |
+|---|---|
+| `Merk dir: WLAN-Passwort ist SuperGeheim123` | Notiz speichern |
+| `Notiere: Arzttermin Freitag 10 Uhr` | Notiz mit Titel |
+| `Speicher die Notiz Einkaufsliste: Milch, Brot, Käse` | Notiz mit Inhalt |
+
+### Notiz abfragen
+
+| Befehl | Funktion |
+|---|---|
+| `Wie ist mein WLAN-Passwort?` | Notiz abfragen — Overlay öffnet sich |
+| `Was hast du dir zum Arzttermin gemerkt?` | Notiz suchen |
+| `Zeig mir die Notiz zur Einkaufsliste` | Notiz anzeigen |
+
+### Alle Notizen
+
+| Befehl | Funktion |
+|---|---|
+| `Zeig mir alle Notizen` | Alle Notizen auflisten |
+| `Was hast du dir alles gemerkt?` | Übersicht aller Notizen |
+
+### Notiz löschen
+
+| Befehl | Funktion |
+|---|---|
+| `Lösch die Notiz zum WLAN` | Notiz nach Stichwort löschen |
+
+---
+
+## 6. Kalender
+
+### Termin abfragen
+
+| Befehl | Funktion |
+|---|---|
+| `Was liegt heute an?` | Heutige Termine |
+| `Was steht morgen im Kalender?` | Morgige Termine |
+| `Was steht diese Woche an?` | Wöchentliche Übersicht |
+
+### Termin eintragen
+
+| Befehl | Funktion |
+|---|---|
+| `Trag einen Termin für morgen um 15 Uhr ein: Zahnarzt` | Termin anlegen |
+| `Erstelle einen Kalendereintrag: Meeting am Dienstag um 10 Uhr` | Termin mit Details |
+| `Trag in meinen Kalender ein: Sport am Freitag um 18 Uhr` | Persönlicher Termin |
+
+> Erika nutzt das LLM zur Datums- und Zeitextraktion. Kalender müssen in Home Assistant konfiguriert und im Admin-Panel verknüpft sein.
+
+---
+
+## 7. Wetter
+
+| Befehl | Funktion |
+|---|---|
+| `Wie ist das Wetter heute?` | Aktuelles Wetter |
+| `Wie wird das Wetter morgen?` | Wettervorhersage |
+| `Brauche ich heute einen Regenschirm?` | Regenwahrscheinlichkeit |
+| `Wie warm wird es heute?` | Temperatur |
+
+Das Wetter-Widget auf dem Display zeigt automatisch aktuelle Daten (Open-Meteo).
+
+---
+
+## 8. Fußball
+
+| Befehl | Funktion |
+|---|---|
+| `Wie hat Darmstadt gespielt?` | Letztes Spielergebnis |
+| `Auf welchem Platz steht Darmstadt?` | Tabellenplatz |
+| `Wie sieht die Tabelle aus?` | Aktuelle Bundesliga-Tabelle |
+| `Was sind die Ergebnisse vom Wochenende?` | Alle Spielergebnisse |
+
+Der Lieblingsverein kann im Admin-Panel unter dem Personenprofil hinterlegt werden und wird dann automatisch bevorzugt.
+
+---
+
+## 9. Fahrzeuge
+
+| Befehl | Funktion |
+|---|---|
+| `Wie viel Akku hat der Dacia?` | Ladestand abfragen |
+| `Wie weit komme ich noch?` | Reichweite abfragen |
+| `Ist das Auto am Laden?` | Ladestatus |
+| `Wie ist der Tankstand?` | Tank-Füllstand (Verbrenner) |
+| `Status aller Fahrzeuge` | Alle Fahrzeuge anzeigen |
+
+Fahrzeuge werden im Admin-Panel unter **Fahrzeuge** mit HA-Entitäten verknüpft.
+
+---
+
+## 10. Roboter
+
+### Staubsauger
+
+| Befehl | Funktion |
+|---|---|
+| `Was macht der Staubsauger?` | Status abfragen |
+| `Schick den Staubsauger in die Küche` | Raum reinigen |
+| `Lass den Staubsauger alles saugen` | Alle Räume saugen |
+| `Schick den Staubsauger nach Hause` | Zur Ladestation |
+
+### Mähroboter
+
+| Befehl | Funktion |
+|---|---|
+| `Was macht der Mähroboter?` | Status abfragen |
+| `Starte den Mähroboter` | Mähen beginnen |
+| `Robert nach Hause` | Zur Ladestation |
+| `Mähroboter pausieren` | Mähen pausieren |
+
+Räume und Roboternamen werden im Admin-Panel konfiguriert.
+
+---
+
+## 11. Smart Home
+
+### Proaktive Benachrichtigungen
+Erika kann HA-Entitäten überwachen und bei Zustandsänderungen automatisch informieren (z. B. "Die Waschmaschine ist fertig").  
+Regeln werden im Admin-Panel unter **Benachrichtigungen** angelegt.
+
+---
+
+## 12. Zusammenfassungen & Briefing
+
+### Tagesbriefing
+
+| Befehl | Auslöser-Phrase (konfigurierbar) |
+|---|---|
+| Persönliches Tagesbriefing | Im Admin definierte Phrase, z. B. "Guten Morgen Erika" |
+
+Das Briefing enthält konfigurierbare Module: Wetter, Kalender, Fahrzeugstatus, Roboterstatus etc.  
+Die Reihenfolge ist per Drag & Drop im Admin anpassbar.
+
+### Gesprächs-Zusammenfassung
+
+| Befehl | Funktion |
+|---|---|
+| `Was haben wir heute besprochen?` | Zusammenfassung der heutigen Themen |
+| `Worüber haben wir heute geredet?` | Themenübersicht |
+| `Fasse unser Gespräch zusammen` | Kompakte Zusammenfassung |
+
+---
+
+## 13. Tägliches Fazit
+
+Erika fragt zu einer konfigurierbaren Abendzeit (Standard: 20:00 Uhr) proaktiv:  
+**"Wie war dein Tag heute?"**
+
+Die Antwort wird automatisch als Notiz "Tagesfazit DD.MM.YYYY" gespeichert.
+
+Aktivierung und Uhrzeit im Admin-Panel unter **Erika → Aufmerksamkeit → Tägliches Fazit**.
+
+---
+
+## 14. Persönliches
+
+Erika lernt beim Gespräch Fakten über dich kennen und merkt sie sich.
+
+### Fakten automatisch merken (durch natürliches Gespräch)
+
+| Aussage | Was gespeichert wird |
+|---|---|
+| `Ich bin 35 Jahre alt` | Alter |
+| `Ich wohne in Hamburg` | Wohnort |
+| `Ich komme aus München` | Herkunft |
+| `Meine Lieblingsfarbe ist Blau` | Lieblingsfarbe |
+| `Ich mag keinen Kaffee` | Abneigung |
+| `Ich interessiere mich für Fotografie` | Interesse |
+| `Ich arbeite als Entwickler` | Beruf |
+
+### Aktiv nachfragen
+
+| Befehl | Funktion |
+|---|---|
+| `Was weißt du über Dennis?` | Gespeichertes Wissen abfragen |
+
+Alle gespeicherten Informationen können im Admin-Panel unter **Personen** eingesehen und bearbeitet werden.
+
+---
+
+## 15. System
+
+| Befehl | Funktion |
+|---|---|
+| `Wie ist dein Akkustand?` | Erika-Akku abfragen |
+| `Gibt es Updates?` | Update-Status |
+| `Was zeigt dein Display gerade an?` | Display-Status |
+
+---
+
+## Admin-Panel
+
+Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
+
+| Bereich | Inhalt |
+|---|---|
+| **Erika** | Persönlichkeit, TTS, Aufmerksamkeit, Wake Word |
+| **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus |
+| **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
+| **Kalender** | Kalender auswählen, Farben, Schreibkalender |
+| **Wetter** | Anzeige-Optionen |
+| **Nachrichten** | RSS-Quellen auswählen |
+| **Benachrichtigungen** | Proaktive Regeln (HA-Entitäten) |
+| **Licht** | Szenen verwalten |
+| **Audit-Log** | Verlauf aller Aktionen |
+
+---
+
+## Tipps
+
+- **Natürliche Sprache**: Erika versteht natürliche Formulierungen — du musst keine exakten Befehle verwenden.
+- **Kontext**: Erika kennt den aktuellen Gesprächskontext und versteht Folgefragen (z. B. "Und morgen?" nach einer Wetterfrage).
+- **Personen**: Wenn Erika dich erkennt (Gesichtserkennung oder Auswahl über das Personen-Dropdown), werden Antworten, Notizen und Kalendereinträge personalisiert.
+- **Stichwort "Erika"**: Du brauchst nicht jedes Mal das Wake Word — beim aktiven Gespräch hört Erika nach Erikas TTS-Antwort auch kurze Zeit ohne Wake Word zu (Follow-Up Listening).

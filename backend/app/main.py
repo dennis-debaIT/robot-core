@@ -92,11 +92,26 @@ async def _auto_update_loop() -> None:
 
 async def _reminder_watcher_loop() -> None:
     from app.database.db import get_connection
-    import time as _time
     while True:
         try:
-            now_iso = __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()
+            from datetime import datetime, timezone
+            now_iso = datetime.now(timezone.utc).isoformat()
             with get_connection() as conn:
+                # Fällige Licht-Erinnerungen vor dem notified-Update abgreifen und ausführen
+                light_rows = conn.execute(
+                    "SELECT id, light_command FROM reminders "
+                    "WHERE notified=0 AND dismissed=0 AND fire_at <= ? AND light_command IS NOT NULL",
+                    (now_iso,),
+                ).fetchall()
+                for row in light_rows:
+                    try:
+                        from app.search.providers.homeassistant import HomeAssistantProvider
+                        HomeAssistantProvider().execute_light_command(row["light_command"])
+                    except Exception:
+                        pass
+                    # Licht-Erinnerungen direkt dismissed setzen (keine Overlay-Anzeige nötig)
+                    conn.execute("UPDATE reminders SET notified=1, dismissed=1 WHERE id=?", (row["id"],))
+
                 conn.execute(
                     "UPDATE reminders SET notified=1 WHERE notified=0 AND dismissed=0 AND fire_at <= ?",
                     (now_iso,),
