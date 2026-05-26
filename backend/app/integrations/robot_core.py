@@ -2366,6 +2366,11 @@ class RobotCore:
         r"|\berinnerung(?:en)?\s+(?:lösch[e]?|abbr[eü]ch?|aus|weg|löschen)\b",
         re.IGNORECASE,
     )
+    _CLOCK_TIME_RE = re.compile(
+        r"\bum\s+(\d{1,2})(?::(\d{2}))?\s*Uhr\b"
+        r"|\b(\d{1,2}):(\d{2})\s*(?:Uhr)?\b",
+        re.IGNORECASE,
+    )
 
     def _try_reminder_command(self, captured: str, person_name: str | None) -> str | None:
         from app.database.db import get_connection
@@ -2395,50 +2400,60 @@ class RobotCore:
             return None
         try:
             from datetime import datetime, timezone, timedelta
-            # Dauer extrahieren (gleiche Logik wie Timer)
-            m = self._DURATION_RE.search(captured.lower())
-            if not m:
-                return None
-            raw = m.group(1).lower()
-            amount = float(self._WORD_NUMBERS.get(raw, raw.replace(",", ".")))
-            unit = m.group(2).lower()
-            if unit.startswith("s"):
-                seconds = int(amount)
-            elif unit.startswith("m"):
-                seconds = int(amount * 60)
-            else:
-                seconds = int(amount * 3600)
-            if seconds <= 0 or seconds > 86400:
-                return "Ungültige Dauer für die Erinnerung."
 
             # Erinnerungstext extrahieren — alles nach "an" oder "dass"
             text_match = re.search(
-                r'\b(?:erinner[e]?\s+mich|erinnerung)\b.{0,30}?\b(?:an|dass)\s+(.+?)(?:\.|,|$)',
+                r'\b(?:erinner[e]?\s+mich|erinnerung)\b.{0,40}?\b(?:an|dass)\s+(.+?)(?:\.|,|$)',
                 captured, re.IGNORECASE
             )
             reminder_text = text_match.group(1).strip().rstrip('.,!?') if text_match else "Erinnerung"
             if not reminder_text:
                 reminder_text = "Erinnerung"
 
-            fire_at = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+            # Uhrzeitangabe ("um 14:15 Uhr") hat Vorrang vor Dauer
+            tm = self._CLOCK_TIME_RE.search(captured)
+            if tm:
+                hour = int(tm.group(1) if tm.group(1) is not None else tm.group(3))
+                minute = int(tm.group(2) if tm.group(2) is not None else (tm.group(4) or 0))
+                now_local = datetime.now(timezone.utc).astimezone()
+                target = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if target <= now_local:
+                    target += timedelta(days=1)
+                fire_at = target.astimezone(timezone.utc).isoformat()
+                confirm = f"um {hour:02d}:{minute:02d} Uhr"
+            else:
+                # Fallback: relative Dauer ("in 30 Minuten")
+                m = self._DURATION_RE.search(captured.lower())
+                if not m:
+                    return None
+                raw = m.group(1).lower()
+                amount = float(self._WORD_NUMBERS.get(raw, raw.replace(",", ".")))
+                unit = m.group(2).lower()
+                if unit.startswith("s"):
+                    seconds = int(amount)
+                elif unit.startswith("m"):
+                    seconds = int(amount * 60)
+                else:
+                    seconds = int(amount * 3600)
+                if seconds <= 0 or seconds > 86400:
+                    return "Ungültige Dauer für die Erinnerung."
+                fire_at = (datetime.now(timezone.utc) + timedelta(seconds=seconds)).isoformat()
+                if seconds < 60:
+                    confirm = f"in {seconds} Sekunden"
+                elif seconds < 3600:
+                    mins = seconds // 60
+                    confirm = f"in {mins} Minute{'n' if mins != 1 else ''}"
+                else:
+                    hours = seconds // 3600
+                    confirm = f"in {hours} Stunde{'n' if hours != 1 else ''}"
+
             from app.database.db import get_connection
             with get_connection() as conn:
                 conn.execute(
                     "INSERT INTO reminders(text, fire_at, person_name, notified, dismissed, created_at) VALUES (?,?,?,0,0,?)",
                     (reminder_text, fire_at, person_name, datetime.now(timezone.utc).isoformat()),
                 )
-
-            # Zeitangabe für Bestätigung
-            if seconds < 60:
-                time_str = f"{seconds} Sekunden"
-            elif seconds < 3600:
-                mins = seconds // 60
-                time_str = f"{mins} Minute{'n' if mins != 1 else ''}"
-            else:
-                hours = seconds // 3600
-                time_str = f"{hours} Stunde{'n' if hours != 1 else ''}"
-
-            return f"Ich erinnere dich in {time_str} an: {reminder_text}."
+            return f"Ich erinnere dich {confirm} an: {reminder_text}."
         except Exception:
             return None
 
