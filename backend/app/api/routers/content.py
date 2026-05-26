@@ -151,11 +151,12 @@ def get_news() -> dict[str, Any]:
 
 @router.get("/weather")
 def get_weather_display(location: str | None = None) -> dict[str, Any]:
-    from app.search.providers.weather import WeatherProvider
+    from app.search.providers.weather import get_weather_display_data
 
-    if not IntegrationConfigService().get_weather_config().get("enabled", True):
+    config = IntegrationConfigService().get_weather_config()
+    if not config.get("enabled", True):
         return {"enabled": False}
-    result = WeatherProvider().get_display_data(location=location)
+    result = get_weather_display_data(config, location)
     if not result:
         return {"enabled": True, "error": "unavailable"}
     return result

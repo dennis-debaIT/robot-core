@@ -540,3 +540,309 @@ class WeatherProvider:
                 return json.loads(resp.read().decode())
         except Exception:
             return None
+
+
+# ── Yr.no / MET Norway Provider ──────────────────────────────────────────────
+
+_YR_SYMBOL_TO_WMO: dict[str, int] = {
+    "clearsky": 0, "fair": 1, "partlycloudy": 2, "cloudy": 3, "fog": 45,
+    "lightsleet": 77, "sleet": 77, "heavysleet": 77,
+    "lightsleetshowers": 77, "sleetshowers": 77, "heavysleetshowers": 77,
+    "lightrain": 61, "rain": 63, "heavyrain": 65,
+    "lightrainshowers": 80, "rainshowers": 81, "heavyrainshowers": 82,
+    "lightsnow": 71, "snow": 73, "heavysnow": 75,
+    "lightsnowshowers": 85, "snowshowers": 85, "heavysnowshowers": 86,
+    "lightrainandthunder": 95, "rainandthunder": 95, "heavyrainandthunder": 95,
+    "lightrainshowersandthunder": 95, "rainshowersandthunder": 95, "heavyrainshowersandthunder": 95,
+    "lightsleetandthunder": 96, "sleetandthunder": 96, "heavysleetandthunder": 99,
+    "lightsleetshowersandthunder": 96, "sleetshowersandthunder": 96, "heavysleetshowersandthunder": 99,
+    "lightsnowandthunder": 95, "snowandthunder": 95, "heavysnowandthunder": 99,
+    "lightsnowshowersandthunder": 95, "snowshowersandthunder": 95, "heavysnowshowersandthunder": 99,
+}
+
+
+def _yr_symbol_to_wmo(symbol: str) -> int:
+    s = symbol.lower()
+    for suffix in ("_day", "_night", "_polartwilight"):
+        if s.endswith(suffix):
+            s = s[: -len(suffix)]
+            break
+    return _YR_SYMBOL_TO_WMO.get(s, 3)
+
+
+class YrNoWeatherProvider:
+    API_URL = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+    USER_AGENT = "robot-core/0.2 github.com/dennis-debaIT/robot-core"
+
+    def get_display_data(self, settings: dict, location: str | None = None) -> "dict | None":
+        from datetime import datetime as _dt, timedelta as _td
+        from zoneinfo import ZoneInfo
+
+        loc = location or _get_device_location()
+        coords = WeatherProvider()._geocode(loc)
+        if not coords:
+            return None
+        lat, lon, name = coords
+
+        url = f"{self.API_URL}?lat={lat:.4f}&lon={lon:.4f}"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": self.USER_AGENT})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception:
+            return None
+
+        timeseries = (data.get("properties") or {}).get("timeseries") or []
+        if not timeseries:
+            return None
+
+        berlin = ZoneInfo("Europe/Berlin")
+        now = _dt.now(berlin)
+        now_hour = now.replace(minute=0, second=0, microsecond=0)
+        past_start = now_hour - _td(hours=int(settings.get("hourly_past_hours", 0)))
+        future_end = now_hour + _td(hours=int(settings.get("hourly_future_hours", 5)))
+
+        current_entry: dict | None = None
+        forecast_hours: list[dict] = []
+        hourly_by_day: dict[str, list[dict]] = {}
+
+        for entry in timeseries:
+            try:
+                t_utc = _dt.fromisoformat(entry["time"].replace("Z", "+00:00"))
+            except Exception:
+                continue
+            t_local = t_utc.astimezone(berlin)
+            det = ((entry.get("data") or {}).get("instant") or {}).get("details") or {}
+            next1 = (entry.get("data") or {}).get("next_1_hours") or {}
+            symbol = ((next1.get("summary") or {}).get("symbol_code") or "")
+            wmo = _yr_symbol_to_wmo(symbol) if symbol else 3
+            n1d = next1.get("details") or {}
+            wind_kmh = round(float(det.get("wind_speed", 0)) * 3.6)
+
+            hour_entry: dict = {
+                "time": t_local.strftime("%H:%M"),
+                "temp": round(float(det.get("air_temperature", 0))),
+                "code": wmo,
+                "precip_prob": round(float(n1d.get("probability_of_precipitation", 0))),
+                "precipitation": round(float(n1d.get("precipitation_amount", 0)), 1),
+                "windspeed": wind_kmh,
+            }
+            date_key = t_local.strftime("%Y-%m-%d")
+            hourly_by_day.setdefault(date_key, []).append(hour_entry)
+
+            if current_entry is None and t_local >= now_hour:
+                temp = float(det.get("air_temperature", 0))
+                current_entry = {
+                    "temperature": round(temp),
+                    "feels_like": round(self._wind_chill(temp, float(det.get("wind_speed", 0)) * 3.6)),
+                    "humidity": round(float(det.get("relative_humidity", 0))),
+                    "windspeed": wind_kmh,
+                    "winddirection": round(float(det.get("wind_from_direction", 0))),
+                    "precipitation": round(float(n1d.get("precipitation_amount", 0)), 1),
+                    "weathercode": wmo,
+                    "description": _WEATHER_CODES.get(wmo, "unbekannt"),
+                }
+
+            is_past = past_start <= t_local < now_hour
+            is_future = now_hour < t_local <= future_end
+            if is_past or is_future:
+                forecast_hours.append({**hour_entry, "is_past": is_past})
+
+        if not current_entry:
+            return None
+
+        _DE_WD = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+        _DE_MO = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+        today_str = now.strftime("%Y-%m-%d")
+        daily_entries: list[dict] = []
+
+        for day_str, hours in sorted(hourly_by_day.items()):
+            temps = [h["temp"] for h in hours if h["temp"] is not None]
+            if not temps:
+                continue
+            midday = next((h for h in hours if h["time"] == "12:00"), hours[len(hours) // 2])
+            try:
+                dt = _dt.strptime(day_str, "%Y-%m-%d")
+                date_label = f"{_DE_WD[dt.weekday()]}, {dt.day:02d}. {_DE_MO[dt.month - 1]}"
+                label = "Heute" if day_str == today_str else _DE_WD[dt.weekday()]
+            except Exception:
+                date_label, label = day_str, day_str
+            daily_entries.append({
+                "label": label, "iso_date": day_str, "date": date_label,
+                "temp_max": max(temps), "temp_min": min(temps),
+                "weathercode": midday["code"],
+                "description": _WEATHER_CODES.get(midday["code"], "unbekannt"),
+                "precipitation": round(sum(h.get("precipitation", 0) for h in hours), 1),
+                "windspeed_max": max(h.get("windspeed") or 0 for h in hours),
+            })
+
+        today_entry = next((d for d in daily_entries if d["iso_date"] == today_str), daily_entries[0] if daily_entries else None)
+        tomorrow_entry = daily_entries[1] if len(daily_entries) > 1 else None
+        forecast_days = daily_entries[2:7]
+        coat = WeatherProvider()._fetch_coat_of_arms(name)
+        return {
+            "location": name, "coat_of_arms_url": coat,
+            "current": current_entry, "today": today_entry, "tomorrow": tomorrow_entry,
+            "forecast_days": forecast_days, "forecast_hours": forecast_hours,
+            "hourly_by_day": hourly_by_day, "settings": settings,
+        }
+
+    @staticmethod
+    def _wind_chill(temp_c: float, wind_kmh: float) -> float:
+        if temp_c <= 10.0 and wind_kmh >= 4.8:
+            v = wind_kmh ** 0.16
+            return 13.12 + 0.6215 * temp_c - 11.37 * v + 0.3965 * temp_c * v
+        return temp_c
+
+
+# ── OpenWeatherMap Provider ───────────────────────────────────────────────────
+
+_OWM_TO_WMO: dict[int, int] = {
+    **{i: 95 for i in range(200, 233)}, **{i: 96 for i in range(233, 252)}, **{i: 99 for i in range(252, 300)},
+    300: 51, 301: 53, 302: 55, 310: 51, 311: 53, 312: 55, 313: 80, 314: 81, 321: 53,
+    500: 61, 501: 63, 502: 65, 503: 65, 504: 65, 511: 77, 520: 80, 521: 81, 522: 82, 531: 81,
+    600: 71, 601: 73, 602: 75, 611: 77, 612: 77, 613: 77, 615: 71, 616: 63, 620: 71, 621: 73, 622: 75,
+    701: 45, 711: 45, 721: 45, 731: 45, 741: 45, 751: 45, 761: 45, 762: 45, 771: 45, 781: 95,
+    800: 0, 801: 1, 802: 2, 803: 3, 804: 3,
+}
+
+
+class OpenWeatherMapProvider:
+    CURRENT_URL = "https://api.openweathermap.org/data/2.5/weather"
+    FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast"
+
+    def get_display_data(self, settings: dict, location: str | None = None) -> "dict | None":
+        from datetime import datetime as _dt, timedelta as _td
+        from zoneinfo import ZoneInfo
+        from collections import Counter
+
+        api_key = str(settings.get("api_key") or "").strip()
+        if not api_key:
+            return None
+
+        loc = location or _get_device_location()
+        coords = WeatherProvider()._geocode(loc)
+        if not coords:
+            return None
+        lat, lon, name = coords
+
+        params = urllib.parse.urlencode({"lat": lat, "lon": lon, "appid": api_key, "units": "metric", "lang": "de"})
+        try:
+            req = urllib.request.Request(f"{self.CURRENT_URL}?{params}", headers={"User-Agent": "robot-core/0.2"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                cur = json.loads(resp.read().decode())
+        except Exception:
+            return None
+
+        try:
+            req2 = urllib.request.Request(f"{self.FORECAST_URL}?{params}", headers={"User-Agent": "robot-core/0.2"})
+            with urllib.request.urlopen(req2, timeout=8) as resp:
+                fcast = json.loads(resp.read().decode())
+        except Exception:
+            fcast = None
+
+        main = cur.get("main") or {}
+        wind = cur.get("wind") or {}
+        wid = int(((cur.get("weather") or [{}])[0]).get("id", 800))
+        wmo = _OWM_TO_WMO.get(wid, 3)
+        precip = float(((cur.get("rain") or {}).get("1h") or (cur.get("snow") or {}).get("1h") or 0))
+
+        current_entry = {
+            "temperature": round(float(main.get("temp", 0))),
+            "feels_like": round(float(main.get("feels_like", 0))),
+            "humidity": round(float(main.get("humidity", 0))),
+            "windspeed": round(float(wind.get("speed", 0)) * 3.6),
+            "winddirection": round(float(wind.get("deg", 0))),
+            "precipitation": round(precip, 1),
+            "weathercode": wmo,
+            "description": _WEATHER_CODES.get(wmo, "unbekannt"),
+        }
+
+        berlin = ZoneInfo("Europe/Berlin")
+        now = _dt.now(berlin)
+        now_hour = now.replace(minute=0, second=0, microsecond=0)
+        past_start = now_hour - _td(hours=int(settings.get("hourly_past_hours", 0)))
+        future_end = now_hour + _td(hours=int(settings.get("hourly_future_hours", 5)))
+        today_str = now.strftime("%Y-%m-%d")
+        _DE_WD = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+        _DE_MO = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+
+        forecast_hours: list[dict] = []
+        hourly_by_day: dict[str, list[dict]] = {}
+        daily_agg: dict[str, dict] = {}
+
+        for item in (fcast or {}).get("list") or []:
+            try:
+                t_local = _dt.fromtimestamp(item["dt"], tz=ZoneInfo("UTC")).astimezone(berlin)
+            except Exception:
+                continue
+            im = item.get("main") or {}
+            iw = item.get("wind") or {}
+            iwid = int(((item.get("weather") or [{}])[0]).get("id", 800))
+            iwmo = _OWM_TO_WMO.get(iwid, 3)
+            ip = float(((item.get("rain") or {}).get("3h") or (item.get("snow") or {}).get("3h") or 0))
+
+            he: dict = {
+                "time": t_local.strftime("%H:%M"),
+                "temp": round(float(im.get("temp", 0))),
+                "code": iwmo,
+                "precip_prob": round(float(item.get("pop", 0)) * 100),
+                "precipitation": round(ip / 3, 1),
+                "windspeed": round(float(iw.get("speed", 0)) * 3.6),
+            }
+            dk = t_local.strftime("%Y-%m-%d")
+            hourly_by_day.setdefault(dk, []).append(he)
+            if dk not in daily_agg:
+                daily_agg[dk] = {"temps": [], "codes": [], "precip": 0.0, "wind": []}
+            daily_agg[dk]["temps"].append(float(im.get("temp", 0)))
+            daily_agg[dk]["codes"].append(iwmo)
+            daily_agg[dk]["precip"] += ip / 3
+            daily_agg[dk]["wind"].append(float(iw.get("speed", 0)) * 3.6)
+            is_past = past_start <= t_local < now_hour
+            is_future = now_hour < t_local <= future_end
+            if is_past or is_future:
+                forecast_hours.append({**he, "is_past": is_past})
+
+        daily_entries: list[dict] = []
+        for day_str in sorted(daily_agg):
+            d = daily_agg[day_str]
+            if not d["temps"]:
+                continue
+            top_code = Counter(d["codes"]).most_common(1)[0][0] if d["codes"] else 3
+            try:
+                dt = _dt.strptime(day_str, "%Y-%m-%d")
+                date_label = f"{_DE_WD[dt.weekday()]}, {dt.day:02d}. {_DE_MO[dt.month - 1]}"
+                label = "Heute" if day_str == today_str else _DE_WD[dt.weekday()]
+            except Exception:
+                date_label, label = day_str, day_str
+            daily_entries.append({
+                "label": label, "iso_date": day_str, "date": date_label,
+                "temp_max": round(max(d["temps"])), "temp_min": round(min(d["temps"])),
+                "weathercode": top_code, "description": _WEATHER_CODES.get(top_code, "unbekannt"),
+                "precipitation": round(d["precip"], 1),
+                "windspeed_max": round(max(d["wind"])) if d["wind"] else None,
+            })
+
+        today_entry = next((d for d in daily_entries if d["iso_date"] == today_str), daily_entries[0] if daily_entries else None)
+        tomorrow_entry = daily_entries[1] if len(daily_entries) > 1 else None
+        forecast_days = daily_entries[2:7]
+        coat = WeatherProvider()._fetch_coat_of_arms(name)
+        return {
+            "location": name, "coat_of_arms_url": coat,
+            "current": current_entry, "today": today_entry, "tomorrow": tomorrow_entry,
+            "forecast_days": forecast_days, "forecast_hours": forecast_hours,
+            "hourly_by_day": hourly_by_day, "settings": settings,
+        }
+
+
+# ── Provider-Factory ──────────────────────────────────────────────────────────
+
+def get_weather_display_data(settings: dict | None = None, location: str | None = None) -> "dict | None":
+    if settings is None:
+        settings = _get_weather_settings()
+    provider = str(settings.get("provider") or "open_meteo")
+    if provider == "yrno":
+        return YrNoWeatherProvider().get_display_data(settings, location)
+    if provider == "openweathermap":
+        return OpenWeatherMapProvider().get_display_data(settings, location)
+    return WeatherProvider().get_display_data(location=location)

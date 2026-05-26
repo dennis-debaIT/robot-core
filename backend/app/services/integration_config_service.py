@@ -59,6 +59,8 @@ class IntegrationConfigService:
             },
             "weather": {
                 "enabled": True,
+                "provider": "open_meteo",
+                "api_key": "",
                 "hourly_past_hours": 0,
                 "hourly_future_hours": 5,
                 "show_feels_like": True,
@@ -651,8 +653,13 @@ class IntegrationConfigService:
                 parsed = default
             return max(minimum, min(parsed, maximum))
 
+        provider = str(data.get("provider") or "open_meteo").strip()
+        if provider not in ("open_meteo", "yrno", "openweathermap"):
+            provider = "open_meteo"
         return {
             "enabled": bool(data.get("enabled", True)),
+            "provider": provider,
+            "api_key": str(data.get("api_key") or "").strip(),
             "hourly_past_hours": _int("hourly_past_hours", 0, 0, 12),
             "hourly_future_hours": _int("hourly_future_hours", 5, 1, 24),
             "show_feels_like": bool(data.get("show_feels_like", True)),

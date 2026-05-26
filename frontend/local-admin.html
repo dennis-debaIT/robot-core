@@ -224,6 +224,27 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">Datenquelle</div>
+              <p>Open-Meteo und Yr.no sind vollständig kostenlos ohne API-Key. OpenWeatherMap benötigt einen kostenlosen Key (openweathermap.org).</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Anbieter</span>
+                <select id="weather-provider" class="field-input">
+                  <option value="open_meteo">Open-Meteo (kein Key)</option>
+                  <option value="yrno">Yr.no / MET Norway (kein Key)</option>
+                  <option value="openweathermap">OpenWeatherMap (API-Key)</option>
+                </select>
+              </label>
+              <label class="field-block" id="weather-api-key-block" style="display:none;">
+                <span class="field-label">API-Key</span>
+                <input id="weather-api-key" class="field-input" type="password" placeholder="OpenWeatherMap API-Key" autocomplete="off">
+              </label>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Stundenleiste</div>
               <p>Der Standort bleibt global unter System. Hier legst du fest, welche Wetterdaten links im Display erscheinen.</p>
             </div>
@@ -1200,6 +1221,9 @@
     const haTestStatusEl = document.getElementById('ha-test-status');
     const siteLocationEl = document.getElementById('site-location');
     const weatherEnabledEl = document.getElementById('weather-enabled');
+    const weatherProviderEl = document.getElementById('weather-provider');
+    const weatherApiKeyEl = document.getElementById('weather-api-key');
+    const weatherApiKeyBlockEl = document.getElementById('weather-api-key-block');
     const weatherPastHoursEl = document.getElementById('weather-past-hours');
     const weatherFutureHoursEl = document.getElementById('weather-future-hours');
     const weatherShowFeelsEl = document.getElementById('weather-show-feels');
@@ -2393,6 +2417,9 @@
       haPasswordEl.value = haConfig.password || '';
       siteLocationEl.value = siteConfig.location || data?.catalog?.entities?.system?.site?.default_location || 'Ostenfeld';
       weatherEnabledEl.checked = weatherConfig.enabled !== false;
+      weatherProviderEl.value = weatherConfig.provider || 'open_meteo';
+      weatherApiKeyEl.value = weatherConfig.api_key || '';
+      weatherApiKeyBlockEl.style.display = weatherProviderEl.value === 'openweathermap' ? '' : 'none';
       weatherPastHoursEl.value = weatherConfig.hourly_past_hours ?? 0;
       weatherFutureHoursEl.value = weatherConfig.hourly_future_hours ?? 5;
       weatherShowFeelsEl.checked = weatherConfig.show_feels_like !== false;
@@ -2517,6 +2544,8 @@
             },
             weather: {
               enabled: weatherEnabledEl.checked,
+              provider: weatherProviderEl.value,
+              api_key: weatherApiKeyEl.value,
               hourly_past_hours: Number(weatherPastHoursEl.value),
               hourly_future_hours: Number(weatherFutureHoursEl.value),
               show_feels_like: weatherShowFeelsEl.checked,
@@ -2662,9 +2691,13 @@
       renderEvVehicles();
     });
     fuelEnabledEl.addEventListener('change', syncSummary);
+    weatherProviderEl.addEventListener('change', () => {
+      weatherApiKeyBlockEl.style.display = weatherProviderEl.value === 'openweathermap' ? '' : 'none';
+      syncSummary();
+    });
     [
       haSchemeEl, haHostEl, haPortEl, haTokenEl, haUsernameEl, haPasswordEl,
-      siteLocationEl, weatherEnabledEl, weatherPastHoursEl, weatherFutureHoursEl,
+      siteLocationEl, weatherEnabledEl, weatherApiKeyEl, weatherPastHoursEl, weatherFutureHoursEl,
       weatherShowFeelsEl, weatherShowWindEl, weatherShowHumidityEl, weatherShowPrecipEl,
       weatherShowMinmaxEl, weatherShowHourlyEl, newsDefaultCollapsedEl, newsCollapsedCountEl,
       weatherHourlyTempEl, weatherHourlyPopEl, weatherHourlyRainEl, weatherHourlyWindEl,

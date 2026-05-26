@@ -9,6 +9,15 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-26 (3)
+
+### Neu
+- **Wetter-Anbieter auswählbar**: Im Admin unter Wetter → Datenquelle kann zwischen drei Anbietern gewählt werden:
+  - **Open-Meteo** (Standard, kein API-Key, open-meteo.com)
+  - **Yr.no / MET Norway** (kein API-Key, Norwegischer Wetterdienst, sehr zuverlässig)
+  - **OpenWeatherMap** (kostenloser API-Key nötig, 1M Calls/Monat gratis)
+  - Geocoding (Ortsauflösung) läuft weiterhin über Open-Meteo bei allen Anbietern
+
 ## 2026-05-26 (2)
 
 ### Behoben
