@@ -1480,7 +1480,10 @@
       display: flex;
       flex-direction: column;
     }
-    #right-cal  { flex: 1; min-height: 0; overflow-y: auto; }
+    #right-cal  { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+    #right-cal::-webkit-scrollbar { width: 4px; }
+    #right-cal::-webkit-scrollbar-track { background: transparent; }
+    #right-cal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     #right-pv   { flex-shrink: 0; }
 
     #left-content {
