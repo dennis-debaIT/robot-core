@@ -9,6 +9,18 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-26 (5)
+
+### Neu
+- **Timer per Sprache auflisten**: "Welche Timer laufen gerade?" gibt alle aktiven Timer mit Restzeit aus
+- **Timer umbenennen per Sprache**: "Nenn den ersten Timer Nudeln" — erkennt Ordinalzahl, vorhandenes Label oder (bei einem Timer) automatisch den einzigen laufenden Timer
+- **Eigene RSS-Quellen im Admin**: Unter News → Eigene RSS-Quellen können beliebige RSS- oder Atom-Feed-URLs hinzugefügt werden; erscheinen danach in der Quellenliste und können aktiviert werden
+
+### Behoben
+- **Timer-Fehlerresistenz**: `_try_timer_command()` fängt nun alle Exceptions ab — kein stiller Crash mehr wenn der Timer-Router-Import fehlschlägt
+
+---
+
 ## 2026-05-26 (4)
 
 ### Neu
