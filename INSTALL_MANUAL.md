@@ -154,6 +154,60 @@ sudo chmod 440 /etc/sudoers.d/erika-reboot
 
 ---
 
+## Schritt 9 — Kiosk-Display einrichten (Raspberry Pi mit Bildschirm)
+
+Dieser Schritt richtet Chromium als Vollbild-Kiosk für das Display-Panel ein, mit vorerteilten Kamera- und Mikrofon-Berechtigungen.
+
+### Chromium installieren
+
+```bash
+sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+```
+
+### Kamera und Mikrofon vorab freigeben (Policy-Datei)
+
+```bash
+sudo mkdir -p /etc/chromium/policies/managed
+sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'EOF'
+{
+  "VideoCaptureAllowedUrls": ["https://localhost:8000/*"],
+  "AudioCaptureAllowedUrls": ["https://localhost:8000/*"]
+}
+EOF
+```
+
+> Chromium liest diese Richtlinie beim Start — keine Berechtigungsdialog mehr, echte Kamera und echtes Mikrofon werden sofort freigegeben.
+
+### Autostart beim Systemstart
+
+```bash
+mkdir -p ~/.config/autostart
+cat > ~/.config/autostart/erika-kiosk.desktop << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=Erika Kiosk
+Exec=/bin/bash -c "sleep 8 && chromium-browser --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors https://localhost:8000/display"
+X-GNOME-Autostart-enabled=true
+EOF
+```
+
+> `sleep 8` gibt dem Docker-Container Zeit zu starten, bevor Chromium das Display öffnet.
+
+### Kiosk sofort testen (ohne Neustart)
+
+```bash
+chromium-browser --kiosk \
+  --noerrdialogs \
+  --disable-infobars \
+  --autoplay-policy=no-user-gesture-required \
+  --ignore-certificate-errors \
+  https://localhost:8000/display
+```
+
+Mit `Alt+F4` oder `Strg+W` lässt sich der Kiosk-Modus verlassen.
+
+---
+
 ## Ergebnis
 
 Nach erfolgreichem Start ist Erika erreichbar unter:

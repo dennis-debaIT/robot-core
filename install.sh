@@ -156,6 +156,47 @@ success "Container gestartet"
 # ── 9. Autostart sicherstellen ────────────────────────────────
 sudo systemctl enable docker > /dev/null 2>&1 || true
 
+# ── 10. Kiosk-Display (Chromium) ──────────────────────────────
+step "Kiosk-Display einrichten"
+CHROMIUM_BIN=""
+if command -v chromium-browser &>/dev/null; then
+    CHROMIUM_BIN="chromium-browser"
+elif command -v chromium &>/dev/null; then
+    CHROMIUM_BIN="chromium"
+else
+    info "Installiere Chromium..."
+    if sudo apt-get install -y chromium-browser > /dev/null 2>&1; then
+        CHROMIUM_BIN="chromium-browser"
+    elif sudo apt-get install -y chromium > /dev/null 2>&1; then
+        CHROMIUM_BIN="chromium"
+    fi
+fi
+
+if [ -n "$CHROMIUM_BIN" ]; then
+    # Kamera und Mikrofon via Policy freigeben — kein Berechtigungsdialog beim Start
+    sudo mkdir -p /etc/chromium/policies/managed
+    sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
+{
+  "VideoCaptureAllowedUrls": ["https://localhost:8000/*"],
+  "AudioCaptureAllowedUrls": ["https://localhost:8000/*"]
+}
+POLICY
+
+    # Autostart-Eintrag für Desktop-Sitzung (z.B. Raspberry Pi OS)
+    mkdir -p "$HOME/.config/autostart"
+    cat > "$HOME/.config/autostart/erika-kiosk.desktop" << DESKTOP
+[Desktop Entry]
+Type=Application
+Name=Erika Kiosk
+Exec=/bin/bash -c "sleep 8 && ${CHROMIUM_BIN} --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors https://localhost:8000/display"
+X-GNOME-Autostart-enabled=true
+DESKTOP
+
+    success "Kiosk eingerichtet (${CHROMIUM_BIN}, Kamera + Mikrofon vorab freigegeben)"
+else
+    warn "Chromium nicht gefunden — Kiosk-Setup übersprungen. Siehe INSTALL_MANUAL.md Schritt 9."
+fi
+
 # ── Fertig ────────────────────────────────────────────────────
 IP=$(hostname -I | awk '{print $1}')
 echo ""
