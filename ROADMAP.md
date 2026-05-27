@@ -92,8 +92,8 @@ Ziel: Erika vergisst nach einem Neustart nicht mehr was zuvor besprochen wurde.
 
 Ziel: Erika wird über Zeit klüger und persönlicher.
 
-- [ ] **Stimmungsmodell**: Erika erkennt aus Sprachmuster oder Uhrzeitkontext, ob jemand gestresst/müde ist und passt Ton an
-- [ ] **Beziehungsentwicklung**: Beziehungsstatus entwickelt sich automatisch (nicht nur manuell im Admin)
+- [x] **Stimmungsmodell**: Erika erkennt Gesprächssentiment und entwickelt eine eigene Stimmung; passt Ton und Wortwahl konkret an
+- [x] **Beziehungsentwicklung**: Entwickelt sich automatisch aus Gesprächen; Wärme/Anspannung/Offenheit beeinflussen Wortwahl; im Admin manuell kontrollierbar
 - [ ] **Mehrsprachigkeit**: Erste Schritte Richtung Englisch als zweite Sprache (Spracherkennung + TTS)
 - [ ] **Personenbezogene Briefing-Konfiguration**: Jede Person hat ihr eigenes Briefing-Profil (Reihenfolge, Module)
 

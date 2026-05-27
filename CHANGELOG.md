@@ -12,6 +12,13 @@ Format: neueste Einträge oben.
 ## 2026-05-28
 
 ### Neu
+- **Stimmungsmodell**: Erika hat eine eigene Stimmung (sehr gut / gut / neutral / müde / gereizt) die sich nach jedem Gespräch automatisch entwickelt. Ton und Wortwahl passen sich konkret an — z.B. "Erika ist müde" → kürzere Antworten; "sehr gut drauf" → herzlicher, lebhafter
+- **Beziehungsentwicklung mit Wortwahl**: Per-Person Beziehungshinweise sind jetzt konkret formuliert (Wärme ≥ 0.55: "natürlich, sehr gerne klingen authentisch"; Anspannung ≥ 0.55: direkt zur Antwort, keine persönlichen Anmerkungen); Gesprächsanzahl-Schwelle: nach 30+ Gesprächen direkter Ton
+- **Admin — Stimmung & Beziehung vollständig kontrollierbar**:
+  - Neue Sektion "Aktuelle Stimmung" im Erika-Tab: farbiger Chip, Balken, manueller Slider, Reset
+  - Globaler Beziehungsstatus jetzt editierbar (Slider für Wärme/Anspannung/Offenheit + Speichern)
+  - Per-Person: Offenheit und Gesprächsanzahl sichtbar; alle 3 Werte manuell setzbar
+- **API**: `GET/POST /mood`, `/mood/reset`, `/mood/set`, `/relationship/global/set`, `/profiles/{id}/relationship/set`
 - **Sitzungsübergreifendes Gedächtnis**: Erika "vergisst" nach einem Docker-Neustart nicht mehr — die letzten 7 Tagesrückblicke, alle aktiven Gesprächsthemen (bis 60 Tage Inaktivität) und Wochenzusammenfassungen (6 Monate) fließen beim Start automatisch in den LLM-Prompt ein
 - **Langzeit-Gedächtnis (Phase 4.1 + 4.2)**:
   - Neue DB-Tabellen: `daily_summaries`, `weekly_summaries`, `active_topics`
