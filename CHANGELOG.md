@@ -9,6 +9,21 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-27
+
+### Neu
+- **`.env.example`**: Vollständige Vorlage mit allen Umgebungsvariablen und Standardwerten
+- **CI/CD**: GitHub Actions Workflow (`.github/workflows/ci.yml`) — bei jedem Push wird automatisch das Test-Image gebaut und die Testsuite ausgeführt
+- **Offline-Banner im Display**: Wenn das Backend nicht erreichbar ist, zeigt das Display einen roten Banner mit Spinner statt still zu versagen
+
+### Verbessert
+- **Version**: 0.1.0 → 0.3.0
+
+### Aufgeräumt
+- Veraltete `test_*.py` und alte Quell-Kopien (`main.py`, `robot_core.py` usw.) aus dem Repo-Root entfernt — waren Überbleibsel aus der Frühphase, alle Tests liegen in `backend/tests/`
+
+---
+
 ## 2026-05-26
 
 ### Neu

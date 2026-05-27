@@ -31,6 +31,16 @@
   })();
 </script>
 
+<!-- ── OFFLINE BANNER ────────────────────────────────── -->
+<div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:rgba(20,20,30,0.97);border-bottom:2px solid #f87171;padding:14px 24px;display:none;align-items:center;gap:14px;">
+  <span style="font-size:1.6rem;">⚠️</span>
+  <div>
+    <div style="font-size:1rem;font-weight:600;color:#f87171;">Backend nicht erreichbar</div>
+    <div style="font-size:0.8rem;color:#94a3b8;margin-top:2px;">Verbindung zu Erika unterbrochen — versuche erneut zu verbinden …</div>
+  </div>
+  <div id="offline-spinner" style="margin-left:auto;width:18px;height:18px;border:2px solid #f87171;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;"></div>
+</div>
+
 <!-- ── STATUS BAR (oben) ─────────────────────────────── -->
 <div class="status-bar">
   <div class="status-item">
@@ -2226,10 +2236,19 @@
 
   // ── DISPLAY STATE POLLING ─────────────────────────────────
   let _lightsAutoReturnTimer = null;
+  let _backendOffline = false;
+
+  function _setOffline(offline) {
+    if (offline === _backendOffline) return;
+    _backendOffline = offline;
+    const banner = document.getElementById('offline-banner');
+    if (banner) banner.style.display = offline ? 'flex' : 'none';
+  }
 
   async function pollDisplayState() {
     try {
       const state = await fetch('/display/state', { cache: 'no-store' }).then(r => r.json());
+      _setOffline(false);
       applyAppHash(state.app_hash);
       applyModuleVisibility(state.modules, state.calendar_config);
       applyConfigVersion(state.config_version);
@@ -2253,7 +2272,9 @@
       } else if (_navMode !== 'lights' && _navMode !== 'cameras' && _navMode !== 'robots' && state.mode !== currentMode) {
         applyMode(state.mode, state);
       }
-    } catch {}
+    } catch {
+      _setOffline(true);
+    }
   }
 
   // ── REPLY TEXT (live Untertitel aus LLM) ──────────────────

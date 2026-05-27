@@ -63,11 +63,11 @@ Ziel: Erika kennt und steuert die Wohnung.
 Ziel: Das, was existiert, wird zuverlässiger, testbarer und wartbarer.
 
 ### Pflicht
-- [ ] **Versionierung korrigieren**: Bump auf v0.8 oder v1.0-beta — der Funktionsumfang rechtfertigt das
-- [ ] **Testdateien aufräumen**: `test_*.py` aus dem Repo-Root in `backend/tests/` verschieben
-- [ ] **`.env.example`** mit allen Variablen und Standardwerten anlegen
-- [ ] **CI/CD (minimal)**: GitHub Actions — bei Push automatisch `docker compose build` + Tests ausführen
-- [ ] **Fehlerseite im Display**: Wenn Backend nicht erreichbar ist, saubere Offline-Anzeige statt leerem Widget
+- [x] **Versionierung korrigieren**: v0.3.0 in FastAPI-App gesetzt
+- [x] **Testdateien aufräumen**: Veraltete `test_*.py` und alte Quell-Kopien aus dem Repo-Root entfernt
+- [x] **`.env.example`** mit allen Variablen und Standardwerten angelegt
+- [x] **CI/CD (minimal)**: `.github/workflows/ci.yml` — bei Push automatisch Build + Tests via Docker
+- [x] **Fehlerseite im Display**: Offline-Banner wenn Backend nicht erreichbar
 
 ### Sinnvoll
 - [ ] **Audit-Log im Admin** um Fehler-Einträge erweitern (nicht nur Aktionen, sondern auch Exceptions)

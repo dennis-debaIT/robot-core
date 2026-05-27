@@ -214,7 +214,7 @@ async def lifespan(_: FastAPI) -> Any:
         deps.clear_runtime()
 
 
-app = FastAPI(title="Robot Core", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Robot Core", version="0.3.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

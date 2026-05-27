@@ -1534,3 +1534,7 @@
       66%  { content: '...'; }
       100% { content: ''; }
     }
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
