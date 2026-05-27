@@ -77,16 +77,25 @@ Ziel: Das, was existiert, wird zuverlässiger, testbarer und wartbarer.
 
 ---
 
+## ✅ Phase 4.1 + 4.2 — Sitzungsübergreifendes Gedächtnis (abgeschlossen)
+
+Ziel: Erika vergisst nach einem Neustart nicht mehr was zuvor besprochen wurde.
+
+- [x] **Gesprächskontext über Sessions**: Conversation-Tabelle wird beim Start geladen (last 40 Nachrichten, bereits vorhanden)
+- [x] **Langzeit-Gedächtnis**: Tagesrückblicke (30 Tage), Wochensummaries (6 Monate), aktive Themen (60 Tage Inaktivität) fließen in den Prompt ein
+- [x] **MemoryService**: `ensure_todays_daily_summary`, `refresh_active_topics`, `compress_dailies_to_weekly`, `prune_old_summaries`
+- [x] **Stündlicher Maintenance-Loop**: Aktualisiert alle Zusammenfassungen für alle Personen automatisch im Hintergrund
+
+---
+
 ## 🗓️ Phase 4 — Persönlichkeit & Gedächtnis (mittelfristig)
 
 Ziel: Erika wird über Zeit klüger und persönlicher.
 
-- [ ] **Langzeit-Gedächtnis**: Gesprächsthemen werden über Tage/Wochen zusammengefasst — nicht nur der heutige Tag
 - [ ] **Stimmungsmodell**: Erika erkennt aus Sprachmuster oder Uhrzeitkontext, ob jemand gestresst/müde ist und passt Ton an
 - [ ] **Beziehungsentwicklung**: Beziehungsstatus entwickelt sich automatisch (nicht nur manuell im Admin)
 - [ ] **Mehrsprachigkeit**: Erste Schritte Richtung Englisch als zweite Sprache (Spracherkennung + TTS)
 - [ ] **Personenbezogene Briefing-Konfiguration**: Jede Person hat ihr eigenes Briefing-Profil (Reihenfolge, Module)
-- [ ] **Gesprächskontext über Sessions**: Wenn Erika neugestartet wird, kennt sie trotzdem den gestrigen Kontext
 
 ---
 

@@ -18,6 +18,7 @@ class PromptBuilder:
         person_preference_lines: list[str] | None = None,
         search_context: str | None = None,
         notes_lines: list[str] | None = None,
+        session_memory: str | None = None,
     ) -> dict[str, Any]:
         context = self._build_context(
             person_name=person_name,
@@ -30,6 +31,7 @@ class PromptBuilder:
             person_preference_lines=person_preference_lines or [],
             search_context=search_context,
             notes_lines=notes_lines or [],
+            session_memory=session_memory,
         )
         system_prompt = self._build_system_prompt(context=context)
 
@@ -83,6 +85,7 @@ class PromptBuilder:
         person_preference_lines: list[str],
         search_context: str | None = None,
         notes_lines: list[str] | None = None,
+        session_memory: str | None = None,
     ) -> dict[str, Any]:
         return {
             "known_person": person_name or "unbekannt",
@@ -99,6 +102,7 @@ class PromptBuilder:
             "person_preference_lines": person_preference_lines,
             "search_context": search_context,
             "notes_lines": notes_lines or [],
+            "session_memory": session_memory,
             "personality_lines": [
                 f"- friendliness: {personality['friendliness']:.2f}",
                 f"- humor: {personality['humor']:.2f}",
@@ -133,6 +137,12 @@ class PromptBuilder:
             + " | ".join(notes) + " "
             if notes else ""
         )
+        session_memory = context.get("session_memory")
+        session_memory_sentence = (
+            f"Gesprächsgedächtnis über Sitzungen hinweg (auch nach Neustart verfügbar — "
+            f"nutze diese Information für Anschlussfragen und Kontext): {session_memory} "
+            if session_memory else ""
+        )
         return (
             "Du bist Erika, ein sozialer KI-Roboter im lokalen Haushalt oder Standort. "
             "Du sprichst als physisches Gerät, nicht als abstrakter Online-Chatbot. "
@@ -152,6 +162,7 @@ class PromptBuilder:
             "Wenn du Erinnerungen über die adressierte Person verwendest, sprich sie direkt an: 'du magst', 'dein Interesse', nie 'Dennis mag' oder 'er mag'. "
             f"{preference_sentence}"
             f"{notes_sentence}"
+            f"{session_memory_sentence}"
             "Nutze den ausgewählten Gesprächsverlauf für Anschlussfragen und offene Aufgaben. "
             f"Live-Gerätestatus: {runtime_block}. "
             "Wenn der Nutzer nach Akkustand, Display-Status oder Gerätezustand fragt, nutze diese Werte direkt. "

@@ -779,6 +779,8 @@ class RobotCore:
             limit=settings.llm_history_turns,
         )
         notes_lines = self._notes_for_prompt(person_name)
+        from app.services.memory_service import MemoryService
+        session_memory = MemoryService().build_session_context(person_name)
         payload = self.prompt_builder.build_chat_payload(
             message=message,
             person_name=person_name,
@@ -795,6 +797,7 @@ class RobotCore:
             person_preference_lines=preference_lines,
             search_context=search_context,
             notes_lines=notes_lines,
+            session_memory=session_memory,
         )
         payload["llm_max_tokens"] = settings.llm_max_tokens
         payload["context"]["selection"] = selection_meta

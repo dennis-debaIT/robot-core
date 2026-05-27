@@ -309,6 +309,47 @@ def init_db() -> None:
 
             CREATE INDEX IF NOT EXISTS idx_person_notes_person
             ON person_notes(person_id);
+
+            CREATE TABLE IF NOT EXISTS daily_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_name TEXT NOT NULL,
+                date TEXT NOT NULL,
+                topics TEXT NOT NULL,
+                sample_messages TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                UNIQUE(person_name, date)
+            );
+
+            CREATE TABLE IF NOT EXISTS weekly_summaries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_name TEXT NOT NULL,
+                week_start TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(person_name, week_start)
+            );
+
+            CREATE TABLE IF NOT EXISTS active_topics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                person_name TEXT NOT NULL,
+                title TEXT NOT NULL,
+                importance REAL NOT NULL DEFAULT 0.5,
+                last_seen TEXT NOT NULL,
+                mentions INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'active',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(person_name, title)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_daily_summaries_person_date
+            ON daily_summaries(person_name, date DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_weekly_summaries_person_week
+            ON weekly_summaries(person_name, week_start DESC);
+
+            CREATE INDEX IF NOT EXISTS idx_active_topics_person_status
+            ON active_topics(person_name, status, importance DESC);
             """
         )
 

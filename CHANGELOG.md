@@ -9,6 +9,18 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-28
+
+### Neu
+- **Sitzungsübergreifendes Gedächtnis**: Erika "vergisst" nach einem Docker-Neustart nicht mehr — die letzten 7 Tagesrückblicke, alle aktiven Gesprächsthemen (bis 60 Tage Inaktivität) und Wochenzusammenfassungen (6 Monate) fließen beim Start automatisch in den LLM-Prompt ein
+- **Langzeit-Gedächtnis (Phase 4.1 + 4.2)**:
+  - Neue DB-Tabellen: `daily_summaries`, `weekly_summaries`, `active_topics`
+  - `MemoryService`: baut Session-Kontext, erstellt/aktualisiert Tageszusammenfassungen, komprimiert 30 Tage alte Tageseinträge zu Wochensummaries, archiviert inaktive Themen nach 60 Tagen, löscht Wochen älter als 6 Monate
+  - Stündlicher Hintergrund-Loop `_memory_maintenance_loop` aktualisiert alle Zusammenfassungen für jede bekannte Person
+  - System-Prompt enthält jetzt: aktive Themen, Tagesrückblick (letzte 7 Tage), Wochengedächtnis
+
+---
+
 ## 2026-05-27
 
 ### Neu

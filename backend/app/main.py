@@ -163,6 +163,27 @@ async def _notification_check_loop(interval_seconds: int = 30) -> None:
         await asyncio.sleep(interval_seconds)
 
 
+async def _memory_maintenance_loop() -> None:
+    from app.services.memory_service import MemoryService
+    from app.audit.service import AuditService
+    _audit = AuditService()
+    await asyncio.sleep(300)  # 5min Startup-Verzögerung
+    while True:
+        try:
+            svc = MemoryService()
+            for person_name in svc.get_all_person_names():
+                try:
+                    svc.ensure_todays_daily_summary(person_name)
+                    svc.refresh_active_topics(person_name)
+                    svc.compress_dailies_to_weekly(person_name)
+                    svc.prune_old_summaries(person_name)
+                except Exception as exc:
+                    _audit.log_error(source="memory_maintenance", message=str(exc), details={"person": person_name})
+        except Exception as exc:
+            _audit.log_error(source="memory_maintenance_loop", message=str(exc))
+        await asyncio.sleep(3600)
+
+
 async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
     config_service = IntegrationConfigService()
     vehicle_service = VehicleService()
@@ -194,6 +215,7 @@ async def lifespan(_: FastAPI) -> Any:
     timer_task = asyncio.create_task(_timer_watcher_loop())
     notification_task = asyncio.create_task(_notification_check_loop())
     reminder_task = asyncio.create_task(_reminder_watcher_loop())
+    memory_task = asyncio.create_task(_memory_maintenance_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -204,6 +226,7 @@ async def lifespan(_: FastAPI) -> Any:
         timer_task.cancel()
         notification_task.cancel()
         reminder_task.cancel()
+        memory_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
@@ -216,6 +239,8 @@ async def lifespan(_: FastAPI) -> Any:
             await notification_task
         with suppress(asyncio.CancelledError):
             await reminder_task
+        with suppress(asyncio.CancelledError):
+            await memory_task
         deps.clear_runtime()
 
 
