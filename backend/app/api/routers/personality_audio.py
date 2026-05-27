@@ -148,3 +148,24 @@ def synthesize_tts(payload: TtsSynthesisRequest) -> Response:
             "X-TTS-Format": fmt,
         },
     )
+
+
+@router.post("/tts/watchdog")
+def tts_watchdog_event() -> dict:
+    """Wird aufgerufen wenn der 30s-TTS-Watchdog im Frontend auslöst."""
+    from app.database.db import get_connection, read_state, write_state
+    from datetime import datetime, timezone
+    with get_connection() as conn:
+        stats = read_state(conn, "tts_watchdog_stats") or {"count": 0, "last_at": None}
+        stats["count"] = int(stats.get("count", 0)) + 1
+        stats["last_at"] = datetime.now(timezone.utc).isoformat()
+        write_state(conn, "tts_watchdog_stats", stats)
+    return {"ok": True, "count": stats["count"]}
+
+
+@router.get("/tts/watchdog")
+def tts_watchdog_stats() -> dict:
+    from app.database.db import get_connection, read_state
+    with get_connection() as conn:
+        stats = read_state(conn, "tts_watchdog_stats") or {"count": 0, "last_at": None}
+    return stats

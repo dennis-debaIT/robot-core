@@ -15,12 +15,16 @@ Format: neueste Einträge oben.
 - **`.env.example`**: Vollständige Vorlage mit allen Umgebungsvariablen und Standardwerten
 - **CI/CD**: GitHub Actions Workflow (`.github/workflows/ci.yml`) — bei jedem Push wird automatisch das Test-Image gebaut und die Testsuite ausgeführt
 - **Offline-Banner im Display**: Wenn das Backend nicht erreichbar ist, zeigt das Display einen roten Banner mit Spinner statt still zu versagen
+- **Audit-Log Fehler-Einträge**: Hintergrund-Loops (Reminder, Notifications) schreiben Exceptions als `system.error` ins Audit-Log; im Admin-Protokoll-Tab rot hervorgehoben
+- **TTS-Watchdog-Metriken**: Jedes Mal wenn der 30s-Watchdog im Frontend auslöst, wird ein Zähler ans Backend gesendet; sichtbar im Admin unter Erika → TTS (nur wenn > 0)
+- **Gesichtserkennung Fallback**: Bei Kamera-Fehler (z.B. kein Zugriff) wird der Fehler ans Backend gemeldet und nach 60s automatisch neu versucht — kein stilles Versagen mehr
+- **INSTALL_MANUAL.md**: Vollständige manuelle Installationsanleitung Schritt für Schritt
 
 ### Verbessert
 - **Version**: 0.1.0 → 0.3.0
 
 ### Aufgeräumt
-- Veraltete `test_*.py` und alte Quell-Kopien (`main.py`, `robot_core.py` usw.) aus dem Repo-Root entfernt — waren Überbleibsel aus der Frühphase, alle Tests liegen in `backend/tests/`
+- Veraltete `test_*.py` und alte Quell-Kopien (`main.py`, `robot_core.py` usw.) aus dem Repo-Root entfernt
 
 ---
 

@@ -37,6 +37,20 @@ class AuditService:
             row = conn.execute("SELECT * FROM audit_log WHERE id = ?", (cursor.lastrowid,)).fetchone()
         return self._row_to_dict(row) if row else {}
 
+    def log_error(self, *, source: str, message: str, details: dict[str, Any] | None = None) -> None:
+        try:
+            self.log(
+                action="system.error",
+                target_type="system",
+                target_id=source,
+                actor_type="system",
+                actor_id="background",
+                summary=message[:200],
+                details=details,
+            )
+        except Exception:
+            pass
+
     def list_entries(self, limit: int = 100) -> list[dict[str, Any]]:
         effective_limit = max(1, min(limit, 500))
         with get_connection() as conn:

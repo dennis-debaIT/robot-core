@@ -623,3 +623,17 @@ def debug_light_schedule() -> dict[str, Any]:
         "pending_light_reminders": pending_light_reminders,
         "known_lights": lights,
     }
+
+
+@router.post("/face-recognition/status")
+def face_recognition_status(payload: dict) -> dict:
+    """Frontend meldet Kamera-Status der Gesichtserkennung."""
+    from app.database.db import get_connection, write_state
+    from datetime import datetime, timezone
+    with get_connection() as conn:
+        write_state(conn, "face_recognition_status", {
+            "ok": bool(payload.get("ok", False)),
+            "error": payload.get("error"),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+    return {"ok": True}

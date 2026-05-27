@@ -70,10 +70,10 @@ Ziel: Das, was existiert, wird zuverlässiger, testbarer und wartbarer.
 - [x] **Fehlerseite im Display**: Offline-Banner wenn Backend nicht erreichbar
 
 ### Sinnvoll
-- [ ] **Audit-Log im Admin** um Fehler-Einträge erweitern (nicht nur Aktionen, sondern auch Exceptions)
-- [ ] **Gesichtserkennung Fallback**: Wenn Kamera fehlt oder fehlschlägt, kein Absturz sondern graceful degradation
-- [ ] **TTS-Watchdog-Metriken**: Wie oft wird der 30s-Timeout ausgelöst? Im Admin sichtbar machen
-- [ ] **INSTALL_MANUAL.md** fertigstellen (ist in INSTALL.md referenziert, fehlt noch im Repo)
+- [x] **Audit-Log im Admin** um Fehler-Einträge erweitern: `system.error`-Einträge aus Hintergrund-Loops, rot hervorgehoben im Protokoll-Tab
+- [x] **Gesichtserkennung Fallback**: Bei Kamera-Fehler wird Status ans Backend gemeldet und nach 60s automatisch neu versucht
+- [x] **TTS-Watchdog-Metriken**: Zähler wird bei jedem 30s-Timeout ans Backend gesendet; Anzeige im Admin unter Erika → TTS
+- [x] **INSTALL_MANUAL.md** fertiggestellt — vollständige Schritt-für-Schritt-Anleitung
 
 ---
 

@@ -899,6 +899,9 @@
               <div class="section-title">🔊 Sprachausgabe (TTS)</div>
               <p>Edge TTS nutzt Microsoft Azure (kostenlos, Internet erforderlich) und klingt natürlich. Sherpa ONNX läuft vollständig lokal.</p>
             </div>
+            <div id="tts-watchdog-info" style="display:none;margin-bottom:12px;padding:8px 12px;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:8px;font-size:0.78rem;color:#fcd34d;">
+              ⚠️ TTS-Watchdog hat <strong id="tts-watchdog-count">0</strong>× ausgelöst — Audio steckte &gt; 30s fest. Letztes Mal: <span id="tts-watchdog-last">—</span>
+            </div>
             <div class="field-grid">
               <label class="field-block">
                 <span class="field-label">TTS Provider</span>
@@ -3842,11 +3845,14 @@
         }
         tbody.innerHTML = entries.map(e => {
           const ts = e.created_at ? new Date(e.created_at).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'}) : '—';
-          const action = `<code style="font-size:0.78rem;color:var(--accent);">${escHtml(e.action)}</code>`;
-          return `<tr style="border-bottom:1px solid var(--border);">
+          const isError = e.action === 'system.error';
+          const actionColor = isError ? '#f87171' : 'var(--accent)';
+          const rowBg = isError ? 'rgba(248,113,113,0.06)' : '';
+          const action = `<code style="font-size:0.78rem;color:${actionColor};">${escHtml(e.action)}</code>`;
+          return `<tr style="border-bottom:1px solid var(--border);background:${rowBg}">
             <td style="padding:9px 12px;white-space:nowrap;color:var(--text-muted);">${ts}</td>
             <td style="padding:9px 12px;">${action}</td>
-            <td style="padding:9px 12px;">${escHtml(e.summary || '')}</td>
+            <td style="padding:9px 12px;${isError ? 'color:#fca5a5;' : ''}">${escHtml(e.summary || '')}</td>
           </tr>`;
         }).join('');
       } catch {
@@ -3986,10 +3992,28 @@
       }
     }
 
+    async function loadTtsWatchdogStats() {
+      try {
+        const s = await fetch('/tts/watchdog').then(r => r.json());
+        const box = document.getElementById('tts-watchdog-info');
+        if (!box) return;
+        if (s.count > 0) {
+          document.getElementById('tts-watchdog-count').textContent = s.count;
+          let lastStr = '—';
+          if (s.last_at) { try { lastStr = new Date(s.last_at).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'}); } catch {} }
+          document.getElementById('tts-watchdog-last').textContent = lastStr;
+          box.style.display = 'block';
+        } else {
+          box.style.display = 'none';
+        }
+      } catch {}
+    }
+
     document.querySelector('[data-tab-target="tab-erika"]')?.addEventListener('click', () => {
       loadPersonality();
       loadAttentionSettings();
       loadTtsSettings();
+      loadTtsWatchdogStats();
     });
 
     // ── LLM Konfiguration ─────────────────────────────────────

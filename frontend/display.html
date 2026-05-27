@@ -2397,7 +2397,12 @@
       _playNext();
     };
     // Watchdog: nach 30s force-done wenn Audio steckt
-    _doneGuard = setTimeout(() => { if (_ttsPlaying) done(); }, 30_000);
+    _doneGuard = setTimeout(() => {
+      if (_ttsPlaying) {
+        fetch('/tts/watchdog', { method: 'POST' }).catch(() => {});
+        done();
+      }
+    }, 30_000);
 
     try {
       const buf = _prefetchCache[text] || await _synthesize(text);
@@ -5801,8 +5806,13 @@
       });
       await _faceVideo.play().catch(() => {});
 
+      fetch('/face-recognition/status', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ok: true}) }).catch(() => {});
       _faceLoopTimer = setInterval(_faceDetectionTick, 1500);
-    } catch {}
+    } catch (e) {
+      fetch('/face-recognition/status', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ok: false, error: e?.message || String(e)}) }).catch(() => {});
+      // Retry nach 60s
+      setTimeout(() => { if (_attentionConfig.face_recognition_enabled) _startFaceRecognition(); }, 60_000);
+    }
   }
 
   async function _faceDetectionTick() {

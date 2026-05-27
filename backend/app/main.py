@@ -92,6 +92,8 @@ async def _auto_update_loop() -> None:
 
 async def _reminder_watcher_loop() -> None:
     from app.database.db import get_connection
+    from app.audit.service import AuditService
+    _audit = AuditService()
     while True:
         try:
             from datetime import datetime, timezone
@@ -116,6 +118,7 @@ async def _reminder_watcher_loop() -> None:
                     result = HomeAssistantProvider().execute_light_command(row["light_command"])
                 except Exception as exc:
                     error = str(exc)
+                    _audit.log_error(source="reminder_watcher.light", message=error, details={"command": row["light_command"]})
                 try:
                     with get_connection() as conn:
                         conn.execute(
@@ -137,15 +140,17 @@ async def _reminder_watcher_loop() -> None:
                     "UPDATE reminders SET notified=1 WHERE notified=0 AND dismissed=0 AND fire_at <= ?",
                     (now_iso,),
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_error(source="reminder_watcher_loop", message=str(exc))
         await asyncio.sleep(5)
 
 
 async def _notification_check_loop(interval_seconds: int = 30) -> None:
     from app.services.notification_service import NotificationService
     from app.database.db import get_connection, read_state, write_state
+    from app.audit.service import AuditService
     svc = NotificationService()
+    _audit = AuditService()
     while True:
         try:
             triggered = svc.check_rules()
@@ -153,8 +158,8 @@ async def _notification_check_loop(interval_seconds: int = 30) -> None:
                 with get_connection() as conn:
                     existing = read_state(conn, "pending_notifications") or []
                     write_state(conn, "pending_notifications", existing + triggered)
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_error(source="notification_check_loop", message=str(exc))
         await asyncio.sleep(interval_seconds)
 
 
