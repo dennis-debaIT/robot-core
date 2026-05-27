@@ -89,6 +89,14 @@ def reset_person_persona(person_id: int) -> dict[str, Any]:
     return result
 
 
+@router.post("/profiles/{person_id}/relationship/set")
+def set_person_relationship(person_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    warmth = float(payload.get("warmth", 0.0))
+    tension = float(payload.get("tension", 0.0))
+    openness = float(payload.get("openness", 0.0))
+    return get_core().relationship.set_person_state(person_id, warmth, tension, openness)
+
+
 @router.post("/profiles")
 def create_profile(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     name = str(payload.get("name", "")).strip()

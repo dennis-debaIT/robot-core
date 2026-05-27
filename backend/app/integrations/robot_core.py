@@ -353,11 +353,29 @@ class RobotCore:
         preference_lines: list[str] = []
         preferences = self.profile.get_response_preferences(person_name)
         global_state = self.relationship.get_global_state()
+        mood = self.relationship.get_mood()
 
         personality["friendliness"] = max(0.0, min(1.0, personality["friendliness"] + float(global_state["warmth"]) * 0.05 - float(global_state["tension"]) * 0.04))
         personality["patience"] = max(0.0, min(1.0, personality["patience"] + float(global_state["warmth"]) * 0.04 - float(global_state["tension"]) * 0.05))
         personality["directness"] = max(0.0, min(1.0, personality["directness"] + float(global_state["tension"]) * 0.04))
         personality["sarcasm"] = max(0.0, min(1.0, personality["sarcasm"] + float(global_state["tension"]) * 0.03))
+
+        # Stimmungseinfluss auf Persönlichkeit und Ton
+        mood_score = float(mood.get("score", 0.0))
+        if mood_score >= 0.5:
+            personality["friendliness"] = min(1.0, personality["friendliness"] + 0.08)
+            personality["humor"] = min(1.0, personality["humor"] + 0.05)
+            preference_lines.append("Erikas Stimmung ist aktuell sehr gut — antworte lebhaft und herzlich.")
+        elif mood_score >= 0.2:
+            personality["friendliness"] = min(1.0, personality["friendliness"] + 0.04)
+            preference_lines.append("Erikas Stimmung ist aktuell gut.")
+        elif mood_score <= -0.55:
+            personality["talkativeness"] = max(0.0, personality["talkativeness"] - 0.14)
+            personality["patience"] = max(0.0, personality["patience"] - 0.08)
+            preference_lines.append("Erika ist aktuell gereizt — antworte sehr knapp und sachlich, kein Small Talk.")
+        elif mood_score <= -0.25:
+            personality["talkativeness"] = max(0.0, personality["talkativeness"] - 0.07)
+            preference_lines.append("Erika ist aktuell etwas müde — Antworten dürfen kürzer und nüchterner ausfallen.")
 
         humor_preference = preferences.get("response_humor_preference")
         if humor_preference == "higher":
@@ -396,6 +414,7 @@ class RobotCore:
                 warmth = float(state["warmth"])
                 tension = float(state["tension"])
                 openness = float(state["openness"])
+                interaction_count = int(state.get("interaction_count", 0))
                 personality["friendliness"] = max(0.0, min(1.0, personality["friendliness"] + warmth * 0.18 - tension * 0.20))
                 personality["patience"] = max(0.0, min(1.0, personality["patience"] + warmth * 0.12 - tension * 0.24))
                 personality["directness"] = max(0.0, min(1.0, personality["directness"] + tension * 0.16))
@@ -403,9 +422,22 @@ class RobotCore:
                 personality["humor"] = max(0.0, min(1.0, personality["humor"] + warmth * 0.06))
                 personality["talkativeness"] = max(0.0, min(1.0, personality["talkativeness"] + openness * 0.08))
                 if tension >= 0.55 and warmth <= -0.15:
-                    preference_lines.append("Diese Person war zuletzt häufig gereizt. Antworte knapper, distanzierter und bei Bedarf spürbar schroffer.")
+                    preference_lines.append(
+                        "Diese Person war zuletzt häufig gereizt — antworte knapp und sachlich, "
+                        "keine langen Ausführungen, keine persönlichen Anmerkungen, direkt zur Antwort."
+                    )
+                elif warmth >= 0.55 and tension <= 0.15:
+                    preference_lines.append(
+                        "Mit dieser Person ist das Verhältnis sehr warm und vertraut — du darfst herzlich antworten. "
+                        "Formulierungen wie 'natürlich', 'sehr gerne', 'kein Problem' klingen authentisch."
+                    )
                 elif warmth >= 0.35 and tension <= 0.2:
-                    preference_lines.append("Mit dieser Person ist der Ton zuletzt warm und vertraut. Du darfst etwas herzlicher antworten.")
+                    preference_lines.append("Mit dieser Person ist der Ton zuletzt warm und vertraut — du darfst etwas herzlicher antworten.")
+                if interaction_count >= 30:
+                    preference_lines.append(
+                        f"Du hast bereits {interaction_count} Gespräche mit dieser Person geführt — "
+                        "du kannst direkter antworten und musst nicht jeden Begriff erklären."
+                    )
 
         return personality, response_style, preference_lines
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import Response
 
 from app.api.deps import get_core
@@ -38,6 +38,30 @@ def patch_personality(payload: PersonalityPatchRequest) -> dict[str, Any]:
 @router.post("/personality/reset")
 def reset_global_persona() -> dict[str, Any]:
     return get_core().reset_global_persona()
+
+
+@router.get("/mood")
+def get_mood() -> dict[str, Any]:
+    return get_core().relationship.get_mood()
+
+
+@router.post("/mood/reset")
+def reset_mood() -> dict[str, Any]:
+    return get_core().relationship.reset_mood()
+
+
+@router.post("/mood/set")
+def set_mood(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    score = float(payload.get("score", 0.0))
+    return get_core().relationship.set_mood(score)
+
+
+@router.post("/relationship/global/set")
+def set_global_relationship(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    warmth = float(payload.get("warmth", 0.0))
+    tension = float(payload.get("tension", 0.0))
+    openness = float(payload.get("openness", 0.0))
+    return get_core().relationship.set_global_state_values(warmth, tension, openness)
 
 
 @router.get("/tts/status")

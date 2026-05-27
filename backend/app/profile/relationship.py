@@ -15,6 +15,14 @@ def clamp(value: float, minimum: float, maximum: float) -> float:
     return max(minimum, min(maximum, value))
 
 
+def _mood_label(score: float) -> str:
+    if score >= 0.55: return "sehr gut"
+    if score >= 0.2: return "gut"
+    if score >= -0.15: return "neutral"
+    if score >= -0.45: return "müde"
+    return "gereizt"
+
+
 class PersonRelationshipService:
     POSITIVE_PATTERN = re.compile(
         r"\b(danke|bitte|super|toll|klasse|gut|lieb|nett|freue|cool|prima)\b",
@@ -142,6 +150,15 @@ class PersonRelationshipService:
             }
             write_state(conn, "global_relationship_state", updated_global)
 
+            # Stimmung aktualisieren: driftet mit jedem Gespräch leicht in Richtung Sentiment
+            mood = read_state(conn, "erika_mood") or {"score": 0.0}
+            new_score = clamp(float(mood.get("score", 0.0)) * 0.97 + sentiment * 0.08, -1.0, 1.0)
+            write_state(conn, "erika_mood", {
+                "score": round(new_score, 3),
+                "label": _mood_label(new_score),
+                "updated_at": timestamp,
+            })
+
         return {
             "person_state": self.get_person_state(person_id),
             "global_state": self.get_global_state(),
@@ -153,3 +170,42 @@ class PersonRelationshipService:
                 "hostile_terms": hostile,
             },
         }
+
+    def get_mood(self) -> dict[str, Any]:
+        with get_connection() as conn:
+            return read_state(conn, "erika_mood") or {"score": 0.0, "label": "neutral", "updated_at": None}
+
+    def set_mood(self, score: float) -> dict[str, Any]:
+        score = clamp(score, -1.0, 1.0)
+        mood = {"score": round(score, 3), "label": _mood_label(score), "updated_at": now_iso()}
+        with get_connection() as conn:
+            write_state(conn, "erika_mood", mood)
+        return mood
+
+    def reset_mood(self) -> dict[str, Any]:
+        return self.set_mood(0.0)
+
+    def set_person_state(self, person_id: int, warmth: float, tension: float, openness: float) -> dict[str, Any]:
+        self._ensure_row(person_id)
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE person_relationship_state
+                SET warmth = ?, tension = ?, openness = ?, updated_at = ?
+                WHERE person_id = ?
+                """,
+                (clamp(warmth, -1.0, 1.0), clamp(tension, 0.0, 1.0), clamp(openness, -1.0, 1.0), now_iso(), person_id),
+            )
+        return self.get_person_state(person_id)
+
+    def set_global_state_values(self, warmth: float, tension: float, openness: float) -> dict[str, Any]:
+        state = self.get_global_state()
+        state.update({
+            "warmth": clamp(warmth, -1.0, 1.0),
+            "tension": clamp(tension, 0.0, 1.0),
+            "openness": clamp(openness, -1.0, 1.0),
+            "updated_at": now_iso(),
+        })
+        with get_connection() as conn:
+            write_state(conn, "global_relationship_state", state)
+        return state

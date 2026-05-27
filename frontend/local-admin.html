@@ -716,12 +716,31 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Globaler Beziehungsstatus</div>
-              <p>Wie Erika generell auf alle Personen reagiert — beeinflusst durch vergangene Gespräche.</p>
+              <p>Wie Erika generell auf alle Personen reagiert — entwickelt sich aus Gesprächen und kann manuell korrigiert werden.</p>
             </div>
             <div id="global-relationship" style="margin-top:8px;"></div>
             <button type="button" onclick="resetGlobalRelationship()" style="margin-top:12px;padding:6px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">
               ↺ Globalen Status zurücksetzen
             </button>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Aktuelle Stimmung</div>
+              <p>Erikas eigener emotionaler Zustand — entwickelt sich aus Gesprächsmustern und beeinflusst Ton und Wortwahl.</p>
+            </div>
+            <div id="mood-display" style="margin-top:8px;"></div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:0.78rem;color:var(--muted);min-width:90px;">Manuell setzen</span>
+                <input type="range" id="mood-slider" min="-100" max="100" value="0" style="flex:1;accent-color:#00c8ff;" oninput="document.getElementById('mood-slider-val').textContent=(this.value/100).toFixed(2)">
+                <span id="mood-slider-val" style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right;">0.00</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button type="button" onclick="saveMood()" style="padding:6px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">💾 Setzen</button>
+                <button type="button" onclick="resetMood()" style="padding:6px 14px;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>
+              </div>
+            </div>
           </section>
         </article>
 
@@ -2962,12 +2981,22 @@
       }
     }
 
+    function _sliderRow(id, label, value, min, max) {
+      const val = Math.round(value * 100);
+      return `<div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:0.72rem;color:var(--muted);min-width:90px;">${label}</span>
+        <input type="range" id="${id}" min="${min*100}" max="${max*100}" value="${val}" step="1" style="flex:1;accent-color:#00c8ff;" oninput="document.getElementById('${id}-val').textContent=(this.value/100).toFixed(2)">
+        <span id="${id}-val" style="font-size:0.72rem;font-weight:700;min-width:36px;text-align:right;">${value.toFixed(2)}</span>
+      </div>`;
+    }
+
     function _renderGlobalRelationship() {
       const el = document.getElementById('global-relationship');
       if (!el) return;
       const rel = _personalityData.relationship_state || {};
-      const warmth  = parseFloat(rel.warmth  ?? 0);
-      const tension = parseFloat(rel.tension  ?? 0);
+      const warmth   = parseFloat(rel.warmth   ?? 0);
+      const tension  = parseFloat(rel.tension  ?? 0);
+      const openness = parseFloat(rel.openness ?? 0);
       const _bar = (val, maxVal, color) => {
         const pct = Math.round(Math.abs(val) / maxVal * 100);
         return `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;flex:1;">
@@ -2979,17 +3008,86 @@
           ${_bar(warmth, 1, '#4caf50')}
           <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right;color:${warmth >= 0 ? '#4caf50' : '#ff3d3d'};">${warmth >= 0 ? '+' : ''}${warmth.toFixed(2)}</span>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
           <span style="font-size:0.78rem;min-width:90px;color:var(--muted);">Anspannung</span>
           ${_bar(tension, 1, '#ff3d3d')}
           <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right;color:${tension > 0.3 ? '#ff3d3d' : 'var(--muted)'};">${tension.toFixed(2)}</span>
-        </div>`;
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <span style="font-size:0.78rem;min-width:90px;color:var(--muted);">Offenheit</span>
+          ${_bar(openness, 1, '#7c9ff5')}
+          <span style="font-size:0.78rem;font-weight:700;min-width:36px;text-align:right;color:${openness >= 0 ? '#7c9ff5' : 'var(--muted)'};">${openness >= 0 ? '+' : ''}${openness.toFixed(2)}</span>
+        </div>
+        <details>
+          <summary style="font-size:0.72rem;color:var(--muted);cursor:pointer;user-select:none;">Manuell anpassen</summary>
+          <div style="padding:10px 0 0;display:flex;flex-direction:column;gap:8px;">
+            ${_sliderRow('gr-warmth', 'Wärme', warmth, -1, 1)}
+            ${_sliderRow('gr-tension', 'Anspannung', tension, 0, 1)}
+            ${_sliderRow('gr-openness', 'Offenheit', openness, -1, 1)}
+            <button onclick="saveGlobalRelationship()" style="align-self:flex-start;padding:5px 14px;border-radius:8px;font-size:0.76rem;font-weight:700;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;margin-top:4px;">💾 Speichern</button>
+          </div>
+        </details>`;
+    }
+
+    async function saveGlobalRelationship() {
+      const warmth   = parseInt(document.getElementById('gr-warmth').value) / 100;
+      const tension  = parseInt(document.getElementById('gr-tension').value) / 100;
+      const openness = parseInt(document.getElementById('gr-openness').value) / 100;
+      await fetch('/relationship/global/set', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({warmth, tension, openness})});
+      await loadPersonality();
     }
 
     async function resetGlobalRelationship() {
       if (!await showConfirm('Globalen Beziehungsstatus zurücksetzen?', 'Zurücksetzen')) return;
       await fetch('/personality/reset', { method: 'POST' });
       await loadPersonality();
+    }
+
+    let _moodData = {};
+
+    async function loadMood() {
+      try {
+        _moodData = await fetch('/mood').then(r => r.json());
+        _renderMood();
+      } catch {}
+    }
+
+    function _renderMood() {
+      const el = document.getElementById('mood-display');
+      if (!el) return;
+      const score = parseFloat(_moodData.score ?? 0);
+      const label = _moodData.label || 'neutral';
+      const color = score >= 0.2 ? '#4caf50' : score <= -0.45 ? '#ff3d3d' : score <= -0.2 ? '#ffab00' : 'var(--muted)';
+      const pct = Math.round((score + 1) / 2 * 100);
+      const timeStr = _moodData.updated_at
+        ? new Date(_moodData.updated_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})
+        : '–';
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+          <span style="padding:3px 12px;border-radius:20px;font-size:0.78rem;font-weight:700;background:${color}22;border:1px solid ${color};color:${color};">${label}</span>
+          <span style="font-size:0.76rem;color:var(--muted);">${score >= 0 ? '+' : ''}${score.toFixed(2)}</span>
+          <span style="font-size:0.7rem;color:var(--muted);">zuletzt: ${timeStr}</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width 0.3s;"></div>
+        </div>`;
+      const slider = document.getElementById('mood-slider');
+      if (slider) {
+        slider.value = Math.round(score * 100);
+        document.getElementById('mood-slider-val').textContent = score.toFixed(2);
+      }
+    }
+
+    async function saveMood() {
+      const score = parseInt(document.getElementById('mood-slider').value) / 100;
+      await fetch('/mood/set', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({score})});
+      await loadMood();
+    }
+
+    async function resetMood() {
+      if (!await showConfirm('Erikas Stimmung auf neutral zurücksetzen?', 'Zurücksetzen')) return;
+      await fetch('/mood/reset', {method:'POST'});
+      await loadMood();
     }
 
     // tab-erika listener → in saveAttentionSettings Block zusammengeführt
@@ -3152,12 +3250,22 @@
         }).join('');
 
         // Beziehungsstatus
-        const warmth  = parseFloat(relState.warmth  ?? 0);
-        const tension = parseFloat(relState.tension  ?? 0);
+        const warmth     = parseFloat(relState.warmth     ?? 0);
+        const tension    = parseFloat(relState.tension    ?? 0);
+        const openness_v = parseFloat(relState.openness   ?? 0);
+        const intCount   = parseInt(relState.interaction_count ?? 0);
         const _miniBar = (val, color) => {
           const pct = Math.round(Math.min(1, Math.abs(val)) * 100);
           return `<div style="flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden;">
             <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div>`;
+        };
+        const _mSlider = (sid, label, value, min, max) => {
+          const val = Math.round(value * 100);
+          return `<div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:0.68rem;color:var(--muted);min-width:80px;">${label}</span>
+            <input type="range" id="${sid}" min="${min*100}" max="${max*100}" value="${val}" step="1" style="flex:1;accent-color:#00c8ff;" oninput="document.getElementById('${sid}-v').textContent=(this.value/100).toFixed(2)">
+            <span id="${sid}-v" style="font-size:0.68rem;font-weight:700;min-width:32px;text-align:right;">${value.toFixed(2)}</span>
+          </div>`;
         };
         const relInner = `
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
@@ -3165,12 +3273,27 @@
               ${_miniBar(warmth, '#4caf50')}
               <span style="font-size:0.72rem;font-weight:700;color:${warmth >= 0 ? '#4caf50' : '#ff3d3d'};min-width:36px;text-align:right;">${warmth >= 0 ? '+' : ''}${warmth.toFixed(2)}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
               <span style="font-size:0.72rem;color:var(--muted);min-width:80px;">Anspannung</span>
               ${_miniBar(tension, '#ff3d3d')}
               <span style="font-size:0.72rem;font-weight:700;color:${tension > 0.3 ? '#ff3d3d' : 'var(--muted)'};min-width:36px;text-align:right;">${tension.toFixed(2)}</span>
             </div>
-            <button onclick="resetPersonRelationship(${id})" style="padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>`;
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="font-size:0.72rem;color:var(--muted);min-width:80px;">Offenheit</span>
+              ${_miniBar(openness_v, '#7c9ff5')}
+              <span style="font-size:0.72rem;font-weight:700;color:${openness_v >= 0 ? '#7c9ff5' : 'var(--muted)'};min-width:36px;text-align:right;">${openness_v >= 0 ? '+' : ''}${openness_v.toFixed(2)}</span>
+            </div>
+            <div style="font-size:0.68rem;color:var(--muted);margin-bottom:10px;">${intCount} Gespräche</div>
+            <details>
+              <summary style="font-size:0.68rem;color:var(--muted);cursor:pointer;user-select:none;">Manuell anpassen</summary>
+              <div style="padding:8px 0 0;display:flex;flex-direction:column;gap:6px;">
+                ${_mSlider('pr-w-'+id,'Wärme',warmth,-1,1)}
+                ${_mSlider('pr-t-'+id,'Anspannung',tension,0,1)}
+                ${_mSlider('pr-o-'+id,'Offenheit',openness_v,-1,1)}
+                <button onclick="savePersonRelationship(${id})" style="align-self:flex-start;padding:3px 12px;border-radius:6px;font-size:0.68rem;font-weight:700;cursor:pointer;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;margin-top:4px;">💾 Speichern</button>
+              </div>
+            </details>
+            <button onclick="resetPersonRelationship(${id})" style="margin-top:8px;padding:3px 10px;border-radius:6px;font-size:0.68rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">↺ Zurücksetzen</button>`;
         const relHtml = _sec('💙', 'Beziehungsstatus', relInner, false);
 
         // Reaktions-Vorlieben — nur bekannte Preference-Typen, kein write_calendar_entity o.ä.
@@ -3367,6 +3490,14 @@
       } catch {
         el.innerHTML = '<div style="color:var(--danger);font-size:0.78rem;">Fehler beim Laden.</div>';
       }
+    }
+
+    async function savePersonRelationship(personId) {
+      const warmth   = parseInt(document.getElementById(`pr-w-${personId}`).value) / 100;
+      const tension  = parseInt(document.getElementById(`pr-t-${personId}`).value) / 100;
+      const openness = parseInt(document.getElementById(`pr-o-${personId}`).value) / 100;
+      await fetch(`/profiles/${personId}/relationship/set`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({warmth, tension, openness})});
+      await loadPersonDetail(personId);
     }
 
     async function resetPersonRelationship(personId) {
@@ -4014,6 +4145,7 @@
       loadAttentionSettings();
       loadTtsSettings();
       loadTtsWatchdogStats();
+      loadMood();
     });
 
     // ── LLM Konfiguration ─────────────────────────────────────
