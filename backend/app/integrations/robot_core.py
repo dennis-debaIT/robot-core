@@ -539,7 +539,7 @@ class RobotCore:
         return self.audit.list_entries(limit=limit)
 
     def generate_greeting(self, person_id: int) -> dict[str, Any] | None:
-        """Erzeugt eine kontextuelle Begrüßung basierend auf Beziehungsstatus und Zeit seit letztem Gespräch."""
+        """Erzeugt eine kontextuelle Begrüßung basierend auf Beziehungsstatus, Stimmung, Zeit und aktiven Themen."""
         import random
         person = self.profile.get_person_by_id(person_id)
         if not person:
@@ -549,6 +549,8 @@ class RobotCore:
         state = self.relationship.get_person_state(person_id)
         warmth  = float(state.get("warmth", 0.0))
         tension = float(state.get("tension", 0.0))
+        mood = self.relationship.get_mood()
+        mood_score = float(mood.get("score", 0.0))
 
         # Zeit seit letztem Gespräch dieser Person (nicht global)
         minutes_since = 99999
@@ -561,6 +563,14 @@ class RobotCore:
                 (name,),
             ).fetchone()
             last_at = row["last_at"] if row else None
+
+            # Aktive Themen dieser Person
+            topic_rows = conn.execute(
+                "SELECT title FROM active_topics WHERE person_name=? AND status='active' "
+                "ORDER BY importance DESC, mentions DESC LIMIT 3",
+                (name,),
+            ).fetchall()
+
         if last_at:
             try:
                 dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
@@ -590,6 +600,12 @@ class RobotCore:
         elif warmth >= 0.2:
             tone = "friendly"
         else:
+            tone = "neutral"
+
+        # Schlechte Stimmung → Ton eine Stufe kühler
+        if mood_score <= -0.5 and tone == "warm":
+            tone = "friendly"
+        elif mood_score <= -0.5 and tone == "friendly":
             tone = "neutral"
 
         # Begrüßungstexte nach Ton und Abwesenheit
@@ -623,6 +639,30 @@ class RobotCore:
         options = _GREETINGS.get(tone, _GREETINGS["neutral"]).get(absence, ["Hallo."])
         text = random.choice(options)
 
+        # Themen-Addon — Erika bringt ein aktives Gesprächsthema ein
+        topics = [r["title"] for r in topic_rows]
+        topic_used = None
+        if topics and tone not in ("reserved",):
+            topic = random.choice(topics[:2])
+            topic_used = topic
+            if absence == "none":
+                # Proaktive Ansprache (25min Stille): Erika bricht das Schweigen mit einer konkreten Frage
+                proactive = [
+                    f"Ich wollte kurz fragen — wie sieht's aus mit {topic}?",
+                    f"Darf ich kurz stören? Ich musste gerade an {topic} denken.",
+                    f"Hey, kurze Frage: {topic} — alles im Griff?",
+                ]
+                if mood_score >= 0.2:
+                    proactive.append(f"Sag mal, {topic} — gibt's da was Neues?")
+                text += " " + random.choice(proactive)
+            elif absence in ("medium", "long"):
+                # Nach längerer Abwesenheit: Thema erwähnen
+                addons = [
+                    f"Du hast zuletzt öfter über {topic} gesprochen — noch aktuell?",
+                    f"Wie läuft's übrigens mit {topic}?",
+                ]
+                text += " " + random.choice(addons)
+
         return {
             "text": text,
             "skip": False,
@@ -631,6 +671,8 @@ class RobotCore:
             "minutes_since": minutes_since,
             "warmth": warmth,
             "tension": tension,
+            "mood_label": mood.get("label", "neutral"),
+            "topic": topic_used,
         }
 
     def list_conversation_messages(self, person_name: str | None = None, limit: int = 40) -> list[dict[str, Any]]:
