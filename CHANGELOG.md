@@ -25,6 +25,7 @@ Format: neueste Einträge oben.
   - `MemoryService`: baut Session-Kontext, erstellt/aktualisiert Tageszusammenfassungen, komprimiert 30 Tage alte Tageseinträge zu Wochensummaries, archiviert inaktive Themen nach 60 Tagen, löscht Wochen älter als 6 Monate
   - Stündlicher Hintergrund-Loop `_memory_maintenance_loop` aktualisiert alle Zusammenfassungen für jede bekannte Person
   - System-Prompt enthält jetzt: aktive Themen, Tagesrückblick (letzte 7 Tage), Wochengedächtnis
+- **Kiosk-Display mit Kamera & Mikrofon**: `install.sh` richtet Chromium automatisch als Vollbild-Kiosk ein; Kamera und Mikrofon werden per Policy-Datei (`/etc/chromium/policies/managed/erika.json`) vorab freigegeben — kein Browser-Berechtigungsdialog beim Start; Autostart via `~/.config/autostart/erika-kiosk.desktop` mit 8-Sekunden Verzögerung; `INSTALL_MANUAL.md` Schritt 9 vollständig dokumentiert
 
 ---
 
