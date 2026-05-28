@@ -67,11 +67,11 @@ class RobotCore:
         re.IGNORECASE,
     )
     DEVICE_STATE_QUESTION_PATTERN = re.compile(
-        r"\b(gerÃ¤tezustand|geraetezustand|status|lage)\b",
+        r"\b(gerätezustand|geraetezustand|status|lage)\b",
         re.IGNORECASE,
     )
     KNOWLEDGE_QUESTION_PATTERN = re.compile(
-        r"\b(?:was\s+wei(?:ÃŸ|ss)t\s+du\s+Ã¼ber|erzÃ¤hl(?:e)?\s+mir\s+etwas\s+Ã¼ber)\s+([A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ][A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ-]*)",
+        r"\b(?:was\s+wei(?:ß|ss)t\s+du\s+über|erzähl(?:e)?\s+mir\s+etwas\s+über)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]*)",
         re.IGNORECASE,
     )
 
