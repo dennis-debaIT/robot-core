@@ -314,7 +314,7 @@ class RobotCore:
     def _prompt_keywords(text: str) -> set[str]:
         return {
             token
-            for token in re.findall(r"[A-Za-zÃ„Ã–ÃœÃ¤Ã¶Ã¼ÃŸ0-9-]{3,}", text.casefold())
+            for token in re.findall(r"[A-Za-zÄÖÜäöüß0-9-]{3,}", text.casefold())
             if token not in {"und", "oder", "aber", "dass", "weil", "eine", "einer", "einem", "einen"}
         }
 
@@ -524,7 +524,7 @@ class RobotCore:
             action="device.updated",
             target_type="device",
             target_id=updated["device_name"],
-            summary="GerÃ¤tezustand wurde aktualisiert.",
+            summary="Gerätezustand wurde aktualisiert.",
             details={
                 "device_name": updated["device_name"],
                 "effective_state": updated["effective_state"],
@@ -1165,18 +1165,18 @@ class RobotCore:
             update_status = status["device"]["update_status"]
             if update_status == "idle":
                 return (
-                    "Nein, aktuell lÃ¤uft alles normal.\n"
-                    f"Battery: {status['battery_level']}% | Display: {status['display_status']} | GerÃ¤t: {status['device']['effective_state']}"
+                    "Nein, aktuell läuft alles normal.\n"
+                    f"Battery: {status['battery_level']}% | Display: {status['display_status']} | Gerät: {status['device']['effective_state']}"
                 )
             if update_status == "available":
                 return "Ja, es gibt ein ausstehendes Update. Es wurde noch nicht gestartet."
             if update_status == "failed":
-                return "Ein Update ist fehlgeschlagen. Das sollte geprÃ¼ft werden."
-            return f"Ein Update lÃ¤uft gerade. Aktueller Stand: {update_status}."
+                return "Ein Update ist fehlgeschlagen. Das sollte geprüft werden."
+            return f"Ein Update läuft gerade. Aktueller Stand: {update_status}."
         if self.DISPLAY_QUESTION_PATTERN.search(message):
             return f"Mein Display steht gerade auf {status['display_status']}."
         if self.DEVICE_STATE_QUESTION_PATTERN.search(message) and any(
-            token in message.casefold() for token in ("gerÃ¤t", "geraet", "erika", "lage", "status")
+            token in message.casefold() for token in ("gerät", "geraet", "erika", "lage", "status")
         ):
             return (
                 f"Gerade bin ich im Zustand {status['device']['effective_state']}."
@@ -1205,7 +1205,7 @@ class RobotCore:
                 elif trait == "dislike":
                     profile_facts.append(f"{person_name} mag {value} nicht.")
                 elif trait == "height":
-                    profile_facts.append(f"{person_name} ist {value} groÃŸ.")
+                    profile_facts.append(f"{person_name} ist {value} groß.")
                 elif trait == "favorite_color":
                     profile_facts.append(f"{person_name} mag die Farbe {value}.")
                 elif trait == "eye_color":
@@ -1233,7 +1233,7 @@ class RobotCore:
                 elif trait == "family_relation":
                     if ":" in value:
                         relation, relation_name = value.split(":", 1)
-                        profile_facts.append(f"{self._possessive_form(person_name)} {relation} heiÃŸt {relation_name}.")
+                        profile_facts.append(f"{self._possessive_form(person_name)} {relation} heißt {relation_name}.")
                     else:
                         profile_facts.append(f"{person_name}: {value}")
                 elif trait == "person_relationship":
@@ -1253,19 +1253,19 @@ class RobotCore:
 
         if profile_facts:
             details = " ".join(profile_facts[:3])
-            return f"Ãœber {person_name} weiÃŸ ich aktuell Folgendes: {details}"
+            return f"Über {person_name} weiß ich aktuell Folgendes: {details}"
 
         if memory_only_items:
             details = " ".join(memory_only_items[:2])
             return (
-                f"Ãœber {person_name} gibt es aktuell freigegebene Aussagen, aber noch kein bestÃ¤tigtes Profilwissen. "
+                f"Über {person_name} gibt es aktuell freigegebene Aussagen, aber noch kein bestätigtes Profilwissen. "
                 f"Bisher gespeichert ist: {details}"
             )
 
         if profile:
-            return f"Ãœber {person_name} ist aktuell noch kein bestÃ¤tigtes Wissen gespeichert."
+            return f"Über {person_name} ist aktuell noch kein bestätigtes Wissen gespeichert."
 
-        return f"Ãœber {person_name} weiÃŸ ich aktuell noch nichts."
+        return f"Über {person_name} weiß ich aktuell noch nichts."
 
     def chat(self, message: str, person_name: str | None = None) -> dict[str, Any]:
         settings = self.settings.get_effective()
@@ -1670,7 +1670,7 @@ class RobotCore:
             action="person.deleted",
             target_type="person",
             target_id=str(person_id),
-            summary="Person wurde lokal hart gelÃ¶scht.",
+            summary="Person wurde lokal hart gelöscht.",
             details={
                 "person_name": person_name,
                 "deleted_memory_count": deleted_memories,
@@ -1773,7 +1773,7 @@ class RobotCore:
             return memory["content"][len(prefix):].rstrip(".") if memory["content"].startswith(prefix) else memory["content"]
         if memory["category"] == "interest":
             match = re.match(
-                rf"^{re.escape(memory['subject'])} interessiert sich f(?:ü|Ã¼)r (.+)\.$",
+                rf"^{re.escape(memory['subject'])} interessiert sich für (.+)\.$",
                 memory["content"],
             )
             if match:
@@ -1787,7 +1787,7 @@ class RobotCore:
 
     @staticmethod
     def _possessive_form(name: str) -> str:
-        if name.casefold().endswith(("s", "ÃŸ", "x", "z")):
+        if name.casefold().endswith(("s", "ß", "x", "z")):
             return f"{name}'"
         return f"{name}s"
 
