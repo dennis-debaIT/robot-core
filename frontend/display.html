@@ -1563,7 +1563,7 @@
   // ── PV STATISTIK OVERLAY ──────────────────────────────────
   let _pvStatsView = 'today';
 
-  function _svgBar(labels, values, unit, w, h) {
+  function _svgBar(labels, values, unit, w, h, color = '#00c8ff') {
     const valid = values.map(v => v ?? 0);
     const maxV  = Math.max(...valid, 0.01);
     const pad   = { t: 10, r: 8, b: 32, l: 38 };
@@ -1572,13 +1572,14 @@
     const bw    = Math.max(4, cw / Math.max(labels.length, 1) * 0.7);
     const gap   = cw / Math.max(labels.length, 1);
     let bars = '', lbls = '';
+    const dimColor = color.startsWith('#') ? color + '59' : color.replace(')', ',0.35)').replace('rgb(', 'rgba(');
     valid.forEach((v, i) => {
       const bh = ch * (v / maxV);
       const x  = pad.l + gap * i + (gap - bw) / 2;
       const y  = pad.t + ch - bh;
       const isToday = (i === valid.length - 1);
       bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,bh).toFixed(1)}"
-        fill="${isToday ? '#00c8ff' : 'rgba(0,200,255,0.35)'}" rx="3"
+        fill="${isToday ? color : dimColor}" rx="3"
         title="${labels[i]}: ${v} ${unit}"/>`;
       if (i % Math.max(1, Math.floor(labels.length / 8)) === 0 || i === labels.length - 1)
         lbls += `<text x="${(x + bw/2).toFixed(1)}" y="${(h - 6).toFixed(1)}" text-anchor="middle"
@@ -1716,9 +1717,14 @@
     if (!content) return;
     content.innerHTML = '<div style="color:#7f8dcb;font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>';
     try {
-      const r = await fetch(`/ha/pv/history?view=${view}`, { cache: 'no-store' });
-      if (!r.ok) throw new Error(await r.text());
-      const d = await r.json();
+      const [pvResp, gridResp] = await Promise.all([
+        fetch(`/ha/pv/history?view=${view}`, { cache: 'no-store' }),
+        fetch(`/ha/pv/grid-history?view=${view}`, { cache: 'no-store' }),
+      ]);
+      if (!pvResp.ok) throw new Error(await pvResp.text());
+      const d  = await pvResp.json();
+      const gd = gridResp.ok ? await gridResp.json() : null;
+
       const labels = d.labels || [];
       const values = d.values || [];
       const unit   = d.unit || '';
@@ -1732,9 +1738,51 @@
              <span style="font-size:0.7rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
              <span style="font-size:1.2rem;font-weight:800;color:#00c8ff;">${typeof total==='number'?total.toLocaleString('de-DE',{maximumFractionDigits:1}):total} ${d.total_unit||unit}</span>
            </div>` : '';
+
+      // ── Netz-Sektion (nur wenn Sensor konfiguriert) ──────────
+      let gridHtml = '';
+      if (gd) {
+        const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
+        if (view === 'today') {
+          gridHtml = `
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid #24284a;">
+              <div style="font-size:0.72rem;font-weight:700;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Netz heute</div>
+              <div style="display:flex;gap:16px;">
+                <div style="flex:1;background:rgba(0,255,120,0.07);border:1px solid rgba(0,255,120,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
+                  <div style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↑ Einspeisung</div>
+                  <div style="font-size:1.2rem;font-weight:800;color:#00ff78;">${fmtKwh(gd.einspeisung)}</div>
+                </div>
+                <div style="flex:1;background:rgba(255,160,50,0.07);border:1px solid rgba(255,160,50,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
+                  <div style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↓ Netzbezug</div>
+                  <div style="font-size:1.2rem;font-weight:800;color:#ffa032;">${fmtKwh(gd.netzbezug)}</div>
+                </div>
+              </div>
+            </div>`;
+        } else {
+          const glabels = gd.labels || [];
+          const einChart = glabels.length ? _svgBar(glabels, gd.einspeisung || [], 'kWh', 680, 160, '#00ff78') : '';
+          const bezChart = glabels.length ? _svgBar(glabels, gd.netzbezug  || [], 'kWh', 680, 160, '#ffa032') : '';
+          gridHtml = `
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid #24284a;">
+              <div style="font-size:0.72rem;font-weight:700;color:#00ff78;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↑ Einspeisung</div>
+              ${einChart}
+              <div style="display:flex;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
+                <span style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+                <span style="font-size:1rem;font-weight:800;color:#00ff78;">${fmtKwh(gd.einspeisung_total)}</span>
+              </div>
+              <div style="font-size:0.72rem;font-weight:700;color:#ffa032;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↓ Netzbezug</div>
+              ${bezChart}
+              <div style="display:flex;justify-content:space-between;margin-top:6px;">
+                <span style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+                <span style="font-size:1rem;font-weight:800;color:#ffa032;">${fmtKwh(gd.netzbezug_total)}</span>
+              </div>
+            </div>`;
+        }
+      }
+
       content.innerHTML = `
         <div style="font-size:0.72rem;font-weight:700;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
-        ${chart}${totalHtml}`;
+        ${chart}${totalHtml}${gridHtml}`;
     } catch(e) {
       content.innerHTML = `<div style="color:#ff4f5f;font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
     }

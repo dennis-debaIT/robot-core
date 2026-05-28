@@ -133,6 +133,121 @@ def _integrate_power_to_daily_kwh(
     return result
 
 
+def _integrate_grid_daily(
+    grid_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> dict[str, dict[str, float]]:
+    """Trennt den Netz-Leistungssensor (W) in tägliche Einspeisung und Netzbezug (kWh).
+
+    Positiv = Einspeisung (Export), negativ = Netzbezug (Import) — Huawei-Konvention.
+    """
+    states = ha.get_history(grid_id, start_utc, end_utc, chunk_hours=24)
+
+    by_date: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for s in states:
+        v = _safe_float(s.get("state"))
+        if v is None:
+            continue
+        ts_str = s.get("last_changed") or s.get("last_updated") or ""
+        if not ts_str:
+            continue
+        try:
+            dt_utc = datetime.fromisoformat(ts_str)
+            if dt_utc.tzinfo is None:
+                dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+            dt_loc = dt_utc.astimezone(_LOCAL_TZ)
+        except Exception:
+            continue
+        by_date[dt_loc.strftime("%Y-%m-%d")].append((dt_utc.timestamp(), v))
+
+    result: dict[str, dict[str, float]] = {}
+    for date_key, readings in by_date.items():
+        readings.sort(key=lambda x: x[0])
+        ein = 0.0
+        bez = 0.0
+        for i in range(len(readings) - 1):
+            dt_secs = readings[i + 1][0] - readings[i][0]
+            if 0 < dt_secs <= 1800:
+                kwh = readings[i][1] * dt_secs / 3_600_000
+                if kwh > 0:
+                    ein += kwh   # positiv = Einspeisung
+                else:
+                    bez -= kwh   # negativ → positiver Bezugswert
+        result[date_key] = {"einspeisung": round(ein, 2), "netzbezug": round(bez, 2)}
+
+    return result
+
+
+@router.get("/ha/pv/grid-history")
+def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
+    config = IntegrationConfigService().get_config()
+    sensors = _pv_sensors(config)
+    grid_id = sensors.get("grid", "")
+    if not grid_id:
+        raise HTTPException(404, "Netz-Sensor nicht konfiguriert")
+
+    ha      = HomeAssistantProvider()
+    now_loc = datetime.now(_LOCAL_TZ)
+    now_utc = now_loc.astimezone(timezone.utc)
+    start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    if view == "today":
+        daily = _integrate_grid_daily(grid_id, start_utc, now_utc, ha)
+        today = daily.get(now_loc.strftime("%Y-%m-%d"), {"einspeisung": 0.0, "netzbezug": 0.0})
+        return {"view": "today", "einspeisung": today["einspeisung"],
+                "netzbezug": today["netzbezug"], "unit": "kWh"}
+
+    if view == "7days":
+        s7_utc = start_utc - timedelta(days=6)
+        daily  = _integrate_grid_daily(grid_id, s7_utc, now_utc, ha)
+        labels, ein_vals, bez_vals = [], [], []
+        for date_key in sorted(daily):
+            dt = datetime.fromisoformat(date_key)
+            labels.append(_DE_WEEKDAYS_SHORT[dt.weekday()])
+            ein_vals.append(daily[date_key]["einspeisung"])
+            bez_vals.append(daily[date_key]["netzbezug"])
+        return {"view": "7days", "labels": labels,
+                "einspeisung": ein_vals, "netzbezug": bez_vals,
+                "einspeisung_total": round(sum(ein_vals), 1),
+                "netzbezug_total":   round(sum(bez_vals), 1), "unit": "kWh"}
+
+    if view == "month":
+        sm_utc = start_utc.replace(day=1)
+        daily  = _integrate_grid_daily(grid_id, sm_utc, now_utc, ha)
+        labels, ein_vals, bez_vals = [], [], []
+        for date_key in sorted(daily):
+            dt = datetime.fromisoformat(date_key)
+            labels.append(str(dt.day))
+            ein_vals.append(daily[date_key]["einspeisung"])
+            bez_vals.append(daily[date_key]["netzbezug"])
+        return {"view": "month", "labels": labels,
+                "einspeisung": ein_vals, "netzbezug": bez_vals,
+                "einspeisung_total": round(sum(ein_vals), 1),
+                "netzbezug_total":   round(sum(bez_vals), 1), "unit": "kWh"}
+
+    if view == "year":
+        sy_utc = start_utc.replace(month=1, day=1)
+        daily  = _integrate_grid_daily(grid_id, sy_utc, now_utc, ha)
+        monthly_ein: dict[int, float] = defaultdict(float)
+        monthly_bez: dict[int, float] = defaultdict(float)
+        for date_key, v in daily.items():
+            m = int(date_key[5:7])
+            monthly_ein[m] += v["einspeisung"]
+            monthly_bez[m] += v["netzbezug"]
+        months = sorted(set(list(monthly_ein) + list(monthly_bez)))
+        labels    = [_DE_MONTHS_SHORT[m - 1] for m in months]
+        ein_vals  = [round(monthly_ein[m], 1) for m in months]
+        bez_vals  = [round(monthly_bez[m], 1) for m in months]
+        return {"view": "year", "labels": labels,
+                "einspeisung": ein_vals, "netzbezug": bez_vals,
+                "einspeisung_total": round(sum(ein_vals), 1),
+                "netzbezug_total":   round(sum(bez_vals), 1), "unit": "kWh"}
+
+    raise HTTPException(400, f"Unbekannte View: {view}")
+
+
 @router.get("/ha/pv/providers")
 def get_pv_providers() -> dict[str, Any]:
     return {
