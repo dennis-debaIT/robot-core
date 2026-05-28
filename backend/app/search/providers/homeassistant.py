@@ -674,12 +674,11 @@ class HomeAssistantProvider:
         result = self._post("/statistics_during_period", payload)
         return result if isinstance(result, dict) else {}
 
-    def get_history(self, entity_id: str, start: datetime, end: datetime) -> list[dict]:
-        """Rohe Zustandshistorie eines Sensors — in 2h-Chunks um Truncation zu vermeiden."""
+    def get_history(self, entity_id: str, start: datetime, end: datetime, chunk_hours: int = 2) -> list[dict]:
+        """Rohe Zustandshistorie eines Sensors — in chunk_hours-Chunks um Truncation zu vermeiden."""
         fmt = "%Y-%m-%dT%H:%M:%S%z"
         all_states: list[dict] = []
         chunk_start = start
-        chunk_hours = 2
         while chunk_start < end:
             chunk_end = min(chunk_start + timedelta(hours=chunk_hours), end)
             params = urllib.parse.urlencode({
