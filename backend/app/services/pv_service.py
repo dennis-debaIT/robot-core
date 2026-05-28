@@ -12,6 +12,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "sensor.solarman_daily_production",
             "temperature": "sensor.solarman_radiator_temperature",
             "last_update": "sensor.solarman_status_lastupdate",
+            "battery":     "",
         },
     },
     "fronius": {
@@ -21,6 +22,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
+            "battery":     "",
         },
     },
     "sma": {
@@ -30,6 +32,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
+            "battery":     "",
         },
     },
     "enphase": {
@@ -39,6 +42,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
+            "battery":     "",
         },
     },
     "custom": {
@@ -48,6 +52,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
+            "battery":     "",
         },
     },
 }

@@ -598,6 +598,10 @@
                 <span class="field-label">Letzte Aktualisierung (optional)</span>
                 <input id="pv-sensor-last-update" class="field-input" type="text" placeholder="sensor.xxx_last_update">
               </label>
+              <label class="field-block">
+                <span class="field-label">Batterieladung % (optional)</span>
+                <input id="pv-sensor-battery" class="field-input" type="text" placeholder="sensor.xxx_battery_soc">
+              </label>
             </div>
           </section>
         </article>
@@ -1308,6 +1312,7 @@
     const pvSensorDailyEl = document.getElementById('pv-sensor-daily');
     const pvSensorTempEl = document.getElementById('pv-sensor-temperature');
     const pvSensorLastEl = document.getElementById('pv-sensor-last-update');
+    const pvSensorBatteryEl = document.getElementById('pv-sensor-battery');
     let _pvProviders = {};
     let _calendarEntities = [];
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
@@ -1451,10 +1456,11 @@
     function applyPvProviderDefaults() {
       const p = _pvProviders[pvProviderEl.value];
       if (!p) return;
-      pvSensorPowerEl.value = p.sensors.power || '';
-      pvSensorDailyEl.value = p.sensors.daily || '';
-      pvSensorTempEl.value  = p.sensors.temperature || '';
-      pvSensorLastEl.value  = p.sensors.last_update || '';
+      pvSensorPowerEl.value   = p.sensors.power || '';
+      pvSensorDailyEl.value   = p.sensors.daily || '';
+      pvSensorTempEl.value    = p.sensors.temperature || '';
+      pvSensorLastEl.value    = p.sensors.last_update || '';
+      pvSensorBatteryEl.value = p.sensors.battery || '';
     }
 
     const _CAL_DEFAULT_COLORS = ['#4285f4','#ea4335','#34a853','#fbbc05','#ff6d00','#9c27b0','#00bcd4','#f06292'];
@@ -2551,10 +2557,11 @@
       document.getElementById('printer-entity-prefix').value = printerConfig.entity_prefix || 'anycubic_kobra_s1';
       pvEnabledEl.checked = !!pvConfig.enabled;
       pvProviderEl.value = pvConfig.provider || 'solarman';
-      pvSensorPowerEl.value = pvConfig.sensors?.power || '';
-      pvSensorDailyEl.value = pvConfig.sensors?.daily || '';
-      pvSensorTempEl.value = pvConfig.sensors?.temperature || '';
-      pvSensorLastEl.value = pvConfig.sensors?.last_update || '';
+      pvSensorPowerEl.value   = pvConfig.sensors?.power || '';
+      pvSensorDailyEl.value   = pvConfig.sensors?.daily || '';
+      pvSensorTempEl.value    = pvConfig.sensors?.temperature || '';
+      pvSensorLastEl.value    = pvConfig.sensors?.last_update || '';
+      pvSensorBatteryEl.value = pvConfig.sensors?.battery || '';
       loadPvProviders();
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
@@ -2684,6 +2691,7 @@
                 daily:       pvSensorDailyEl.value.trim(),
                 temperature: pvSensorTempEl.value.trim(),
                 last_update: pvSensorLastEl.value.trim(),
+                battery:     pvSensorBatteryEl.value.trim(),
               },
             },
             system: {

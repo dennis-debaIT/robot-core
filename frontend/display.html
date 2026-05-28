@@ -1750,6 +1750,7 @@
     const rows = [
       pv.power       && `<div class="pv-row"><span class="pv-icon">⚡</span><span class="pv-val">${fmt(pv.power.value, pv.power.unit)}</span><span class="pv-lbl">Aktuell</span></div>`,
       pv.daily       && `<div class="pv-row"><span class="pv-icon">☀</span><span class="pv-val">${fmt(pv.daily.value, pv.daily.unit)}</span><span class="pv-lbl">Heute</span></div>`,
+      pv.battery     && `<div class="pv-row"><span class="pv-icon">🔋</span><span class="pv-val">${fmt(pv.battery.value, pv.battery.unit || '%')}</span><span class="pv-lbl">Batterie</span></div>`,
       pv.temperature && `<div class="pv-row"><span class="pv-icon">🌡</span><span class="pv-val">${fmt(pv.temperature.value, pv.temperature.unit)}</span><span class="pv-lbl">Temperatur</span></div>`,
     ].filter(Boolean).join('');
     let lastUpdateStr = '';
