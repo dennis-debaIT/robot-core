@@ -12,8 +12,9 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "sensor.solarman_daily_production",
             "temperature": "sensor.solarman_radiator_temperature",
             "last_update": "sensor.solarman_status_lastupdate",
-            "battery":     "",
-            "grid":        "",
+            "battery":        "",
+            "grid":           "",
+            "battery_power":  "",
         },
     },
     "fronius": {
@@ -23,8 +24,9 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
-            "battery":     "",
-            "grid":        "",
+            "battery":        "",
+            "grid":           "",
+            "battery_power":  "",
         },
     },
     "sma": {
@@ -34,8 +36,9 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
-            "battery":     "",
-            "grid":        "",
+            "battery":        "",
+            "grid":           "",
+            "battery_power":  "",
         },
     },
     "enphase": {
@@ -45,8 +48,9 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
-            "battery":     "",
-            "grid":        "",
+            "battery":        "",
+            "grid":           "",
+            "battery_power":  "",
         },
     },
     "custom": {
@@ -56,8 +60,9 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "daily":       "",
             "temperature": "",
             "last_update": "",
-            "battery":     "",
-            "grid":        "",
+            "battery":        "",
+            "grid":           "",
+            "battery_power":  "",
         },
     },
 }
@@ -89,12 +94,15 @@ class PvService:
                 }
 
         # Hausverbrauch berechnen wenn PV-Leistung + Netz-Sensor vorhanden
-        # grid positiv = Netzbezug, negativ = Einspeisung
-        pv_w   = _safe_float((result.get("power")  or {}).get("value"))
-        grid_w = _safe_float((result.get("grid")   or {}).get("value"))
+        # grid:         positiv = Netzbezug,  negativ = Einspeisung
+        # battery_power: positiv = lädt,       negativ = entlädt
+        pv_w      = _safe_float((result.get("power")         or {}).get("value"))
+        grid_w    = _safe_float((result.get("grid")          or {}).get("value"))
+        bat_w     = _safe_float((result.get("battery_power") or {}).get("value"))
         if pv_w is not None and grid_w is not None:
+            house = pv_w + grid_w - (bat_w or 0.0)
             result["house_consumption"] = {
-                "value": str(round(max(0.0, pv_w + grid_w))),
+                "value": str(round(max(0.0, house))),
                 "unit": "W",
                 "computed": True,
             }
