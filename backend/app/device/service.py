@@ -31,7 +31,7 @@ class DeviceService:
         "network_connected": False,
         "server_connected": False,
         "local_ip": None,
-        "software_version": "0.2-alpha",
+        "software_version": "0.3.0",
         "update_status": "idle",
         "last_server_contact_at": None,
         "maintenance_mode": False,
