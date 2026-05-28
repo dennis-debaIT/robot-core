@@ -137,7 +137,7 @@ services:
       ROBOT_HA_USERNAME: ${ROBOT_HA_USERNAME:-}
       ROBOT_HA_PASSWORD: ${ROBOT_HA_PASSWORD:-}
       ROBOT_HA_TOKEN: ${ROBOT_HA_TOKEN:-}
-    command: ["pytest", "tests", "-q"]
+    command: ["pytest", "tests", "-v", "--tb=short"]
     profiles: ["test"]
 
 volumes:
