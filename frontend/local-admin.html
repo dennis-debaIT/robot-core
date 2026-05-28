@@ -613,6 +613,15 @@
                 <span class="field-hint">Positiv = Laden, Negativ = Entladen. Verbessert Hausverbrauch-Genauigkeit.</span>
               </label>
             </div>
+            <div class="field-section-label" style="margin-top:16px;margin-bottom:6px;font-size:11px;color:var(--clr-text-dim);text-transform:uppercase;letter-spacing:.08em;">Widget-Anzeige</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              <label class="mini-check"><input type="checkbox" id="pv-wf-power"><span>Aktuelle Leistung</span></label>
+              <label class="mini-check"><input type="checkbox" id="pv-wf-house-consumption"><span>Hausverbrauch</span></label>
+              <label class="mini-check"><input type="checkbox" id="pv-wf-grid"><span>Einspeisung / Netzbezug</span></label>
+              <label class="mini-check"><input type="checkbox" id="pv-wf-daily"><span>Tagesertrag</span></label>
+              <label class="mini-check"><input type="checkbox" id="pv-wf-battery"><span>Batterieladung %</span></label>
+              <label class="mini-check"><input type="checkbox" id="pv-wf-temperature"><span>Temperatur</span></label>
+            </div>
           </section>
         </article>
 
@@ -1324,7 +1333,13 @@
     const pvSensorLastEl = document.getElementById('pv-sensor-last-update');
     const pvSensorBatteryEl = document.getElementById('pv-sensor-battery');
     const pvSensorGridEl        = document.getElementById('pv-sensor-grid');
-    const pvSensorBatteryPowerEl = document.getElementById('pv-sensor-battery-power');
+    const pvSensorBatteryPowerEl  = document.getElementById('pv-sensor-battery-power');
+    const pvWfPowerEl             = document.getElementById('pv-wf-power');
+    const pvWfHouseEl             = document.getElementById('pv-wf-house-consumption');
+    const pvWfGridEl              = document.getElementById('pv-wf-grid');
+    const pvWfDailyEl             = document.getElementById('pv-wf-daily');
+    const pvWfBatteryEl           = document.getElementById('pv-wf-battery');
+    const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
     let _pvProviders = {};
     let _calendarEntities = [];
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
@@ -1475,6 +1490,13 @@
       pvSensorBatteryEl.value      = p.sensors.battery || '';
       pvSensorGridEl.value         = p.sensors.grid || '';
       pvSensorBatteryPowerEl.value = p.sensors.battery_power || '';
+      const wf = p.widget_fields || {};
+      pvWfPowerEl.checked       = wf.power           !== false;
+      pvWfHouseEl.checked       = wf.house_consumption !== false;
+      pvWfGridEl.checked        = wf.grid             !== false;
+      pvWfDailyEl.checked       = wf.daily            !== false;
+      pvWfBatteryEl.checked     = wf.battery          !== false;
+      pvWfTemperatureEl.checked = wf.temperature      === true;
     }
 
     const _CAL_DEFAULT_COLORS = ['#4285f4','#ea4335','#34a853','#fbbc05','#ff6d00','#9c27b0','#00bcd4','#f06292'];
@@ -2578,6 +2600,13 @@
       pvSensorBatteryEl.value      = pvConfig.sensors?.battery || '';
       pvSensorGridEl.value         = pvConfig.sensors?.grid || '';
       pvSensorBatteryPowerEl.value = pvConfig.sensors?.battery_power || '';
+      const wf2 = pvConfig.widget_fields || {};
+      pvWfPowerEl.checked       = wf2.power             !== false;
+      pvWfHouseEl.checked       = wf2.house_consumption !== false;
+      pvWfGridEl.checked        = wf2.grid              !== false;
+      pvWfDailyEl.checked       = wf2.daily             !== false;
+      pvWfBatteryEl.checked     = wf2.battery           !== false;
+      pvWfTemperatureEl.checked = wf2.temperature       === true;
       loadPvProviders();
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
@@ -2710,6 +2739,14 @@
                 battery:     pvSensorBatteryEl.value.trim(),
                 grid:          pvSensorGridEl.value.trim(),
                 battery_power: pvSensorBatteryPowerEl.value.trim(),
+              },
+              widget_fields: {
+                power:             pvWfPowerEl.checked,
+                house_consumption: pvWfHouseEl.checked,
+                grid:              pvWfGridEl.checked,
+                daily:             pvWfDailyEl.checked,
+                battery:           pvWfBatteryEl.checked,
+                temperature:       pvWfTemperatureEl.checked,
               },
             },
             system: {

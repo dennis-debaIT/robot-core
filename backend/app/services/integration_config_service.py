@@ -193,6 +193,9 @@ class IntegrationConfigService:
         pv_sensors = pv.setdefault("sensors", {})
         for _k in ("power", "daily", "temperature", "last_update", "grid", "battery_power"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
+        pv_wf = pv.setdefault("widget_fields", {})
+        for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
+            pv_wf[_k] = bool(pv_wf.get(_k, _def))
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
@@ -269,6 +272,9 @@ class IntegrationConfigService:
         pv_sensors = pv.setdefault("sensors", {})
         for _k in ("power", "daily", "temperature", "last_update", "grid", "battery_power"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
+        pv_wf = pv.setdefault("widget_fields", {})
+        for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
+            pv_wf[_k] = bool(pv_wf.get(_k, _def))
         attention = updated.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

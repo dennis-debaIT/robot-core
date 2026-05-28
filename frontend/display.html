@@ -1017,7 +1017,7 @@
     try {
       const r = await fetch('/ha/pv/state', { cache: 'no-store' });
       if (!r.ok) return null;
-      return (await r.json()).state || null;
+      return await r.json();  // { state, widget_fields }
     } catch { return null; }
   }
 
@@ -1740,15 +1740,16 @@
     }
   }
 
-  function renderPvWidget(pv) {
+  function renderPvWidget(pv, fields = {}) {
     if (!pv) return '';
+    const show = (key, def = true) => fields[key] !== undefined ? fields[key] : def;
     const fmt = (v, unit) => {
       if (v === undefined || v === null || v === 'unavailable' || v === 'unknown') return '–';
       const n = parseFloat(v);
       return isNaN(n) ? v : (n % 1 === 0 ? n.toLocaleString('de-DE') : n.toLocaleString('de-DE', {maximumFractionDigits: 1})) + (unit ? ' ' + unit : '');
     };
     const gridRow = (() => {
-      if (!pv.grid) return '';
+      if (!show('grid') || !pv.grid) return '';
       const gw = parseFloat(pv.grid.value);
       if (isNaN(gw)) return '';
       if (Math.abs(gw) < 5) return `<div class="pv-row"><span class="pv-icon">⇌</span><span class="pv-val">ausgeglichen</span><span class="pv-lbl">Netz</span></div>`;
@@ -1757,11 +1758,12 @@
       return `<div class="pv-row"><span class="pv-icon">${icon}</span><span class="pv-val">${fmt(Math.abs(gw), 'W')}</span><span class="pv-lbl">${lbl}</span></div>`;
     })();
     const rows = [
-      pv.power            && `<div class="pv-row"><span class="pv-icon">⚡</span><span class="pv-val">${fmt(pv.power.value, pv.power.unit)}</span><span class="pv-lbl">Aktuell</span></div>`,
-      pv.house_consumption && `<div class="pv-row"><span class="pv-icon">🏠</span><span class="pv-val">${fmt(pv.house_consumption.value, 'W')}</span><span class="pv-lbl">Verbrauch</span></div>`,
+      show('power')             && pv.power            && `<div class="pv-row"><span class="pv-icon">⚡</span><span class="pv-val">${fmt(pv.power.value, pv.power.unit)}</span><span class="pv-lbl">Aktuell</span></div>`,
+      show('house_consumption') && pv.house_consumption && `<div class="pv-row"><span class="pv-icon">🏠</span><span class="pv-val">${fmt(pv.house_consumption.value, 'W')}</span><span class="pv-lbl">Verbrauch</span></div>`,
       gridRow,
-      pv.battery          && `<div class="pv-row"><span class="pv-icon">🔋</span><span class="pv-val">${fmt(pv.battery.value, pv.battery.unit || '%')}</span><span class="pv-lbl">Batterie</span></div>`,
-      pv.temperature      && `<div class="pv-row"><span class="pv-icon">🌡</span><span class="pv-val">${fmt(pv.temperature.value, pv.temperature.unit)}</span><span class="pv-lbl">Temperatur</span></div>`,
+      show('daily')             && pv.daily            && `<div class="pv-row"><span class="pv-icon">☀</span><span class="pv-val">${fmt(pv.daily.value, pv.daily.unit)}</span><span class="pv-lbl">Heute</span></div>`,
+      show('battery')           && pv.battery          && `<div class="pv-row"><span class="pv-icon">🔋</span><span class="pv-val">${fmt(pv.battery.value, pv.battery.unit || '%')}</span><span class="pv-lbl">Batterie</span></div>`,
+      show('temperature', false) && pv.temperature     && `<div class="pv-row"><span class="pv-icon">🌡</span><span class="pv-val">${fmt(pv.temperature.value, pv.temperature.unit)}</span><span class="pv-lbl">Temperatur</span></div>`,
     ].filter(Boolean).join('');
     let lastUpdateStr = '';
     if (pv.last_update?.value && pv.last_update.value !== 'unavailable' && pv.last_update.value !== 'unknown') {
@@ -1778,11 +1780,13 @@
     const hasCal     = _enabledModules.calendar !== false;
     const hasPv      = _enabledModules.pv      === true;
     const hasPrinter = _enabledModules.printer === true;
-    const [cal, pv, printer] = await Promise.all([
+    const [cal, pvResp, printer] = await Promise.all([
       hasCal     ? loadCalendar()     : Promise.resolve(null),
       hasPv      ? loadPvData()       : Promise.resolve(null),
       hasPrinter ? loadPrinterData()  : Promise.resolve(null),
     ]);
+    const pv       = pvResp?.state || null;
+    const pvFields = pvResp?.widget_fields || {};
     const isPrinting = hasPrinter && printer?.printing;
     const printerIcon = hasPrinter
       ? `<span onclick="openPrinterOverlay()" title="Drucker-Details" style="cursor:pointer;opacity:${isPrinting?1:0.4};">🖨</span>`
@@ -1797,7 +1801,7 @@
     const label = parts.join(' · ') || '';
     const calHtml      = hasCal     ? renderCalendarData(cal)    : '';
     const printerHtml  = isPrinting ? renderPrinterWidget(printer) : '';
-    const pvHtml       = hasPv      ? renderPvWidget(pv)          : '';
+    const pvHtml       = hasPv      ? renderPvWidget(pv, pvFields) : '';
     const hasBottom = printerHtml || pvHtml;
     const html = `<div id="right-cal">${calHtml || (hasBottom ? '' : '<div class="cal-placeholder">Kein Modul aktiv.</div>')}</div>`
                + (printerHtml ? `<div id="right-printer">${printerHtml}</div>` : '')
@@ -5913,9 +5917,9 @@
   // PV-Daten jede Minute aktualisieren
   setInterval(async () => {
     if (!_enabledModules.pv || currentMode !== 'idle' || !_isHome()) return;
-    const pv = await loadPvData();
+    const pvResp2 = await loadPvData();
     const pvEl = document.getElementById('right-pv');
-    if (pvEl) pvEl.innerHTML = renderPvWidget(pv);
+    if (pvEl) pvEl.innerHTML = renderPvWidget(pvResp2?.state || null, pvResp2?.widget_fields || {});
   }, TTL_1M);
 
   // Drucker-Widget alle 30s aktualisieren
