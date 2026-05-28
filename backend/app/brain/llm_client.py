@@ -129,11 +129,11 @@ class ExternalLLMClient:
                 "messages": payload["messages"],
                 "temperature": self.temperature,
                 "max_completion_tokens": max_tokens,
+                "max_tokens": max_tokens,
             }
             if is_local:
                 # Qwen3 Thinking-Modus deaktivieren — nur für lokale Modelle
                 body["enable_thinking"] = False
-                body["max_tokens"] = max_tokens
             if stream:
                 body["stream"] = True
             return body

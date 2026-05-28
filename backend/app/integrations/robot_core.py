@@ -1268,9 +1268,7 @@ class RobotCore:
         return f"Über {person_name} weiß ich aktuell noch nichts."
 
     def chat(self, message: str, person_name: str | None = None) -> dict[str, Any]:
-        settings = self.settings.get_effective()
         captured = self.microphone.capture_text(message)
-        self._learn_from_interaction(person_name, captured)
         direct_reply = self._try_answer_runtime_question(captured)
         if direct_reply is None:
             direct_reply = self._try_answer_person_knowledge_question(captured)
@@ -1284,6 +1282,7 @@ class RobotCore:
                 direct_reply = light_reply
                 self._set_lights_display_intent()
         if direct_reply is not None:
+            self._learn_from_interaction(person_name, captured)
             self._record_direct_chat_input(captured, person_name)
             reply = self._sanitize_reply_text(direct_reply)
             self._finalize_chat(reply, person_name)
@@ -1300,25 +1299,60 @@ class RobotCore:
 
         robot_reply = self._try_robot_query(captured) or self._try_robot_command(captured)
         if robot_reply:
+            self._learn_from_interaction(person_name, captured)
             self._record_direct_chat_input(captured, person_name)
             reply = self._sanitize_reply_text(robot_reply)
             self._finalize_chat(reply, person_name)
             self._store_reply_text(reply)
-            return {"reply": reply, "llm_provider": "template", "used_fallback": False,
-                    "decision": {"should_respond": True, "response_reason": "robot_command", "candidates": []},
-                    "proposed_memories": [], "status": self.get_status()}
+            return {
+                "reply": reply,
+                "llm_provider": "template",
+                "used_fallback": False,
+                "decision": {"should_respond": True, "response_reason": "robot_command", "candidates": []},
+                "proposed_memories": [],
+                "status": self.get_status(),
+            }
 
-        template_text, search_result = self._try_template_search(captured)
-        reply_text = template_text or "Das kann ich noch nicht beantworten."
-        self._record_direct_chat_input(captured, person_name)
-        reply = self._sanitize_reply_text(reply_text)
+        # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
+        captured, payload, proposed_memories, decision, search_result = self._prepare_chat(message, person_name)
+        template_text, template_search_result = self._try_template_search(captured)
+        if template_text:
+            reply = self._sanitize_reply_text(template_text)
+            self._finalize_chat(reply, person_name)
+            self._store_reply_text(reply)
+            if template_search_result:
+                self._update_display_intent(template_search_result, person_name)
+            return {
+                "reply": reply,
+                "llm_provider": "template",
+                "used_fallback": False,
+                "decision": {"should_respond": True, "response_reason": "template", "candidates": []},
+                "proposed_memories": proposed_memories,
+                "status": self.get_status(),
+            }
+
+        settings = self.settings.get_effective()
+        payload["llm_max_tokens"] = self._dynamic_max_tokens(
+            captured, payload.get("llm_max_tokens", settings.llm_max_tokens)
+        )
+        try:
+            llm_result = self.llm.generate(payload, timeout_seconds=settings.llm_timeout_seconds)
+        except Exception:
+            llm_result = {"reply": "Das kann ich leider gerade nicht beantworten.", "provider": "mock", "used_fallback": True}
+        reply = self._sanitize_reply_text(llm_result["reply"])
         self._finalize_chat(reply, person_name)
         self._store_reply_text(reply)
         if search_result:
             self._update_display_intent(search_result, person_name)
-        return {"reply": reply, "llm_provider": "template", "used_fallback": template_text is None,
-                "decision": {"should_respond": True, "response_reason": "template", "candidates": []},
-                "proposed_memories": [], "status": self.get_status()}
+        return {
+            "reply": reply,
+            "llm_provider": llm_result.get("provider", "mock"),
+            "used_fallback": llm_result.get("used_fallback", False),
+            "llm_context": payload,
+            "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+            "proposed_memories": proposed_memories,
+            "status": self.get_status(),
+        }
 
     def stream_chat(self, message: str, person_name: str | None = None) -> Any:
         settings = self.settings.get_effective()

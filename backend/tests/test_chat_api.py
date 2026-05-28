@@ -182,7 +182,7 @@ def test_chat_preview_omits_irrelevant_memories_without_query_overlap(temp_db):
         ]:
             proposed = client.post(
                 "/memory/propose",
-                json={"content": content, "category": "general", "subject": "Dennis", "source": "test"},
+                json={"content": content, "category": "recherche", "subject": "Dennis", "source": "test"},
             )
             assert proposed.status_code == 200
             memory_id = proposed.json()["memory"]["id"]

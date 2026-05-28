@@ -106,4 +106,4 @@ def test_detects_user_assistant_only_error(monkeypatch):
         fp=DummyResponse('{"error":"Only user and assistant roles are supported"}'),
     )
 
-    assert client._supports_only_user_and_assistant(exc) is True
+    assert client._supports_only_user_and_assistant(exc.read().decode("utf-8")) is True
