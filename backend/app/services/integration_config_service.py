@@ -191,7 +191,7 @@ class IntegrationConfigService:
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
         pv_sensors = pv.setdefault("sensors", {})
-        for _k in ("power", "daily", "temperature", "last_update"):
+        for _k in ("power", "daily", "temperature", "last_update", "grid"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
@@ -267,7 +267,7 @@ class IntegrationConfigService:
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
         pv_sensors = pv.setdefault("sensors", {})
-        for _k in ("power", "daily", "temperature", "last_update"):
+        for _k in ("power", "daily", "temperature", "last_update", "grid"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
         attention = updated.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))

@@ -13,6 +13,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "temperature": "sensor.solarman_radiator_temperature",
             "last_update": "sensor.solarman_status_lastupdate",
             "battery":     "",
+            "grid":        "",
         },
     },
     "fronius": {
@@ -23,6 +24,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "temperature": "",
             "last_update": "",
             "battery":     "",
+            "grid":        "",
         },
     },
     "sma": {
@@ -33,6 +35,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "temperature": "",
             "last_update": "",
             "battery":     "",
+            "grid":        "",
         },
     },
     "enphase": {
@@ -43,6 +46,7 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "temperature": "",
             "last_update": "",
             "battery":     "",
+            "grid":        "",
         },
     },
     "custom": {
@@ -53,9 +57,18 @@ PV_PROVIDERS: dict[str, dict[str, Any]] = {
             "temperature": "",
             "last_update": "",
             "battery":     "",
+            "grid":        "",
         },
     },
 }
+
+
+def _safe_float(v: Any) -> float | None:
+    try:
+        f = float(v)
+        return None if f != f else f
+    except (TypeError, ValueError):
+        return None
 
 
 class PvService:
@@ -74,4 +87,16 @@ class PvService:
                     "unit":  (state.get("attributes") or {}).get("unit_of_measurement", ""),
                     "entity_id": entity_id,
                 }
+
+        # Hausverbrauch berechnen wenn PV-Leistung + Netz-Sensor vorhanden
+        # grid positiv = Netzbezug, negativ = Einspeisung
+        pv_w   = _safe_float((result.get("power")  or {}).get("value"))
+        grid_w = _safe_float((result.get("grid")   or {}).get("value"))
+        if pv_w is not None and grid_w is not None:
+            result["house_consumption"] = {
+                "value": str(round(max(0.0, pv_w + grid_w))),
+                "unit": "W",
+                "computed": True,
+            }
+
         return result
