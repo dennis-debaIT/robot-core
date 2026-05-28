@@ -595,12 +595,10 @@
       `).join('');
      return `
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-          <div class="panel-label" style="margin-bottom:8px;">&#9981; Kraftstoffe</div>
           <div style="display:flex;gap:16px;align-items:flex-start;">
             ${columns}
           </div>
-          <div style="font-size:0.72rem;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${fuel.station_name || ''}</div>
-          <div style="font-size:0.65rem;color:var(--muted);margin-top:4px;">${(()=>{ const d=new Date(fuel.updated_at||''); return isNaN(d)?'':'Letzte Preis&auml;nderung '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr'; })()}</div>
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:6px;">${(()=>{ const d=new Date(fuel.updated_at||''); return isNaN(d)?'':'Letzte Preis&auml;nderung '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr'; })()}</div>
         </div>`;   
 }
     if (!fuel?.cheapest_diesel && !fuel?.diesel?.length) return '';
@@ -614,15 +612,13 @@
       : '';
     return `
       <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
-        <div class="panel-label" style="margin-bottom:6px;">â›½ Diesel</div>
+        <div style="font-size:0.72rem;color:var(--accent);font-weight:800;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">Diesel</div>
         <div style="display:flex;align-items:baseline;gap:3px;">
           ${fuelPriceHtml(diesel.price, true)}
-          <span style="font-size:0.8rem;color:var(--muted);margin-left:2px;">â‚¬/L</span>
+          <span style="font-size:0.8rem;color:var(--muted);margin-left:2px;">&euro;/L</span>
         </div>
-        <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;
-                    text-overflow:ellipsis;">${diesel.name}</div>
         ${extra ? `<div style="margin-top:5px;display:flex;gap:10px;">${extra}</div>` : ''}
-        <div style="font-size:0.65rem;color:var(--muted);margin-top:4px;">${(()=>{ const d=new Date(fuel.updated_at||''); return isNaN(d)?'':'Letzte Preis&auml;nderung '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr'; })()}</div>
+        <div style="font-size:0.65rem;color:var(--muted);margin-top:6px;">${(()=>{ const d=new Date(fuel.updated_at||''); return isNaN(d)?'':'Letzte Preis&auml;nderung '+d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})+' Uhr'; })()}</div>
       </div>`;
   }
 
