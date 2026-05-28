@@ -19,6 +19,7 @@ ENV GIT_HASH=$GIT_HASH
 COPY backend/app /app/app
 COPY backend/tests /app/tests
 COPY frontend /app/frontend
+COPY VERSION /app/VERSION
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
