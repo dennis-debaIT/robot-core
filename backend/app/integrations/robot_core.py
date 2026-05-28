@@ -1253,6 +1253,7 @@ class RobotCore:
 
     def chat(self, message: str, person_name: str | None = None) -> dict[str, Any]:
         captured = self.microphone.capture_text(message)
+        self._save_evening_recap_response(captured, person_name)
         direct_reply = self._try_answer_runtime_question(captured)
         if direct_reply is None:
             direct_reply = self._try_answer_person_knowledge_question(captured)
@@ -1341,10 +1342,7 @@ class RobotCore:
     def stream_chat(self, message: str, person_name: str | None = None) -> Any:
         settings = self.settings.get_effective()
         captured = self.microphone.capture_text(message)
-        self._learn_from_interaction(person_name, captured)
         self._save_evening_recap_response(captured, person_name)
-        if person_name:
-            self._try_extract_fact_update(captured, person_name)
         direct_reply = self._try_answer_runtime_question(captured)
         if direct_reply is None:
             direct_reply = self._try_answer_person_knowledge_question(captured)
@@ -1391,6 +1389,7 @@ class RobotCore:
                 direct_reply = timer_reply
         if direct_reply is not None:
             self._record_direct_chat_input(captured, person_name)
+            self._learn_from_interaction(person_name, captured)
 
             def direct_generate() -> Any:
                 direct_text = self._sanitize_reply_text(direct_reply)
@@ -1405,6 +1404,7 @@ class RobotCore:
                 )
                 yield self._sse_event("delta", {"text": direct_text})
                 self._finalize_chat(direct_text, person_name)
+                self._store_reply_text(direct_text, done=True)
                 yield self._sse_event(
                     "done",
                     {
@@ -1429,99 +1429,9 @@ class RobotCore:
             reason = "template" if template_text else "llm"
 
         if not template_text:
-            # LLM-Pfad: externes Modell oder Mock
-            search_result = None
-            search_context = None
-            if self.search.needs_search(captured):
-                query = self.search.extract_query(captured)
-                search_result = self.search.search(query)
-                if search_result:
-                    search_context = self.search.format_prompt_block(search_result)
-
-            # Affirmations-Handler: "ja" nach Angebot des LLM
-            _AFFIRM = re.compile(
-                r"^\s*(ja|jo|ok|gerne|bitte|klar|super|natürlich|genau|stimmt|"
-                r"ja\s+gerne|ja\s+bitte|ja\s+klar|sehr\s+gerne|"
-                r"klingt\s+gut|mach\s+das)\s*[!.?]?\s*$", re.IGNORECASE
-            )
-            if not search_result and _AFFIRM.match(captured.strip()):
-                try:
-                    with get_connection() as conn:
-                        last_assistant_row = conn.execute(
-                            "SELECT message FROM conversation_messages "
-                            "WHERE role = 'assistant' ORDER BY created_at DESC LIMIT 1"
-                        ).fetchone()
-                        # Letzte User-Nachricht vor "ja" = die eigentliche Frage
-                        prev_user_row = conn.execute(
-                            "SELECT message FROM conversation_messages "
-                            "WHERE role = 'user' ORDER BY created_at DESC LIMIT 1"
-                        ).fetchone()
-                    last_reply = (last_assistant_row["message"] if last_assistant_row else "").lower()
-                    forced: str | None = None
-
-                    # Szenario 1: LLM hat Wetter angeboten
-                    if any(w in last_reply for w in ("wetter", "vorhersage", "temperatur", "grad", "regen")):
-                        forced = "wetter heute"
-                    # Szenario 2: LLM hat Kalender angeboten
-                    elif any(w in last_reply for w in ("termin", "kalender", "liegt an", "steht an", "veranstaltung")):
-                        forced = "was liegt heute an"
-                    # Szenario 3: LLM hat Internet-Suche angeboten
-                    elif any(w in last_reply for w in (
-                        "internet", "nachschauen", "nachschau", "recherch",
-                        "suchen", "schauen", "herausfind", "informationen",
-                        "nachsehen", "im netz", "online",
-                    )):
-                        # Suchbegriff aus LLM-Antwort extrahieren (z.B. "SV Darmstadt")
-                        # oder Profil-Fakten als Kontext nutzen
-                        original_query = prev_user_row["message"].strip() if prev_user_row else ""
-                        search_query = self._build_search_query_from_context(
-                            last_reply, original_query, person_name
-                        )
-                        if search_query:
-                            from app.search.providers.web import WebProvider
-                            web_raw = WebProvider().search(search_query)
-                            if web_raw:
-                                from app.search.service import SearchResult
-                                search_result = SearchResult(
-                                    query=search_query,
-                                    snippet=web_raw["snippet"],
-                                    title=web_raw["title"],
-                                    url=web_raw.get("url", ""),
-                                )
-                                search_context = self.search.format_prompt_block(search_result)
-
-                    if forced:
-                        search_result = self.search.search(forced)
-                        if search_result:
-                            search_context = self.search.format_prompt_block(search_result)
-                except Exception:
-                    pass
-            payload = self.preview_chat_prompt(captured, person_name, search_context=search_context)
+            # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
+            captured, payload, proposed_memories, decision, search_result = self._prepare_chat(message, person_name)
             payload["llm_max_tokens"] = self._dynamic_max_tokens(captured, payload.get("llm_max_tokens", settings.llm_max_tokens))
-            self._record_direct_chat_input(captured, person_name)
-
-            # Interest-Signal erkennen und als Vorschlag speichern
-            proposed_memories: list[dict] = []
-            if person_name:
-                interest_signal = self.conversation.detect_interest_signal(
-                    person_name=person_name,
-                    text=captured,
-                    threshold=settings.topic_interest_threshold,
-                    window_days=settings.topic_interest_window_days,
-                )
-                if interest_signal:
-                    mem = self.memory.propose(
-                        content=interest_signal["content"],
-                        category=interest_signal["category"],
-                        subject=interest_signal["subject"],
-                        source="chat_auto",
-                        dedupe_statuses=("pending", "approved"),
-                        candidate_kind="memory",
-                        decision_reason=interest_signal["reason"],
-                        confidence=interest_signal["confidence"],
-                    )
-                    if mem:
-                        proposed_memories.append(mem)
 
             def llm_generate() -> Any:
                 yield self._sse_event("meta", {
@@ -1555,6 +1465,7 @@ class RobotCore:
             return llm_generate()
 
         self._record_direct_chat_input(captured, person_name)
+        self._learn_from_interaction(person_name, captured)
 
         def template_generate() -> Any:
             text = self._sanitize_reply_text(template_text)
