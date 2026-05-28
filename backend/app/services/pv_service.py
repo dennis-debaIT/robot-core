@@ -100,7 +100,8 @@ class PvService:
         grid_w    = _safe_float((result.get("grid")          or {}).get("value"))
         bat_w     = _safe_float((result.get("battery_power") or {}).get("value"))
         if pv_w is not None and grid_w is not None:
-            house = pv_w + grid_w - (bat_w or 0.0)
+            # grid_w positiv = Einspeisung (Export), negativ = Netzbezug (Import)
+            house = pv_w - grid_w - (bat_w or 0.0)
             result["house_consumption"] = {
                 "value": str(round(max(0.0, house))),
                 "unit": "W",

@@ -1752,8 +1752,8 @@
       const gw = parseFloat(pv.grid.value);
       if (isNaN(gw)) return '';
       if (Math.abs(gw) < 5) return `<div class="pv-row"><span class="pv-icon">⇌</span><span class="pv-val">ausgeglichen</span><span class="pv-lbl">Netz</span></div>`;
-      const icon = gw < 0 ? '↑' : '↓';
-      const lbl  = gw < 0 ? 'Einspeisung' : 'Netzbezug';
+      const icon = gw > 0 ? '↑' : '↓';
+      const lbl  = gw > 0 ? 'Einspeisung' : 'Netzbezug';
       return `<div class="pv-row"><span class="pv-icon">${icon}</span><span class="pv-val">${fmt(Math.abs(gw), 'W')}</span><span class="pv-lbl">${lbl}</span></div>`;
     })();
     const rows = [
