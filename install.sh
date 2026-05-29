@@ -471,11 +471,12 @@ if [ -n "$CHROMIUM_BIN" ]; then
 POLICY
 
     mkdir -p "$HOME/.config/autostart"
+    # Keyring-Dialog beim Auto-Login verhindern: --password-store=basic
     cat > "$HOME/.config/autostart/erika-kiosk.desktop" << DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Erika Kiosk
-Exec=/bin/bash -c "sleep 8 && ${CHROMIUM_BIN} --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors https://localhost:8000/display"
+Exec=/bin/bash -c "sleep 8 && ${CHROMIUM_BIN} --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors --password-store=basic https://localhost:8000/display"
 X-GNOME-Autostart-enabled=true
 DESKTOP
 
