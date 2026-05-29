@@ -626,6 +626,10 @@ Type=Application
 DesktopNames=erika-kiosk
 EOF
 
+# autologin-Gruppe: LightDM ohne Passwort anmelden (Debian-Anforderung)
+sudo groupadd -f autologin
+sudo usermod -aG autologin "$USER_NAME"
+
 # LightDM: Auto-Login direkt in Erika-Kiosk-Session
 sudo mkdir -p /etc/lightdm/lightdm.conf.d
 sudo tee /etc/lightdm/lightdm.conf.d/50-erika-autologin.conf > /dev/null << EOF
