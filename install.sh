@@ -111,14 +111,26 @@ _install_ha_supervised() {
 
     # HA Supervised Installer herunterladen und ausführen
     info "Lade HA Supervised Installer herunter..."
-    wget -qO /tmp/ha-supervised.sh \
+    wget -O /tmp/ha-supervised.sh \
         https://raw.githubusercontent.com/home-assistant/supervised-installer/main/installer.sh
     chmod +x /tmp/ha-supervised.sh
+
+    # set -e aussetzen: HA-Installer kann mit != 0 enden (z.B. AppArmor-Warnung)
+    # ohne dass das gesamte install.sh abbricht
+    set +e
     sudo bash /tmp/ha-supervised.sh --machine "$machine"
+    _HA_EXIT=$?
+    set -e
+
     rm -f /tmp/ha-supervised.sh
 
-    success "Home Assistant Supervised installiert"
-    info "HA startet im Hintergrund — erreichbar unter http://$(hostname -I | awk '{print $1}'):8123"
+    if [ "$_HA_EXIT" -eq 0 ]; then
+        success "Home Assistant Supervised installiert"
+        info "HA startet im Hintergrund — erreichbar unter http://$(hostname -I | awk '{print $1}'):8123"
+    else
+        warn "HA Supervised Installer mit Fehlercode $_HA_EXIT beendet"
+        warn "Manuell prüfen: sudo bash /tmp/ha-supervised.sh --machine $machine"
+    fi
     warn "Neustart empfohlen damit AppArmor dauerhaft aktiv ist (sudo reboot)"
 }
 
