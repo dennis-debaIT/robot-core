@@ -20,6 +20,9 @@ Empfohlen wenn: das Script fehlschlägt, du ein anderes System nutzt, oder du je
 > **Warum Debian 12?**  
 > Home Assistant Supervised wird offiziell nur auf Debian 12 unterstützt. Ubuntu funktioniert zwar, HA zeigt aber eine "Unsupported System"-Warnung und kann bei System-Updates instabil werden.
 
+> **Keine Desktop-Umgebung nötig.**  
+> Erika nutzt eine eigene Kiosk-Session (openbox + Chromium). `install.sh` installiert alles Nötige selbst — LightDM, openbox, feh, Chromium. Bei der Debian-Grundinstallation reicht es, nur **SSH server** und **Standard-Systemwerkzeuge** auszuwählen. LXDE, GNOME oder andere Desktop-Umgebungen werden nicht benötigt und verschwenden Ressourcen.
+
 ---
 
 ## Schritt 1 — Systempakete installieren

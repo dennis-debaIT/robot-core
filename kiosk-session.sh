@@ -1,15 +1,21 @@
 #!/bin/bash
 # Erika Kiosk Session — startet direkt nach Auto-Login
-# Läuft anstelle von LXDE: kein Desktop, kein Panel, kein Flash
+# Kein LXDE, kein Desktop, kein Flash
 
-# Sofort schwarzen Hintergrund setzen
+# Sofort schwarzen Hintergrund
 xsetroot -solid black
 
-# Mauszeiger ausblenden wenn idle (2 Sekunden)
+# Mauszeiger verstecken
 command -v unclutter &>/dev/null && unclutter -idle 2 -root &
 
-# Minimaler Window-Manager (Chromium braucht einen)
+# Minimaler Window-Manager
 openbox &
+
+# Splash-Bild anzeigen während Erika startet (selbes Bild wie beim Boot)
+SPLASH_IMG="/usr/share/plymouth/themes/erika/logo.png"
+if command -v feh &>/dev/null && [ -f "$SPLASH_IMG" ]; then
+    feh --bg-fill "$SPLASH_IMG"
+fi
 
 # Chromium-Binary ermitteln
 CHROMIUM=$(command -v chromium-browser 2>/dev/null || command -v chromium 2>/dev/null)
@@ -18,12 +24,12 @@ if [ -z "$CHROMIUM" ]; then
     exit 1
 fi
 
-# Warten bis Erika tatsächlich antwortet (statt blindem sleep)
+# Warten bis Erika tatsächlich antwortet
 until curl -sk --max-time 2 https://localhost:8000/health > /dev/null 2>&1; do
     sleep 1
 done
 
-# Chromium im Kiosk-Modus starten
+# Chromium im Kiosk-Modus — deckt das Splash-Bild ab
 exec "$CHROMIUM" \
     --kiosk \
     --noerrdialogs \

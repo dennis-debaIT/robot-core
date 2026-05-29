@@ -477,6 +477,13 @@ success "Auto-Login konfiguriert — ${USER_NAME} wird automatisch angemeldet"
 # ── 11. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
 
+# Display-Manager installieren falls keiner vorhanden (kein LXDE nötig)
+if ! command -v lightdm &>/dev/null && ! command -v gdm3 &>/dev/null; then
+    info "Installiere LightDM..."
+    sudo apt-get install -y lightdm > /dev/null
+    echo "/usr/sbin/lightdm" | sudo tee /etc/X11/default-display-manager > /dev/null
+fi
+
 # Chromium installieren falls fehlend
 if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
     info "Installiere Chromium..."
@@ -484,8 +491,8 @@ if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/nul
     sudo apt-get install -y chromium > /dev/null 2>&1 || true
 fi
 
-# Minimaler WM + Cursor-Hider + curl für Health-Check
-sudo apt-get install -y openbox unclutter x11-xserver-utils curl > /dev/null 2>&1 || true
+# Minimaler WM + Cursor-Hider + Bild-Anzeige + curl für Health-Check
+sudo apt-get install -y openbox unclutter feh x11-xserver-utils curl > /dev/null 2>&1 || true
 
 # Chromium Kamera/Mikrofon Policy
 sudo mkdir -p /etc/chromium/policies/managed
