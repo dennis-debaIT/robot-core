@@ -630,7 +630,15 @@ EOF
 sudo groupadd -f autologin
 sudo usermod -aG autologin "$USER_NAME"
 
-# LightDM: Auto-Login direkt in Erika-Kiosk-Session
+# LightDM: Autologin direkt in lightdm.conf schreiben
+# (lightdm.conf.d wird auf manchen Debian-Setups nicht ausgewertet)
+sudo sed -i \
+  -e 's/^#autologin-user=$/autologin-user='"${USER_NAME}"'/' \
+  -e 's/^#autologin-user-timeout=0$/autologin-user-timeout=0/' \
+  -e 's/^#autologin-session=$/autologin-session=erika-kiosk/' \
+  /etc/lightdm/lightdm.conf
+
+# Fallback: conf.d bleibt als Backup
 sudo mkdir -p /etc/lightdm/lightdm.conf.d
 sudo tee /etc/lightdm/lightdm.conf.d/50-erika-autologin.conf > /dev/null << EOF
 [Seat:*]
@@ -638,6 +646,10 @@ autologin-user=${USER_NAME}
 autologin-user-timeout=0
 autologin-session=erika-kiosk
 EOF
+
+# User-Default-Session auf erika-kiosk setzen
+# (verhindert dass der Greeter lightdm-xsession wählt wenn er erscheint)
+echo -e "[User]\nSession=erika-kiosk" > "$HOME/.dmrc"
 
 # Alten LXDE-Autostart entfernen (nicht mehr nötig)
 rm -f "$HOME/.config/autostart/erika-kiosk.desktop"
