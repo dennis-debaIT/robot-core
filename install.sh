@@ -68,43 +68,58 @@ _install_ha_supervised() {
     machine=$(_detect_machine)
     info "Erkannte Maschine: $machine"
 
-    # Dependencies
+    # Abhängigkeiten (apparmor-utils für aa-status, das der HA-Installer prüft)
     sudo apt-get install -y \
-        jq curl avahi-daemon apparmor network-manager udisks2 wget dbus > /dev/null
+        jq curl avahi-daemon apparmor apparmor-utils \
+        network-manager udisks2 wget dbus > /dev/null
 
-    # NetworkManager muss das Netzwerk verwalten (Konflikt mit dhcpcd vermeiden)
+    # NetworkManager muss das Netzwerk verwalten
+    # Raspberry Pi OS nutzt dhcpcd — muss deaktiviert werden
     sudo systemctl enable --now NetworkManager > /dev/null 2>&1 || true
-    sudo systemctl disable --now dhcpcd > /dev/null 2>&1 || true
+    if systemctl is-active --quiet dhcpcd 2>/dev/null; then
+        warn "Wechsel von dhcpcd auf NetworkManager — kurzer Netzwerk-Unterbruch möglich"
+        sudo systemctl disable --now dhcpcd > /dev/null 2>&1 || true
+        sleep 4   # Warten bis NetworkManager das Interface übernimmt
+    fi
 
-    # AppArmor in Boot-Konfiguration aktivieren
+    # AppArmor dauerhaft in Boot-Konfiguration eintragen
+    # Raspberry Pi OS (Bookworm): /boot/firmware/cmdline.txt
+    # Ältere Pi-Systeme:          /boot/cmdline.txt
+    # Debian 12/13 x86 / VM:      /etc/default/grub
     if [ -f /boot/firmware/cmdline.txt ]; then
-        # Raspberry Pi OS (Bookworm)
         if ! grep -q "apparmor=1" /boot/firmware/cmdline.txt; then
             sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/firmware/cmdline.txt
-            warn "AppArmor zur Boot-Konfiguration hinzugefügt"
+            warn "AppArmor zu /boot/firmware/cmdline.txt hinzugefügt"
         fi
     elif [ -f /boot/cmdline.txt ]; then
         if ! grep -q "apparmor=1" /boot/cmdline.txt; then
             sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/cmdline.txt
-            warn "AppArmor zur Boot-Konfiguration hinzugefügt"
+            warn "AppArmor zu /boot/cmdline.txt hinzugefügt"
         fi
     elif [ -f /etc/default/grub ]; then
         if ! grep -q "apparmor=1" /etc/default/grub; then
-            sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="apparmor=1 security=apparmor /' /etc/default/grub
+            sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ apparmor=1 security=apparmor"/' /etc/default/grub
             sudo update-grub > /dev/null 2>&1 || true
-            warn "AppArmor zur GRUB-Konfiguration hinzugefügt"
+            warn "AppArmor zu GRUB hinzugefügt (dauerhaft ab nächstem Neustart)"
         fi
     fi
 
+    # AppArmor sofort im laufenden Kernel aktivieren — kein Reboot vor Installation nötig
+    # Debian 12/13: AppArmor ist als Modul oder Built-in verfügbar
+    sudo modprobe apparmor > /dev/null 2>&1 || true
+    sudo systemctl enable --now apparmor > /dev/null 2>&1 || true
+
     # HA Supervised Installer herunterladen und ausführen
+    info "Lade HA Supervised Installer herunter..."
     wget -qO /tmp/ha-supervised.sh \
         https://raw.githubusercontent.com/home-assistant/supervised-installer/main/installer.sh
     chmod +x /tmp/ha-supervised.sh
     sudo bash /tmp/ha-supervised.sh --machine "$machine"
     rm -f /tmp/ha-supervised.sh
 
-    success "Home Assistant Supervised installiert (Port 8123)"
-    warn "Ein Neustart wird empfohlen damit AppArmor aktiv wird"
+    success "Home Assistant Supervised installiert"
+    info "HA startet im Hintergrund — erreichbar unter http://$(hostname -I | awk '{print $1}'):8123"
+    warn "Neustart empfohlen damit AppArmor dauerhaft aktiv ist (sudo reboot)"
 }
 
 echo -e "${BOLD}"
