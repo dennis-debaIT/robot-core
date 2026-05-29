@@ -133,8 +133,13 @@ _install_ha_supervised() {
     wget -O /tmp/homeassistant-supervised.deb \
         "https://github.com/home-assistant/supervised-installer/releases/latest/download/homeassistant-supervised.deb"
 
+    # Maschinentyp per debconf vorbelegen — verhindert Exit-Code 4 im Postinstall-Script
+    # (das Paket fragt den Maschinentyp interaktiv per debconf; bei -y scheitert das)
+    echo "homeassistant-supervised homeassistant-supervised/machine-type select $machine" \
+        | sudo debconf-set-selections
+
     set +e
-    sudo MACHINE="$machine" apt-get install -y /tmp/homeassistant-supervised.deb
+    sudo apt-get install -y /tmp/homeassistant-supervised.deb
     _HA_EXIT=$?
     set -e
     rm -f /tmp/homeassistant-supervised.deb
