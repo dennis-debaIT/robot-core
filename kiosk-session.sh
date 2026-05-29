@@ -40,8 +40,8 @@ until curl -sk --max-time 2 https://localhost:8000/health > /dev/null 2>&1; do
     sleep 1
 done
 
-# Touchegg für Wisch-Gesten (3-Finger-Wisch rechts → zu Erika)
-command -v touchegg &>/dev/null && touchegg &
+# libinput-gestures für Wisch-Gesten (3-Finger-Wisch rechts → Erika)
+command -v libinput-gestures &>/dev/null && libinput-gestures &
 
 # Chromium im Loop: wenn geschlossen (z.B. nach HA-Navigation), startet Erika neu
 # Alt+Home navigiert innerhalb Chromium zurück zur Erika-Homepage

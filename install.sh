@@ -562,39 +562,32 @@ fi
 # Minimaler WM + Cursor-Hider + Bild-Anzeige + curl für Health-Check
 sudo apt-get install -y openbox unclutter feh x11-xserver-utils curl > /dev/null 2>&1 || true
 
-# Touchegg: Wisch-Gesten für Touchscreen (3-Finger-Wisch → Erika)
-sudo apt-get install -y touchegg xdotool > /dev/null 2>&1 || true
-if command -v touchegg &>/dev/null; then
-    mkdir -p "$HOME/.config/touchegg"
-    cat > "$HOME/.config/touchegg/touchegg.conf" << 'TOUCHCONF'
-<touchégg>
-  <settings>
-    <property name="animation_delay">150</property>
-    <property name="action_execute_threshold">20</property>
-    <property name="color">auto</property>
-    <property name="borderColor">auto</property>
-  </settings>
-  <application name="All">
-    <!-- 3-Finger-Wisch rechts: Chromium killen → Loop startet neu mit Erika-URL -->
-    <gesture type="SWIPE" fingers="3" direction="RIGHT">
-      <action type="RUN_COMMAND">
-        <repeat>false</repeat>
-        <command>pkill -f "chromium --kiosk" || pkill chromium</command>
-        <on>end</on>
-      </action>
-    </gesture>
-    <!-- 3-Finger-Wisch links: Browser zurück -->
-    <gesture type="SWIPE" fingers="3" direction="LEFT">
-      <action type="RUN_COMMAND">
-        <repeat>false</repeat>
-        <command>xdotool key alt+Left</command>
-        <on>end</on>
-      </action>
-    </gesture>
-  </application>
-</touchégg>
-TOUCHCONF
-    success "Touchegg konfiguriert (3-Finger-Wisch rechts → Erika)"
+# libinput-gestures: Wisch-Gesten für Touchscreen (3-Finger-Wisch → Erika)
+# touchegg ist in Debian 12/13 nicht mehr verfügbar
+sudo apt-get install -y libinput-tools python3-libevdev wmctrl xdotool git > /dev/null 2>&1 || true
+sudo gpasswd -a "$USER_NAME" input > /dev/null 2>&1 || true
+if ! command -v libinput-gestures &>/dev/null; then
+    info "Installiere libinput-gestures..."
+    git clone --quiet https://github.com/bulletmark/libinput-gestures.git /tmp/lig 2>/dev/null
+    if [ -d /tmp/lig ]; then
+        cd /tmp/lig && sudo make install > /dev/null 2>&1
+        cd "$INSTALL_DIR"
+        rm -rf /tmp/lig
+    fi
+fi
+if command -v libinput-gestures &>/dev/null; then
+    mkdir -p "$HOME/.config/libinput-gestures"
+    cat > "$HOME/.config/libinput-gestures.conf" << 'LIGCONF'
+# 3-Finger-Wisch rechts: Chromium killen → Loop startet Erika-URL neu
+gesture swipe right 3 sh -c "pkill -f 'chromium --kiosk' || pkill chromium"
+# 3-Finger-Wisch links: Browser zurück
+gesture swipe left 3 xdotool key alt+Left
+LIGCONF
+    libinput-gestures-setup install > /dev/null 2>&1 || true
+    libinput-gestures-setup start  > /dev/null 2>&1 || true
+    success "libinput-gestures konfiguriert (3-Finger-Wisch rechts → Erika)"
+else
+    warn "libinput-gestures nicht installierbar — Wisch-Gesten nicht verfügbar (F2 als Alternative)"
 fi
 
 # Chromium Policy: Kamera/Mikrofon freigeben, Übersetzungs-Popup deaktivieren
