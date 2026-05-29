@@ -75,10 +75,14 @@ _install_ha_supervised() {
     # udisks2 + dbus: Pflicht für HA Supervised
     # apparmor-utils: aa-status wird vom HA-Paket geprüft
     # jq: für OS-Agent Versions-Lookup
+    # nfs-common: liefert nfs-utils.service — das HA-Postinstall-Script startet
+    #             diesen Dienst; ohne das Paket schlägt systemctl start mit Exit 4 fehl
+    # systemd-journal-remote: liefert systemd-journal-gatewayd.socket (HA-Abhängigkeit)
     sudo apt-get install -y \
         curl wget jq udisks2 dbus \
         apparmor apparmor-utils \
-        network-manager avahi-daemon > /dev/null
+        network-manager avahi-daemon \
+        nfs-common systemd-journal-remote > /dev/null
 
     # NetworkManager muss das Netzwerk verwalten
     # Raspberry Pi OS nutzt dhcpcd — muss deaktiviert werden
