@@ -5958,13 +5958,13 @@
     if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
   }, TTL_15M);
 
-  // PV-Daten jede Minute aktualisieren
+  // PV-Daten alle 5 Sekunden aktualisieren
   setInterval(async () => {
     if (!_enabledModules.pv || currentMode !== 'idle' || !_isHome()) return;
     const pvResp2 = await loadPvData();
     const pvEl = document.getElementById('right-pv');
     if (pvEl) pvEl.innerHTML = renderPvWidget(pvResp2?.state || null, pvResp2?.widget_fields || {});
-  }, TTL_1M);
+  }, 5000);
 
   // Drucker-Widget alle 30s aktualisieren
   setInterval(async () => {
