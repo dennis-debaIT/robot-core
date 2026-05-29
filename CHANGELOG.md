@@ -9,6 +9,24 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-05-29
+
+### Neu
+- **LLM-generierte Begrüßung**: Begrüßungstext wird per KI erzeugt statt aus statischen Templates; deutlich natürlicher und variabler. Fallback auf Templates bei LLM-Timeout (8s)
+- **Konfigurierbarer Begrüßungskontext**: Im Admin (Erika → Begrüßung) per Checkbox steuerbar: Tageszeit ("Guten Morgen"), nächster Kalendertermin, PV-Tagesertrag, aktive Gesprächsthemen
+- **PV-Widget konfigurierbar**: Im Admin (PV → Widget-Anzeige) kann per Checkbox bestimmt werden welche Felder im Widget angezeigt werden (Leistung, Hausverbrauch, Netz, Tagesertrag, Batterie, Temperatur)
+- **PV Netz-Einspeisung / Netzbezug**: Netz-Sensor und Batterie-Leistungs-Sensor konfigurierbar; Hausverbrauch wird daraus berechnet (`PV − Batterie − Netz`)
+- **PV-Statistiken: Einspeisung & Netzbezug**: Separates `GET /ha/pv/grid-history` liefert tages-/wochen-/monats-/jahresaufgelöste Einspeisung und Netzbezug; in Statistik-Overlay als eigene Balkendiagramme sichtbar (nur wenn Netz-Sensor konfiguriert)
+- **PV-Widget Aktualisierungsintervall**: Auf 5 Sekunden reduziert (vorher 60s) für nahezu-Echtzeit-Anzeige
+- **Standort via Koordinaten (zone.home)**: Im Admin (System → Standort) können Koordinaten direkt gespeichert werden — kein mehrdeutiges Geocoding mehr. Button "Von HA übernehmen" liest `zone.home` aus Home Assistant automatisch aus (`GET /ha/zone-home`)
+- **Kraftstoff-Widget**: Header "KRAFTSTOFFE" und Stationsname entfernt für kompaktere Darstellung
+
+### Behoben
+- **TTS + Gesichtserkennung Race Condition**: Wenn Erika noch sprach, wurde durch Gesichtserkennung das Zuhören bereits gestartet — Erikas Sprache wurde als Nutzereingabe gewertet. Guard um `_ttsPlaying` und `_ttsQueue.length` erweitert
+- **PV Hausverbrauch zeigte 0 W**: Netz-Vorzeichen-Konvention bei Huawei korrigiert (positiv = Einspeisung, nicht Netzbezug); Formel `Haus = PV − Batterie − Netz` korrekt dokumentiert
+
+---
+
 ## 2026-05-28
 
 ### Neu

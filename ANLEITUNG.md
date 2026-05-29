@@ -21,7 +21,8 @@ Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen.
 12. [Zusammenfassungen & Briefing](#12-zusammenfassungen--briefing)
 13. [Tägliches Fazit](#13-tägliches-fazit)
 14. [Persönliches](#14-persönliches)
-15. [System](#15-system)
+15. [PV-Anlage](#15-pv-anlage)
+16. [System](#16-system)
 
 ---
 
@@ -42,6 +43,18 @@ Am Display kann alternativ ein Mikrofon-Button gedrückt werden.
 
 ### Proaktive Ansprache
 Wenn Erika erkennt, dass du längere Zeit nichts gesagt hast (Standard: 25 Minuten), spricht sie dich eigenständig an. Das Zeitfenster (z. B. 08:00–22:00 Uhr) ist im Admin konfigurierbar.
+
+### Begrüßung bei Gesichtserkennung
+Erkennt Erika eine bekannte Person, begrüßt sie diese automatisch. Die Begrüßung wird per LLM erzeugt und berücksichtigt optional:
+
+| Kontext | Beschreibung |
+|---|---|
+| **Tageszeit** | Morgen / Mittag / Abend / Nacht |
+| **Nächster Kalendertermin** | "Du hast um 14 Uhr ein Meeting" |
+| **PV-Tagesertrag** | Aktueller Solarertrag des Tages |
+| **Aktive Gesprächsthemen** | Was zuletzt besprochen wurde |
+
+Welche dieser Informationen in die Begrüßung einfließen, lässt sich im Admin-Panel unter **Erika → Begrüßung** per Checkbox steuern. Dort kann auch die KI-generierte Begrüßung komplett deaktiviert werden — Erika verwendet dann feste Templates basierend auf Beziehungsstatus und Abwesenheitsdauer.
 
 ---
 
@@ -334,7 +347,43 @@ Alle gespeicherten Informationen können im Admin-Panel unter **Personen** einge
 
 ---
 
-## 15. System
+## 15. PV-Anlage
+
+Das PV-Widget auf dem Display zeigt Echtzeitdaten der Solaranlage und aktualisiert sich alle 5 Sekunden.
+
+### Angezeigte Werte (konfigurierbar)
+
+| Feld | Beschreibung |
+|---|---|
+| **Leistung** | Aktuelle PV-Erzeugungsleistung in Watt |
+| **Hausverbrauch** | Berechneter Eigenverbrauch (`PV − Batterie − Netz`) |
+| **Netz** | Einspeisung (positiv) oder Netzbezug (negativ) |
+| **Tagesertrag** | Gesamt-kWh seit Mitternacht |
+| **Batterie** | Ladestand in Prozent |
+| **Temperatur** | Wechselrichter-Innentemperatur |
+
+Welche Felder angezeigt werden, lässt sich im Admin-Panel unter **PV → Widget-Anzeige** per Checkbox bestimmen.
+
+### Konfiguration im Admin (PV → Sensoren)
+
+| Feld | Empfohlener HA-Sensor (Huawei SUN2000) |
+|---|---|
+| **Aktuelle Leistung** | `sensor.wechselrichter_wirkleistung` (AC-Ausgang) |
+| **Tagesertrag** | `sensor.wechselrichter_tagesertrag` |
+| **Temperatur** | `sensor.wechselrichter_interne_temperatur` |
+| **Batterieladung (SOC)** | `sensor.batterien_batterieladung` |
+| **Netz-Sensor** | `sensor.stromzahler_wirkleistung` (positiv = Einspeisung) |
+| **Batterie-Leistung** | Leer lassen bei DC-gekoppelten Systemen (Huawei LUNA2000) |
+
+> **Wichtig bei DC-gekoppelten Batteriesystemen (Huawei SUN2000 + LUNA2000):** Die Wirkleistung am AC-Ausgang berücksichtigt das Laden der Batterie bereits intern. Das Feld "Batterie-Leistung" muss leer bleiben — sonst wird die Batterieleistung doppelt abgezogen und der Hausverbrauch zeigt 0 W.
+
+### Standort für Wetter-Abfragen
+
+Im Admin-Panel unter **System → Standort** können Koordinaten für Wetter- und Standortabfragen gespeichert werden. Mit dem Button **"Von HA übernehmen"** werden die Koordinaten automatisch aus `zone.home` in Home Assistant gelesen — das vermeidet Verwechslungen bei gleichnamigen Orten (z.B. Frankfurt am Main vs. Frankfurt an der Oder).
+
+---
+
+## 16. System
 
 | Befehl | Funktion |
 |---|---|
@@ -350,16 +399,19 @@ Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
 
 | Bereich | Inhalt |
 |---|---|
-| **Erika** | Persönlichkeit, TTS, Aufmerksamkeit, Wake Word |
-| **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus |
+| **Erika** | Persönlichkeit, TTS, Aufmerksamkeit, Wake Word, Stimmung |
+| **Erika → Begrüßung** | LLM-Begrüßung an/aus, Kontext-Checkboxen (Tageszeit, Kalender, PV, Themen) |
+| **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus, Offenheit |
 | **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
+| **PV** | Sensoren konfigurieren, Widget-Felder per Checkbox, Statistiken |
+| **System → Standort** | Koordinaten manuell oder via "Von HA übernehmen" (zone.home) |
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |
-| **Wetter** | Anzeige-Optionen |
+| **Wetter** | Anzeige-Optionen, Anbieter (Open-Meteo / Yr.no / OpenWeatherMap) |
 | **Nachrichten** | RSS-Quellen auswählen, eigene RSS/Atom-Feeds hinzufügen |
 | **Zeitpläne** | Aktive Erinnerungen und zeitgesteuerte Lichtbefehle einsehen/löschen |
 | **Benachrichtigungen** | Proaktive Regeln (HA-Entitäten) |
 | **Licht** | Szenen verwalten |
-| **Audit-Log** | Verlauf aller Aktionen |
+| **Audit-Log** | Verlauf aller Aktionen, Fehler-Einträge rot hervorgehoben |
 
 ---
 

@@ -3,7 +3,7 @@
 Diese Anleitung beschreibt alle Schritte für eine manuelle Installation ohne das `install.sh`-Script.  
 Empfohlen wenn: das Script fehlschlägt, du ein anderes System nutzt, oder du jeden Schritt selbst kontrollieren möchtest.
 
-**Schnellinstallation (empfohlen):** Siehe [INSTALL.md](INSTALL.md)
+**Schnellinstallation (empfohlen):** `curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install.sh | bash`
 
 ---
 
@@ -11,11 +11,14 @@ Empfohlen wenn: das Script fehlschlägt, du ein anderes System nutzt, oder du je
 
 | Anforderung | Details |
 |---|---|
-| **Betriebssystem** | Ubuntu 22.04 LTS / Debian 12 oder neuer |
-| **Architektur** | amd64 (x86_64) oder arm64 (Raspberry Pi 4/5) |
-| **RAM** | mindestens 1 GB (2 GB empfohlen) |
-| **Speicher** | mindestens 8 GB frei |
+| **Betriebssystem** | **Debian 12 (Bookworm)** oder Raspberry Pi OS (64-bit, Bookworm-basiert) |
+| **Architektur** | amd64 (x86_64) oder arm64 (Raspberry Pi 3/4/5) |
+| **RAM** | mindestens 1 GB für Erika allein; 2 GB empfohlen; 4 GB wenn HA Supervised mitläuft |
+| **Speicher** | mindestens 8 GB frei; 16 GB empfohlen wenn HA Supervised mitläuft |
 | **Netzwerk** | SSH-Zugang aktiv, Internetzugang für Docker Pull / Edge TTS |
+
+> **Warum Debian 12?**  
+> Home Assistant Supervised wird offiziell nur auf Debian 12 unterstützt. Ubuntu funktioniert zwar, HA zeigt aber eine "Unsupported System"-Warnung und kann bei System-Updates instabil werden.
 
 ---
 
@@ -82,6 +85,8 @@ SSH_DIR=/home/<dein-user>/.ssh
 
 Den HA-Token erstellt du in Home Assistant unter: **Profil → Sicherheit → Langlebige Zugriffstoken → Token erstellen**.
 
+> **Tipp:** Das `install.sh`-Script führt diesen Schritt interaktiv durch — du wirst nach HA-URL, HA-Token, LLM und TTS gefragt und die `.env` wird automatisch befüllt.
+
 ---
 
 ## Schritt 5 — SSL-Zertifikat erstellen
@@ -99,8 +104,9 @@ openssl req -x509 -newkey rsa:4096 \
 ## Schritt 6 — Hilfsdateien anlegen
 
 ```bash
-touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
-echo '{"networks":[]}' > wifi-scan.json
+touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
+[ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
+[ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt
 mkdir -p ha_config
 chmod +x update.sh reboot-watcher.sh setup-watcher.sh
 ```
@@ -125,12 +131,100 @@ docker compose logs -f robot-core
 
 ---
 
-## Schritt 8 — Autostart bei Systemstart
+## Schritt 8 — Home Assistant Supervised installieren (optional)
+
+Dieser Schritt ist nur nötig wenn **kein eigenes HA** im Netzwerk vorhanden ist.  
+HA Supervised läuft nativ auf dem System — mit vollem Add-on-Store, HACS und automatischen Backups.
+
+### 8a — Abhängigkeiten installieren
+
+```bash
+sudo apt-get install -y jq curl avahi-daemon apparmor network-manager udisks2 wget dbus
+```
+
+### 8b — NetworkManager aktivieren
+
+HA Supervised erwartet `network-manager` als Netzwerkverwaltung. Auf Raspberry Pi OS läuft standardmäßig `dhcpcd` — dieser muss deaktiviert werden:
+
+```bash
+sudo systemctl enable --now NetworkManager
+sudo systemctl disable --now dhcpcd
+```
+
+> **Hinweis:** Nach dem Wechsel auf NetworkManager kann die IP-Adresse kurz neu vergeben werden. SSH-Verbindung danach ggf. neu aufbauen.
+
+### 8c — AppArmor aktivieren
+
+**Raspberry Pi OS / Debian auf Pi** (`/boot/firmware/cmdline.txt` oder `/boot/cmdline.txt`):
+
+```bash
+# Raspberry Pi OS (Bookworm)
+sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/firmware/cmdline.txt
+
+# Ältere Pi-Systeme (falls /boot/firmware nicht existiert)
+sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/cmdline.txt
+```
+
+**x86 / VM** (`/etc/default/grub`):
+
+```bash
+sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="apparmor=1 security=apparmor /' /etc/default/grub
+sudo update-grub
+```
+
+> AppArmor wird erst nach einem Neustart aktiv. HA Supervised kann trotzdem schon installiert werden, zeigt aber eine Warnung bis zum Neustart.
+
+### 8d — Maschinen-Typ ermitteln
+
+| Hardware | Maschinen-Typ |
+|---|---|
+| Raspberry Pi 5 (64-bit) | `raspberrypi5-64` |
+| Raspberry Pi 4 (64-bit) | `raspberrypi4-64` |
+| Raspberry Pi 3 (64-bit) | `raspberrypi3-64` |
+| x86_64 (NUC, VM, PC) | `generic-x86-64` |
+| Anderes ARM64-Gerät | `generic-aarch64` |
+
+Automatisch erkennen:
+
+```bash
+arch=$(uname -m)
+model=$(cat /proc/device-tree/model 2>/dev/null || echo "")
+echo "Architektur: $arch"
+echo "Modell: $model"
+```
+
+### 8e — HA Supervised Installer ausführen
+
+```bash
+wget -qO /tmp/ha-supervised.sh \
+    https://raw.githubusercontent.com/home-assistant/supervised-installer/main/installer.sh
+sudo bash /tmp/ha-supervised.sh --machine raspberrypi4-64   # Maschinen-Typ anpassen!
+rm /tmp/ha-supervised.sh
+```
+
+### 8f — HA einrichten und Token erstellen
+
+1. Browser öffnen: `http://<IP>:8123`
+2. HA-Onboarding abschließen (Konto anlegen, Standort, Zeitzone)
+3. **Profil → Sicherheit → Langlebige Zugriffstoken → Token erstellen**
+4. Token kopieren und im Erika Admin-Panel unter **System → Home Assistant** eintragen
+
+### 8g — Neustart (AppArmor)
+
+```bash
+sudo reboot
+```
+
+Nach dem Neustart ist AppArmor aktiv und HA Supervised läuft ohne Warnung.
+
+---
+
+## Schritt 9 — Autostart bei Systemstart
 
 Docker selbst startet automatisch mit dem System (`systemctl enable docker`).  
 Der Container ist mit `restart: unless-stopped` konfiguriert und startet ebenfalls automatisch.
 
-Optional: Watcher-Dienste für Updates und Reboot einrichten:
+Watcher-Dienste für Updates und Reboot einrichten:
 
 ```bash
 # Watcher im Hintergrund starten
@@ -145,7 +239,7 @@ nohup bash ~/robot-core/setup-watcher.sh >> ~/robot-core/setup-watcher.log 2>&1 
 (crontab -l 2>/dev/null; echo "0 3 * * * bash ~/robot-core/update.sh >> ~/robot-core/update.log 2>&1") | crontab -
 ```
 
-Optional: Reboot ohne sudo-Passwort erlauben (für den Update-Prozess):
+Reboot ohne sudo-Passwort erlauben (für den Update-Prozess):
 
 ```bash
 echo "$USER ALL=(ALL) NOPASSWD: /sbin/reboot" | sudo tee /etc/sudoers.d/erika-reboot
@@ -154,7 +248,7 @@ sudo chmod 440 /etc/sudoers.d/erika-reboot
 
 ---
 
-## Schritt 9 — Kiosk-Display einrichten (Raspberry Pi mit Bildschirm)
+## Schritt 10 — Kiosk-Display einrichten (Raspberry Pi mit Bildschirm)
 
 Dieser Schritt richtet Chromium als Vollbild-Kiosk für das Display-Panel ein, mit vorerteilten Kamera- und Mikrofon-Berechtigungen.
 
@@ -176,7 +270,7 @@ sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'EOF'
 EOF
 ```
 
-> Chromium liest diese Richtlinie beim Start — keine Berechtigungsdialog mehr, echte Kamera und echtes Mikrofon werden sofort freigegeben.
+> Chromium liest diese Richtlinie beim Start — kein Berechtigungsdialog mehr, echte Kamera und echtes Mikrofon werden sofort freigegeben.
 
 ### Autostart beim Systemstart
 
@@ -214,10 +308,10 @@ Nach erfolgreichem Start ist Erika erreichbar unter:
 
 | URL | Funktion |
 |---|---|
-| `https://<IP>:8000/` | Haupt-Interface |
 | `https://<IP>:8000/display` | Display-Panel (Kiosk-Modus) |
 | `https://<IP>:8000/local-admin` | Admin-Panel |
 | `https://erika.local:8000/` | Über mDNS (wenn avahi läuft) |
+| `http://<IP>:8123` | Home Assistant (nur wenn Schritt 8 ausgeführt) |
 
 > Der Browser zeigt eine Zertifikatswarnung für das selbstsignierte SSL-Zertifikat — einfach bestätigen ("Trotzdem fortfahren").
 
@@ -236,8 +330,17 @@ Nach erfolgreichem Start ist Erika erreichbar unter:
 
 **SSL-Warnung im Browser**  
 → Normal bei selbstsignierten Zertifikaten. Im Browser einmalig als Ausnahme bestätigen.  
-→ Für ein vertrauenswürdiges Zertifikat: cert.pem/key.pem durch ein Let's-Encrypt-Zertifikat ersetzen.
+→ Für ein vertrauenswürdiges Zertifikat: `cert.pem`/`key.pem` durch ein Let's-Encrypt-Zertifikat ersetzen.
 
 **TTS funktioniert nicht**  
 → Bei Edge TTS: Internetzugang erforderlich.  
 → Bei Sherpa ONNX: Modellpfade in `.env` korrekt? Pfade müssen im Container unter `/models/tts/` erreichbar sein (Volume in `docker-compose.yml` prüfen).
+
+**HA Supervised: "Unsupported System"-Warnung**  
+→ AppArmor noch nicht aktiv. Neustart durchführen: `sudo reboot`. Danach verschwindet die Warnung.
+
+**HA Supervised: Installer schlägt fehl wegen NetworkManager**  
+→ `sudo systemctl status NetworkManager` prüfen. Falls `dhcpcd` noch läuft: `sudo systemctl disable --now dhcpcd` und erneut versuchen.
+
+**HA Supervised: Netzwerk nach NetworkManager-Umstellung weg**  
+→ Netzwerk kurz neu konfigurieren: `nmcli device status` zeigt alle Interfaces. `nmcli con show` zeigt Verbindungen. Bei Bedarf: `sudo nmcli device connect eth0`.

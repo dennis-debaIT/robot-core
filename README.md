@@ -7,6 +7,7 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 ## Was Erika kann
 
 - **Sprachsteuerung** — Wake Word "Erika", kontinuierliche Erkennung, Follow-Up Listening
+- **LLM-Begrüßung** — KI-generierte, kontextuelle Begrüßung bei Gesichtserkennung (Tageszeit, Kalender, PV, Themen); konfigurierbarer Kontext, Template-Fallback
 - **Gesichtserkennung** — automatische Begrüßung, personenbezogener Kontext
 - **Smart Home** — Lichtsteuerung, Szenen, Zeitpläne, Staubsauger- und Mährobotersteuerung via Home Assistant
 - **TTS** — Edge TTS (Microsoft, Online) und Sherpa ONNX (lokal, Offline-Fallback)
@@ -14,10 +15,11 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 - **Persönlichkeit** — Freundlichkeit, Humor, Direktheit u.a. — konfigurierbar und im Gespräch anpassbar
 - **Stimmung & Beziehung** — Erika entwickelt eine eigene Stimmung und Beziehungsdynamik zu Personen
 - **Fahrzeugabfragen** — Akku, Reichweite, Ladestatus per Sprache
-- **PV-Anlage** — Leistung, Tagesertrag, Batterieladung
+- **PV-Anlage** — Leistung, Hausverbrauch, Netz-Ein-/Einspeiseverfolgung, Batterieladung; konfigurierbare Widget-Felder; Echtzeit-Update alle 5 s; Tages-/Wochen-/Monatsstatistik für Einspeisung und Netzbezug
 - **Timer & Erinnerungen** — Labels, mehrere gleichzeitig, per Sprache verwalten
 - **Kalender** — Einträge per Sprache, Tagesübersicht, CalDAV-ready via Home Assistant
 - **Websuche** — Wikipedia-Provider, erweiterbar
+- **Standort via zone.home** — Koordinaten direkt aus Home Assistant übernehmen, kein mehrdeutiges Geocoding
 - **LLM-Router** — OpenAI-kompatibel (LM Studio, Ollama, OpenAI), Mock-Fallback wenn offline
 - **CI/CD** — GitHub Actions: automatischer Build + Test-Run bei jedem Push
 
@@ -27,15 +29,13 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 
 Vollständige Anleitung: [`INSTALL_MANUAL.md`](INSTALL_MANUAL.md)
 
-Kurzform auf dem Raspberry Pi / einer VM:
+Kurzform auf einem frischen **Debian 12** / **Raspberry Pi OS (64-bit)** System:
 
 ```bash
-git clone https://github.com/dennis-debaIT/robot-core.git ~/robot-core
-cd ~/robot-core
-bash install.sh
+curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install.sh | bash
 ```
 
-Das `install.sh` richtet Docker, SSH-Keys und alle Abhängigkeiten ein und startet den Container.
+Das Script fragt interaktiv nach Home Assistant (vorhandene Instanz / HA Supervised neu installieren / später), LLM-Endpunkt und TTS-Provider, befüllt die `.env` automatisch und startet den Container. Vollständige manuelle Anleitung: [`INSTALL_MANUAL.md`](INSTALL_MANUAL.md)
 
 ---
 
@@ -191,6 +191,25 @@ ROBOT_HA_TOKEN=
 ```
 
 Alle Werte lassen sich auch zur Laufzeit über das Admin-Panel ändern.
+
+---
+
+## PV konfigurieren
+
+Im Admin-Panel unter **PV → Sensoren** werden die Home-Assistant-Entitäten für die Solaranlage eingetragen:
+
+| Feld | Beschreibung |
+|---|---|
+| `power` | Aktuelle Erzeugungsleistung (W) |
+| `daily` | Tagesertrag (kWh) |
+| `temperature` | Wechselrichter-Temperatur |
+| `battery` | Batterieladung (SOC, %) |
+| `grid` | Netz-Sensor (positiv = Einspeisung, negativ = Netzbezug) |
+| `battery_power` | Batterie-Leistung — **leer lassen bei DC-gekoppelten Systemen** |
+
+> **Huawei SUN2000 + LUNA2000:** `sensor.wechselrichter_wirkleistung` als `power` verwenden (AC-Ausgang, nettet DC-Batterie-Transaktionen bereits heraus). `battery_power` leer lassen. Als `grid` den `sensor.stromzahler_wirkleistung` eintragen.
+
+Unter **PV → Widget-Anzeige** lässt sich per Checkbox wählen, welche Felder im Display-Widget erscheinen.
 
 ---
 

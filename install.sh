@@ -2,7 +2,7 @@
 set -e
 
 # ── Erika Robot-Core Installations-Script ─────────────────────
-# Führe dieses Script auf einem frischen Ubuntu/Debian System aus:
+# Führe dieses Script auf einem frischen Debian 12 / Raspberry Pi OS System aus:
 #   curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install.sh | bash
 # ─────────────────────────────────────────────────────────────
 
@@ -18,6 +18,94 @@ success() { echo -e "${GREEN}[✓]${NC} $1"; }
 warn()    { echo -e "${YELLOW}[!]${NC} $1"; }
 error()   { echo -e "${RED}[✗]${NC} $1"; exit 1; }
 step()    { echo -e "\n${BOLD}── $1 ──${NC}"; }
+
+# Read a value from the terminal — works in curl|bash pipe mode
+# Prompts go to /dev/tty (visible), result goes to stdout (captured by $(...))
+_read() {
+    local msg="$1" default="$2" val
+    printf "    ${CYAN}›${NC} %s" "$msg" >/dev/tty
+    [ -n "$default" ] && printf " [%s]" "$default" >/dev/tty
+    printf ": " >/dev/tty
+    IFS= read -r val </dev/tty
+    [ -z "$val" ] && val="$default"
+    echo "$val"
+}
+
+# Read a single menu choice from the terminal
+_choose() {
+    local val
+    IFS= read -r val </dev/tty
+    echo "$val"
+}
+
+# Detect the HA Supervised machine type from hardware
+_detect_machine() {
+    local arch machine
+    arch=$(uname -m)
+    if [ "$arch" = "aarch64" ]; then
+        local model
+        model=$(cat /proc/device-tree/model 2>/dev/null || echo "")
+        if echo "$model" | grep -qi "raspberry pi 5"; then
+            machine="raspberrypi5-64"
+        elif echo "$model" | grep -qi "raspberry pi 4"; then
+            machine="raspberrypi4-64"
+        elif echo "$model" | grep -qi "raspberry pi 3"; then
+            machine="raspberrypi3-64"
+        else
+            machine="generic-aarch64"
+        fi
+    else
+        machine="generic-x86-64"
+    fi
+    echo "$machine"
+}
+
+# Install Home Assistant Supervised
+_install_ha_supervised() {
+    info "Installiere Home Assistant Supervised..."
+
+    local machine
+    machine=$(_detect_machine)
+    info "Erkannte Maschine: $machine"
+
+    # Dependencies
+    sudo apt-get install -y \
+        jq curl avahi-daemon apparmor network-manager udisks2 wget dbus > /dev/null
+
+    # NetworkManager muss das Netzwerk verwalten (Konflikt mit dhcpcd vermeiden)
+    sudo systemctl enable --now NetworkManager > /dev/null 2>&1 || true
+    sudo systemctl disable --now dhcpcd > /dev/null 2>&1 || true
+
+    # AppArmor in Boot-Konfiguration aktivieren
+    if [ -f /boot/firmware/cmdline.txt ]; then
+        # Raspberry Pi OS (Bookworm)
+        if ! grep -q "apparmor=1" /boot/firmware/cmdline.txt; then
+            sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/firmware/cmdline.txt
+            warn "AppArmor zur Boot-Konfiguration hinzugefügt"
+        fi
+    elif [ -f /boot/cmdline.txt ]; then
+        if ! grep -q "apparmor=1" /boot/cmdline.txt; then
+            sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/cmdline.txt
+            warn "AppArmor zur Boot-Konfiguration hinzugefügt"
+        fi
+    elif [ -f /etc/default/grub ]; then
+        if ! grep -q "apparmor=1" /etc/default/grub; then
+            sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="apparmor=1 security=apparmor /' /etc/default/grub
+            sudo update-grub > /dev/null 2>&1 || true
+            warn "AppArmor zur GRUB-Konfiguration hinzugefügt"
+        fi
+    fi
+
+    # HA Supervised Installer herunterladen und ausführen
+    wget -qO /tmp/ha-supervised.sh \
+        https://raw.githubusercontent.com/home-assistant/supervised-installer/main/installer.sh
+    chmod +x /tmp/ha-supervised.sh
+    sudo bash /tmp/ha-supervised.sh --machine "$machine"
+    rm -f /tmp/ha-supervised.sh
+
+    success "Home Assistant Supervised installiert (Port 8123)"
+    warn "Ein Neustart wird empfohlen damit AppArmor aktiv wird"
+}
 
 echo -e "${BOLD}"
 echo "  ███████╗██████╗ ██╗██╗  ██╗ █████╗ "
@@ -55,7 +143,7 @@ else
 fi
 sudo systemctl enable --now docker > /dev/null 2>&1 || true
 
-# ── 3. Repo klonen ───────────────────────────────────────────
+# ── 3. Repo klonen ────────────────────────────────────────────
 step "Repository klonen"
 if [ -d "$INSTALL_DIR/.git" ]; then
     info "Repo bereits vorhanden — aktualisiere..."
@@ -66,6 +154,139 @@ else
     success "Repository geklont nach $INSTALL_DIR"
 fi
 cd "$INSTALL_DIR"
+
+# ── 4. Konfiguration ─────────────────────────────────────────
+step "Konfiguration"
+
+# Defaults
+_ENV_HA_URL=""; _ENV_HA_TOKEN=""
+_ENV_LLM_URL=""; _ENV_LLM_KEY=""; _ENV_LLM_PROVIDER="openai_compat"; _ENV_LLM_MODEL="qwen/qwen3-4b-2507"
+_ENV_TTS_PROVIDER="disabled"; _ENV_TTS_VOICE=""
+_HA_SUPERVISED=false
+_DO_CONFIG=true
+
+if [ -f .env ]; then
+    echo -e "  ${YELLOW}Hinweis:${NC} Es existiert bereits eine .env-Datei."
+    printf "    Neu konfigurieren? [j/N]: "
+    _reconfigure=$(_choose)
+    if [[ "$_reconfigure" =~ ^[jJyY]$ ]]; then
+        _DO_CONFIG=true
+    else
+        success ".env unverändert übernommen"
+        _DO_CONFIG=false
+    fi
+fi
+
+if [ "$_DO_CONFIG" = true ]; then
+
+    # ── Home Assistant ────────────────────────────────────────
+    echo -e "\n  ${BOLD}Home Assistant${NC}"
+    echo "    [1] Ich habe bereits eine HA-Instanz im Netzwerk  (URL + Token eingeben)"
+    echo "    [2] HA Supervised hier installieren               (Debian 12 / Raspberry Pi OS)"
+    echo "    [3] Später im Admin-Panel konfigurieren"
+    printf "    ${CYAN}›${NC} Auswahl [1]: "
+    _ha=$(_choose); [ -z "$_ha" ] && _ha=1
+
+    case "$_ha" in
+        2)
+            _HA_SUPERVISED=true
+            _ENV_HA_URL="http://localhost:8123"
+            info "HA Supervised wird nach dem Basis-Setup installiert"
+            info "Danach: http://localhost:8123 öffnen, Konto anlegen, Token erstellen"
+            ;;
+        3)
+            info "HA kann jederzeit im Admin-Panel unter System → Home Assistant eingetragen werden"
+            ;;
+        *)
+            _ENV_HA_URL=$(_read "HA-URL" "http://192.168.1.x:8123")
+            _ENV_HA_TOKEN=$(_read "HA Long-Lived Token (leer = später eintragen)" "")
+            ;;
+    esac
+
+    # ── LLM ───────────────────────────────────────────────────
+    echo -e "\n  ${BOLD}LLM (Sprachmodell)${NC}"
+    echo "    [1] LM Studio / Ollama — lokal (URL eingeben)"
+    echo "    [2] OpenAI API (Key eingeben)"
+    echo "    [3] Später konfigurieren"
+    printf "    ${CYAN}›${NC} Auswahl [1]: "
+    _llm=$(_choose); [ -z "$_llm" ] && _llm=1
+
+    case "$_llm" in
+        2)
+            _ENV_LLM_URL="https://api.openai.com/v1/chat/completions"
+            _ENV_LLM_KEY=$(_read "OpenAI API-Key" "")
+            _ENV_LLM_MODEL=$(_read "Modellname" "gpt-4o-mini")
+            _ENV_LLM_PROVIDER="openai_compat"
+            ;;
+        3)
+            info "LLM kann jederzeit im Admin-Panel unter System → LLM konfiguriert werden"
+            ;;
+        *)
+            _ENV_LLM_URL=$(_read "API-URL" "http://192.168.1.x:1234/v1/chat/completions")
+            _ENV_LLM_MODEL=$(_read "Modellname" "qwen/qwen3-4b-2507")
+            _ENV_LLM_PROVIDER="openai_compat"
+            ;;
+    esac
+
+    # ── TTS ───────────────────────────────────────────────────
+    echo -e "\n  ${BOLD}TTS (Sprachausgabe)${NC}"
+    echo "    [1] Edge TTS — Microsoft, kostenlos, Internet nötig"
+    echo "    [2] Sherpa ONNX — lokal & offline (Modell muss in models/tts/ liegen)"
+    echo "    [3] Deaktiviert (später konfigurieren)"
+    printf "    ${CYAN}›${NC} Auswahl [1]: "
+    _tts=$(_choose); [ -z "$_tts" ] && _tts=1
+
+    case "$_tts" in
+        2)
+            _ENV_TTS_PROVIDER="sherpa_onnx"
+            _ENV_TTS_VOICE=$(_read "Stimmenlabel (Anzeigename im Admin)" "Kerstin")
+            warn "Modell-Dateien müssen unter models/tts/ abgelegt werden — siehe INSTALL_MANUAL.md"
+            ;;
+        3)
+            _ENV_TTS_PROVIDER="disabled"
+            ;;
+        *)
+            _ENV_TTS_PROVIDER="edge_tts"
+            _ENV_TTS_VOICE=$(_read "Stimme" "de-DE-KatjaNeural")
+            ;;
+    esac
+
+    # ── .env schreiben ────────────────────────────────────────
+    cat > .env << EOF
+# Erika Robot Core — generiert von install.sh am $(date '+%Y-%m-%d %H:%M')
+TZ=${TZ:-Europe/Berlin}
+SSH_DIR=$HOME/.ssh
+
+# LLM
+LLM_API_URL=${_ENV_LLM_URL}
+LLM_API_KEY=${_ENV_LLM_KEY}
+LLM_PROVIDER=${_ENV_LLM_PROVIDER}
+LLM_MODEL=${_ENV_LLM_MODEL}
+
+# Home Assistant
+ROBOT_HA_URL=${_ENV_HA_URL}
+ROBOT_HA_TOKEN=${_ENV_HA_TOKEN}
+
+# TTS
+ROBOT_TTS_PROVIDER=${_ENV_TTS_PROVIDER}
+ROBOT_TTS_VOICE_LABEL=${_ENV_TTS_VOICE}
+ROBOT_TTS_VITS_MODEL=/models/tts/model.onnx
+ROBOT_TTS_TOKENS=/models/tts/tokens.txt
+ROBOT_TTS_DATA_DIR=/models/tts/espeak-ng-data
+ROBOT_TTS_SPEED=1.0
+ROBOT_TTS_SPEAKER_ID=0
+ROBOT_TTS_NUM_THREADS=2
+EOF
+    success ".env geschrieben"
+
+else
+    # Bestehende .env: SSH_DIR ergänzen falls fehlend
+    if ! grep -q "SSH_DIR" .env; then
+        echo "" >> .env
+        echo "SSH_DIR=$HOME/.ssh" >> .env
+        success ".env: SSH_DIR ergänzt"
+    fi
+fi
 
 # ── 5. SSL-Zertifikat ─────────────────────────────────────────
 step "SSL-Zertifikat erstellen"
@@ -80,54 +301,18 @@ else
     success "Zertifikat bereits vorhanden"
 fi
 
-# ── 6. .env erstellen (minimal) ───────────────────────────────
-step ".env Konfiguration"
-if [ ! -f .env ]; then
-    cat > .env << EOF
-# Home Assistant (kann auch im Admin-Panel eingetragen werden)
-ROBOT_HA_URL=
-ROBOT_HA_TOKEN=
-
-# LLM (optional)
-LLM_API_URL=
-LLM_PROVIDER=generic
-LLM_MODEL=
-
-# TTS
-ROBOT_TTS_PROVIDER=disabled
-
-# SSH-Verzeichnis des Benutzers (für git-Fetch im Container)
-SSH_DIR=$HOME/.ssh
-EOF
-    success ".env angelegt (HA-Konfiguration im Admin-Panel unter System)"
-else
-    # SSH_DIR nachträglich eintragen falls fehlend
-    if ! grep -q "SSH_DIR" .env; then
-        echo "" >> .env
-        echo "# SSH-Verzeichnis des Benutzers (für git-Fetch im Container)" >> .env
-        echo "SSH_DIR=$HOME/.ssh" >> .env
-        success ".env: SSH_DIR ergänzt"
-    else
-        success ".env bereits vorhanden — unverändert"
-    fi
-fi
-
-# ── 7. Update-Hilfsdateien ────────────────────────────────────
+# ── 6. Update-Hilfsdateien ────────────────────────────────────
 step "Update-System einrichten"
-touch update.flag reboot.flag
-# Setup-Flag-Dateien anlegen (als Nutzer, nicht als root)
-touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag
+touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
 [ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
+[ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt
 mkdir -p ha_config
 chmod +x update.sh reboot-watcher.sh setup-watcher.sh
-# Watcher beim Boot starten
 nohup bash "$INSTALL_DIR/reboot-watcher.sh" >> "$INSTALL_DIR/reboot.log" 2>&1 &
 nohup bash "$INSTALL_DIR/setup-watcher.sh" >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
-# Neustart ohne sudo-Passwort erlauben
-echo "$USER_NAME ALL=(ALL) NOPASSWD: /sbin/reboot" > /etc/sudoers.d/erika-reboot
-chmod 440 /etc/sudoers.d/erika-reboot
+echo "$USER_NAME ALL=(ALL) NOPASSWD: /sbin/reboot" | sudo tee /etc/sudoers.d/erika-reboot > /dev/null
+sudo chmod 440 /etc/sudoers.d/erika-reboot
 
-# Cron-Jobs einrichten (HOME + fester kurzer PATH, kein $PATH der in SSH-Sessions sehr lang wird)
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * bash $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"
 CRON_FLAG="* * * * * grep -q requested_at $INSTALL_DIR/update.flag 2>/dev/null && echo '{}' > $INSTALL_DIR/update.flag && bash $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1 || true"
@@ -145,7 +330,7 @@ crontab - < "$_CRON_TMP"
 rm -f "$_CRON_TMP"
 success "Cron-Jobs eingerichtet (täglich 03:00 + Install-Trigger + Watcher)"
 
-# ── 8. Container bauen und starten ───────────────────────────
+# ── 7. Container bauen und starten ───────────────────────────
 step "Container bauen und starten"
 info "Dies kann einige Minuten dauern..."
 GIT_HASH=$(git rev-parse HEAD)
@@ -153,10 +338,16 @@ docker compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
 docker compose up -d robot-core
 success "Container gestartet"
 
-# ── 9. Autostart sicherstellen ────────────────────────────────
+# ── 8. Autostart sicherstellen ────────────────────────────────
 sudo systemctl enable docker > /dev/null 2>&1 || true
 
-# ── 10. Kiosk-Display (Chromium) ──────────────────────────────
+# ── 9. Home Assistant Supervised (falls gewählt) ──────────────
+if [ "$_HA_SUPERVISED" = true ]; then
+    step "Home Assistant Supervised installieren"
+    _install_ha_supervised
+fi
+
+# ── 10. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
 CHROMIUM_BIN=""
 if command -v chromium-browser &>/dev/null; then
@@ -173,7 +364,6 @@ else
 fi
 
 if [ -n "$CHROMIUM_BIN" ]; then
-    # Kamera und Mikrofon via Policy freigeben — kein Berechtigungsdialog beim Start
     sudo mkdir -p /etc/chromium/policies/managed
     sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
 {
@@ -182,7 +372,6 @@ if [ -n "$CHROMIUM_BIN" ]; then
 }
 POLICY
 
-    # Autostart-Eintrag für Desktop-Sitzung (z.B. Raspberry Pi OS)
     mkdir -p "$HOME/.config/autostart"
     cat > "$HOME/.config/autostart/erika-kiosk.desktop" << DESKTOP
 [Desktop Entry]
@@ -194,24 +383,36 @@ DESKTOP
 
     success "Kiosk eingerichtet (${CHROMIUM_BIN}, Kamera + Mikrofon vorab freigegeben)"
 else
-    warn "Chromium nicht gefunden — Kiosk-Setup übersprungen. Siehe INSTALL_MANUAL.md Schritt 9."
+    warn "Chromium nicht gefunden — Kiosk-Setup übersprungen. Siehe INSTALL_MANUAL.md Schritt 10."
 fi
 
 # ── Fertig ────────────────────────────────────────────────────
 IP=$(hostname -I | awk '{print $1}')
 echo ""
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}  Erika ist einsatzbereit! 🤖${NC}"
+echo -e "${BOLD}  Erika ist einsatzbereit!${NC}"
 echo ""
-echo -e "  Web-Interface:   ${CYAN}https://${IP}:8000${NC}"
 echo -e "  Display-Panel:   ${CYAN}https://${IP}:8000/display${NC}"
 echo -e "  Admin-Panel:     ${CYAN}https://${IP}:8000/local-admin${NC}"
+if [ "$_HA_SUPERVISED" = true ]; then
+    echo -e "  Home Assistant:  ${CYAN}http://${IP}:8123${NC}"
+fi
 echo ""
 echo -e "  ${YELLOW}Hinweis:${NC} Browser-Warnung beim SSL-Zertifikat ist normal"
 echo -e "           (selbstsigniert). Einfach bestätigen."
 echo ""
-echo -e "  Home Assistant im Admin-Panel unter System → Home Assistant"
-echo -e "  eintragen falls noch nicht in der .env gesetzt."
+if [ "$_HA_SUPERVISED" = true ]; then
+    echo -e "  ${YELLOW}Nächste Schritte für Home Assistant:${NC}"
+    echo -e "    1. http://${IP}:8123 öffnen und Konto anlegen"
+    echo -e "    2. Profil → Sicherheit → Token erstellen"
+    echo -e "    3. Token im Erika Admin-Panel unter System → Home Assistant eintragen"
+    echo -e "    4. System neu starten (AppArmor aktivieren): sudo reboot"
+elif [ -z "$_ENV_HA_TOKEN" ] && [ -z "$(grep ROBOT_HA_TOKEN .env | cut -d= -f2)" ]; then
+    echo -e "  ${YELLOW}Noch offen:${NC} HA-Token im Admin-Panel unter System → Home Assistant eintragen"
+fi
+if [ -z "$_ENV_LLM_URL" ]; then
+    echo -e "  ${YELLOW}Noch offen:${NC} LLM im Admin-Panel unter System → LLM konfigurieren"
+fi
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 if ! groups "$USER_NAME" | grep -q docker; then

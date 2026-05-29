@@ -58,22 +58,19 @@ Ziel: Erika kennt und steuert die Wohnung.
 
 ---
 
-## 🔧 Phase 3 — Stabilisierung & Reife (aktuell / kurzfristig)
+## ✅ Phase 3 — Stabilisierung & Reife (abgeschlossen)
 
 Ziel: Das, was existiert, wird zuverlässiger, testbarer und wartbarer.
 
-### Pflicht
 - [x] **Versionierung korrigieren**: v0.3.0 in FastAPI-App gesetzt
 - [x] **Testdateien aufräumen**: Veraltete `test_*.py` und alte Quell-Kopien aus dem Repo-Root entfernt
 - [x] **`.env.example`** mit allen Variablen und Standardwerten angelegt
 - [x] **CI/CD (minimal)**: `.github/workflows/ci.yml` — bei Push automatisch Build + Tests via Docker
 - [x] **Fehlerseite im Display**: Offline-Banner wenn Backend nicht erreichbar
-
-### Sinnvoll
-- [x] **Audit-Log im Admin** um Fehler-Einträge erweitern: `system.error`-Einträge aus Hintergrund-Loops, rot hervorgehoben im Protokoll-Tab
-- [x] **Gesichtserkennung Fallback**: Bei Kamera-Fehler wird Status ans Backend gemeldet und nach 60s automatisch neu versucht
-- [x] **TTS-Watchdog-Metriken**: Zähler wird bei jedem 30s-Timeout ans Backend gesendet; Anzeige im Admin unter Erika → TTS
-- [x] **INSTALL_MANUAL.md** fertiggestellt — vollständige Schritt-für-Schritt-Anleitung
+- [x] **Audit-Log im Admin** um Fehler-Einträge erweitern
+- [x] **Gesichtserkennung Fallback**: Bei Kamera-Fehler Retry nach 60s
+- [x] **TTS-Watchdog-Metriken**: Zähler im Admin sichtbar
+- [x] **INSTALL_MANUAL.md** fertiggestellt
 
 ---
 
@@ -88,13 +85,29 @@ Ziel: Erika vergisst nach einem Neustart nicht mehr was zuvor besprochen wurde.
 
 ---
 
-## 🗓️ Phase 4 — Persönlichkeit & Gedächtnis (mittelfristig)
+## ✅ Phase 4 — Persönlichkeit & Gedächtnis (abgeschlossen)
 
 Ziel: Erika wird über Zeit klüger und persönlicher.
 
 - [x] **Stimmungsmodell**: Erika erkennt Gesprächssentiment und entwickelt eine eigene Stimmung; passt Ton und Wortwahl konkret an
 - [x] **Beziehungsentwicklung**: Entwickelt sich automatisch aus Gesprächen; Wärme/Anspannung/Offenheit beeinflussen Wortwahl; im Admin manuell kontrollierbar
 - [x] **Personenbezogene Briefing-Konfiguration**: Jede Person hat ihr eigenes Briefing-Profil (Reihenfolge, Module)
+- [x] **LLM-generierte Begrüßung**: Natürliche, kontextuelle Begrüßung mit Tageszeit, Kalender, PV und Gesprächsthemen; im Admin konfigurierbar
+
+---
+
+## 🔧 Phase 4.3 — Integration & Display-Qualität (aktuell)
+
+Ziel: Bestehende Integrationen werden präziser, konfigurierbarer und zuverlässiger.
+
+- [x] **PV-Widget individuell konfigurierbar**: Felder per Checkbox im Admin aktivier-/deaktivierbar
+- [x] **PV Netz & Hausverbrauch**: Netz-Sensor + Batterie-Leistungs-Sensor; Hausverbrauchsberechnung
+- [x] **PV-Statistiken Einspeisung/Netzbezug**: Separate Balkendiagramme im Statistik-Overlay
+- [x] **PV-Echtzeit**: Widget-Aktualisierung alle 5 Sekunden
+- [x] **Standort via Koordinaten**: `zone.home` aus HA, kein mehrdeutiges Geocoding
+- [x] **TTS + Face-Recognition Race Condition behoben**: Kein ungewolltes Zuhören während Erika spricht
+- [ ] **Admin-UX Übersicht**: Health-Check / Status-Übersicht für Integrationen (Sensoren erreichbar?)
+- [ ] **PV-Langzeitstatistik aus Leistungssensor**: Zuverlässige kWh-Ableitung wenn kein Tageszähler konfiguriert
 
 ---
 
