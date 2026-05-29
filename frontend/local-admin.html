@@ -1932,17 +1932,17 @@
         </section>
       `).join('');
 
-      document.querySelectorAll('.ev-field').forEach((input) => {
+      evVehicleListEl.querySelectorAll('.ev-field').forEach((input) => {
         input.addEventListener('input', syncEvStateFromDom);
         input.addEventListener('change', syncEvStateFromDom);
       });
-      document.querySelectorAll('.ev-type-toggle').forEach((input) => {
+      evVehicleListEl.querySelectorAll('.ev-type-toggle').forEach((input) => {
         input.addEventListener('change', () => {
           syncEvStateFromDom();
           renderEvVehicles();
         });
       });
-      document.querySelectorAll('.ev-remove-btn').forEach((button) => {
+      evVehicleListEl.querySelectorAll('.ev-remove-btn').forEach((button) => {
         button.addEventListener('click', () => {
           evVehicles.splice(Number(button.dataset.vehicleIndex), 1);
           renderEvVehicles();
@@ -1952,7 +1952,7 @@
     }
 
     function syncEvStateFromDom() {
-      evVehicles = Array.from(document.querySelectorAll('.vehicle-card')).map((card, index) => {
+      evVehicles = Array.from(evVehicleListEl.querySelectorAll('.vehicle-card')).map((card, index) => {
         const getField = (field) => card.querySelector(`[data-field="${field}"]`)?.value || '';
         const getChecked = (field) => Boolean(card.querySelector(`[data-field="${field}"]`)?.checked);
         return {
