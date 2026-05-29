@@ -931,6 +931,46 @@
                 <input class="field-input" id="attention-evening-recap-time" type="time" value="20:00">
               </label>
             </div>
+
+            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Begrüßung</div>
+            <div class="field-grid">
+              <label class="field-block checkbox-block">
+                <span class="field-label">KI-Begrüßung</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-greeting-use-llm">
+                  <span>Begrüßungstext per KI generieren (natürlicher, variabler)</span>
+                </label>
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Tageszeit</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-greeting-ctx-time">
+                  <span>Uhrzeit einbeziehen (Guten Morgen / Abend)</span>
+                </label>
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Kalender</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-greeting-ctx-calendar">
+                  <span>Nächsten Termin einbeziehen</span>
+                </label>
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">PV-Anlage</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-greeting-ctx-pv">
+                  <span>Tagesertrag der PV-Anlage einbeziehen</span>
+                </label>
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Gesprächsthemen</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-greeting-ctx-topics">
+                  <span>Aktive Themen der Person einbeziehen</span>
+                </label>
+              </label>
+            </div>
+
             <div class="stack-actions" style="margin-top:10px;">
               <button type="button" class="primary" onclick="saveAttentionSettings()">Speichern</button>
             </div>
@@ -4079,6 +4119,16 @@
         if (endEl) endEl.value = att.proactive_end || '22:00';
         if (recapEl) recapEl.checked = !!att.evening_recap_enabled;
         if (recapTimeEl) recapTimeEl.value = att.evening_recap_time || '20:00';
+        const gLlmEl   = document.getElementById('attention-greeting-use-llm');
+        const gTimeEl  = document.getElementById('attention-greeting-ctx-time');
+        const gCalEl   = document.getElementById('attention-greeting-ctx-calendar');
+        const gPvEl    = document.getElementById('attention-greeting-ctx-pv');
+        const gTopicEl = document.getElementById('attention-greeting-ctx-topics');
+        if (gLlmEl)   gLlmEl.checked   = att.greeting_use_llm !== false;
+        if (gTimeEl)  gTimeEl.checked  = att.greeting_context_time !== false;
+        if (gCalEl)   gCalEl.checked   = att.greeting_context_calendar !== false;
+        if (gPvEl)    gPvEl.checked    = att.greeting_context_pv !== false;
+        if (gTopicEl) gTopicEl.checked = att.greeting_context_topics !== false;
       } catch {}
     }
 
@@ -4176,6 +4226,11 @@
               proactive_end: document.getElementById('attention-proactive-end')?.value || '22:00',
               evening_recap_enabled: document.getElementById('attention-evening-recap-enabled')?.checked ?? false,
               evening_recap_time: document.getElementById('attention-evening-recap-time')?.value || '20:00',
+              greeting_use_llm: document.getElementById('attention-greeting-use-llm')?.checked ?? true,
+              greeting_context_time: document.getElementById('attention-greeting-ctx-time')?.checked ?? true,
+              greeting_context_calendar: document.getElementById('attention-greeting-ctx-calendar')?.checked ?? true,
+              greeting_context_pv: document.getElementById('attention-greeting-ctx-pv')?.checked ?? true,
+              greeting_context_topics: document.getElementById('attention-greeting-ctx-topics')?.checked ?? true,
             },
           }),
         });

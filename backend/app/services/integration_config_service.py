@@ -205,6 +205,11 @@ class IntegrationConfigService:
         attention["proactive_end"] = self._sanitize_time_hhmm(attention.get("proactive_end"), "22:00")
         attention["evening_recap_enabled"] = bool(attention.get("evening_recap_enabled", False))
         attention["evening_recap_time"] = self._sanitize_time_hhmm(attention.get("evening_recap_time"), "20:00")
+        attention["greeting_use_llm"] = bool(attention.get("greeting_use_llm", True))
+        attention["greeting_context_time"] = bool(attention.get("greeting_context_time", True))
+        attention["greeting_context_calendar"] = bool(attention.get("greeting_context_calendar", True))
+        attention["greeting_context_pv"] = bool(attention.get("greeting_context_pv", True))
+        attention["greeting_context_topics"] = bool(attention.get("greeting_context_topics", True))
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -284,6 +289,11 @@ class IntegrationConfigService:
         attention["proactive_end"] = self._sanitize_time_hhmm(attention.get("proactive_end"), "22:00")
         attention["evening_recap_enabled"] = bool(attention.get("evening_recap_enabled", False))
         attention["evening_recap_time"] = self._sanitize_time_hhmm(attention.get("evening_recap_time"), "20:00")
+        attention["greeting_use_llm"] = bool(attention.get("greeting_use_llm", True))
+        attention["greeting_context_time"] = bool(attention.get("greeting_context_time", True))
+        attention["greeting_context_calendar"] = bool(attention.get("greeting_context_calendar", True))
+        attention["greeting_context_pv"] = bool(attention.get("greeting_context_pv", True))
+        attention["greeting_context_topics"] = bool(attention.get("greeting_context_topics", True))
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:

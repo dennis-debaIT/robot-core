@@ -539,7 +539,7 @@ class RobotCore:
         return self.audit.list_entries(limit=limit)
 
     def generate_greeting(self, person_id: int) -> dict[str, Any] | None:
-        """Erzeugt eine kontextuelle Begrüßung basierend auf Beziehungsstatus, Stimmung, Zeit und aktiven Themen."""
+        """Erzeugt eine kontextuelle Begrüßung basierend auf Beziehungsstatus, Stimmung, Zeit und aktivem Kontext."""
         import random
         person = self.profile.get_person_by_id(person_id)
         if not person:
@@ -551,6 +551,16 @@ class RobotCore:
         tension = float(state.get("tension", 0.0))
         mood = self.relationship.get_mood()
         mood_score = float(mood.get("score", 0.0))
+
+        # Greeting-Konfiguration lesen
+        from app.services.integration_config_service import IntegrationConfigService
+        cfg = IntegrationConfigService().get_config()
+        att = cfg.get("attention", {})
+        use_llm              = bool(att.get("greeting_use_llm", True))
+        ctx_time             = bool(att.get("greeting_context_time", True))
+        ctx_calendar         = bool(att.get("greeting_context_calendar", True))
+        ctx_pv               = bool(att.get("greeting_context_pv", True))
+        ctx_topics           = bool(att.get("greeting_context_topics", True))
 
         # Zeit seit letztem Gespräch dieser Person (nicht global)
         minutes_since = 99999
@@ -564,7 +574,6 @@ class RobotCore:
             ).fetchone()
             last_at = row["last_at"] if row else None
 
-            # Aktive Themen dieser Person
             topic_rows = conn.execute(
                 "SELECT title FROM active_topics WHERE person_name=? AND status='active' "
                 "ORDER BY importance DESC, mentions DESC LIMIT 3",
@@ -583,9 +592,9 @@ class RobotCore:
             return {"text": None, "skip": True, "reason": "too_recent"}
 
         # Abwesenheitskontext
-        if minutes_since > 1440:  # > 1 Tag
+        if minutes_since > 1440:
             absence = "long"
-        elif minutes_since > 240:  # > 4 Stunden
+        elif minutes_since > 240:
             absence = "medium"
         elif minutes_since > 30:
             absence = "short"
@@ -602,66 +611,75 @@ class RobotCore:
         else:
             tone = "neutral"
 
-        # Schlechte Stimmung → Ton eine Stufe kühler
         if mood_score <= -0.5 and tone == "warm":
             tone = "friendly"
         elif mood_score <= -0.5 and tone == "friendly":
             tone = "neutral"
 
-        # Begrüßungstexte nach Ton und Abwesenheit
-        _GREETINGS: dict[str, dict[str, list[str]]] = {
-            "warm": {
-                "long":   [f"Oh, {name}! Schön, dass du wieder da bist.", f"Hey {name}, ich hab dich vermisst! Wie war's?", f"Willkommen zurück, {name}! Schön, dich zu sehen."],
-                "medium": [f"Hey {name}! Schön, dich wieder zu sehen.", f"Da bist du ja wieder, {name}! Alles gut?"],
-                "short":  [f"Hallo {name}!", f"Hey {name}!"],
-                "none":   [f"Hallo {name}!", f"Hey {name}!"],
-            },
-            "friendly": {
-                "long":   [f"Hallo {name}, lange nicht gesehen!", f"Oh, {name}! Schön, dass du wieder da bist."],
-                "medium": [f"Hallo {name}!", f"Hey {name}, wie geht's?"],
-                "short":  [f"Hallo {name}!"],
-                "none":   [f"Hallo {name}!"],
-            },
-            "neutral": {
-                "long":   [f"Hallo {name}.", f"{name}."],
-                "medium": [f"Hallo {name}."],
-                "short":  [f"Hallo."],
-                "none":   [f"Hallo."],
-            },
-            "reserved": {
-                "long":   [f"{name}."],
-                "medium": [f"Hm."],
-                "short":  [f"Hm."],
-                "none":   [f"Hm."],
-            },
-        }
+        topics = [r["title"] for r in topic_rows] if ctx_topics else []
 
-        options = _GREETINGS.get(tone, _GREETINGS["neutral"]).get(absence, ["Hallo."])
-        text = random.choice(options)
+        # ── LLM-generierte Begrüßung ─────────────────────────────────────────
+        if use_llm:
+            text = self._generate_greeting_llm(
+                name=name, tone=tone, absence=absence,
+                topics=topics, ctx_time=ctx_time,
+                ctx_calendar=ctx_calendar, ctx_pv=ctx_pv,
+                cfg=cfg,
+            )
+        else:
+            text = None
 
-        # Themen-Addon — Erika bringt ein aktives Gesprächsthema ein
-        topics = [r["title"] for r in topic_rows]
-        topic_used = None
-        if topics and tone not in ("reserved",):
-            topic = random.choice(topics[:2])
-            topic_used = topic
-            if absence == "none":
-                # Proaktive Ansprache (25min Stille): Erika bricht das Schweigen mit einer konkreten Frage
-                proactive = [
-                    f"Ich wollte kurz fragen — wie sieht's aus mit {topic}?",
-                    f"Darf ich kurz stören? Ich musste gerade an {topic} denken.",
-                    f"Hey, kurze Frage: {topic} — alles im Griff?",
-                ]
-                if mood_score >= 0.2:
-                    proactive.append(f"Sag mal, {topic} — gibt's da was Neues?")
-                text += " " + random.choice(proactive)
-            elif absence in ("medium", "long"):
-                # Nach längerer Abwesenheit: Thema erwähnen
-                addons = [
-                    f"Du hast zuletzt öfter über {topic} gesprochen — noch aktuell?",
-                    f"Wie läuft's übrigens mit {topic}?",
-                ]
-                text += " " + random.choice(addons)
+        # ── Template-Fallback ────────────────────────────────────────────────
+        if not text:
+            _GREETINGS: dict[str, dict[str, list[str]]] = {
+                "warm": {
+                    "long":   [f"Oh, {name}! Schön, dass du wieder da bist.", f"Hey {name}, ich hab dich vermisst! Wie war's?", f"Willkommen zurück, {name}! Schön, dich zu sehen."],
+                    "medium": [f"Hey {name}! Schön, dich wieder zu sehen.", f"Da bist du ja wieder, {name}! Alles gut?"],
+                    "short":  [f"Hallo {name}!", f"Hey {name}!"],
+                    "none":   [f"Hallo {name}!", f"Hey {name}!"],
+                },
+                "friendly": {
+                    "long":   [f"Hallo {name}, lange nicht gesehen!", f"Oh, {name}! Schön, dass du wieder da bist."],
+                    "medium": [f"Hallo {name}!", f"Hey {name}, wie geht's?"],
+                    "short":  [f"Hallo {name}!"],
+                    "none":   [f"Hallo {name}!"],
+                },
+                "neutral": {
+                    "long":   [f"Hallo {name}.", f"{name}."],
+                    "medium": [f"Hallo {name}."],
+                    "short":  [f"Hallo."],
+                    "none":   [f"Hallo."],
+                },
+                "reserved": {
+                    "long":   [f"{name}."],
+                    "medium": [f"Hm."],
+                    "short":  [f"Hm."],
+                    "none":   [f"Hm."],
+                },
+            }
+            options = _GREETINGS.get(tone, _GREETINGS["neutral"]).get(absence, ["Hallo."])
+            text = random.choice(options)
+
+            # Themen-Addon im Template-Modus
+            topic_used = None
+            if topics and tone not in ("reserved",):
+                topic = random.choice(topics[:2])
+                topic_used = topic
+                if absence == "none":
+                    proactive = [
+                        f"Ich wollte kurz fragen — wie sieht's aus mit {topic}?",
+                        f"Darf ich kurz stören? Ich musste gerade an {topic} denken.",
+                        f"Hey, kurze Frage: {topic} — alles im Griff?",
+                    ]
+                    if mood_score >= 0.2:
+                        proactive.append(f"Sag mal, {topic} — gibt's da was Neues?")
+                    text += " " + random.choice(proactive)
+                elif absence in ("medium", "long"):
+                    addons = [
+                        f"Du hast zuletzt öfter über {topic} gesprochen — noch aktuell?",
+                        f"Wie läuft's übrigens mit {topic}?",
+                    ]
+                    text += " " + random.choice(addons)
 
         return {
             "text": text,
@@ -672,8 +690,114 @@ class RobotCore:
             "warmth": warmth,
             "tension": tension,
             "mood_label": mood.get("label", "neutral"),
-            "topic": topic_used,
         }
+
+    def _generate_greeting_llm(
+        self,
+        *,
+        name: str,
+        tone: str,
+        absence: str,
+        topics: list[str],
+        ctx_time: bool,
+        ctx_calendar: bool,
+        ctx_pv: bool,
+        cfg: dict[str, Any],
+    ) -> str | None:
+        """Generiert eine Begrüßung per LLM. Gibt None zurück bei Fehler → Template-Fallback."""
+        try:
+            context_lines: list[str] = []
+
+            if ctx_time:
+                from datetime import datetime as _dt
+                import locale as _locale
+                now = _dt.now()
+                h = now.hour
+                if 5 <= h < 12:
+                    tageszeit = "Morgen"
+                elif 12 <= h < 17:
+                    tageszeit = "Mittag"
+                elif 17 <= h < 22:
+                    tageszeit = "Abend"
+                else:
+                    tageszeit = "Nacht"
+                context_lines.append(f"Tageszeit: {tageszeit} ({now.strftime('%H:%M')} Uhr)")
+
+            if ctx_calendar:
+                try:
+                    from app.search.providers.homeassistant import HomeAssistantProvider
+                    cal_cfg = cfg.get("calendar", {})
+                    selected = cal_cfg.get("selected_calendars") or []
+                    events = HomeAssistantProvider().get_events_upcoming(days=1, selected_calendars=selected or None)
+                    if events:
+                        ev = events[0]
+                        context_lines.append(f"Nächster Termin: {ev.get('summary', '')} um {ev.get('start', '')}")
+                except Exception:
+                    pass
+
+            if ctx_pv:
+                try:
+                    from app.services.pv_service import PvService
+                    from app.services.integration_config_service import IntegrationConfigService
+                    pv_cfg = cfg.get("pv", {})
+                    if pv_cfg.get("enabled"):
+                        sensors = pv_cfg.get("sensors", {})
+                        daily_id = sensors.get("daily", "")
+                        if daily_id:
+                            from app.services.homeassistant_service import HomeAssistantService
+                            ha = HomeAssistantService()
+                            st = ha.get_state(daily_id)
+                            if st and st.get("state") not in (None, "unavailable", "unknown"):
+                                val = st["state"]
+                                unit = (st.get("attributes") or {}).get("unit_of_measurement", "kWh")
+                                context_lines.append(f"PV-Tagesertrag bisher: {val} {unit}")
+                except Exception:
+                    pass
+
+            if topics:
+                context_lines.append(f"Aktive Gesprächsthemen: {', '.join(topics[:2])}")
+
+            _TONE_HINT = {
+                "warm":     "herzlich, persönlich",
+                "friendly": "freundlich",
+                "neutral":  "sachlich, kurz",
+                "reserved": "knapp, distanziert",
+            }
+            _ABSENCE_HINT = {
+                "long":   "war sehr lange nicht da (über 1 Tag)",
+                "medium": "war mehrere Stunden weg",
+                "short":  "war kurz weg",
+                "none":   "ist schon eine Weile da, aber Erika hat lange nichts gesagt",
+            }
+
+            context_block = ("\n".join(f"- {l}" for l in context_lines)) if context_lines else "Kein zusätzlicher Kontext."
+            prompt = (
+                f"Begrüße {name}. Ton: {_TONE_HINT.get(tone, 'freundlich')}. "
+                f"Situation: {name} {_ABSENCE_HINT.get(absence, '')}.\n"
+                f"Kontext:\n{context_block}\n\n"
+                "Formuliere eine kurze, natürliche Begrüßung auf Deutsch (max. 2 Sätze). "
+                "Keine Fragen außer einer konkreten wenn der Kontext dazu passt. "
+                "Kein 'Wie kann ich helfen?'. Kein Markdown."
+            )
+
+            result = self.llm.generate(
+                {
+                    "messages": [
+                        {"role": "system", "content": (
+                            "Du bist Erika, ein sozialer KI-Roboter im Haushalt. "
+                            "Antworte ausschließlich auf Deutsch. "
+                            "Formuliere ausschließlich die Begrüßung selbst — keinen Zusatz, keine Erklärung."
+                        )},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "llm_max_tokens": 80,
+                },
+                timeout_seconds=8,
+            )
+            text = (result.get("reply") or "").strip()
+            return text if text else None
+        except Exception:
+            return None
 
     def list_conversation_messages(self, person_name: str | None = None, limit: int = 40) -> list[dict[str, Any]]:
         with get_connection() as conn:
