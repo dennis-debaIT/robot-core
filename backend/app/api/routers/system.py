@@ -625,6 +625,25 @@ def debug_light_schedule() -> dict[str, Any]:
     }
 
 
+@router.get("/ha/zone-home")
+def get_ha_zone_home() -> dict:
+    """Liest zone.home aus HA und gibt lat/lon/name zurück."""
+    from app.services.homeassistant_service import HomeAssistantService
+    try:
+        state = HomeAssistantService().get_state("zone.home")
+        if not state:
+            return {"ok": False, "error": "zone.home nicht gefunden"}
+        attrs = state.get("attributes") or {}
+        lat = attrs.get("latitude")
+        lon = attrs.get("longitude")
+        if lat is None or lon is None:
+            return {"ok": False, "error": "zone.home hat keine Koordinaten"}
+        name = attrs.get("friendly_name") or state.get("state") or "Zuhause"
+        return {"ok": True, "latitude": float(lat), "longitude": float(lon), "name": str(name)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @router.post("/face-recognition/status")
 def face_recognition_status(payload: dict) -> dict:
     """Frontend meldet Kamera-Status der Gesichtserkennung."""

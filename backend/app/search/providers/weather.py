@@ -18,16 +18,14 @@ from typing import Any
 
 
 def _get_device_location() -> str:
-    """Liest den Wohnort aus system_state (site_label). Fallback: Env-Var oder 'Darmstadt'."""
+    """Liest den Wohnort aus der Konfiguration. Fallback: Env-Var oder 'Darmstadt'."""
     try:
         from app.services.integration_config_service import IntegrationConfigService
-
         location = IntegrationConfigService().get_site_location()
         if location:
             return location
     except Exception:
         pass
-
     try:
         import json as _json
         from app.database.db import get_connection
@@ -36,12 +34,21 @@ def _get_device_location() -> str:
                 "SELECT value FROM system_state WHERE key = 'site_label' LIMIT 1"
             ).fetchone()
             if row and row["value"]:
-                value = _json.loads(row["value"])  # JSON-dekodieren ("Ostenfeld" → Ostenfeld)
+                value = _json.loads(row["value"])
                 if value and str(value).strip():
                     return str(value).strip()
     except Exception:
         pass
     return os.environ.get("ROBOT_WEATHER_LOCATION", "Darmstadt")
+
+
+def _get_device_coords() -> tuple[float, float, str] | None:
+    """Gibt gespeicherte Koordinaten zurück wenn vorhanden, sonst None."""
+    try:
+        from app.services.integration_config_service import IntegrationConfigService
+        return IntegrationConfigService().get_site_coords()
+    except Exception:
+        return None
 
 
 def _get_weather_settings() -> dict[str, Any]:
@@ -118,8 +125,8 @@ class WeatherProvider:
         settings = _get_weather_settings()
         if not settings.get("enabled", True):
             return None
-        location = location or _get_device_location()
-        coords = self._geocode(location)
+        # Gespeicherte Koordinaten haben Vorrang — kein Geocoding nötig
+        coords = (None if location else _get_device_coords()) or self._geocode(location or _get_device_location())
         if not coords:
             return None
         lat, lon, name = coords
@@ -553,8 +560,7 @@ class YrNoWeatherProvider:
         from datetime import datetime as _dt, timedelta as _td
         from zoneinfo import ZoneInfo
 
-        loc = location or _get_device_location()
-        coords = WeatherProvider()._geocode(loc)
+        coords = (None if location else _get_device_coords()) or WeatherProvider()._geocode(location or _get_device_location())
         if not coords:
             return None
         lat, lon, name = coords
@@ -695,8 +701,7 @@ class OpenWeatherMapProvider:
         if not api_key:
             return None
 
-        loc = location or _get_device_location()
-        coords = WeatherProvider()._geocode(loc)
+        coords = (None if location else _get_device_coords()) or WeatherProvider()._geocode(location or _get_device_location())
         if not coords:
             return None
         lat, lon, name = coords

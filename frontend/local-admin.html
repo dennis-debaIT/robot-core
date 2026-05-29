@@ -1143,13 +1143,25 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Standort</div>
-              <p>Der Systemstandort wird zuerst für das Wetter genutzt und kann später auch für weitere lokale Funktionen verwendet werden.</p>
+              <p>Der Systemstandort wird für Wetter und weitere lokale Funktionen genutzt. Koordinaten haben Vorrang vor dem Ortsnamen — kein mehrdeutiges Geocoding.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
-                <span class="field-label">Standort / Ort</span>
+                <span class="field-label">Ortsname</span>
                 <input id="site-location" class="field-input" type="text" placeholder="z. B. Ostenfeld">
               </label>
+              <label class="field-block">
+                <span class="field-label">Breitengrad (lat)</span>
+                <input id="site-latitude" class="field-input" type="number" step="0.0001" placeholder="z. B. 54.4748">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Längengrad (lon)</span>
+                <input id="site-longitude" class="field-input" type="number" step="0.0001" placeholder="z. B. 9.0858">
+              </label>
+            </div>
+            <div class="stack-actions" style="margin-top:6px;">
+              <button type="button" class="secondary" onclick="importZoneHome()" id="zone-home-btn">Von HA übernehmen (zone.home)</button>
+              <span id="zone-home-status" style="font-size:0.78rem;color:var(--text-muted);margin-left:10px;"></span>
             </div>
           </section>
 
@@ -2600,6 +2612,13 @@
       haUsernameEl.value = haConfig.username || '';
       haPasswordEl.value = haConfig.password || '';
       siteLocationEl.value = siteConfig.location || data?.catalog?.entities?.system?.site?.default_location || 'Ostenfeld';
+      const siteLatEl = document.getElementById('site-latitude');
+      const siteLonEl = document.getElementById('site-longitude');
+      if (siteLatEl) siteLatEl.value = siteConfig.latitude != null ? siteConfig.latitude : '';
+      if (siteLonEl) siteLonEl.value = siteConfig.longitude != null ? siteConfig.longitude : '';
+      // Status-Anzeige
+      const zhs = document.getElementById('zone-home-status');
+      if (zhs) zhs.textContent = siteConfig.latitude != null ? `📍 ${siteConfig.latitude?.toFixed(4)}, ${siteConfig.longitude?.toFixed(4)}` : 'Noch nicht gesetzt — Geocoding wird genutzt';
       weatherEnabledEl.checked = weatherConfig.enabled !== false;
       weatherProviderEl.value = weatherConfig.provider || 'open_meteo';
       weatherApiKeyEl.value = weatherConfig.api_key || '';
@@ -2798,9 +2817,13 @@
                 username: haUsernameEl.value.trim(),
                 password: haPasswordEl.value,
               },
-              site: {
-                location: siteLocationEl.value.trim(),
-              },
+              site: (() => {
+                const s = { location: siteLocationEl.value.trim() };
+                const lat = parseFloat(document.getElementById('site-latitude')?.value);
+                const lon = parseFloat(document.getElementById('site-longitude')?.value);
+                if (!isNaN(lat) && !isNaN(lon)) { s.latitude = lat; s.longitude = lon; }
+                return s;
+              })(),
             },
           }),
         });
@@ -4097,6 +4120,31 @@
     function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
     document.querySelector('[data-tab-target="tab-auditlog"]')?.addEventListener('click', loadAuditLog);
+
+    // ── Standort: zone.home aus HA übernehmen ─────────────────
+    async function importZoneHome() {
+      const btn = document.getElementById('zone-home-btn');
+      const status = document.getElementById('zone-home-status');
+      if (btn) btn.disabled = true;
+      if (status) status.textContent = 'Wird geladen…';
+      try {
+        const d = await fetch('/ha/zone-home').then(r => r.json());
+        if (!d.ok) {
+          if (status) status.textContent = `✗ ${d.error || 'Fehler'}`;
+          return;
+        }
+        document.getElementById('site-latitude').value = d.latitude.toFixed(6);
+        document.getElementById('site-longitude').value = d.longitude.toFixed(6);
+        if (!document.getElementById('site-location').value.trim()) {
+          document.getElementById('site-location').value = d.name;
+        }
+        if (status) status.textContent = `✓ ${d.latitude.toFixed(4)}, ${d.longitude.toFixed(4)} (${d.name})`;
+      } catch {
+        if (status) status.textContent = '✗ Verbindungsfehler';
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
 
     // ── Aufmerksamkeit / Wake Word ────────────────────────────
     async function loadAttentionSettings() {

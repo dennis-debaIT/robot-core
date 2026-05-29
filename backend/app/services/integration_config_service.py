@@ -326,6 +326,16 @@ class IntegrationConfigService:
         location = ((config.get("system") or {}).get("site") or {}).get("location")
         return str(location or "Ostenfeld").strip() or "Ostenfeld"
 
+    def get_site_coords(self) -> tuple[float, float, str] | None:
+        """Gibt (lat, lon, name) zurück wenn Koordinaten gespeichert sind, sonst None."""
+        site = (self.get_config().get("system") or {}).get("site") or {}
+        lat = self._sanitize_float_or_none(site.get("latitude"))
+        lon = self._sanitize_float_or_none(site.get("longitude"))
+        if lat is None or lon is None:
+            return None
+        name = str(site.get("location") or "").strip() or "Heimstandort"
+        return lat, lon, name
+
     def get_weather_config(self) -> dict[str, Any]:
         config = self.get_config()
         return self._sanitize_weather_config(config.get("weather") or ((config.get("system") or {}).get("weather") or {}))
@@ -678,10 +688,24 @@ class IntegrationConfigService:
         return result
 
     @staticmethod
+    @staticmethod
+    def _sanitize_float_or_none(v: Any) -> float | None:
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
     def _sanitize_site_config(value: Any) -> dict[str, Any]:
         data = value if isinstance(value, dict) else {}
         location = str(data.get("location") or "Ostenfeld").strip()
-        return {"location": location or "Ostenfeld"}
+        lat = IntegrationConfigService._sanitize_float_or_none(data.get("latitude"))
+        lon = IntegrationConfigService._sanitize_float_or_none(data.get("longitude"))
+        result: dict[str, Any] = {"location": location or "Ostenfeld"}
+        if lat is not None and lon is not None:
+            result["latitude"] = lat
+            result["longitude"] = lon
+        return result
 
     @staticmethod
     def _sanitize_weather_config(value: Any) -> dict[str, Any]:
