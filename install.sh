@@ -525,12 +525,20 @@ success "Boot-Parameter gesetzt (quiet splash, kein GRUB-Menü)"
 # ── 11. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
 
-# Display-Manager installieren falls keiner vorhanden (kein LXDE nötig)
-if ! command -v lightdm &>/dev/null && ! command -v gdm3 &>/dev/null; then
-    info "Installiere LightDM..."
-    sudo apt-get install -y lightdm > /dev/null
-    echo "/usr/sbin/lightdm" | sudo tee /etc/X11/default-display-manager > /dev/null
-fi
+# nodm: minimaler Display-Manager nur für Kiosk-Autologin
+# Kein Greeter, kein Login-Dialog — startet kiosk-session.sh direkt
+sudo apt-get install -y nodm > /dev/null
+sudo tee /etc/default/nodm > /dev/null << EOF
+NODM_ENABLED=true
+NODM_USER=${USER_NAME}
+NODM_XSESSION=${INSTALL_DIR}/kiosk-session.sh
+NODM_X_OPTIONS="-nolisten tcp"
+NODM_MIN_SESSION_TIME=60
+NODM_XINIT_SLEEP=0
+EOF
+sudo systemctl enable nodm > /dev/null 2>&1 || true
+# LightDM deaktivieren falls vorhanden
+sudo systemctl disable lightdm > /dev/null 2>&1 || true
 
 # Chromium installieren falls fehlend
 if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
@@ -626,35 +634,10 @@ Type=Application
 DesktopNames=erika-kiosk
 EOF
 
-# autologin-Gruppe: LightDM ohne Passwort anmelden (Debian-Anforderung)
-sudo groupadd -f autologin
-sudo usermod -aG autologin "$USER_NAME"
-
-# LightDM: Autologin direkt in lightdm.conf schreiben
-# (lightdm.conf.d wird auf manchen Debian-Setups nicht ausgewertet)
-sudo sed -i \
-  -e 's/^#autologin-user=$/autologin-user='"${USER_NAME}"'/' \
-  -e 's/^#autologin-user-timeout=0$/autologin-user-timeout=0/' \
-  -e 's/^#autologin-session=$/autologin-session=erika-kiosk/' \
-  /etc/lightdm/lightdm.conf
-
-# Fallback: conf.d bleibt als Backup
-sudo mkdir -p /etc/lightdm/lightdm.conf.d
-sudo tee /etc/lightdm/lightdm.conf.d/50-erika-autologin.conf > /dev/null << EOF
-[Seat:*]
-autologin-user=${USER_NAME}
-autologin-user-timeout=0
-autologin-session=erika-kiosk
-EOF
-
-# User-Default-Session auf erika-kiosk setzen
-# (verhindert dass der Greeter lightdm-xsession wählt wenn er erscheint)
-echo -e "[User]\nSession=erika-kiosk" > "$HOME/.dmrc"
-
 # Alten LXDE-Autostart entfernen (nicht mehr nötig)
 rm -f "$HOME/.config/autostart/erika-kiosk.desktop"
 
-success "Kiosk eingerichtet (openbox + Chromium, kein Desktop-Flash)"
+success "Kiosk eingerichtet (nodm + openbox + Chromium, kein Login-Dialog)"
 
 # ── Fertig ────────────────────────────────────────────────────
 IP=$(hostname -I | awk '{print $1}')
