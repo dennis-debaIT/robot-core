@@ -2,6 +2,17 @@
 # Erika Kiosk Session — startet direkt nach Auto-Login
 # Kein LXDE, kein Desktop, kein Flash
 
+# Display und PATH explizit setzen — im LightDM-Autologin-Kontext
+# sind diese Variablen nicht immer korrekt gesetzt
+export DISPLAY="${DISPLAY:-:0}"
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Warten bis X-Display bereit ist (max 10s)
+for _i in $(seq 1 10); do
+    xset -display "$DISPLAY" q &>/dev/null && break
+    sleep 1
+done
+
 # Sofort schwarzen Hintergrund
 xsetroot -solid black
 
