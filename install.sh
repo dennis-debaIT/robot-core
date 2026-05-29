@@ -575,19 +575,19 @@ if command -v touchegg &>/dev/null; then
     <property name="borderColor">auto</property>
   </settings>
   <application name="All">
-    <!-- 3-Finger-Wisch rechts: zu Erika zurück -->
+    <!-- 3-Finger-Wisch rechts: Chromium killen → Loop startet neu mit Erika-URL -->
     <gesture type="SWIPE" fingers="3" direction="RIGHT">
       <action type="RUN_COMMAND">
         <repeat>false</repeat>
-        <command>xdotool key alt+Home</command>
+        <command>pkill -f "chromium --kiosk" || pkill chromium</command>
         <on>end</on>
       </action>
     </gesture>
-    <!-- 3-Finger-Wisch links: vorwärts (Browser-History) -->
+    <!-- 3-Finger-Wisch links: Browser zurück -->
     <gesture type="SWIPE" fingers="3" direction="LEFT">
       <action type="RUN_COMMAND">
         <repeat>false</repeat>
-        <command>xdotool key alt+Right</command>
+        <command>xdotool key alt+Left</command>
         <on>end</on>
       </action>
     </gesture>
