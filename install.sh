@@ -333,9 +333,18 @@ success "Cron-Jobs eingerichtet (täglich 03:00 + Install-Trigger + Watcher)"
 # ── 7. Container bauen und starten ───────────────────────────
 step "Container bauen und starten"
 info "Dies kann einige Minuten dauern..."
+
+# Docker-Gruppe ist in der aktuellen Session noch nicht aktiv wenn der Nutzer
+# gerade erst hinzugefügt wurde — in diesem Fall sudo verwenden
+DOCKER="docker"
+if ! docker ps > /dev/null 2>&1; then
+    DOCKER="sudo docker"
+    warn "Docker-Gruppe noch nicht aktiv — verwende sudo (nach Neuanmeldung nicht mehr nötig)"
+fi
+
 GIT_HASH=$(git rev-parse HEAD)
-docker compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
-docker compose up -d robot-core
+$DOCKER compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
+$DOCKER compose up -d robot-core
 success "Container gestartet"
 
 # ── 8. Autostart sicherstellen ────────────────────────────────
@@ -345,6 +354,11 @@ sudo systemctl enable docker > /dev/null 2>&1 || true
 if [ "$_HA_SUPERVISED" = true ]; then
     step "Home Assistant Supervised installieren"
     _install_ha_supervised
+fi
+
+# Docker-Gruppen-Hinweis am Ende der Session mitgeben
+if [ "$DOCKER" = "sudo docker" ]; then
+    warn "Neu einloggen damit Docker ohne sudo nutzbar ist"
 fi
 
 # ── 10. Kiosk-Display (Chromium) ─────────────────────────────
