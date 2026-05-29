@@ -437,11 +437,11 @@ elif [ -f /boot/cmdline.txt ]; then
         sudo sed -i 's/$/ quiet splash plymouth.ignore-serial-consoles/' /boot/cmdline.txt
     fi
 elif [ -f /etc/default/grub ]; then
-    sudo sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/'                    /etc/default/grub
-    sudo sed -i 's/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/'   /etc/default/grub
-    sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ {
-        /quiet/! s/"$/ quiet splash"/
-    }' /etc/default/grub
+    sudo sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/'                   /etc/default/grub
+    sudo sed -i 's/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/'  /etc/default/grub
+    # quiet und splash unabhängig voneinander eintragen falls fehlend
+    sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ { /quiet/! s/"$/ quiet"/ }' /etc/default/grub
+    sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ { /splash/! s/"$/ splash"/ }' /etc/default/grub
     sudo update-grub > /dev/null 2>&1
 fi
 success "Boot-Parameter gesetzt (quiet splash, kein GRUB-Menü)"
