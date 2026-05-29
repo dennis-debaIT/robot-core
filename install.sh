@@ -414,6 +414,16 @@ s.SetY(Math.Int(screen_height / 2 - logo.GetHeight() / 2));
 EOF
 
 sudo plymouth-set-default-theme -R erika > /dev/null 2>&1
+
+# Hyper-V: Grafiktreiber früh ins Initramfs einbinden damit Plymouth den
+# Framebuffer findet — ohne das bleibt der Splash-Screen schwarz
+if grep -qi "microsoft\|hyper-v" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
+   grep -qi "microsoft\|hypervisor" /proc/cpuinfo 2>/dev/null; then
+    info "Hyper-V erkannt — hyperv_drm ins Initramfs einbinden"
+    grep -q "hyperv_drm" /etc/initramfs-tools/modules 2>/dev/null || \
+        echo "hyperv_drm" | sudo tee -a /etc/initramfs-tools/modules > /dev/null
+fi
+
 sudo update-initramfs -u > /dev/null 2>&1
 success "Plymouth Splash eingerichtet"
 
