@@ -714,7 +714,7 @@ class HomeAssistantProvider:
                 "state":        s.get("state", "unavailable"),
                 "stream_url":   f"{self._base_url}/api/camera_proxy_stream/{eid}?token={token}" if token else None,
                 "snapshot_url": f"{self._base_url}/api/camera_proxy/{eid}?token={token}" if token else None,
-                "last_changed": s.get("last_changed", ""),
+                "last_changed": s.get("last_updated") or s.get("last_changed", ""),
             })
         cameras.sort(key=lambda x: x["name"].lower())
         return cameras
