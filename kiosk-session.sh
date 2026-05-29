@@ -30,6 +30,8 @@ until curl -sk --max-time 2 https://localhost:8000/health > /dev/null 2>&1; do
 done
 
 # Chromium im Loop: wenn geschlossen (z.B. nach HA-Navigation), startet Erika neu
+# Alt+Home navigiert innerhalb Chromium zurück zur Erika-Homepage
+# Super+H (Windows-Taste+H) beendet Chromium → Loop startet Erika neu
 while true; do
     "$CHROMIUM" \
         --kiosk \
@@ -39,6 +41,7 @@ while true; do
         --ignore-certificate-errors \
         --disable-translate \
         --password-store=basic \
+        --homepage=https://localhost:8000/display \
         https://localhost:8000/display
     sleep 2
 done

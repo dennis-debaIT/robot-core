@@ -555,8 +555,14 @@ cat > "$HOME/.config/openbox/erika-rc.xml" << 'OBCONF'
 <openbox_config xmlns="http://openbox.org/3.4/rc"
                 xmlns:xi="http://www.w3.org/2001/XInclude">
   <keyboard>
-    <!-- F1: Chromium schließen → kiosk-session.sh Loop startet Erika neu -->
-    <keybind key="F1">
+    <!-- Super+H (Windows-Taste+H): Chromium neu starten → landet auf Erika -->
+    <!-- Alt+Home funktioniert direkt in Chromium (navigiert zur Homepage)  -->
+    <keybind key="Super_L-h">
+      <action name="Execute">
+        <command>pkill -f chromium-browser; pkill -f "chromium --kiosk"</command>
+      </action>
+    </keybind>
+    <keybind key="F2">
       <action name="Execute">
         <command>pkill -f chromium-browser; pkill -f "chromium --kiosk"</command>
       </action>
