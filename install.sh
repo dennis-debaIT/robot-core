@@ -374,6 +374,11 @@ fi
 
 # ── 6. Update-Hilfsdateien ────────────────────────────────────
 step "Update-System einrichten"
+# Log-Dateien dürfen keine Verzeichnisse sein (kann bei git pull passieren)
+for _log in update.log reboot.log setup-watcher.log; do
+    [ -d "$_log" ] && rm -rf "$_log"
+    touch "$_log"
+done
 touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
 [ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
 [ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt
