@@ -165,22 +165,18 @@ _ENV_TTS_PROVIDER="disabled"; _ENV_TTS_VOICE=""
 _HA_SUPERVISED=false
 _DO_CONFIG=true
 
-if [ -f .env ]; then
-    echo -e "  ${YELLOW}Hinweis:${NC} Es existiert bereits eine .env-Datei."
-    printf "    Neu konfigurieren? [j/N]: "
-    _reconfigure=$(_choose)
-    if [[ "$_reconfigure" =~ ^[jJyY]$ ]]; then
-        _DO_CONFIG=true
-    else
-        success ".env unverändert übernommen"
-        _DO_CONFIG=false
-    fi
+# HA Supervised wird immer separat gefragt — unabhängig von der .env
+# (wird bei Re-Runs nur übersprungen wenn Supervisor bereits läuft)
+_HA_ALREADY_INSTALLED=false
+if systemctl is-active --quiet hassio-supervisor 2>/dev/null || \
+   sudo docker ps 2>/dev/null | grep -q "homeassistant/home-assistant"; then
+    _HA_ALREADY_INSTALLED=true
 fi
 
-if [ "$_DO_CONFIG" = true ]; then
-
-    # ── Home Assistant ────────────────────────────────────────
-    echo -e "\n  ${BOLD}Home Assistant${NC}"
+echo -e "\n  ${BOLD}Home Assistant${NC}"
+if [ "$_HA_ALREADY_INSTALLED" = true ]; then
+    success "Home Assistant Supervised läuft bereits — wird übersprungen"
+else
     echo "    [1] Ich habe bereits eine HA-Instanz im Netzwerk  (URL + Token eingeben)"
     echo "    [2] HA Supervised hier installieren               (Debian 12 / Raspberry Pi OS)"
     echo "    [3] Später im Admin-Panel konfigurieren"
@@ -202,6 +198,21 @@ if [ "$_DO_CONFIG" = true ]; then
             _ENV_HA_TOKEN=$(_read "HA Long-Lived Token (leer = später eintragen)" "")
             ;;
     esac
+fi
+
+if [ -f .env ]; then
+    echo -e "\n  ${YELLOW}Hinweis:${NC} Es existiert bereits eine .env-Datei."
+    printf "    LLM und TTS neu konfigurieren? [j/N]: "
+    _reconfigure=$(_choose)
+    if [[ "$_reconfigure" =~ ^[jJyY]$ ]]; then
+        _DO_CONFIG=true
+    else
+        success ".env unverändert übernommen"
+        _DO_CONFIG=false
+    fi
+fi
+
+if [ "$_DO_CONFIG" = true ]; then
 
     # ── LLM ───────────────────────────────────────────────────
     echo -e "\n  ${BOLD}LLM (Sprachmodell)${NC}"
@@ -252,6 +263,14 @@ if [ "$_DO_CONFIG" = true ]; then
     esac
 
     # ── .env schreiben ────────────────────────────────────────
+    # HA-URL/Token aus bestehender .env übernehmen wenn nicht neu gesetzt
+    _WRITE_HA_URL="${_ENV_HA_URL}"
+    _WRITE_HA_TOKEN="${_ENV_HA_TOKEN}"
+    if [ -f .env ] && [ -z "$_WRITE_HA_URL" ]; then
+        _WRITE_HA_URL=$(grep "^ROBOT_HA_URL=" .env | cut -d= -f2- || echo "")
+        _WRITE_HA_TOKEN=$(grep "^ROBOT_HA_TOKEN=" .env | cut -d= -f2- || echo "")
+    fi
+
     cat > .env << EOF
 # Erika Robot Core — generiert von install.sh am $(date '+%Y-%m-%d %H:%M')
 TZ=${TZ:-Europe/Berlin}
@@ -264,8 +283,8 @@ LLM_PROVIDER=${_ENV_LLM_PROVIDER}
 LLM_MODEL=${_ENV_LLM_MODEL}
 
 # Home Assistant
-ROBOT_HA_URL=${_ENV_HA_URL}
-ROBOT_HA_TOKEN=${_ENV_HA_TOKEN}
+ROBOT_HA_URL=${_WRITE_HA_URL}
+ROBOT_HA_TOKEN=${_WRITE_HA_TOKEN}
 
 # TTS
 ROBOT_TTS_PROVIDER=${_ENV_TTS_PROVIDER}
