@@ -697,19 +697,26 @@ class HomeAssistantProvider:
     # ── Kameras (Ring) ──────────────────────────────────────────
 
     @staticmethod
-    def _cam_info_key(entity_id: str) -> str:
-        """camera.haustür_snapshot → 'haustur' (für sensor.haustur_info-Lookup)."""
-        name = entity_id.removeprefix("camera.")
-        for suffix in ("_snapshot", "_live", "_cam"):
-            if name.endswith(suffix):
-                name = name[: -len(suffix)]
-                break
+    def _norm_cam_name(name: str) -> str:
         return (
             name.replace("ä", "a")
                 .replace("ö", "o")
                 .replace("ü", "u")
                 .replace("ß", "ss")
         )
+
+    @staticmethod
+    def _match_info_sensor(cam_name: str, info_sensors: dict[str, str]) -> str | None:
+        """Findet den passenden Info-Sensor per Longest-Prefix-Match.
+
+        camera.garten_live_ansicht → cam_name="garten_live_ansicht"
+        Keys sortiert nach Länge (längster zuerst): ["garten", ...]
+        "garten_live_ansicht".startswith("garten") → info_sensors["garten"]
+        """
+        for key in sorted(info_sensors, key=len, reverse=True):
+            if cam_name == key or cam_name.startswith(key + "_"):
+                return info_sensors[key]
+        return None
 
     def get_cameras(self) -> list[dict]:
         """Alle camera.* Entities mit MJPEG-Stream- und Snapshot-URL."""
@@ -721,7 +728,7 @@ class HomeAssistantProvider:
         for s in states:
             eid = s.get("entity_id", "")
             if eid.startswith("sensor.") and eid.endswith("_info"):
-                key = eid.removeprefix("sensor.").removesuffix("_info")
+                key = self._norm_cam_name(eid.removeprefix("sensor.").removesuffix("_info"))
                 ts = s.get("state", "") or ""
                 if ts and ts not in ("unavailable", "unknown", ""):
                     info_sensors[key] = ts
@@ -732,9 +739,9 @@ class HomeAssistantProvider:
                 continue
             attrs  = s.get("attributes", {})
             token  = attrs.get("access_token", "")
-            info_key = self._cam_info_key(eid)
+            cam_name = self._norm_cam_name(eid.removeprefix("camera."))
             last_update = (
-                info_sensors.get(info_key)
+                self._match_info_sensor(cam_name, info_sensors)
                 or s.get("last_updated")
                 or s.get("last_changed", "")
             )
