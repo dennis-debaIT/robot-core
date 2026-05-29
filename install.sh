@@ -380,8 +380,8 @@ if [ "$DOCKER" = "sudo docker" ]; then
     warn "Neu einloggen damit Docker ohne sudo nutzbar ist"
 fi
 
-# ── 10. Boot-Splash & Auto-Login ─────────────────────────────
-step "Boot-Splash und Auto-Login einrichten"
+# ── 10. Boot-Splash ──────────────────────────────────────────
+step "Boot-Splash einrichten"
 
 # Plymouth installieren
 sudo apt-get install -y plymouth plymouth-themes > /dev/null
@@ -464,15 +464,6 @@ elif [ -f /etc/default/grub ]; then
     sudo update-grub > /dev/null 2>&1
 fi
 success "Boot-Parameter gesetzt (quiet splash, kein GRUB-Menü)"
-
-# Auto-Login via LightDM (kein Login-Bildschirm beim Start)
-sudo mkdir -p /etc/lightdm/lightdm.conf.d
-sudo tee /etc/lightdm/lightdm.conf.d/50-erika-autologin.conf > /dev/null << EOF
-[Seat:*]
-autologin-user=${USER_NAME}
-autologin-user-timeout=0
-EOF
-success "Auto-Login konfiguriert — ${USER_NAME} wird automatisch angemeldet"
 
 # ── 11. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
