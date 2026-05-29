@@ -537,6 +537,41 @@ fi
 # Minimaler WM + Cursor-Hider + Bild-Anzeige + curl für Health-Check
 sudo apt-get install -y openbox unclutter feh x11-xserver-utils curl > /dev/null 2>&1 || true
 
+# Touchegg: Wisch-Gesten für Touchscreen (3-Finger-Wisch → Erika)
+sudo apt-get install -y touchegg xdotool > /dev/null 2>&1 || true
+if command -v touchegg &>/dev/null; then
+    mkdir -p "$HOME/.config/touchegg"
+    cat > "$HOME/.config/touchegg/touchegg.conf" << 'TOUCHCONF'
+<touchégg>
+  <settings>
+    <property name="animation_delay">150</property>
+    <property name="action_execute_threshold">20</property>
+    <property name="color">auto</property>
+    <property name="borderColor">auto</property>
+  </settings>
+  <application name="All">
+    <!-- 3-Finger-Wisch rechts: zu Erika zurück -->
+    <gesture type="SWIPE" fingers="3" direction="RIGHT">
+      <action type="RUN_COMMAND">
+        <repeat>false</repeat>
+        <command>xdotool key alt+Home</command>
+        <on>end</on>
+      </action>
+    </gesture>
+    <!-- 3-Finger-Wisch links: vorwärts (Browser-History) -->
+    <gesture type="SWIPE" fingers="3" direction="LEFT">
+      <action type="RUN_COMMAND">
+        <repeat>false</repeat>
+        <command>xdotool key alt+Right</command>
+        <on>end</on>
+      </action>
+    </gesture>
+  </application>
+</touchégg>
+TOUCHCONF
+    success "Touchegg konfiguriert (3-Finger-Wisch rechts → Erika)"
+fi
+
 # Chromium Policy: Kamera/Mikrofon freigeben, Übersetzungs-Popup deaktivieren
 sudo mkdir -p /etc/chromium/policies/managed
 sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
