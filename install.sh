@@ -361,7 +361,91 @@ if [ "$DOCKER" = "sudo docker" ]; then
     warn "Neu einloggen damit Docker ohne sudo nutzbar ist"
 fi
 
-# ── 10. Kiosk-Display (Chromium) ─────────────────────────────
+# ── 10. Boot-Splash & Auto-Login ─────────────────────────────
+step "Boot-Splash und Auto-Login einrichten"
+
+# Plymouth installieren
+sudo apt-get install -y plymouth plymouth-themes > /dev/null
+
+# Splash-Bild: eigenes aus assets/ verwenden, sonst mit ImageMagick generieren
+SPLASH_DIR="/usr/share/plymouth/themes/erika"
+sudo mkdir -p "$SPLASH_DIR"
+
+if [ -f "$INSTALL_DIR/assets/splash.png" ]; then
+    sudo cp "$INSTALL_DIR/assets/splash.png" "$SPLASH_DIR/logo.png"
+    info "Eigenes Splash-Bild aus assets/splash.png verwendet"
+else
+    sudo apt-get install -y imagemagick > /dev/null 2>&1 || true
+    if command -v convert &>/dev/null; then
+        sudo convert -size 1920x1080 xc:'#0d0d1a' \
+            -font DejaVu-Sans-Bold -pointsize 200 \
+            -fill '#4fc3f7' -gravity center \
+            -annotate 0 'ERIKA' \
+            "$SPLASH_DIR/logo.png" 2>/dev/null
+        info "Splash-Bild generiert (assets/splash.png im Repo überschreibt es)"
+    fi
+fi
+
+# Plymouth-Theme anlegen
+sudo tee "$SPLASH_DIR/erika.plymouth" > /dev/null << 'EOF'
+[Plymouth Theme]
+Name=Erika
+Description=Erika Robot Core
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/erika
+ScriptFile=/usr/share/plymouth/themes/erika/erika.script
+EOF
+
+sudo tee "$SPLASH_DIR/erika.script" > /dev/null << 'EOF'
+screen_width  = Window.GetWidth();
+screen_height = Window.GetHeight();
+
+bg = Rectangle();
+bg.SetColor(0.05, 0.05, 0.1, 1);
+bg.SetX(0); bg.SetY(0);
+bg.SetWidth(screen_width); bg.SetHeight(screen_height);
+
+logo = Image("logo.png");
+s    = Sprite(logo);
+s.SetX(Math.Int(screen_width  / 2 - logo.GetWidth()  / 2));
+s.SetY(Math.Int(screen_height / 2 - logo.GetHeight() / 2));
+EOF
+
+sudo plymouth-set-default-theme -R erika > /dev/null 2>&1
+sudo update-initramfs -u > /dev/null 2>&1
+success "Plymouth Splash eingerichtet"
+
+# Boot-Parameter: quiet splash (Pi und x86)
+if [ -f /boot/firmware/cmdline.txt ]; then
+    if ! grep -q "quiet" /boot/firmware/cmdline.txt; then
+        sudo sed -i 's/$/ quiet splash plymouth.ignore-serial-consoles/' /boot/firmware/cmdline.txt
+    fi
+elif [ -f /boot/cmdline.txt ]; then
+    if ! grep -q "quiet" /boot/cmdline.txt; then
+        sudo sed -i 's/$/ quiet splash plymouth.ignore-serial-consoles/' /boot/cmdline.txt
+    fi
+elif [ -f /etc/default/grub ]; then
+    sudo sed -i 's/^GRUB_TIMEOUT=.*/GRUB_TIMEOUT=0/'                    /etc/default/grub
+    sudo sed -i 's/^GRUB_TIMEOUT_STYLE=.*/GRUB_TIMEOUT_STYLE=hidden/'   /etc/default/grub
+    sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ {
+        /quiet/! s/"$/ quiet splash"/
+    }' /etc/default/grub
+    sudo update-grub > /dev/null 2>&1
+fi
+success "Boot-Parameter gesetzt (quiet splash, kein GRUB-Menü)"
+
+# Auto-Login via LightDM (kein Login-Bildschirm beim Start)
+sudo mkdir -p /etc/lightdm/lightdm.conf.d
+sudo tee /etc/lightdm/lightdm.conf.d/50-erika-autologin.conf > /dev/null << EOF
+[Seat:*]
+autologin-user=${USER_NAME}
+autologin-user-timeout=0
+EOF
+success "Auto-Login konfiguriert — ${USER_NAME} wird automatisch angemeldet"
+
+# ── 11. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
 CHROMIUM_BIN=""
 if command -v chromium-browser &>/dev/null; then
@@ -397,7 +481,7 @@ DESKTOP
 
     success "Kiosk eingerichtet (${CHROMIUM_BIN}, Kamera + Mikrofon vorab freigegeben)"
 else
-    warn "Chromium nicht gefunden — Kiosk-Setup übersprungen. Siehe INSTALL_MANUAL.md Schritt 10."
+    warn "Chromium nicht gefunden — Kiosk-Setup übersprungen. Siehe INSTALL_MANUAL.md Schritt 11."
 fi
 
 # ── Fertig ────────────────────────────────────────────────────
@@ -414,6 +498,8 @@ fi
 echo ""
 echo -e "  ${YELLOW}Hinweis:${NC} Browser-Warnung beim SSL-Zertifikat ist normal"
 echo -e "           (selbstsigniert). Einfach bestätigen."
+echo -e "  ${YELLOW}Hinweis:${NC} Nach Neustart → kein Login-Bildschirm, Erika startet direkt"
+echo -e "           Eigenes Splash-Bild: assets/splash.png ins Repo legen + install.sh erneut ausführen"
 echo ""
 if [ "$_HA_SUPERVISED" = true ]; then
     echo -e "  ${YELLOW}Nächste Schritte für Home Assistant:${NC}"
