@@ -9,7 +9,7 @@ xsetroot -solid black
 command -v unclutter &>/dev/null && unclutter -idle 2 -root &
 
 # Minimaler Window-Manager
-openbox &
+openbox --config-file "$HOME/.config/openbox/erika-rc.xml" &
 
 # Splash-Bild anzeigen während Erika startet (selbes Bild wie beim Boot)
 SPLASH_IMG="/usr/share/plymouth/themes/erika/logo.png"
@@ -29,12 +29,16 @@ until curl -sk --max-time 2 https://localhost:8000/health > /dev/null 2>&1; do
     sleep 1
 done
 
-# Chromium im Kiosk-Modus — deckt das Splash-Bild ab
-exec "$CHROMIUM" \
-    --kiosk \
-    --noerrdialogs \
-    --disable-infobars \
-    --autoplay-policy=no-user-gesture-required \
-    --ignore-certificate-errors \
-    --password-store=basic \
-    https://localhost:8000/display
+# Chromium im Loop: wenn geschlossen (z.B. nach HA-Navigation), startet Erika neu
+while true; do
+    "$CHROMIUM" \
+        --kiosk \
+        --noerrdialogs \
+        --disable-infobars \
+        --autoplay-policy=no-user-gesture-required \
+        --ignore-certificate-errors \
+        --disable-translate \
+        --password-store=basic \
+        https://localhost:8000/display
+    sleep 2
+done

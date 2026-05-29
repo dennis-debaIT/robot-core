@@ -537,14 +537,33 @@ fi
 # Minimaler WM + Cursor-Hider + Bild-Anzeige + curl für Health-Check
 sudo apt-get install -y openbox unclutter feh x11-xserver-utils curl > /dev/null 2>&1 || true
 
-# Chromium Kamera/Mikrofon Policy
+# Chromium Policy: Kamera/Mikrofon freigeben, Übersetzungs-Popup deaktivieren
 sudo mkdir -p /etc/chromium/policies/managed
 sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
 {
   "VideoCaptureAllowedUrls": ["https://localhost:8000/*"],
-  "AudioCaptureAllowedUrls": ["https://localhost:8000/*"]
+  "AudioCaptureAllowedUrls": ["https://localhost:8000/*"],
+  "TranslateEnabled": false
 }
 POLICY
+
+# Openbox-Konfiguration: F1 bringt Chromium zurück zu Erika
+# (pkill chromium → Loop in kiosk-session.sh startet es neu)
+mkdir -p "$HOME/.config/openbox"
+cat > "$HOME/.config/openbox/erika-rc.xml" << 'OBCONF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc"
+                xmlns:xi="http://www.w3.org/2001/XInclude">
+  <keyboard>
+    <!-- F1: Chromium schließen → kiosk-session.sh Loop startet Erika neu -->
+    <keybind key="F1">
+      <action name="Execute">
+        <command>pkill -f chromium-browser; pkill -f "chromium --kiosk"</command>
+      </action>
+    </keybind>
+  </keyboard>
+</openbox_config>
+OBCONF
 
 # Kiosk-Session-Script ausführbar machen
 chmod +x "$INSTALL_DIR/kiosk-session.sh"
