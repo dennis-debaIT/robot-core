@@ -696,11 +696,35 @@ class HomeAssistantProvider:
 
     # ── Kameras (Ring) ──────────────────────────────────────────
 
+    @staticmethod
+    def _cam_info_key(entity_id: str) -> str:
+        """camera.haustür_snapshot → 'haustur' (für sensor.haustur_info-Lookup)."""
+        name = entity_id.removeprefix("camera.")
+        for suffix in ("_snapshot", "_live", "_cam"):
+            if name.endswith(suffix):
+                name = name[: -len(suffix)]
+                break
+        return (
+            name.replace("ä", "a")
+                .replace("ö", "o")
+                .replace("ü", "u")
+                .replace("ß", "ss")
+        )
+
     def get_cameras(self) -> list[dict]:
         """Alle camera.* Entities mit MJPEG-Stream- und Snapshot-URL."""
         states = self._get("/states")
         if not isinstance(states, list):
             return []
+        # sensor.*_info States indexieren (Ring-Kamera-Info mit lastUpdate)
+        info_sensors: dict[str, str] = {}
+        for s in states:
+            eid = s.get("entity_id", "")
+            if eid.startswith("sensor.") and eid.endswith("_info"):
+                key = eid.removeprefix("sensor.").removesuffix("_info")
+                ts = s.get("state", "") or ""
+                if ts and ts not in ("unavailable", "unknown", ""):
+                    info_sensors[key] = ts
         cameras = []
         for s in states:
             eid = s.get("entity_id", "")
@@ -708,13 +732,19 @@ class HomeAssistantProvider:
                 continue
             attrs  = s.get("attributes", {})
             token  = attrs.get("access_token", "")
+            info_key = self._cam_info_key(eid)
+            last_update = (
+                info_sensors.get(info_key)
+                or s.get("last_updated")
+                or s.get("last_changed", "")
+            )
             cameras.append({
                 "entity_id":    eid,
                 "name":         attrs.get("friendly_name", eid.split(".", 1)[-1]),
                 "state":        s.get("state", "unavailable"),
                 "stream_url":   f"{self._base_url}/api/camera_proxy_stream/{eid}?token={token}" if token else None,
                 "snapshot_url": f"{self._base_url}/api/camera_proxy/{eid}?token={token}" if token else None,
-                "last_changed": s.get("last_updated") or s.get("last_changed", ""),
+                "last_changed": last_update,
             })
         cameras.sort(key=lambda x: x["name"].lower())
         return cameras
