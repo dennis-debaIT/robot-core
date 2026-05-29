@@ -476,43 +476,54 @@ success "Auto-Login konfiguriert — ${USER_NAME} wird automatisch angemeldet"
 
 # ── 11. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
-CHROMIUM_BIN=""
-if command -v chromium-browser &>/dev/null; then
-    CHROMIUM_BIN="chromium-browser"
-elif command -v chromium &>/dev/null; then
-    CHROMIUM_BIN="chromium"
-else
+
+# Chromium installieren falls fehlend
+if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
     info "Installiere Chromium..."
-    if sudo apt-get install -y chromium-browser > /dev/null 2>&1; then
-        CHROMIUM_BIN="chromium-browser"
-    elif sudo apt-get install -y chromium > /dev/null 2>&1; then
-        CHROMIUM_BIN="chromium"
-    fi
+    sudo apt-get install -y chromium-browser > /dev/null 2>&1 || \
+    sudo apt-get install -y chromium > /dev/null 2>&1 || true
 fi
 
-if [ -n "$CHROMIUM_BIN" ]; then
-    sudo mkdir -p /etc/chromium/policies/managed
-    sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
+# Minimaler WM + Cursor-Hider + curl für Health-Check
+sudo apt-get install -y openbox unclutter x11-xserver-utils curl > /dev/null 2>&1 || true
+
+# Chromium Kamera/Mikrofon Policy
+sudo mkdir -p /etc/chromium/policies/managed
+sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
 {
   "VideoCaptureAllowedUrls": ["https://localhost:8000/*"],
   "AudioCaptureAllowedUrls": ["https://localhost:8000/*"]
 }
 POLICY
 
-    mkdir -p "$HOME/.config/autostart"
-    # Keyring-Dialog beim Auto-Login verhindern: --password-store=basic
-    cat > "$HOME/.config/autostart/erika-kiosk.desktop" << DESKTOP
-[Desktop Entry]
-Type=Application
-Name=Erika Kiosk
-Exec=/bin/bash -c "sleep 8 && ${CHROMIUM_BIN} --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors --password-store=basic https://localhost:8000/display"
-X-GNOME-Autostart-enabled=true
-DESKTOP
+# Kiosk-Session-Script ausführbar machen
+chmod +x "$INSTALL_DIR/kiosk-session.sh"
 
-    success "Kiosk eingerichtet (${CHROMIUM_BIN}, Kamera + Mikrofon vorab freigegeben)"
-else
-    warn "Chromium nicht gefunden — Kiosk-Setup übersprungen. Siehe INSTALL_MANUAL.md Schritt 11."
-fi
+# Eigene XSession: startet direkt anstelle von LXDE
+# → kein Desktop-Flash, schwarzer Hintergrund sofort,
+#   Chromium wartet bis Erika antwortet (kein blindes sleep)
+sudo tee /usr/share/xsessions/erika-kiosk.desktop > /dev/null << EOF
+[Desktop Entry]
+Name=Erika Kiosk
+Comment=Erika Robot Core Display
+Exec=${INSTALL_DIR}/kiosk-session.sh
+Type=Application
+DesktopNames=erika-kiosk
+EOF
+
+# LightDM: Auto-Login direkt in Erika-Kiosk-Session
+sudo mkdir -p /etc/lightdm/lightdm.conf.d
+sudo tee /etc/lightdm/lightdm.conf.d/50-erika-autologin.conf > /dev/null << EOF
+[Seat:*]
+autologin-user=${USER_NAME}
+autologin-user-timeout=0
+autologin-session=erika-kiosk
+EOF
+
+# Alten LXDE-Autostart entfernen (nicht mehr nötig)
+rm -f "$HOME/.config/autostart/erika-kiosk.desktop"
+
+success "Kiosk eingerichtet (openbox + Chromium, kein Desktop-Flash)"
 
 # ── Fertig ────────────────────────────────────────────────────
 IP=$(hostname -I | awk '{print $1}')
