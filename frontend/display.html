@@ -5892,8 +5892,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: match.label }),
         }).catch(() => {});
-        // Wenn nicht schon in Gespräch → STT aktivieren
-        if (!_listening && !_chatBusy) {
+        // Wenn nicht schon in Gespräch und TTS nicht aktiv → STT aktivieren
+        if (!_listening && !_chatBusy && !_ttsPlaying && _ttsQueue.length === 0) {
           unlockAudio();
           setTimeout(startSpeech, 500);
         }
