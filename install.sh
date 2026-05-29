@@ -525,13 +525,32 @@ success "Boot-Parameter gesetzt (quiet splash, kein GRUB-Menü)"
 # ── 11. Kiosk-Display (Chromium) ─────────────────────────────
 step "Kiosk-Display einrichten"
 
-# LightDM installieren falls kein Display-Manager vorhanden
-if ! command -v lightdm &>/dev/null && ! command -v gdm3 &>/dev/null; then
-    info "Installiere LightDM..."
-    sudo apt-get install -y lightdm > /dev/null
+# Kein Display-Manager — TTY1-Autologin via systemd + startx
+# Zuverlässiger als LightDM/gdm3 auf Debian 12/13 für Kiosk-Setups
+sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
+sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf > /dev/null << EOF
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin ${USER_NAME} --noclear %I \$TERM
+EOF
+sudo systemctl daemon-reload
+sudo systemctl disable lightdm > /dev/null 2>&1 || true
+sudo systemctl disable gdm3   > /dev/null 2>&1 || true
+sudo systemctl disable nodm   > /dev/null 2>&1 || true
+
+# startx beim tty1-Login automatisch ausführen
+BASH_PROFILE="$HOME/.bash_profile"
+if ! grep -q "startx.*kiosk-session" "$BASH_PROFILE" 2>/dev/null; then
+    cat >> "$BASH_PROFILE" << 'BASHEOF'
+
+if [[ -z "$DISPLAY" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
+    exec startx ~/robot-core/kiosk-session.sh
 fi
-echo "/usr/sbin/lightdm" | sudo tee /etc/X11/default-display-manager > /dev/null
-sudo systemctl enable lightdm > /dev/null 2>&1 || true
+BASHEOF
+fi
+
+# xinit installieren falls fehlend
+sudo apt-get install -y xinit > /dev/null 2>&1 || true
 
 # Chromium installieren falls fehlend
 if ! command -v chromium-browser &>/dev/null && ! command -v chromium &>/dev/null; then
