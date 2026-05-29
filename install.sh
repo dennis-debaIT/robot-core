@@ -61,17 +61,24 @@ _detect_machine() {
 }
 
 # Install Home Assistant Supervised
+# Neue Methode (2024+): OS-Agent .deb + homeassistant-supervised .deb
+# Kein installer.sh mehr — https://github.com/home-assistant/supervised-installer
 _install_ha_supervised() {
     info "Installiere Home Assistant Supervised..."
 
-    local machine
+    local machine arch
     machine=$(_detect_machine)
-    info "Erkannte Maschine: $machine"
+    arch=$(uname -m)
+    info "Erkannte Maschine: $machine | Architektur: $arch"
 
-    # Abhängigkeiten (apparmor-utils für aa-status, das der HA-Installer prüft)
+    # Abhängigkeiten
+    # udisks2 + dbus: Pflicht für HA Supervised
+    # apparmor-utils: aa-status wird vom HA-Paket geprüft
+    # jq: für OS-Agent Versions-Lookup
     sudo apt-get install -y \
-        jq curl avahi-daemon apparmor apparmor-utils \
-        network-manager udisks2 wget dbus > /dev/null
+        curl wget jq udisks2 dbus \
+        apparmor apparmor-utils \
+        network-manager avahi-daemon > /dev/null
 
     # NetworkManager muss das Netzwerk verwalten
     # Raspberry Pi OS nutzt dhcpcd — muss deaktiviert werden
@@ -79,23 +86,23 @@ _install_ha_supervised() {
     if systemctl is-active --quiet dhcpcd 2>/dev/null; then
         warn "Wechsel von dhcpcd auf NetworkManager — kurzer Netzwerk-Unterbruch möglich"
         sudo systemctl disable --now dhcpcd > /dev/null 2>&1 || true
-        sleep 4   # Warten bis NetworkManager das Interface übernimmt
+        sleep 4
     fi
+
+    # AppArmor sofort im laufenden Kernel aktivieren (kein Reboot nötig)
+    sudo modprobe apparmor > /dev/null 2>&1 || true
+    sudo systemctl enable --now apparmor > /dev/null 2>&1 || true
 
     # AppArmor dauerhaft in Boot-Konfiguration eintragen
     # Raspberry Pi OS (Bookworm): /boot/firmware/cmdline.txt
     # Ältere Pi-Systeme:          /boot/cmdline.txt
     # Debian 12/13 x86 / VM:      /etc/default/grub
     if [ -f /boot/firmware/cmdline.txt ]; then
-        if ! grep -q "apparmor=1" /boot/firmware/cmdline.txt; then
+        grep -q "apparmor=1" /boot/firmware/cmdline.txt || \
             sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/firmware/cmdline.txt
-            warn "AppArmor zu /boot/firmware/cmdline.txt hinzugefügt"
-        fi
     elif [ -f /boot/cmdline.txt ]; then
-        if ! grep -q "apparmor=1" /boot/cmdline.txt; then
+        grep -q "apparmor=1" /boot/cmdline.txt || \
             sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/cmdline.txt
-            warn "AppArmor zu /boot/cmdline.txt hinzugefügt"
-        fi
     elif [ -f /etc/default/grub ]; then
         if ! grep -q "apparmor=1" /etc/default/grub; then
             sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ apparmor=1 security=apparmor"/' /etc/default/grub
@@ -104,32 +111,41 @@ _install_ha_supervised() {
         fi
     fi
 
-    # AppArmor sofort im laufenden Kernel aktivieren — kein Reboot vor Installation nötig
-    # Debian 12/13: AppArmor ist als Modul oder Built-in verfügbar
-    sudo modprobe apparmor > /dev/null 2>&1 || true
-    sudo systemctl enable --now apparmor > /dev/null 2>&1 || true
+    # ── OS-Agent installieren (Voraussetzung für HA Supervised) ──
+    info "Installiere OS-Agent..."
+    local os_agent_ver
+    os_agent_ver=$(curl -fsSL \
+        https://api.github.com/repos/home-assistant/os-agent/releases/latest \
+        | jq -r '.tag_name' | tr -d 'v')
 
-    # HA Supervised Installer herunterladen und ausführen
-    info "Lade HA Supervised Installer herunter..."
-    wget -O /tmp/ha-supervised.sh \
-        https://raw.githubusercontent.com/home-assistant/supervised-installer/main/installer.sh
-    chmod +x /tmp/ha-supervised.sh
+    if [ -z "$os_agent_ver" ]; then
+        warn "OS-Agent Version nicht ermittelbar — überspringe"
+    else
+        wget -O /tmp/os-agent.deb \
+            "https://github.com/home-assistant/os-agent/releases/download/${os_agent_ver}/os-agent_${os_agent_ver}_linux_${arch}.deb"
+        sudo dpkg -i /tmp/os-agent.deb > /dev/null
+        rm -f /tmp/os-agent.deb
+        success "OS-Agent ${os_agent_ver} installiert"
+    fi
 
-    # set -e aussetzen: HA-Installer kann mit != 0 enden (z.B. AppArmor-Warnung)
-    # ohne dass das gesamte install.sh abbricht
+    # ── Home Assistant Supervised .deb installieren ───────────────
+    info "Lade homeassistant-supervised.deb herunter..."
+    wget -O /tmp/homeassistant-supervised.deb \
+        "https://github.com/home-assistant/supervised-installer/releases/latest/download/homeassistant-supervised.deb"
+
     set +e
-    sudo bash /tmp/ha-supervised.sh --machine "$machine"
+    sudo MACHINE="$machine" apt-get install -y /tmp/homeassistant-supervised.deb
     _HA_EXIT=$?
     set -e
-
-    rm -f /tmp/ha-supervised.sh
+    rm -f /tmp/homeassistant-supervised.deb
 
     if [ "$_HA_EXIT" -eq 0 ]; then
         success "Home Assistant Supervised installiert"
         info "HA startet im Hintergrund — erreichbar unter http://$(hostname -I | awk '{print $1}'):8123"
+        info "Beim ersten Start kann HA 5–10 Minuten zum Initialisieren benötigen"
     else
-        warn "HA Supervised Installer mit Fehlercode $_HA_EXIT beendet"
-        warn "Manuell prüfen: sudo bash /tmp/ha-supervised.sh --machine $machine"
+        warn "Installation mit Fehlercode $_HA_EXIT beendet — Log prüfen:"
+        warn "  journalctl -u hassio-supervisor -n 50"
     fi
     warn "Neustart empfohlen damit AppArmor dauerhaft aktiv ist (sudo reboot)"
 }
