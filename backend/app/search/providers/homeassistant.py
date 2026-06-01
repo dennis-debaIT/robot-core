@@ -361,42 +361,47 @@ class HomeAssistantProvider:
         focus_tomorrow = bool(re.search(r"\bmorgen\b", q))
         focus_week = bool(re.search(r"\bwoche\b|\bwochenende\b", q))
 
+        def _ev_str(ev: dict, label: str, date: str) -> str:
+            loc = f" in {ev['location']}" if ev.get("location") else ""
+            t = ev.get("time", "")
+            is_allday = not t or t.lower() in ("ganztags", "allday", "all day", "00:00")
+            time_part = "ganztags" if is_allday else f"um {t} Uhr"
+            return f"{label}, {date}: {time_part} {ev['title']}{loc}"
+
         if not days:
-            snippet = (
-                f"Laut Home-Assistant-Kalender gibt es in den nächsten 7 Tagen "
-                f"keine eingetragenen Termine."
-            )
+            snippet = "Laut Kalender gibt es in den nächsten 7 Tagen keine eingetragenen Termine."
         else:
-            parts: list[str] = []
+            sentences: list[str] = []
             for day in days[:7]:
-                # Bei "morgen"-Anfrage nur Morgen hervorheben, Rest als Info
                 label = day["label"]
-                for ev in day.get("events", []):
-                    loc = f" in {ev['location']}" if ev.get("location") else ""
-                    parts.append(
-                        f"{label} ({day['date']}): "
-                        f"{ev['time']} Uhr — {ev['title']}{loc}"
-                    )
+                events = day.get("events", [])
+                if not events:
+                    continue
+                day_parts = [_ev_str(ev, label, day["date"]) for ev in events]
+                sentences.append(". ".join(day_parts))
 
             if focus_tomorrow:
-                tomorrow_parts = [p for p in parts if p.startswith("Morgen")]
-                other_parts = [p for p in parts if not p.startswith("Morgen")]
-                if tomorrow_parts:
-                    snippet = "Morgen: " + " | ".join(tomorrow_parts)
-                    if other_parts:
-                        snippet += f". Weitere Termine diese Woche: " + " | ".join(other_parts[:4])
+                tom_sentences = [s for s in sentences if s.startswith("Morgen")]
+                other_sentences = [s for s in sentences if not s.startswith("Morgen")]
+                if tom_sentences:
+                    snippet = ". ".join(tom_sentences)
+                    if other_sentences:
+                        snippet += ". Weitere Termine: " + ". ".join(other_sentences[:3])
                 else:
-                    snippet = f"Morgen ({days[1]['date'] if len(days) > 1 else 'morgen'}) sind keine Termine eingetragen."
-                    if parts:
-                        snippet += " Diese Woche: " + " | ".join(parts[:4])
+                    snippet = "Morgen sind keine Termine eingetragen."
+                    if sentences:
+                        snippet += " Diese Woche: " + ". ".join(sentences[:3])
             else:
-                snippet = f"Kalender ab heute ({date_str}): " + " | ".join(parts[:8])
+                snippet = ". ".join(sentences[:8])
 
         next_ev = data.get("next_event")
-        if next_ev and not focus_tomorrow:
+        if next_ev and not focus_tomorrow and not days:
+            t = next_ev.get("time", "")
+            is_allday = not t or t.lower() in ("ganztags", "allday", "all day", "00:00")
+            time_part = "ganztags" if is_allday else f"um {t} Uhr"
             snippet += (
-                f" Nächster zukünftiger Termin: {next_ev['weekday']}, {next_ev['date']}"
-                f" um {next_ev['time']} Uhr — {next_ev['title']}."
+                f" Nächster Termin: {next_ev['weekday']}, {next_ev['date']}"
+                f" {time_part} — {next_ev['title']}."
             )
 
         return {
