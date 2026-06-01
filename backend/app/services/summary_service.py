@@ -110,55 +110,42 @@ def _build_module(
 
 def _module_calendar(mod: dict, ha: Any, int_cfg: dict, now: datetime, tz: Any) -> str | None:
     cal_cfg = int_cfg.get("calendar") or {}
-    selected = cal_cfg.get("selected_calendars") or []
-    exclude = [str(e).strip() for e in (mod.get("exclude_calendars") or [])]
-    calendars = [c for c in selected if c not in exclude] if selected else []
+    selected = cal_cfg.get("selected_calendars") or None
+    exclude = {str(e).strip() for e in (mod.get("exclude_calendars") or [])}
 
-    start_utc = now.replace(hour=0, minute=0, second=0).astimezone(timezone.utc)
-    end_utc   = now.replace(hour=23, minute=59, second=59).astimezone(timezone.utc)
-    fmt = "%Y-%m-%dT%H:%M:%S%z"
+    # get_events_upcoming nutzt dieselbe HA-Abfrage wie das Display (korrekte URL-Formatierung)
+    all_events = ha.get_events_upcoming(days=2, selected_calendars=selected)
 
-    events: list[dict] = []
-    for cal_id in calendars:
-        try:
-            result = ha._get(f"/calendars/{cal_id}?start={start_utc.strftime(fmt)}&end={end_utc.strftime(fmt)}")
-            if isinstance(result, list):
-                events.extend(result)
-        except Exception:
-            pass
-
-    if not events:
-        # Keine Kalender konfiguriert → HA-Kalender direkt versuchen
-        try:
-            states = ha._get("/states")
-            cal_entities = [s["entity_id"] for s in (states or []) if s.get("entity_id","").startswith("calendar.") and s["entity_id"] not in exclude]
-            for cal_id in cal_entities[:5]:
-                result = ha._get(f"/calendars/{cal_id}?start={start_utc.strftime(fmt)}&end={end_utc.strftime(fmt)}")
-                if isinstance(result, list):
-                    events.extend(result)
-        except Exception:
-            pass
-
-    today_events = []
-    for ev in events:
+    today_str = now.date().isoformat()
+    today_events: list[tuple[str, str]] = []
+    for ev in all_events:
         summary = ev.get("summary") or ""
+        if not summary:
+            continue
+        cal_name = ev.get("_calendar", "")
+        if cal_name in exclude:
+            continue
         start = ev.get("start") or {}
         time_str = start.get("dateTime") or start.get("date") or ""
-        if time_str:
-            try:
-                dt = datetime.fromisoformat(time_str)
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=tz)
-                time_label = dt.astimezone(tz).strftime("%H:%M") if "T" in time_str else ""
-                today_events.append((time_label, summary))
-            except Exception:
-                today_events.append(("", summary))
+        if not time_str:
+            continue
+        try:
+            dt = datetime.fromisoformat(time_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=tz)
+            ev_local = dt.astimezone(tz)
+            if ev_local.date().isoformat() != today_str:
+                continue
+            time_label = ev_local.strftime("%H:%M") if "T" in time_str else "Ganztags"
+            today_events.append((time_label, summary))
+        except Exception:
+            continue
 
     if not today_events:
         return "Heute hast du keine Termine."
     count = len(today_events)
-    items = ", ".join(f"{t} Uhr {s}" if t else s for t, s in today_events[:4])
-    return f"Heute {'hast du' if count == 1 else 'hast du ' + str(count)} {'Termin' if count == 1 else 'Termine'}: {items}."
+    items = ", ".join(f"um {t} Uhr {s}" if t != "Ganztags" else s for t, s in today_events[:4])
+    return f"Heute hast du {count} {'Termin' if count == 1 else 'Termine'}: {items}."
 
 
 def _module_reminders(now: datetime, tz: Any) -> str | None:
