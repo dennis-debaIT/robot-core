@@ -2466,6 +2466,7 @@ class RobotCore:
     _NOTE_QUERY_PATTERN = re.compile(
         r"\b(?:was\s+(?:hast\s+du\s+dir\s+gemerkt|ist|sind|weißt\s+du)\s+(?:über|zu|bei|vom?|der|die|das)\s+(.+?)"
         r"|was\s+(?:ist|war|sind)\s+(?:der|die|das|mein(?:e)?)?\s*(.+?)\s*\?"
+        r"|wie\s+(?:war|ist|lautet)\s+(?:mein(?:e)?|der|die|das|unser(?:e)?)?\s*(.+?)\s*\?"
         r"|zeig(?:e?)\s+mir\s+(?:die\s+)?notiz(?:en)?\s+(?:zu|über|von)\s+(.+)"
         r"|(?:meine?\s+)?notiz(?:en)?\s+(?:zu|über|von)\s+(.+)"
         r"|hast\s+du\s+(?:eine?\s+)?notiz\s+(?:zu|über|von)\s+(.+))\b",
@@ -2474,7 +2475,8 @@ class RobotCore:
     _NOTE_LIST_PATTERN = re.compile(
         r"\b(?:zeig(?:e?)\s+(?:mir\s+)?(?:alle\s+)?(?:meine\s+)?notizen"
         r"|was\s+hast\s+du\s+(?:dir\s+)?(?:alles\s+)?(?:gemerkt|notiert|gespeichert)"
-        r"|welche\s+notizen\s+(?:hast\s+du|gibt\s+es))\b",
+        r"|welche\s+notizen\s+(?:hast\s+du|gibt\s+es)"
+        r"|(?:es\s+)?steht\s+(?:wohl\s+|vielleicht\s+)?in\s+(?:meinen?\s+)?(?:notizen|aufzeichnungen|aufschrieben))\b",
         re.IGNORECASE,
     )
     _NOTE_DELETE_PATTERN = re.compile(
