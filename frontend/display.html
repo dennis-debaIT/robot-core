@@ -3208,9 +3208,30 @@
       return;
     }
 
+    // Verlauf-Zustand vor dem Re-Render sichern
+    const _hBodyId  = `veh-history-body-${vehicle.id}`;
+    const _hArrowId = `veh-history-arrow-${vehicle.id}`;
+    const _prevBody  = document.getElementById(_hBodyId);
+    const _histOpen  = _prevBody?.style.display !== 'none';
+    const _histHtml  = (_prevBody?.children.length > 0) ? _prevBody.innerHTML : null;
+
     overlay.innerHTML = renderVehicleDetail(vehicle, history);
     overlay.classList.add('active');
     overlay.classList.remove('vehicle-map-expanded');
+
+    // Verlauf-Zustand nach Re-Render wiederherstellen
+    if (_histHtml) {
+      const newBody  = document.getElementById(_hBodyId);
+      const newArrow = document.getElementById(_hArrowId);
+      if (newBody) {
+        newBody.innerHTML = _histHtml;
+        if (_histOpen) {
+          newBody.style.display = '';
+          if (newArrow) newArrow.classList.add('open');
+        }
+      }
+    }
+
     setPanel('right', 'Karte', renderVehicleHistoryPanel(vehicle, history));
     setTimeout(() => initVehicleMap(vehicle, history, 'vehicle-map'), 380);
     if (vehicle.ev_profile_enabled) {
