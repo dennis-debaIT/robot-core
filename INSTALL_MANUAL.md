@@ -253,55 +253,110 @@ sudo chmod 440 /etc/sudoers.d/erika-reboot
 
 ## Schritt 10 — Kiosk-Display einrichten (Raspberry Pi mit Bildschirm)
 
-Dieser Schritt richtet Chromium als Vollbild-Kiosk für das Display-Panel ein, mit vorerteilten Kamera- und Mikrofon-Berechtigungen.
+Dieser Schritt richtet Chromium als Vollbild-Kiosk für das Display-Panel ein.  
+Kein Display-Manager nötig — TTY1-Autologin via systemd startet X und Chromium direkt.
 
-### Chromium installieren
+### Pakete installieren
 
 ```bash
-sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+sudo apt-get install -y chromium-browser xinit openbox unclutter feh x11-xserver-utils xdotool
+# Falls chromium-browser nicht verfügbar:
+sudo apt-get install -y chromium
 ```
 
-### Kamera und Mikrofon vorab freigeben (Policy-Datei)
+### TTY1-Autologin einrichten
+
+```bash
+# Autologin für TTY1 (kein Display-Manager nötig)
+sudo mkdir -p /etc/systemd/system/getty@tty1.service.d
+sudo tee /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin DEIN_USER --noclear %I $TERM
+EOF
+sudo systemctl daemon-reload
+
+# Bestehende Display-Manager deaktivieren
+sudo systemctl disable lightdm gdm3 nodm 2>/dev/null || true
+```
+
+Ersetze `DEIN_USER` durch deinen Benutzernamen (z.B. `dennis`).
+
+### startx beim Login automatisch starten
+
+```bash
+cat >> ~/.bash_profile << 'EOF'
+
+if [[ -z "$DISPLAY" ]] && [[ "$(tty)" == "/dev/tty1" ]]; then
+    exec startx ~/robot-core/kiosk-session.sh
+fi
+EOF
+```
+
+### Kamera, Mikrofon und Übersetzung per Policy konfigurieren
 
 ```bash
 sudo mkdir -p /etc/chromium/policies/managed
-sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'EOF'
+sudo tee /etc/chromium/policies/managed/erika.json << 'EOF'
 {
   "VideoCaptureAllowedUrls": ["https://localhost:8000/*"],
-  "AudioCaptureAllowedUrls": ["https://localhost:8000/*"]
+  "AudioCaptureAllowedUrls": ["https://localhost:8000/*"],
+  "TranslateEnabled": false
 }
 EOF
 ```
 
-> Chromium liest diese Richtlinie beim Start — kein Berechtigungsdialog mehr, echte Kamera und echtes Mikrofon werden sofort freigegeben.
-
-### Autostart beim Systemstart
+### Openbox-Konfiguration (Tastenkürzel)
 
 ```bash
-mkdir -p ~/.config/autostart
-cat > ~/.config/autostart/erika-kiosk.desktop << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=Erika Kiosk
-Exec=/bin/bash -c "sleep 8 && chromium-browser --kiosk --noerrdialogs --disable-infobars --autoplay-policy=no-user-gesture-required --ignore-certificate-errors https://localhost:8000/display"
-X-GNOME-Autostart-enabled=true
+mkdir -p ~/.config/openbox
+cat > ~/.config/openbox/erika-rc.xml << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc"
+                xmlns:xi="http://www.w3.org/2001/XInclude">
+  <keyboard>
+    <keybind key="Super_L-h">
+      <action name="Execute">
+        <command>pkill -f chromium-browser; pkill -f "chromium --kiosk"</command>
+      </action>
+    </keybind>
+    <keybind key="F2">
+      <action name="Execute">
+        <command>pkill -f chromium-browser; pkill -f "chromium --kiosk"</command>
+      </action>
+    </keybind>
+  </keyboard>
+</openbox_config>
 EOF
 ```
 
-> `sleep 8` gibt dem Docker-Container Zeit zu starten, bevor Chromium das Display öffnet.
+**F2** oder **Super+H** (Windows-Taste+H) beendet Chromium — `kiosk-session.sh` startet es automatisch neu mit der Erika-URL.
 
-### Kiosk sofort testen (ohne Neustart)
+### Wisch-Gesten für Touchscreen (optional)
 
 ```bash
-chromium-browser --kiosk \
-  --noerrdialogs \
-  --disable-infobars \
-  --autoplay-policy=no-user-gesture-required \
-  --ignore-certificate-errors \
-  https://localhost:8000/display
+sudo apt-get install -y libinput-tools python3-libevdev xdotool git
+sudo gpasswd -a $USER input
+git clone https://github.com/bulletmark/libinput-gestures.git /tmp/lig
+cd /tmp/lig && sudo make install && cd ~
+
+cat > ~/.config/libinput-gestures.conf << 'EOF'
+gesture swipe right 3 sh -c "pkill -f 'chromium --kiosk' || pkill chromium"
+gesture swipe left 3 xdotool key alt+Left
+EOF
+libinput-gestures-setup install
+libinput-gestures-setup start
 ```
 
-Mit `Alt+F4` oder `Strg+W` lässt sich der Kiosk-Modus verlassen.
+3-Finger-Wisch rechts → zurück zu Erika. Erfordert Neu-Login damit die `input`-Gruppe aktiv ist.
+
+### Neustart
+
+```bash
+sudo reboot
+```
+
+Nach dem Neustart startet Erika ohne Login-Dialog direkt im Kiosk-Modus.
 
 ---
 

@@ -600,7 +600,7 @@ sudo tee /etc/chromium/policies/managed/erika.json > /dev/null << 'POLICY'
 }
 POLICY
 
-# Openbox-Konfiguration: F1 bringt Chromium zurück zu Erika
+# Openbox-Konfiguration: F2 / Super+H bringt Chromium zurück zu Erika
 # (pkill chromium → Loop in kiosk-session.sh startet es neu)
 mkdir -p "$HOME/.config/openbox"
 cat > "$HOME/.config/openbox/erika-rc.xml" << 'OBCONF'
@@ -627,38 +627,10 @@ OBCONF
 # Kiosk-Session-Script ausführbar machen
 chmod +x "$INSTALL_DIR/kiosk-session.sh"
 
-# Eigene XSession: startet direkt anstelle von LXDE
-# → kein Desktop-Flash, schwarzer Hintergrund sofort,
-#   Chromium wartet bis Erika antwortet (kein blindes sleep)
-sudo tee /usr/share/xsessions/erika-kiosk.desktop > /dev/null << EOF
-[Desktop Entry]
-Name=Erika Kiosk
-Comment=Erika Robot Core Display
-Exec=${INSTALL_DIR}/kiosk-session.sh
-Type=Application
-DesktopNames=erika-kiosk
-EOF
-
-# LightDM Autologin — direkt in lightdm.conf (conf.d wird auf Debian 13 nicht immer gelesen)
-sudo groupadd -f autologin
-sudo usermod -aG autologin "$USER_NAME"
-sudo sed -i \
-  -e 's/^#autologin-user=$/autologin-user='"${USER_NAME}"'/' \
-  -e 's/^#autologin-user-timeout=0$/autologin-user-timeout=0/' \
-  -e 's/^#autologin-session=$/autologin-session=erika-kiosk/' \
-  /etc/lightdm/lightdm.conf
-# Fallback falls sed nichts gefunden hat: ans Ende anhängen
-if ! grep -q "^autologin-user=${USER_NAME}" /etc/lightdm/lightdm.conf; then
-    echo -e "\n[Seat:*]\nautologin-user=${USER_NAME}\nautologin-user-timeout=0\nautologin-session=erika-kiosk" \
-        | sudo tee -a /etc/lightdm/lightdm.conf > /dev/null
-fi
-# User-Session setzen
-echo -e "[User]\nSession=erika-kiosk" > "$HOME/.dmrc"
-
 # Alten LXDE-Autostart entfernen (nicht mehr nötig)
 rm -f "$HOME/.config/autostart/erika-kiosk.desktop"
 
-success "Kiosk eingerichtet (lightdm + openbox + Chromium)"
+success "Kiosk eingerichtet (TTY1-Autologin + openbox + Chromium)"
 
 # ── Fertig ────────────────────────────────────────────────────
 IP=$(hostname -I | awk '{print $1}')
