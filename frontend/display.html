@@ -3208,29 +3208,11 @@
       return;
     }
 
-    // Verlauf-Zustand vor dem Re-Render sichern
-    const _hBodyId  = `veh-history-body-${vehicle.id}`;
-    const _hArrowId = `veh-history-arrow-${vehicle.id}`;
-    const _prevBody  = document.getElementById(_hBodyId);
-    const _histOpen  = _prevBody?.style.display !== 'none';
-    const _histHtml  = (_prevBody?.children.length > 0) ? _prevBody.innerHTML : null;
-
+    _vehHistSave(vehicle.id);  // Zustand vor Re-Render in JS-Cache sichern
     overlay.innerHTML = renderVehicleDetail(vehicle, history);
     overlay.classList.add('active');
     overlay.classList.remove('vehicle-map-expanded');
-
-    // Verlauf-Zustand nach Re-Render wiederherstellen
-    if (_histHtml) {
-      const newBody  = document.getElementById(_hBodyId);
-      const newArrow = document.getElementById(_hArrowId);
-      if (newBody) {
-        newBody.innerHTML = _histHtml;
-        if (_histOpen) {
-          newBody.style.display = '';
-          if (newArrow) newArrow.classList.add('open');
-        }
-      }
-    }
+    _vehHistRestore(vehicle.id);  // Zustand aus JS-Cache wiederherstellen
 
     setPanel('right', 'Karte', renderVehicleHistoryPanel(vehicle, history));
     setTimeout(() => initVehicleMap(vehicle, history, 'vehicle-map'), 380);
@@ -3354,6 +3336,30 @@
       </div>`;
   }
 
+  // Verlauf-Zustand: unabhängig vom DOM gespeichert → überlebt Re-Renders ohne Race Condition
+  const _vehHistCache = {};  // { vehicleId: { open: bool, html: string | null } }
+
+  function _vehHistSave(vehicleId) {
+    const body = document.getElementById(`veh-history-body-${vehicleId}`);
+    if (!body) return;
+    if (!_vehHistCache[vehicleId]) _vehHistCache[vehicleId] = { open: false, html: null };
+    _vehHistCache[vehicleId].open = body.style.display !== 'none';
+    if (body.children.length > 0) _vehHistCache[vehicleId].html = body.innerHTML;
+  }
+
+  function _vehHistRestore(vehicleId) {
+    const c = _vehHistCache[vehicleId];
+    if (!c?.html) return;
+    const body  = document.getElementById(`veh-history-body-${vehicleId}`);
+    const arrow = document.getElementById(`veh-history-arrow-${vehicleId}`);
+    if (!body) return;
+    body.innerHTML = c.html;
+    if (c.open) {
+      body.style.display = '';
+      if (arrow) arrow.classList.add('open');
+    }
+  }
+
   async function toggleVehicleHistory(vehicleId) {
     const body  = document.getElementById(`veh-history-body-${vehicleId}`);
     const arrow = document.getElementById(`veh-history-arrow-${vehicleId}`);
@@ -3361,7 +3367,8 @@
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : '';
     if (arrow) arrow.classList.toggle('open', !isOpen);
-    // Bereits Inhalt vorhanden (nach DOM-Refresh leer → neu laden)
+    if (!_vehHistCache[vehicleId]) _vehHistCache[vehicleId] = { open: false, html: null };
+    _vehHistCache[vehicleId].open = !isOpen;
     if (isOpen || body.children.length > 0) return;
     try {
       const r = await fetch(`/vehicles/${encodeURIComponent(vehicleId)}/location-history/addresses`);
@@ -3422,6 +3429,8 @@
           ? `Lade Adressen ${done} / ${locs.length}…`
           : '';
         if (done === locs.length && prog) prog.style.display = 'none';
+        // Cache nach jeder Adresse aktualisieren
+        _vehHistSave(vehicleId);
       }
     } catch {
       body.innerHTML = '';
