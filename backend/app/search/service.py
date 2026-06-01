@@ -136,14 +136,23 @@ class SearchService:
     ]
 
     _QUERY_CLEANUP = re.compile(
-        r"^(?:kannst\s+du\s+mir\s+sagen[,\s]*"
-        r"|weißt\s+du[,\s]*"
+        r"^(?:kannst\s+du\s+mir\s+(?:sagen|etwas\s+(?:sagen|erzählen))[,\s]*(?:über|zu|von|mit)?\s*"
+        r"|weißt\s+du\s+(?:etwas\s+)?(?:über|zu|von|mit)?\s*"
+        r"|was\s+weißt\s+du\s+(?:über|zu|von|mit)?\s*"
+        r"|was\s+kannst\s+du\s+mir\s+(?:über|zu|von|mit)?\s*(?:sagen|erzählen)?\s*"
+        r"|erzähl\s+(?:mir\s+)?(?:etwas\s+)?(?:über|von|zu)?\s*"
         r"|suche?\s+(?:im\s+internet|online|im\s+web|im\s+netz)(?:\s+(?:mal|doch|bitte))?\s+nach[,\s]*"
         r"|suche?\s+(?:mal\s+)?(?:im\s+internet|online|im\s+web|im\s+netz)(?:\s+danach)?\s*"
         r"|recherchiere?\s+(?:mal\s+)?(?:nach|zu|über)[,\s]*"
         r"|ich\s+würde\s+gern\s+wissen[,\s]*"
         r"|bitte\s+sag\s+mir[,\s]*"
         r"|sag\s+mir[,\s]*)",
+        re.IGNORECASE,
+    )
+
+    # Artikel am Anfang nach Cleanup entfernen ("den Lauf..." → "Lauf...")
+    _QUERY_ARTICLE = re.compile(
+        r"^(?:der|die|das|den|dem|des|ein|eine|einer|einem|einen)\s+",
         re.IGNORECASE,
     )
 
@@ -181,6 +190,8 @@ class SearchService:
 
     def extract_query(self, message: str) -> str:
         cleaned = self._QUERY_CLEANUP.sub("", message.strip()).strip(" ,?!.")
+        # Führenden Artikel entfernen ("den Lauf zwischen..." → "Lauf zwischen...")
+        cleaned = self._QUERY_ARTICLE.sub("", cleaned).strip(" ,?!.")
         # Für Faktenfragen: Kernbegriff extrahieren (bessere DDG/Wikipedia-Treffer)
         core = self._QUERY_SUBJECT.sub("", cleaned).strip(" ,?!.")
         if core and len(core) >= 3 and len(core) < len(cleaned):
