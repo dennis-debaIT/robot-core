@@ -289,6 +289,7 @@ class VehicleService:
             return f"{lat:.4f}, {lon:.4f}"
 
     def location_history_clustered(self, vehicle_id: str, days: int = 14) -> dict[str, Any]:
+        """Gibt geclusterte Standorte OHNE Geocoding zurück (sofort, kein Rate-Limit)."""
         data = self.location_history(vehicle_id, days)
         points = data["points"]
         if not points:
@@ -317,8 +318,6 @@ class VehicleService:
         if cur:
             clusters.append(cur)
 
-        # "to" eines Clusters = Zeitpunkt des ersten GPS-Punkts im NÄCHSTEN Cluster
-        # → zeigt wann das Auto tatsächlich losgefahren ist, nicht wann der letzte Ping kam
         for i in range(len(clusters) - 1):
             clusters[i]["to"] = clusters[i + 1]["from"]
 
@@ -330,9 +329,8 @@ class VehicleService:
                 duration = int((to_dt - from_dt).total_seconds() / 60)
             except Exception:
                 duration = 0
-            address = self._reverse_geocode(cl["lat"], cl["lon"])
             locations.append({
-                "address":          address,
+                "address":          None,   # Frontend lädt per /geocode nach
                 "lat":              round(cl["lat"], 5),
                 "lon":              round(cl["lon"], 5),
                 "from":             cl["from"],

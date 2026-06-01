@@ -3363,7 +3363,6 @@
     if (arrow) arrow.classList.toggle('open', !isOpen);
     // Bereits Inhalt vorhanden (nach DOM-Refresh leer → neu laden)
     if (isOpen || body.children.length > 0) return;
-    body.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:0.78rem;">Lade Standorte…</div>';
     try {
       const r = await fetch(`/vehicles/${encodeURIComponent(vehicleId)}/location-history/addresses`);
       if (!r.ok) throw new Error(r.status);
@@ -3373,22 +3372,59 @@
         body.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:0.78rem;">Kein Verlauf verfügbar.</div>';
         return;
       }
-      body.innerHTML = locs.map(loc => {
-        const from = _fmtLocTime(loc.from);
-        const to   = _fmtLocTime(loc.to);
-        const dur  = _fmtDuration(loc.duration_minutes);
-        const sameDay = from.date === to.date;
-        const timeStr = sameDay
-          ? `${from.date} · ${from.time} – ${to.time}`
-          : `${from.date} ${from.time} – ${to.date} ${to.time}`;
-        return `<div class="veh-addr-item">
-          <div class="veh-addr-name">&#128205; ${escapeHTML(loc.address)}</div>
-          <div class="veh-addr-time">${timeStr}</div>
-          ${dur ? `<div class="veh-addr-dur">${dur} · ${loc.point_count} Messpunkte</div>` : ''}
-        </div>`;
-      }).join('');
+
+      // Liste sofort anzeigen (ohne Adressen)
+      const _itemId = i => `veh-addr-${vehicleId}-${i}`;
+      body.innerHTML = [
+        `<div id="veh-addr-progress" style="font-size:0.68rem;color:var(--muted);padding:4px 2px 6px;">
+           Lade Adressen 0 / ${locs.length}…
+           <div style="height:3px;background:var(--border);border-radius:2px;margin-top:4px;">
+             <div id="veh-addr-bar" style="height:3px;background:var(--accent);border-radius:2px;width:0%;transition:width 0.3s;"></div>
+           </div>
+         </div>`,
+        ...locs.map((loc, i) => {
+          const from = _fmtLocTime(loc.from);
+          const to   = _fmtLocTime(loc.to);
+          const dur  = _fmtDuration(loc.duration_minutes);
+          const sameDay = from.date === to.date;
+          const timeStr = sameDay
+            ? `${from.date} · ${from.time} – ${to.time}`
+            : `${from.date} ${from.time} – ${to.date} ${to.time}`;
+          return `<div class="veh-addr-item" id="${_itemId(i)}">
+            <div class="veh-addr-name" id="${_itemId(i)}-addr" style="color:var(--muted);">&#128205; …</div>
+            <div class="veh-addr-time">${timeStr}</div>
+            ${dur ? `<div class="veh-addr-dur">${dur} · ${loc.point_count} Messpunkte</div>` : ''}
+          </div>`;
+        }),
+      ].join('');
+
+      // Adressen einzeln nachladen
+      let done = 0;
+      for (let i = 0; i < locs.length; i++) {
+        const loc = locs[i];
+        const addrEl = document.getElementById(`${_itemId(i)}-addr`);
+        try {
+          const gr = await fetch(`/vehicles/geocode?lat=${loc.lat}&lon=${loc.lon}`);
+          const gd = gr.ok ? await gr.json() : null;
+          const addr = gd?.address || `${loc.lat}, ${loc.lon}`;
+          if (addrEl) {
+            addrEl.textContent = '📍 ' + addr;
+            addrEl.style.color = '';
+          }
+        } catch {
+          if (addrEl) { addrEl.textContent = `📍 ${loc.lat}, ${loc.lon}`; addrEl.style.color = ''; }
+        }
+        done++;
+        const bar  = document.getElementById('veh-addr-bar');
+        const prog = document.getElementById('veh-addr-progress');
+        if (bar)  bar.style.width  = `${Math.round(done / locs.length * 100)}%`;
+        if (prog) prog.firstChild.textContent = done < locs.length
+          ? `Lade Adressen ${done} / ${locs.length}…`
+          : '';
+        if (done === locs.length && prog) prog.style.display = 'none';
+      }
     } catch {
-      body.innerHTML = '';  // leer lassen → nächster Klick versucht erneut
+      body.innerHTML = '';
     }
   }
 
