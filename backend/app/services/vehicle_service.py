@@ -317,6 +317,11 @@ class VehicleService:
         if cur:
             clusters.append(cur)
 
+        # "to" eines Clusters = Zeitpunkt des ersten GPS-Punkts im NÄCHSTEN Cluster
+        # → zeigt wann das Auto tatsächlich losgefahren ist, nicht wann der letzte Ping kam
+        for i in range(len(clusters) - 1):
+            clusters[i]["to"] = clusters[i + 1]["from"]
+
         locations = []
         for cl in clusters:
             try:
