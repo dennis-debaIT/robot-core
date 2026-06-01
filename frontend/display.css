@@ -954,6 +954,10 @@
     .cam-tile-label {
       font-size: 0.72rem; font-weight: 700; padding: 5px 8px;
       color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      display: flex; align-items: center; justify-content: space-between; gap: 4px;
+    }
+    .cam-tile-badge {
+      font-size: 0.62rem; color: var(--accent); white-space: nowrap; flex-shrink: 0;
     }
     .cam-detail img, .cam-detail video {
       width: 100%; height: 100%; object-fit: contain; background: #000; display: block;
@@ -1309,11 +1313,43 @@
       display: none; z-index: 50; flex-direction: column;
     }
     #doorbell-overlay.active { display: flex; }
-    #doorbell-overlay img { flex: 1; width: 100%; object-fit: contain; }
+    #doorbell-cam-media {
+      flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden;
+    }
+    #doorbell-cam-media img,
+    #doorbell-cam-media video {
+      width: 100%; height: 100%; object-fit: contain; display: block;
+    }
     #doorbell-banner {
       background: rgba(255,61,61,0.85); color: #fff;
       font-size: 0.9rem; font-weight: 800; text-align: center;
-      padding: 8px; letter-spacing: 0.05em;
+      padding: 8px; letter-spacing: 0.05em; flex-shrink: 0;
+    }
+    #doorbell-controls {
+      display: flex; align-items: center; gap: 8px; justify-content: flex-end;
+      padding: 5px 10px; flex-shrink: 0; background: rgba(0,0,0,0.4);
+    }
+
+    /* Sprich-Indikator */
+    #speaking-indicator {
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: flex-end; gap: 4px; height: 20px;
+      opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    }
+    body.erika-speaking #speaking-indicator { opacity: 1; }
+    #speaking-indicator span {
+      display: block; width: 4px; background: var(--accent);
+      border-radius: 2px; animation: speak-bar 0.8s ease-in-out infinite;
+    }
+    #speaking-indicator span:nth-child(1) { height: 8px;  animation-delay: 0s; }
+    #speaking-indicator span:nth-child(2) { height: 16px; animation-delay: 0.15s; }
+    #speaking-indicator span:nth-child(3) { height: 20px; animation-delay: 0.05s; }
+    #speaking-indicator span:nth-child(4) { height: 14px; animation-delay: 0.2s; }
+    #speaking-indicator span:nth-child(5) { height: 8px;  animation-delay: 0.1s; }
+    @keyframes speak-bar {
+      0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+      50%       { transform: scaleY(1);   opacity: 1;   }
     }
 
     /* â”€â”€ LIGHT CONTROL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */

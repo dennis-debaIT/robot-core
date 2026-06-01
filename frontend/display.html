@@ -107,10 +107,16 @@
     <!-- Klingel-Overlay: ersetzt das Gesicht wenn jemand klingelt -->
     <div id="doorbell-overlay">
       <div id="doorbell-banner">🔔 Jemand an der Tür</div>
-      <button onclick="_closeDoorbellOverlay()" style="position:absolute;top:10px;right:10px;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.2);border-radius:50%;color:#fff;font-size:1.1rem;width:32px;height:32px;cursor:pointer;line-height:1;z-index:10;">✕</button>
-      <img id="doorbell-cam-img" src="" alt="Kamera">
+      <div id="doorbell-controls">
+        <button onclick="_doorbellFullscreen()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.7);border-radius:5px;padding:3px 10px;font-size:0.7rem;cursor:pointer;">⛶ Vollbild</button>
+        <button onclick="_closeDoorbellOverlay()" style="background:none;border:1px solid rgba(255,255,255,0.3);color:rgba(255,255,255,0.7);border-radius:5px;padding:3px 10px;font-size:0.7rem;cursor:pointer;">✕ Schließen</button>
+      </div>
+      <div id="doorbell-cam-media">
+        <img id="doorbell-cam-img" src="" alt="Kamera">
+      </div>
     </div>
     <div class="face-wrap">
+      <div id="speaking-indicator"><span></span><span></span><span></span><span></span><span></span></div>
       <svg id="robot-face" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg"
            width="420" height="420">
 
@@ -2436,9 +2442,14 @@
     return r.arrayBuffer();
   }
 
+  function _setSpeaking(on) {
+    document.body.classList.toggle('erika-speaking', on);
+  }
+
   async function _playNext() {
     if (_ttsPlaying || _ttsQueue.length === 0) return;
     _ttsPlaying = true;
+    _setSpeaking(true);
     const text = _ttsQueue.shift();
 
     // Nächsten Chunk parallel vorab synthetisieren
@@ -2453,6 +2464,7 @@
     const done = () => {
       clearTimeout(_doneGuard);
       _ttsPlaying = false;
+      if (_ttsQueue.length === 0) _setSpeaking(false);
       _playNext();
     };
     // Watchdog: nach 30s force-done wenn Audio steckt
@@ -3601,6 +3613,7 @@
 
   // ── CAMERA VIEW ───────────────────────────────────────────
   let _camerasData    = null;
+  let _camEventsData  = [];
   let _selectedCamera = null;
   let _camerasInterval = null;
 
@@ -3759,11 +3772,14 @@
         <button class="cam-grid-btn${!single ? ' active' : ''}" data-mode="grid2" onclick="setCamGrid('grid2')">⊞ 2-Spalten</button>
         <button class="cam-grid-btn${single  ? ' active' : ''}" data-mode="auto"  onclick="setCamGrid('auto')">⊟ 1-Spalte</button>
       </div>
-      <div class="cam-tile-grid${single ? ' single' : ''}">${live.map(c => `
-        <div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
+      <div class="cam-tile-grid${single ? ' single' : ''}">${live.map(c => {
+        const ev = _camEventsData.find(e => c.name.toLowerCase().includes(e.name.toLowerCase()) || e.name.toLowerCase().includes(c.name.toLowerCase().split(' ')[0]));
+        const badge = ev ? `<span class="cam-tile-badge">${_camEventIcon(ev.type)} ${_relTime(ev.when)}</span>` : '';
+        return `<div class="cam-tile" onclick="selectCamera('${c.entity_id}')">
           <img src="${_snapUrl(c.entity_id)}" style="width:100%;aspect-ratio:16/9;object-fit:cover;background:#000;display:block;">
-          <div class="cam-tile-label">${c.name}</div>
-        </div>`).join('')}
+          <div class="cam-tile-label"><span>${c.name}</span>${badge}</div>
+        </div>`;
+      }).join('')}
       </div>
     </div>`;
   }
@@ -3925,6 +3941,7 @@
   async function showCamerasView() {
     _selectedCamera = null;
     const [cameras, events] = await Promise.all([loadCamerasData(), loadCameraEvents()]);
+    _camEventsData = events || [];
     _renderCamerasView(cameras, events);
     _initCameraStreams();
     _maybeStartSnapRefresh();
@@ -4872,7 +4889,7 @@
 
     // Snapshot sofort zeigen
     const img = document.getElementById('doorbell-cam-img');
-    if (img) { img.src = _snapUrl(entityId); img.style.display = 'block'; }
+    if (img) img.src = _snapUrl(entityId);
     overlay.classList.add('active');
 
     // Auto-Schließen nach konfigurierter Dauer (default 30s)
@@ -4900,15 +4917,15 @@
       }
 
       // img durch video ersetzen
-      const img = document.getElementById('doorbell-cam-img');
-      if (!img) return;
+      const media = document.getElementById('doorbell-cam-media');
+      if (!media) return;
       const video = document.createElement('video');
       video.id = 'doorbell-cam-video';
       video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
-      video.style.cssText = 'width:100%;height:100%;object-fit:cover;border-radius:10px;display:block;';
-      img.replaceWith(video);
+      media.innerHTML = '';
+      media.appendChild(video);
       _attachHls(video, entityId);
       video.play().catch(() => {});
     } catch {
@@ -4922,24 +4939,25 @@
     const overlay = document.getElementById('doorbell-overlay');
     if (overlay) overlay.classList.remove('active');
 
-    // Video aufräumen, img wiederherstellen
+    // Media-Container leeren, img wiederherstellen
+    const media = document.getElementById('doorbell-cam-media');
     const video = document.getElementById('doorbell-cam-video');
-    if (video) {
-      if (video._hls) { video._hls.destroy(); video._hls = null; }
-      const img = document.createElement('img');
-      img.id = 'doorbell-cam-img';
-      img.alt = 'Kamera';
-      img.src = '';
-      video.replaceWith(img);
-    } else {
-      const img = document.getElementById('doorbell-cam-img');
-      if (img) img.src = '';
+    if (video && video._hls) { video._hls.destroy(); video._hls = null; }
+    if (media) {
+      media.innerHTML = '<img id="doorbell-cam-img" src="" alt="Kamera">';
     }
 
     if (_doorbellLiveEntity) {
       fetch(`/ha/cameras/${_doorbellLiveEntity}/live/stop`, { method: 'POST' }).catch(() => {});
       _doorbellLiveEntity = null;
     }
+  }
+
+  function _doorbellFullscreen() {
+    const media = document.getElementById('doorbell-cam-media');
+    const el = media?.querySelector('video') || media?.querySelector('img') || media;
+    if (!el) return;
+    (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen)?.call(el);
   }
 
   // ── LIGHT CONTROL ─────────────────────────────────────────
