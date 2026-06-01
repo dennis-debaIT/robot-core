@@ -336,7 +336,7 @@ class VehicleService:
                 "point_count":      cl["count"],
             })
 
-        return {"vehicle_id": vehicle_id, "locations": locations}
+        return {"vehicle_id": vehicle_id, "locations": list(reversed(locations))}
 
     def location_history(self, vehicle_id: str, days: int = 14) -> dict[str, Any]:
         safe_days = max(1, min(int(days or 14), 14))
