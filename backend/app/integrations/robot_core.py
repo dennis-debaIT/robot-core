@@ -1009,6 +1009,22 @@ class RobotCore:
             return None
         return self.relationship.apply_user_message(person_id=person["id"], message=message)
 
+    def _get_last_user_message(self, person_name: str | None) -> str | None:
+        with get_connection() as conn:
+            if person_name:
+                row = conn.execute(
+                    "SELECT message FROM conversation_messages WHERE role='user'"
+                    " AND lower(coalesce(person_name,''))=lower(?)"
+                    " ORDER BY id DESC LIMIT 1",
+                    (person_name,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT message FROM conversation_messages WHERE role='user'"
+                    " ORDER BY id DESC LIMIT 1"
+                ).fetchone()
+        return row["message"] if row else None
+
     def _prepare_chat(self, message: str, person_name: str | None = None) -> tuple[str, dict[str, Any], list[dict[str, Any]], Any, Any]:
         from app.search.service import SearchResult
         settings = self.settings.get_effective()
@@ -1097,6 +1113,11 @@ class RobotCore:
         search_context: str | None = None
         if self.search.needs_search(captured):
             query = self.search.extract_query(captured)
+            # Pronomen/Verweisworte ("danach", "das") → Thema aus vorheriger Nutzernachricht
+            if self.search.is_reference_query(query):
+                prev = self._get_last_user_message(person_name)
+                if prev:
+                    query = self.search.extract_query(prev)
             search_result = self.search.search(query)
             if search_result:
                 search_context = self.search.format_prompt_block(search_result)

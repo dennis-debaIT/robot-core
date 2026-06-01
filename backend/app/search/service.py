@@ -138,13 +138,22 @@ class SearchService:
     _QUERY_CLEANUP = re.compile(
         r"^(?:kannst\s+du\s+mir\s+sagen[,\s]*"
         r"|weißt\s+du[,\s]*"
-        r"|suche?\s+(?:im\s+internet|online|im\s+web)\s+nach[,\s]*"
+        r"|suche?\s+(?:im\s+internet|online|im\s+web|im\s+netz)(?:\s+(?:mal|doch|bitte))?\s+nach[,\s]*"
+        r"|suche?\s+(?:mal\s+)?(?:im\s+internet|online|im\s+web|im\s+netz)(?:\s+danach)?\s*"
         r"|recherchiere?\s+(?:mal\s+)?(?:nach|zu|über)[,\s]*"
         r"|ich\s+würde\s+gern\s+wissen[,\s]*"
         r"|bitte\s+sag\s+mir[,\s]*"
         r"|sag\s+mir[,\s]*)",
         re.IGNORECASE,
     )
+
+    # Verweisworte die alleine keinen Suchbegriff ergeben
+    _REFERENCE_WORDS: frozenset[str] = frozenset({
+        "danach", "das", "es", "davon", "dazu", "darüber", "daran",
+        "darum", "dabei", "dadurch", "dafür", "dagegen", "damit",
+        "darin", "darauf", "darunter", "daraus", "dem", "den",
+        "dies", "dieses", "diesem", "diesen", "dessen",
+    })
 
     def __init__(self) -> None:
         self._providers = [
@@ -177,6 +186,10 @@ class SearchService:
         if core and len(core) >= 3 and len(core) < len(cleaned):
             return core
         return cleaned or message.strip()
+
+    def is_reference_query(self, query: str) -> bool:
+        """True wenn der extrahierte Suchbegriff nur ein Pronomen/Verweiswort ist."""
+        return query.lower().strip(" ,?!.") in self._REFERENCE_WORDS or not query.strip()
 
     def search(self, query: str) -> SearchResult | None:
         stable = self.is_stable_fact(query)
