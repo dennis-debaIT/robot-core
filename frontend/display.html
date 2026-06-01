@@ -3333,7 +3333,6 @@
       </div>`;
   }
 
-  const _vehHistoryLoaded = {};
   async function toggleVehicleHistory(vehicleId) {
     const body  = document.getElementById(`veh-history-body-${vehicleId}`);
     const arrow = document.getElementById(`veh-history-arrow-${vehicleId}`);
@@ -3341,8 +3340,8 @@
     const isOpen = body.style.display !== 'none';
     body.style.display = isOpen ? 'none' : '';
     if (arrow) arrow.classList.toggle('open', !isOpen);
-    if (isOpen || _vehHistoryLoaded[vehicleId]) return;
-    _vehHistoryLoaded[vehicleId] = true;
+    // Bereits Inhalt vorhanden (nach DOM-Refresh leer → neu laden)
+    if (isOpen || body.children.length > 0) return;
     body.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:0.78rem;">Lade Standorte…</div>';
     try {
       const r = await fetch(`/vehicles/${encodeURIComponent(vehicleId)}/location-history/addresses`);
@@ -3368,8 +3367,7 @@
         </div>`;
       }).join('');
     } catch {
-      body.innerHTML = '<div style="padding:8px;color:var(--danger);font-size:0.78rem;">Fehler beim Laden.</div>';
-      delete _vehHistoryLoaded[vehicleId];
+      body.innerHTML = '';  // leer lassen → nächster Klick versucht erneut
     }
   }
 
