@@ -125,13 +125,34 @@ class TtsService:
 
     _NUM = r"(\d+(?:[.,]\d+)?)"  # Zahl-Muster
 
+    # Schwache Form (nach bestimmtem Artikel: "der erste Platz")
     _ORDINALS_DE: dict[int, str] = {
-        1: 'erste', 2: 'zweite', 3: 'dritte', 4: 'vierte', 5: 'fünfte',
-        6: 'sechste', 7: 'siebte', 8: 'achte', 9: 'neunte', 10: 'zehnte',
+        1: 'erste',  2: 'zweite',  3: 'dritte',  4: 'vierte',  5: 'fünfte',
+        6: 'sechste', 7: 'siebte', 8: 'achte',   9: 'neunte',  10: 'zehnte',
         11: 'elfte', 12: 'zwölfte', 13: 'dreizehnte', 14: 'vierzehnte',
         15: 'fünfzehnte', 16: 'sechzehnte', 17: 'siebzehnte',
         18: 'achtzehnte', 19: 'neunzehnte', 20: 'zwanzigste',
+        21: 'einundzwanzigste', 22: 'zweiundzwanzigste', 23: 'dreiundzwanzigste',
+        24: 'vierundzwanzigste', 25: 'fünfundzwanzigste', 26: 'sechsundzwanzigste',
+        27: 'siebenundzwanzigste', 28: 'achtundzwanzigste', 29: 'neunundzwanzigste',
+        30: 'dreißigste', 31: 'einunddreißigste',
     }
+    # Starke Form ohne Artikel (Datum: "erster Juni", "achtzehnter November")
+    _ORDINALS_STRONG_DE: dict[int, str] = {
+        1: 'erster',  2: 'zweiter',  3: 'dritter',  4: 'vierter',  5: 'fünfter',
+        6: 'sechster', 7: 'siebter', 8: 'achter',   9: 'neunter',  10: 'zehnter',
+        11: 'elfter', 12: 'zwölfter', 13: 'dreizehnter', 14: 'vierzehnter',
+        15: 'fünfzehnter', 16: 'sechzehnter', 17: 'siebzehnter',
+        18: 'achtzehnter', 19: 'neunzehnter', 20: 'zwanzigster',
+        21: 'einundzwanzigster', 22: 'zweiundzwanzigster', 23: 'dreiundzwanzigster',
+        24: 'vierundzwanzigster', 25: 'fünfundzwanzigster', 26: 'sechsundzwanzigster',
+        27: 'siebenundzwanzigster', 28: 'achtundzwanzigster', 29: 'neunundzwanzigster',
+        30: 'dreißigster', 31: 'einunddreißigster',
+    }
+    _MONTHS_DE = (
+        r'(?:Januar|Februar|März|April|Mai|Juni|Juli|August'
+        r'|September|Oktober|November|Dezember)'
+    )
 
     @classmethod
     def _ordinal_to_de(cls, m: re.Match) -> str:
@@ -167,6 +188,15 @@ class TtsService:
         # Jahreszahlen 1100–1999 → deutsche Sprechform
         # (espeak-ng liest "1989" als "eintausendneunhundert..." statt "neunzehnhundert...")
         text = re.sub(r'\b(1[1-9]\d{2})\b', cls._year_to_de, text)
+
+        # Datum "01. Juni" / "18. November" → starke Ordinalform ohne Artikel
+        # Muss VOR der allgemeinen Ordinalregel stehen
+        text = re.sub(
+            rf'\b(\d{{1,2}})\.\s+({cls._MONTHS_DE})\b',
+            lambda m: cls._ORDINALS_STRONG_DE.get(int(m.group(1)), f"{m.group(1)}.") + ' ' + m.group(2),
+            text,
+            flags=re.IGNORECASE,
+        )
 
         # Ordinalzahlen: "2. Platz" → "zweite Platz", "1. Bundesliga" → "erste Bundesliga"
         # Nur 1-2-stellige Zahlen gefolgt von Punkt+Leerzeichen (keine Dezimalzahlen betreffend)
