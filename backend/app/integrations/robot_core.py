@@ -2467,6 +2467,8 @@ class RobotCore:
         r"\b(?:was\s+(?:hast\s+du\s+dir\s+gemerkt|ist|sind|weißt\s+du)\s+(?:über|zu|bei|vom?|der|die|das)\s+(.+?)"
         r"|was\s+(?:ist|war|sind)\s+(?:der|die|das|mein(?:e)?)?\s*(.+?)\s*\?"
         r"|wie\s+(?:war|ist|lautet)\s+(?:mein(?:e)?|der|die|das|unser(?:e)?)?\s*(.+?)\s*\?"
+        r"|ist\s+mein(?:e)?\s+(.+?)[\.\?!]*\s*$"
+        r"|(.+?)\s+in\s+(?:meinen?\s+)?(?:notizen|aufzeichnungen)\b"
         r"|zeig(?:e?)\s+mir\s+(?:die\s+)?notiz(?:en)?\s+(?:zu|über|von)\s+(.+)"
         r"|(?:meine?\s+)?notiz(?:en)?\s+(?:zu|über|von)\s+(.+)"
         r"|hast\s+du\s+(?:eine?\s+)?notiz\s+(?:zu|über|von)\s+(.+))\b",
@@ -2476,7 +2478,8 @@ class RobotCore:
         r"\b(?:zeig(?:e?)\s+(?:mir\s+)?(?:alle\s+)?(?:meine\s+)?notizen"
         r"|was\s+hast\s+du\s+(?:dir\s+)?(?:alles\s+)?(?:gemerkt|notiert|gespeichert)"
         r"|welche\s+notizen\s+(?:hast\s+du|gibt\s+es)"
-        r"|(?:es\s+)?steht\s+(?:wohl\s+|vielleicht\s+)?in\s+(?:meinen?\s+)?(?:notizen|aufzeichnungen|aufschrieben))\b",
+        r"|\bnotizen\b"
+        r"|steht\s+.{0,30}in\s+(?:meinen?\s+)?(?:notizen|aufzeichnungen))\b",
         re.IGNORECASE,
     )
     _NOTE_DELETE_PATTERN = re.compile(
@@ -2577,14 +2580,6 @@ class RobotCore:
                 return f"Notiert: {title} — {content}"
             return None
 
-        # Alle Notizen auflisten
-        if self._NOTE_LIST_PATTERN.search(captured):
-            notes = svc.list_notes(person_id=person_id)
-            if not notes:
-                return "Ich habe noch keine Notizen gespeichert."
-            lines = [f"• {n['title']}: {n['content']}" for n in notes[:8]]
-            return "Meine Notizen: " + ". ".join(lines)
-
         # Notiz löschen
         m = self._NOTE_DELETE_PATTERN.search(captured)
         if m:
@@ -2595,16 +2590,25 @@ class RobotCore:
             svc.delete(hits[0]["id"])
             return f"Notiz '{hits[0]['title']}' gelöscht."
 
-        # Notiz abfragen
+        # Notiz abfragen — VOR der Listenprüfung, damit "X in meinen Notizen"
+        # gezielt sucht statt die gesamte Liste auszugeben
         m = self._NOTE_QUERY_PATTERN.search(captured)
         if m:
-            query = next(g for g in m.groups() if g)
-            hits = svc.search(query.strip(), person_id=person_id)
-            if not hits:
-                return None  # kein Treffer → LLM übernimmt
-            n = hits[0]
-            self._set_notes_display_intent()
-            return f"{n['title']}: {n['content']}"
+            query = next((g for g in m.groups() if g), None)
+            if query:
+                hits = svc.search(query.strip(), person_id=person_id)
+                if hits:
+                    n = hits[0]
+                    self._set_notes_display_intent()
+                    return f"{n['title']}: {n['content']}"
+
+        # Alle Notizen auflisten
+        if self._NOTE_LIST_PATTERN.search(captured):
+            notes = svc.list_notes(person_id=person_id)
+            if not notes:
+                return "Ich habe noch keine Notizen gespeichert."
+            lines = [f"• {n['title']}: {n['content']}" for n in notes[:8]]
+            return "Meine Notizen: " + ". ".join(lines)
 
         return None
 
