@@ -39,6 +39,11 @@ def get_vehicle_location_history(vehicle_id: str, days: int = 14) -> dict[str, A
     return VehicleService().location_history(vehicle_id, days)
 
 
+@router.get("/vehicles/{vehicle_id}/location-history/addresses")
+def get_vehicle_location_addresses(vehicle_id: str, days: int = 14) -> dict:
+    return VehicleService().location_history_clustered(vehicle_id, days)
+
+
 @router.get("/vehicles/{vehicle_id}/charging-history")
 def get_vehicle_charging_history(vehicle_id: str, period: str = "7days") -> dict[str, Any]:
     config = IntegrationConfigService().get_config()

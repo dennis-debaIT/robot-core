@@ -1178,6 +1178,24 @@
     .vehicle-history-sub {
       color: var(--muted); font-size: 0.7rem; margin-top: 5px;
     }
+    .vehicle-history-section {
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      margin-top: 14px;
+    }
+    .vehicle-history-header {
+      display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+      cursor: pointer; background: var(--surface2); user-select: none;
+    }
+    .vehicle-history-header:hover { background: var(--surface3,#1a1e30); }
+    .vehicle-history-label { font-size: 0.78rem; font-weight: 700; color: var(--text); flex: 1; }
+    .vehicle-history-meta { font-size: 0.68rem; color: var(--muted); }
+    .vehicle-history-arrow { font-size: 0.65rem; color: var(--muted); transition: transform 0.2s; }
+    .vehicle-history-arrow.open { transform: rotate(180deg); }
+    .vehicle-history-body { border-top: 1px solid var(--border); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .veh-addr-item { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; background: var(--surface2); border-radius: 10px; }
+    .veh-addr-name { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+    .veh-addr-time { font-size: 0.66rem; color: var(--muted); }
+    .veh-addr-dur  { font-size: 0.66rem; color: var(--accent); }
     .vehicle-empty {
       margin: auto; color: var(--muted); font-size: 0.9rem;
     }

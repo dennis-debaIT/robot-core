@@ -238,6 +238,106 @@ class VehicleService:
 
         return {"inserted": inserted, "skipped": skipped, "retention_days": self._history_days(config)}
 
+    @staticmethod
+    def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+        from math import radians, sin, cos, sqrt, atan2
+        R = 6_371_000
+        φ1, φ2 = radians(lat1), radians(lat2)
+        dφ = radians(lat2 - lat1)
+        dλ = radians(lon2 - lon1)
+        a = sin(dφ / 2) ** 2 + cos(φ1) * cos(φ2) * sin(dλ / 2) ** 2
+        return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    @staticmethod
+    def _reverse_geocode(lat: float, lon: float) -> str:
+        import json
+        import time
+        import urllib.request
+        cache_key = f"geocode_{round(lat, 4)}_{round(lon, 4)}"
+        with get_connection() as conn:
+            cached = conn.execute(
+                "SELECT value FROM system_state WHERE key = ?", (cache_key,)
+            ).fetchone()
+        if cached:
+            try:
+                return json.loads(cached["value"])
+            except Exception:
+                pass
+        try:
+            url = (
+                f"https://nominatim.openstreetmap.org/reverse"
+                f"?format=json&lat={lat}&lon={lon}&zoom=18&addressdetails=1"
+            )
+            req = urllib.request.Request(url, headers={"User-Agent": "ErikaRobot/1.0"})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+            addr = data.get("address") or {}
+            parts = [
+                addr.get("road") or addr.get("pedestrian") or addr.get("path") or "",
+                addr.get("house_number") or "",
+                addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality") or "",
+            ]
+            result = ", ".join(p for p in parts if p).strip(", ") or data.get("display_name", f"{lat:.4f}, {lon:.4f}")
+            with get_connection() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO system_state(key, value) VALUES (?, ?)",
+                    (cache_key, json.dumps(result)),
+                )
+            time.sleep(1.1)  # Nominatim rate limit: 1 req/s
+            return result
+        except Exception:
+            return f"{lat:.4f}, {lon:.4f}"
+
+    def location_history_clustered(self, vehicle_id: str, days: int = 14) -> dict[str, Any]:
+        data = self.location_history(vehicle_id, days)
+        points = data["points"]
+        if not points:
+            return {"vehicle_id": vehicle_id, "locations": []}
+
+        clusters: list[dict[str, Any]] = []
+        cur: dict[str, Any] | None = None
+        THRESHOLD_M = 150
+
+        for pt in points:
+            lat, lon = pt["latitude"], pt["longitude"]
+            if cur is None:
+                cur = {"lat": lat, "lon": lon, "from": pt["recorded_at"],
+                       "to": pt["recorded_at"], "count": 1}
+            else:
+                dist = self._haversine_m(cur["lat"], cur["lon"], lat, lon)
+                if dist <= THRESHOLD_M:
+                    cur["to"] = pt["recorded_at"]
+                    cur["count"] += 1
+                    cur["lat"] = (cur["lat"] * (cur["count"] - 1) + lat) / cur["count"]
+                    cur["lon"] = (cur["lon"] * (cur["count"] - 1) + lon) / cur["count"]
+                else:
+                    clusters.append(cur)
+                    cur = {"lat": lat, "lon": lon, "from": pt["recorded_at"],
+                           "to": pt["recorded_at"], "count": 1}
+        if cur:
+            clusters.append(cur)
+
+        locations = []
+        for cl in clusters:
+            try:
+                from_dt = datetime.fromisoformat(cl["from"]).astimezone(timezone.utc)
+                to_dt   = datetime.fromisoformat(cl["to"]).astimezone(timezone.utc)
+                duration = int((to_dt - from_dt).total_seconds() / 60)
+            except Exception:
+                duration = 0
+            address = self._reverse_geocode(cl["lat"], cl["lon"])
+            locations.append({
+                "address":          address,
+                "lat":              round(cl["lat"], 5),
+                "lon":              round(cl["lon"], 5),
+                "from":             cl["from"],
+                "to":               cl["to"],
+                "duration_minutes": duration,
+                "point_count":      cl["count"],
+            })
+
+        return {"vehicle_id": vehicle_id, "locations": locations}
+
     def location_history(self, vehicle_id: str, days: int = 14) -> dict[str, Any]:
         safe_days = max(1, min(int(days or 14), 14))
         cutoff = datetime.now(timezone.utc) - timedelta(days=safe_days)

@@ -3251,7 +3251,6 @@
     const evRows = [];
     if (vehicle.odometer) coreRows.push(['Kilometerstand', `${vehicle.odometer.state} ${vehicle.odometer.unit || ''}`]);
     coreRows.push(['Status', statusLabel]);
-    coreRows.push(['Verlauf', `${history.length} Punkte / 14 Tage`]);
     if (vehicle.range) evRows.push(['Reichweite', `${vehicle.range.state} ${vehicle.range.unit || ''}`]);
     if (vehicle.fuel_level) evRows.push(['Tank', `${vehicle.fuel_level.state} ${vehicle.fuel_level.unit || '%'}`]);
     if (vehicle.adblue_level) evRows.push(['AdBlue', `${vehicle.adblue_level.state} ${adblueUnitDet}`]);
@@ -3321,9 +3320,75 @@
           ${renderVehicleSection('Fahrdaten', coreRows)}
           ${renderVehicleSection(vehicle.ev_profile_enabled ? 'E-Antrieb' : 'Antrieb', evRows)}
         </div>
+        <div class="vehicle-history-section" id="veh-history-${escapeAttr(vehicle.id)}">
+          <div class="vehicle-history-header" onclick="toggleVehicleHistory('${escapeAttr(vehicle.id)}')">
+            <span class="vehicle-history-label">&#128205; Verlauf</span>
+            <span class="vehicle-history-meta">${history.length} Punkte · 14 Tage</span>
+            <span class="vehicle-history-arrow" id="veh-history-arrow-${escapeAttr(vehicle.id)}">&#9660;</span>
+          </div>
+          <div class="vehicle-history-body" id="veh-history-body-${escapeAttr(vehicle.id)}" style="display:none;"></div>
+        </div>
         ${chartSection}
         ${actions.length ? `<div class="vehicle-actions">${actions.join('')}</div>` : ''}
       </div>`;
+  }
+
+  const _vehHistoryLoaded = {};
+  async function toggleVehicleHistory(vehicleId) {
+    const body  = document.getElementById(`veh-history-body-${vehicleId}`);
+    const arrow = document.getElementById(`veh-history-arrow-${vehicleId}`);
+    if (!body) return;
+    const isOpen = body.style.display !== 'none';
+    body.style.display = isOpen ? 'none' : '';
+    if (arrow) arrow.classList.toggle('open', !isOpen);
+    if (isOpen || _vehHistoryLoaded[vehicleId]) return;
+    _vehHistoryLoaded[vehicleId] = true;
+    body.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:0.78rem;">Lade Standorte…</div>';
+    try {
+      const r = await fetch(`/vehicles/${encodeURIComponent(vehicleId)}/location-history/addresses`);
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      const locs = d.locations || [];
+      if (!locs.length) {
+        body.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:0.78rem;">Kein Verlauf verfügbar.</div>';
+        return;
+      }
+      body.innerHTML = locs.map(loc => {
+        const from = _fmtLocTime(loc.from);
+        const to   = _fmtLocTime(loc.to);
+        const dur  = _fmtDuration(loc.duration_minutes);
+        const sameDay = from.date === to.date;
+        const timeStr = sameDay
+          ? `${from.date} · ${from.time} – ${to.time}`
+          : `${from.date} ${from.time} – ${to.date} ${to.time}`;
+        return `<div class="veh-addr-item">
+          <div class="veh-addr-name">&#128205; ${escapeHTML(loc.address)}</div>
+          <div class="veh-addr-time">${timeStr}</div>
+          ${dur ? `<div class="veh-addr-dur">${dur} · ${loc.point_count} Messpunkte</div>` : ''}
+        </div>`;
+      }).join('');
+    } catch {
+      body.innerHTML = '<div style="padding:8px;color:var(--danger);font-size:0.78rem;">Fehler beim Laden.</div>';
+      delete _vehHistoryLoaded[vehicleId];
+    }
+  }
+
+  function _fmtLocTime(iso) {
+    if (!iso) return { date: '', time: '' };
+    try {
+      const d = new Date(iso);
+      return {
+        date: d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }),
+        time: d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      };
+    } catch { return { date: '', time: '' }; }
+  }
+
+  function _fmtDuration(minutes) {
+    if (!minutes || minutes < 2) return '';
+    if (minutes < 60) return `${minutes} Min.`;
+    const h = Math.floor(minutes / 60), m = minutes % 60;
+    return m ? `${h} Std. ${m} Min.` : `${h} Std.`;
   }
 
   function renderVehicleSection(title, rows) {
