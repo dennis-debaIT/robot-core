@@ -566,8 +566,8 @@ def _build(d: dict[str, Any]) -> Layout:
     root = Layout()
     root.split_column(
         Layout(name="header", size=3),
-        Layout(name="body",   ratio=7),
-        Layout(name="news",   size=12),
+        Layout(name="body",   ratio=9),
+        Layout(name="news",   size=10),
     )
     root["body"].split_row(
         Layout(name="left",  ratio=4),
