@@ -3775,12 +3775,14 @@
 
   function _camEventIcon(type) {
     if (type === 'ding')   return '🔔';
+    if (type === 'person') return '🧍';
     if (type === 'motion') return '🚶';
     return '📷';
   }
 
   function _camEventLabel(e) {
     if (e.type === 'ding')   return 'Klingel';
+    if (e.type === 'person') return 'Person erkannt';
     if (e.type === 'motion') return e.state === 'on' ? 'Bewegung erkannt' : 'Bewegung beendet';
     if (e.state === 'unavailable') return 'Kamera offline';
     return e.state || 'Ereignis';

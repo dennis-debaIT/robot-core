@@ -768,8 +768,9 @@ class HomeAssistantProvider:
         "terrasse": "Terrasse",
     }
 
-    # ring-mqtt: _ding / _motion  |  native Ring (DE): _klingeln / _bewegung
+    # ring-mqtt: _ding / _motion / _person  |  native Ring (DE): _klingeln / _bewegung
     _DING_WORDS   = ("ding", "klingeln", "klingel")
+    _PERSON_WORDS = ("person",)
     _MOTION_WORDS = ("motion", "bewegung")
 
     # Kameranamen normalisiert (Umlaute → ASCII) für Entity-Matching
@@ -804,6 +805,8 @@ class HomeAssistantProvider:
                 continue
             if any(w in eid for w in self._DING_WORDS):
                 event_type = "ding"
+            elif any(w in eid for w in self._PERSON_WORDS):
+                event_type = "person"
             elif any(w in eid for w in self._MOTION_WORDS):
                 event_type = "motion"
             else:

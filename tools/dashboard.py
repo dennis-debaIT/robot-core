@@ -396,8 +396,12 @@ def _panel_cameras(data: Any) -> Panel:
         name  = ev.get("name", "")
         etype = ev.get("type", "")
         when  = ev.get("when", "")
-        icon  = _e("🔔","[K]") if etype == "ding" else _e("🏃","[B]")
-        label = "Klingel" if etype == "ding" else "Bewegung"
+        if etype == "ding":
+            icon, label = _e("🔔","[K]"), "Klingel"
+        elif etype == "person":
+            icon, label = _e("🧍","[P]"), "Person"
+        else:
+            icon, label = _e("🏃","[B]"), "Bewegung"
         rel   = _rel_time(when)
         t.append(f"  {icon} {name:<14}", style="white")
         t.append(f"{label:<12}", style="dim")
