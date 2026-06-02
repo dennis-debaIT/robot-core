@@ -25,13 +25,28 @@ except Exception:
     _TZ = None
 
 try:
+    import rich as _rich_pkg
+    _rv = tuple(int(x) for x in _rich_pkg.__version__.split(".")[:2])
+    if _rv < (10, 0):
+        print(
+            f"rich {_rich_pkg.__version__} ist zu alt (mindestens 10.0 benötigt).\n"
+            "Bitte upgraden:\n"
+            "  pip install 'rich>=10.0' --break-system-packages",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     from rich.console import Console
     from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
     from rich.text import Text
 except ImportError:
-    print("Bitte 'pip install rich' oder 'sudo apt install python3-rich' ausführen.", file=sys.stderr)
+    print(
+        "rich ist nicht installiert.\n"
+        "  sudo apt install python3-rich   (dann ggf. noch upgraden)\n"
+        "  pip install 'rich>=10.0' --break-system-packages",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 _ARGS: argparse.Namespace | None = None
@@ -282,7 +297,13 @@ def _panel_fuel(data: Any) -> Panel:
 
     updated_at = data.get("updated_at")
     if updated_at:
-        t.append(f"\n  Stand: {_rel_time(updated_at)}\n", style="dim")
+        try:
+            dt = datetime.fromisoformat(updated_at)
+            if _TZ:
+                dt = dt.astimezone(_TZ)
+            t.append(f"\n  Stand: {dt.strftime('%H:%M')} Uhr\n", style="dim")
+        except Exception:
+            pass
 
     return Panel(t, title="⛽  KRAFTSTOFF", border_style="yellow", padding=(0, 1))
 
@@ -523,8 +544,8 @@ def _build(d: dict[str, Any]) -> Layout:
     root = Layout()
     root.split_column(
         Layout(name="header", size=3),
-        Layout(name="body",   ratio=8),
-        Layout(name="news",   size=9),
+        Layout(name="body",   ratio=7),
+        Layout(name="news",   size=12),
     )
     root["body"].split_row(
         Layout(name="left",  ratio=4),
