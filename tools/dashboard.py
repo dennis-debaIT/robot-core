@@ -214,13 +214,16 @@ def _panel_weather(data: Any) -> Panel:
             hcode = h.get("code")
             hicon = _wicon(hcode)
             prob  = h.get("precip_prob", 0) or 0
+            precip = _flt(h.get("precipitation", 0))
             filled = max(0, int((htemp - t_mn) / span * 10))
             bar = "█" * filled + "░" * (10 - filled)
             t.append(f"  {htime} ", style="dim")
             t.append(f"{bar} ", style="cyan")
             t.append(f"{htemp:+.0f}° {hicon}", style="white")
-            if prob >= 20:
+            if prob >= 10:
                 t.append(f" {prob:.0f}%", style="blue")
+            if precip > 0:
+                t.append(f" {precip:.1f}mm", style="cyan")
             t.append("\n")
 
     # 5-Tage-Vorschau
@@ -253,7 +256,7 @@ def _panel_calendar(data: Any) -> Panel:
 
     days  = data.get("days") or []
     shown = 0
-    for day in days[:4]:
+    for day in days:
         events = day.get("events") or []
         if not events:
             continue
@@ -271,8 +274,7 @@ def _panel_calendar(data: Any) -> Panel:
                 t.append(f"   {evtime}  ", style="bold cyan")
                 t.append(f"{title}\n", style="white")
         shown += 1
-        if shown < 3:
-            t.append("\n")
+        t.append("\n")
 
     if not shown:
         t.append("  Keine Termine\n", style="dim")
@@ -588,11 +590,11 @@ def _build(d: dict[str, Any]) -> Layout:
     left["fuel"].update(_panel_fuel(d["fuel"]))
     root["left"].update(left)
 
-    # Mitte: Termine (groß) + Kamera-Ereignisse
+    # Mitte: Termine (groß) + Kamera-Ereignisse (klein)
     mid = Layout()
     mid.split_column(
-        Layout(name="cal",    ratio=6),
-        Layout(name="camera", ratio=4),
+        Layout(name="cal",    ratio=8),
+        Layout(name="camera", ratio=2),
     )
     mid["cal"].update(_panel_calendar(d["calendar"]))
     mid["camera"].update(_panel_cameras(d["cameras"]))
@@ -600,9 +602,9 @@ def _build(d: dict[str, Any]) -> Layout:
 
     right = Layout()
     right.split_column(
-        Layout(name="veh",    ratio=4),
+        Layout(name="veh",    ratio=5),
         Layout(name="robots", ratio=2),
-        Layout(name="pv",     ratio=4),
+        Layout(name="pv",     ratio=2),
     )
     right["veh"].update(_panel_vehicles(d["vehicles"], d.get("addresses")))
     right["robots"].update(_panel_robots(d["robots"]))
