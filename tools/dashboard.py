@@ -53,12 +53,38 @@ _ARGS: argparse.Namespace | None = None
 _SSL = ssl.create_default_context()
 _SSL.check_hostname = False
 _SSL.verify_mode = ssl.CERT_NONE
+_EMOJI = True  # wird in main() gesetzt
 
 _SPARK     = "▁▂▃▄▅▆▇█"
 _DAYS_DE   = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
 _MONTHS_DE = ["Januar","Februar","März","April","Mai","Juni","Juli",
               "August","September","Oktober","November","Dezember"]
 _WDAYS_DE  = ["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"]
+
+# Wetter-Icons: (emoji, ascii) — ascii immer 2 Zeichen für saubere Ausrichtung
+_WICONS: dict[str, tuple[str, str]] = {
+    "sun":    ("☀ ", "**"),
+    "sun_cl": ("🌤", "*~"),
+    "cloud":  ("⛅", "~~"),
+    "ocast":  ("☁ ", "oo"),
+    "fog":    ("🌫", "fg"),
+    "drizzle":("🌦", "dr"),
+    "rain":   ("🌧", "//"),
+    "snow":   ("❄ ", "**"),
+    "storm":  ("⛈ ", "!!"),
+    "unk":    ("   ", "  "),
+}
+
+def _icon(key: str) -> str:
+    pair = _WICONS.get(key, _WICONS["unk"])
+    return pair[0] if _EMOJI else pair[1]
+
+def _e(emoji: str, ascii: str) -> str:
+    """Gibt Emoji oder 2-Zeichen-ASCII zurück je nach Modus."""
+    return emoji if _EMOJI else ascii
+
+def _ptitle(emoji: str, label: str) -> str:
+    return f"{emoji}  {label}" if _EMOJI else label
 
 
 # ── Netzwerk ───────────────────────────────────────────────────────────────────
@@ -114,19 +140,19 @@ def _spark_line(values: list[float], width: int = 24) -> str:
 
 def _wicon(code: int | None) -> str:
     if code is None:
-        return "  "
+        return _icon("unk")
     c = int(code)
-    if c == 0:            return "☀ "
-    if c == 1:            return "🌤"
-    if c == 2:            return "⛅"
-    if c == 3:            return "☁ "
-    if c in (45, 48):     return "🌫"
-    if c in (51,53,55):   return "🌦"
-    if 61 <= c <= 67:     return "🌧"
-    if 71 <= c <= 77:     return "❄ "
-    if 80 <= c <= 82:     return "🌦"
-    if 95 <= c <= 99:     return "⛈ "
-    return "  "
+    if c == 0:            return _icon("sun")
+    if c == 1:            return _icon("sun_cl")
+    if c == 2:            return _icon("cloud")
+    if c == 3:            return _icon("ocast")
+    if c in (45, 48):     return _icon("fog")
+    if c in (51,53,55):   return _icon("drizzle")
+    if 61 <= c <= 67:     return _icon("rain")
+    if 71 <= c <= 77:     return _icon("snow")
+    if 80 <= c <= 82:     return _icon("drizzle")
+    if 95 <= c <= 99:     return _icon("storm")
+    return _icon("unk")
 
 
 def _rel_time(iso: str) -> str:
@@ -147,21 +173,37 @@ def _rel_time(iso: str) -> str:
 def _robot_label(state: str) -> tuple[str, str, str]:
     """(icon, label, style)"""
     s = (state or "").lower()
-    m = {
-        "cleaning":   ("🧹", "Saugt",        "cyan"),
-        "sweeping":   ("🧹", "Kehrt",         "cyan"),
-        "mopping":    ("🫧", "Wischt",         "cyan"),
-        "drying":     ("💨", "Trocknet",       "cyan"),
-        "washing":    ("🫧", "Wäscht",         "cyan"),
-        "docked":     ("⚡", "Basis",           "dim"),
-        "idle":       ("💤", "Bereit",          "dim"),
-        "returning":  ("↩ ", "Kehrt zurück",    "yellow"),
-        "error":      ("⚠ ", "Fehler",          "red"),
-        "charging":   ("⚡", "Lädt",            "green"),
-        "paused":     ("⏸ ", "Pausiert",         "yellow"),
-        "unavailable":("✗ ", "Offline",          "dim"),
-    }
-    return m.get(s, ("  ", state or "?", "dim"))
+    if _EMOJI:
+        m = {
+            "cleaning":   ("🧹", "Saugt",        "cyan"),
+            "sweeping":   ("🧹", "Kehrt",         "cyan"),
+            "mopping":    ("🫧", "Wischt",         "cyan"),
+            "drying":     ("💨", "Trocknet",       "cyan"),
+            "washing":    ("🫧", "Wäscht",         "cyan"),
+            "docked":     ("⚡", "Basis",           "dim"),
+            "idle":       ("💤", "Bereit",          "dim"),
+            "returning":  ("↩ ", "Kehrt zurück",    "yellow"),
+            "error":      ("⚠ ", "Fehler",          "red"),
+            "charging":   ("⚡", "Lädt",            "green"),
+            "paused":     ("⏸ ", "Pausiert",         "yellow"),
+            "unavailable":("✗ ", "Offline",          "dim"),
+        }
+    else:
+        m = {
+            "cleaning":   (">>", "Saugt",        "cyan"),
+            "sweeping":   (">>", "Kehrt",         "cyan"),
+            "mopping":    ("~~", "Wischt",         "cyan"),
+            "drying":     ("~~", "Trocknet",       "cyan"),
+            "washing":    ("~~", "Wäscht",         "cyan"),
+            "docked":     ("[]", "Basis",           "dim"),
+            "idle":       ("--", "Bereit",          "dim"),
+            "returning":  ("<-", "Kehrt zurück",    "yellow"),
+            "error":      ("!!", "Fehler",          "red"),
+            "charging":   ("+=", "Lädt",            "green"),
+            "paused":     ("||", "Pausiert",         "yellow"),
+            "unavailable":("xx", "Offline",          "dim"),
+        }
+    return m.get(s, ("??", state or "?", "dim"))
 
 
 # ── Panel: Wetter ──────────────────────────────────────────────────────────────
@@ -169,7 +211,7 @@ def _panel_weather(data: Any) -> Panel:
     t = Text()
     if not data:
         t.append("  Keine Wetterdaten verfügbar\n", style="dim")
-        return Panel(t, title="🌤  WETTER", border_style="blue", padding=(0, 1))
+        return Panel(t, title=_ptitle("🌤", "WETTER"), border_style="blue", padding=(0, 1))
 
     curr  = data.get("current") or {}
     today = data.get("today") or {}
@@ -251,7 +293,7 @@ def _panel_calendar(data: Any) -> Panel:
     t = Text()
     if not data:
         t.append("  Keine Daten verfügbar\n", style="dim")
-        return Panel(t, title="📅  TERMINE", border_style="green", padding=(0, 1))
+        return Panel(t, title=_ptitle("📅", "TERMINE"), border_style="green", padding=(0, 1))
 
     days  = data.get("days") or []
     shown = 0
@@ -286,12 +328,12 @@ def _panel_fuel(data: Any) -> Panel:
     t = Text()
     if not data:
         t.append("  Keine Daten verfügbar\n", style="dim")
-        return Panel(t, title="⛽  KRAFTSTOFF", border_style="yellow", padding=(0, 1))
+        return Panel(t, title=_ptitle("⛽", "KRAFTSTOFF"), border_style="yellow", padding=(0, 1))
 
     cards = data.get("cards") or []
     if not cards:
         t.append("  Kraftstoff nicht konfiguriert\n", style="dim")
-        return Panel(t, title="⛽  KRAFTSTOFF", border_style="yellow", padding=(0, 1))
+        return Panel(t, title=_ptitle("⛽", "KRAFTSTOFF"), border_style="yellow", padding=(0, 1))
 
     # Stations-Name aus erstem Eintrag
     station = (cards[0].get("primary") or {}).get("_station_name", "")
@@ -331,13 +373,13 @@ def _panel_cameras(data: Any) -> Panel:
 
     if not events:
         t.append("  Keine Ereignisse\n", style="dim")
-        return Panel(t, title="📷  KAMERA-EREIGNISSE", border_style="cyan", padding=(0, 1))
+        return Panel(t, title=_ptitle("📷", "KAMERA-EREIGNISSE"), border_style="cyan", padding=(0, 1))
 
     for ev in events[:8]:
         name  = ev.get("name", "")
         etype = ev.get("type", "")
         when  = ev.get("when", "")
-        icon  = "🔔" if etype == "ding" else "🏃"
+        icon  = _e("🔔","[K]") if etype == "ding" else _e("🏃","[B]")
         label = "Klingel" if etype == "ding" else "Bewegung"
         rel   = _rel_time(when)
         t.append(f"  {icon} {name:<14}", style="white")
@@ -354,11 +396,11 @@ def _panel_vehicles(data: Any, addresses: dict | None = None) -> Panel:
 
     if not vehicles:
         t.append("  Keine Fahrzeuge konfiguriert\n", style="dim")
-        return Panel(t, title="🚗  FAHRZEUGE", border_style="magenta", padding=(0, 1))
+        return Panel(t, title=_ptitle("🚗", "FAHRZEUGE"), border_style="magenta", padding=(0, 1))
 
     for v in vehicles:
         label = v.get("label") or v.get("id", "?")
-        t.append(f"  🚗 {label}\n", style="bold white")
+        t.append(f"  {_e('🚗','>>')} {label}\n", style="bold white")
 
         battery = v.get("battery") or {}
         fuel    = v.get("fuel_level") or {}
@@ -380,7 +422,7 @@ def _panel_vehicles(data: Any, addresses: dict | None = None) -> Panel:
 
         chg = v.get("charging") or {}
         if (chg.get("state") or "").lower() in ("on","charging","in_charge","charge_in_progress"):
-            t.append("     ⚡ Lädt\n", style="bold yellow")
+            t.append(f"     {_e('⚡','++')} Lädt\n", style="bold yellow")
 
         # Letzte bekannte Adresse aus Geocoding-Cache
         vid = v.get("id","")
@@ -389,14 +431,14 @@ def _panel_vehicles(data: Any, addresses: dict | None = None) -> Panel:
             addr = addr_info.get("address","")
             when = addr_info.get("from","")
             if addr and addr != f"{addr_info.get('lat','')}, {addr_info.get('lon','')}":
-                t.append(f"     📍 {addr}\n", style="dim")
+                t.append(f"     {_e('📍','>>')} {addr}\n", style="dim")
             if when:
-                t.append(f"     ⏱  {_rel_time(when)}\n", style="dim")
+                t.append(f"     {_e('⏱ ','->')} {_rel_time(when)}\n", style="dim")
         else:
             loc = v.get("location") or {}
             ls  = loc.get("state", "")
             if ls and ls not in ("unavailable", "unknown", ""):
-                t.append(f"     📍 {ls}\n", style="dim")
+                t.append(f"     {_e('📍','>>')} {ls}\n", style="dim")
         t.append("\n")
 
     return Panel(t, title="🚗  FAHRZEUGE", border_style="magenta", padding=(0, 1))
@@ -409,7 +451,7 @@ def _panel_robots(data: Any) -> Panel:
 
     if not robots:
         t.append("  Keine Roboter konfiguriert\n", style="dim")
-        return Panel(t, title="🤖  ROBOTER", border_style="yellow", padding=(0, 1))
+        return Panel(t, title=_ptitle("🤖", "ROBOTER"), border_style="yellow", padding=(0, 1))
 
     for r in robots:
         name    = r.get("name", "?")
@@ -450,7 +492,7 @@ def _panel_news(data: Any) -> Panel:
     if not items:
         t = Text()
         t.append("  Keine Neuigkeiten verfügbar\n", style="dim")
-        return Panel(t, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
+        return Panel(t, title=_ptitle("📰", "NACHRICHTEN"), border_style="white", padding=(0, 1))
 
     grid = Table.grid(expand=True, padding=(0, 1))
     grid.add_column(ratio=10)
@@ -479,7 +521,7 @@ def _panel_pv(state_data: Any, history_data: Any) -> Panel:
     t = Text()
     if not state_data:
         t.append("  Keine Daten verfügbar\n", style="dim")
-        return Panel(t, title="☀   PV-ANLAGE", border_style="yellow", padding=(0, 1))
+        return Panel(t, title=_ptitle("☀", "PV-ANLAGE"), border_style="yellow", padding=(0, 1))
 
     st    = state_data.get("state") or {}
     power = _pv_val(st, "power")
@@ -489,19 +531,19 @@ def _panel_pv(state_data: Any, history_data: Any) -> Panel:
     house = _pv_val(st, "house_consumption")
 
     if power is not None:
-        t.append(f"  ☀  Leistung    {power:>7.0f} W\n", style="bold yellow")
+        t.append(f"  {_e('☀ ','PV')} Leistung    {power:>7.0f} W\n", style="bold yellow")
     if daily is not None:
-        t.append(f"  📊 Heute       {daily:>7.1f} kWh\n", style="white")
+        t.append(f"  {_e('📊','=>') } Heute       {daily:>7.1f} kWh\n", style="white")
     if house is not None and house > 0:
-        t.append(f"  🏠 Verbrauch   {house:>7.0f} W\n", style="dim")
+        t.append(f"  {_e('🏠','Hs')} Verbrauch   {house:>7.0f} W\n", style="dim")
     if bat is not None:
         col = "green" if bat > 20 else "red"
-        t.append(f"  🔋 Batterie    {_bar(bat, 12)} {bat:.0f}%\n", style=col)
+        t.append(f"  {_e('🔋','Bt')} Batterie    {_bar(bat, 12)} {bat:.0f}%\n", style=col)
     if grid is not None:
         if grid >= 0:
-            t.append(f"  ⬆  Einspeisung {grid:>6.0f} W\n", style="green")
+            t.append(f"  {_e('⬆ ','^^')} Einspeisung {grid:>6.0f} W\n", style="green")
         else:
-            t.append(f"  ⬇  Bezug       {abs(grid):>6.0f} W\n", style="red")
+            t.append(f"  {_e('⬇ ','vv')} Bezug       {abs(grid):>6.0f} W\n", style="red")
 
     # Sparkline aus Tagesverlauf
     points: list[float] = []
@@ -619,10 +661,15 @@ def _build(d: dict[str, Any]) -> Layout:
 def main() -> None:
     global _ARGS
     parser = argparse.ArgumentParser(description="Erika Terminal Dashboard")
-    parser.add_argument("--host",    default="localhost",  help="Erika-Host  (default: localhost)")
-    parser.add_argument("--port",    default=8000, type=int, help="Port       (default: 8000)")
-    parser.add_argument("--refresh", default=30,  type=int, help="Refresh (s) (default: 30)")
+    parser.add_argument("--host",     default="localhost",  help="Erika-Host  (default: localhost)")
+    parser.add_argument("--port",     default=8000, type=int, help="Port       (default: 8000)")
+    parser.add_argument("--refresh",  default=30,  type=int, help="Refresh (s) (default: 30)")
+    parser.add_argument("--no-emoji", dest="no_emoji", action="store_true",
+                        help="ASCII-Modus: keine Emojis (für Terminals ohne Emoji-Schriftart)")
     _ARGS = parser.parse_args()
+
+    global _EMOJI
+    _EMOJI = not _ARGS.no_emoji
 
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
 
