@@ -702,8 +702,8 @@ def _build(d: dict[str, Any]) -> Layout:
 
     right = Layout()
     right.split_column(
-        Layout(name="veh",    ratio=4),
-        Layout(name="lights", ratio=2),
+        Layout(name="veh",    ratio=3),
+        Layout(name="lights", ratio=3),
         Layout(name="robots", ratio=2),
         Layout(name="pv",     ratio=3),
     )
