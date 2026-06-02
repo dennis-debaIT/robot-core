@@ -260,7 +260,7 @@ def _panel_weather(data: Any) -> Panel:
             filled = max(0, int((htemp - t_mn) / span * 10))
             bar    = "█" * filled + "░" * (10 - filled)
             t.append(f"  {htime} ", style="dim")
-            t.append(f"{bar} ", style="cyan")
+            t.append(f"{bar} ", style="yellow")
             t.append(f"{htemp:+3.0f}° {hicon} ", style="white")
             t.append(f"{prob:3.0f}% ", style="blue" if prob >= 20 else "dim")
             t.append(f"{precip:4.1f}mm\n", style="cyan" if precip > 0 else "dim")
