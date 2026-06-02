@@ -620,7 +620,13 @@ def _fetch() -> dict[str, Any]:
         hist = _get(f"/vehicles/{vid}/location-history/addresses?days=1")
         locs = (hist or {}).get("locations") or []
         if locs:
-            d["addresses"][vid] = locs[0]  # neuester Standort (absteigend sortiert)
+            loc = locs[0]
+            # Adresse via Geocoding-Cache holen (instant wenn bereits bekannt)
+            if loc.get("lat") and loc.get("lon"):
+                geo = _get(f"/vehicles/geocode?lat={loc['lat']}&lon={loc['lon']}")
+                if geo:
+                    loc["address"] = geo.get("address", "")
+            d["addresses"][vid] = loc
     return d
 
 
