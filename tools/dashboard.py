@@ -29,6 +29,7 @@ try:
     from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
+    from rich.table import Table
     from rich.text import Text
     if not hasattr(Layout(), "split_column"):
         print(
@@ -203,11 +204,11 @@ def _panel_weather(data: Any) -> Panel:
         hours = data.get("forecast_hours") or []
     if hours:
         t.append("\n  STUNDEN\n", style="bold dim")
-        temps = [_flt(h.get("temp")) for h in hours[:12]]
+        temps = [_flt(h.get("temp")) for h in hours[:14]]
         t_mn  = min(temps) if temps else 0
         t_mx  = max(temps) if temps else 1
         span  = max(t_mx - t_mn, 1)
-        for h in hours[:12]:
+        for h in hours[:14]:
             htime = h.get("time", "")[:5]
             htemp = _flt(h.get("temp"))
             hcode = h.get("code")
@@ -426,27 +427,39 @@ def _panel_robots(data: Any) -> Panel:
 
 
 # ── Panel: News ────────────────────────────────────────────────────────────────
-def _panel_news(data: Any) -> Panel:
+def _news_text(items: list, start: int, count: int) -> Text:
     t = Text()
-    items = (data or {}).get("items") or []
-    if not items:
-        t.append("  Keine Neuigkeiten verfügbar\n", style="dim")
-        return Panel(t, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
-
-    for item in items[:5]:
+    for item in items[start: start + count]:
         title  = item.get("title") or ""
         source = item.get("source_label") or item.get("source") or item.get("feed_label", "")
         pub    = item.get("pub_date") or ""
         rel    = _rel_time(pub) if pub else ""
-        t.append(f"  {title}\n", style="white")
-        info = "  "
+        t.append(f" {title}\n", style="white")
+        meta = " "
         if source:
-            info += source
+            meta += source
         if rel:
-            info += f"  ·  {rel}"
-        t.append(f"{info}\n\n", style="dim")
+            meta += f"  ·  {rel}"
+        t.append(f"{meta}\n\n", style="dim")
+    return t
 
-    return Panel(t, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
+
+def _panel_news(data: Any) -> Panel:
+    items = (data or {}).get("items") or []
+    if not items:
+        t = Text()
+        t.append("  Keine Neuigkeiten verfügbar\n", style="dim")
+        return Panel(t, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
+
+    grid = Table.grid(expand=True, padding=(0, 1))
+    grid.add_column(ratio=10)
+    grid.add_column(width=1)
+    grid.add_column(ratio=10)
+
+    sep = Text("\n".join(["│"] * 9), style="dim")
+    grid.add_row(_news_text(items, 0, 3), sep, _news_text(items, 3, 3))
+
+    return Panel(grid, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
 
 
 # ── Panel: PV-Anlage ───────────────────────────────────────────────────────────
