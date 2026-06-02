@@ -178,11 +178,11 @@ def _panel_weather(data: Any) -> Panel:
     hours = data.get("forecast_hours") or []
     if hours:
         t.append("\n  STUNDEN\n", style="bold dim")
-        temps = [_flt(h.get("temp")) for h in hours[:10]]
+        temps = [_flt(h.get("temp")) for h in hours[:12]]
         t_mn  = min(temps) if temps else 0
         t_mx  = max(temps) if temps else 1
         span  = max(t_mx - t_mn, 1)
-        for h in hours[:10]:
+        for h in hours[:12]:
             htime = h.get("time", "")[:5]
             htemp = _flt(h.get("temp"))
             hcode = h.get("code")
@@ -280,6 +280,10 @@ def _panel_fuel(data: Any) -> Panel:
         t.append(f"  {label:<14}", style="white")
         t.append(f"{float(price):.3f} €\n", style="bold yellow")
 
+    updated_at = data.get("updated_at")
+    if updated_at:
+        t.append(f"\n  Stand: {_rel_time(updated_at)}\n", style="dim")
+
     return Panel(t, title="⛽  KRAFTSTOFF", border_style="yellow", padding=(0, 1))
 
 
@@ -311,7 +315,7 @@ def _panel_cameras(data: Any) -> Panel:
 
 
 # ── Panel: Fahrzeuge ───────────────────────────────────────────────────────────
-def _panel_vehicles(data: Any) -> Panel:
+def _panel_vehicles(data: Any, addresses: dict | None = None) -> Panel:
     t = Text()
     vehicles = (data or {}).get("vehicles") or []
 
@@ -345,10 +349,21 @@ def _panel_vehicles(data: Any) -> Panel:
         if (chg.get("state") or "").lower() in ("on","charging","in_charge","charge_in_progress"):
             t.append("     ⚡ Lädt\n", style="bold yellow")
 
-        loc = v.get("location") or {}
-        ls  = loc.get("state", "")
-        if ls and ls not in ("unavailable", "unknown", ""):
-            t.append(f"     📍 {ls}\n", style="dim")
+        # Letzte bekannte Adresse aus Geocoding-Cache
+        vid = v.get("id","")
+        if addresses and vid in addresses:
+            addr_info = addresses[vid]
+            addr = addr_info.get("address","")
+            when = addr_info.get("from","")
+            if addr and addr != f"{addr_info.get('lat','')}, {addr_info.get('lon','')}":
+                t.append(f"     📍 {addr}\n", style="dim")
+            if when:
+                t.append(f"     ⏱  {_rel_time(when)}\n", style="dim")
+        else:
+            loc = v.get("location") or {}
+            ls  = loc.get("state", "")
+            if ls and ls not in ("unavailable", "unknown", ""):
+                t.append(f"     📍 {ls}\n", style="dim")
         t.append("\n")
 
     return Panel(t, title="🚗  FAHRZEUGE", border_style="magenta", padding=(0, 1))
@@ -377,6 +392,30 @@ def _panel_robots(data: Any) -> Panel:
         t.append("\n")
 
     return Panel(t, title="🤖  ROBOTER", border_style="yellow", padding=(0, 1))
+
+
+# ── Panel: News ────────────────────────────────────────────────────────────────
+def _panel_news(data: Any) -> Panel:
+    t = Text()
+    items = (data or {}).get("items") or []
+    if not items:
+        t.append("  Keine Neuigkeiten verfügbar\n", style="dim")
+        return Panel(t, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
+
+    for item in items[:5]:
+        title  = item.get("title") or ""
+        source = item.get("source_label") or item.get("source") or item.get("feed_label", "")
+        pub    = item.get("pub_date") or ""
+        rel    = _rel_time(pub) if pub else ""
+        t.append(f"  {title}\n", style="white")
+        info = "  "
+        if source:
+            info += source
+        if rel:
+            info += f"  ·  {rel}"
+        t.append(f"{info}\n\n", style="dim")
+
+    return Panel(t, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
 
 
 # ── Panel: PV-Anlage ───────────────────────────────────────────────────────────
@@ -454,7 +493,7 @@ def _header() -> Panel:
 
 # ── Daten laden ────────────────────────────────────────────────────────────────
 def _fetch() -> dict[str, Any]:
-    return {
+    d: dict[str, Any] = {
         "weather":    _get("/weather"),
         "calendar":   _get("/calendar"),
         "vehicles":   _get("/vehicles"),
@@ -463,7 +502,20 @@ def _fetch() -> dict[str, Any]:
         "robots":     _get("/ha/robots"),
         "pv_state":   _get("/ha/pv/state"),
         "pv_history": _get("/ha/pv/history?view=today"),
+        "news":       _get("/news"),
+        "addresses":  {},
     }
+    # Letzte bekannte Adresse pro Fahrzeug (aus Geocoding-Cache, fast wenn gecacht)
+    vehicles = (d["vehicles"] or {}).get("vehicles") or []
+    for v in vehicles:
+        vid = v.get("id","")
+        if not vid:
+            continue
+        hist = _get(f"/vehicles/{vid}/location-history/addresses?days=1")
+        locs = (hist or {}).get("locations") or []
+        if locs:
+            d["addresses"][vid] = locs[0]  # neuester Standort (absteigend sortiert)
+    return d
 
 
 # ── Layout ─────────────────────────────────────────────────────────────────────
@@ -471,7 +523,8 @@ def _build(d: dict[str, Any]) -> Layout:
     root = Layout()
     root.split_column(
         Layout(name="header", size=3),
-        Layout(name="body"),
+        Layout(name="body",   ratio=8),
+        Layout(name="news",   size=9),
     )
     root["body"].split_row(
         Layout(name="left",  ratio=4),
@@ -499,10 +552,12 @@ def _build(d: dict[str, Any]) -> Layout:
         Layout(name="robots", ratio=2),
         Layout(name="pv",     ratio=4),
     )
-    right["veh"].update(_panel_vehicles(d["vehicles"]))
+    right["veh"].update(_panel_vehicles(d["vehicles"], d.get("addresses")))
     right["robots"].update(_panel_robots(d["robots"]))
     right["pv"].update(_panel_pv(d["pv_state"], d["pv_history"]))
     root["right"].update(right)
+
+    root["news"].update(_panel_news(d["news"]))
 
     return root
 
