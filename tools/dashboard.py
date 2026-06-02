@@ -171,39 +171,42 @@ def _rel_time(iso: str) -> str:
 
 
 def _robot_label(state: str) -> tuple[str, str, str]:
-    """(icon, label, style)"""
-    s = (state or "").lower()
-    if _EMOJI:
-        m = {
-            "cleaning":   ("🧹", "Saugt",        "cyan"),
-            "sweeping":   ("🧹", "Kehrt",         "cyan"),
-            "mopping":    ("🫧", "Wischt",         "cyan"),
-            "drying":     ("💨", "Trocknet",       "cyan"),
-            "washing":    ("🫧", "Wäscht",         "cyan"),
-            "docked":     ("⚡", "Basis",           "dim"),
-            "idle":       ("💤", "Bereit",          "dim"),
-            "returning":  ("↩ ", "Kehrt zurück",    "yellow"),
-            "error":      ("⚠ ", "Fehler",          "red"),
-            "charging":   ("⚡", "Lädt",            "green"),
-            "paused":     ("⏸ ", "Pausiert",         "yellow"),
-            "unavailable":("✗ ", "Offline",          "dim"),
-        }
-    else:
-        m = {
-            "cleaning":   (">>", "Saugt",        "cyan"),
-            "sweeping":   (">>", "Kehrt",         "cyan"),
-            "mopping":    ("~~", "Wischt",         "cyan"),
-            "drying":     ("~~", "Trocknet",       "cyan"),
-            "washing":    ("~~", "Wäscht",         "cyan"),
-            "docked":     ("[]", "Basis",           "dim"),
-            "idle":       ("--", "Bereit",          "dim"),
-            "returning":  ("<-", "Kehrt zurück",    "yellow"),
-            "error":      ("!!", "Fehler",          "red"),
-            "charging":   ("+=", "Lädt",            "green"),
-            "paused":     ("||", "Pausiert",         "yellow"),
-            "unavailable":("xx", "Offline",          "dim"),
-        }
-    return m.get(s, ("??", state or "?", "dim"))
+    """(icon, label, style) — icon ist immer 2 Zeichen"""
+    s = (state or "").lower().replace("-", "_")
+    # (emoji, ascii, label, style)
+    STATES: list[tuple[str, str, str, str]] = [
+        ("🧹", ">>", "Saugt",          "cyan"),   # cleaning / sweeping
+        ("🧹", ">>", "Kehrt",          "cyan"),   # sweeping only
+        ("🫧", "~~", "Wischt",         "cyan"),   # mopping
+        ("🧹", ">>", "Saugt+Wischt",   "cyan"),   # sweeping_and_mopping
+        ("💨", "~~", "Trocknet",       "cyan"),   # drying
+        ("🫧", "~~", "Wäscht",         "cyan"),   # washing
+        ("⚡", "[]", "Geladen",        "dim"),    # charging_completed
+        ("⚡", "+=", "Lädt",           "green"),  # charging
+        ("💤", "--", "Basis",          "dim"),    # docked
+        ("💤", "--", "Bereit",         "dim"),    # idle / standby
+        ("↩ ", "<-", "Kehrt zurück",   "yellow"), # returning / returning_home / go_charging
+        ("🗺 ", "~~", "Kartiert",      "cyan"),   # mapping
+        ("🎯", ">>", "Fleck",          "cyan"),   # spot_cleaning
+        ("⚠ ", "!!", "Fehler",         "red"),    # error / fault
+        ("⏸ ", "||", "Pausiert",       "yellow"), # paused
+        ("✗ ", "xx", "Offline",        "dim"),    # unavailable
+    ]
+    KEY_MAP: dict[str, int] = {
+        "cleaning": 0, "sweeping": 1, "mopping": 2,
+        "sweeping_and_mopping": 3, "drying": 4, "washing": 5,
+        "charging_completed": 6, "charging": 7,
+        "docked": 8, "idle": 9, "standby": 9,
+        "returning": 10, "returning_home": 10, "go_charging": 10,
+        "mapping": 11, "spot_cleaning": 12,
+        "error": 13, "fault": 13,
+        "paused": 14, "unavailable": 15,
+    }
+    idx = KEY_MAP.get(s)
+    if idx is None:
+        return ("??", state or "?", "dim")
+    e, a, label, style = STATES[idx]
+    return (e if _EMOJI else a, label, style)
 
 
 # ── Panel: Wetter ──────────────────────────────────────────────────────────────
@@ -334,7 +337,7 @@ def _panel_calendar(data: Any) -> Panel:
     if not shown:
         t.append("  Keine Termine\n", style="dim")
 
-    return Panel(t, title="📅  TERMINE", border_style="green", padding=(0, 1))
+    return Panel(t, title=_ptitle("📅", "TERMINE"), border_style="green", padding=(0, 1))
 
 
 # ── Panel: Kraftstoff ──────────────────────────────────────────────────────────
@@ -373,7 +376,7 @@ def _panel_fuel(data: Any) -> Panel:
         except Exception:
             pass
 
-    return Panel(t, title="⛽  KRAFTSTOFF", border_style="yellow", padding=(0, 1))
+    return Panel(t, title=_ptitle("⛽", "KRAFTSTOFF"), border_style="yellow", padding=(0, 1))
 
 
 # ── Panel: Kamera-Ereignisse ───────────────────────────────────────────────────
@@ -400,7 +403,7 @@ def _panel_cameras(data: Any) -> Panel:
         t.append(f"{label:<12}", style="dim")
         t.append(f"{rel}\n", style="cyan")
 
-    return Panel(t, title="📷  KAMERA-EREIGNISSE", border_style="cyan", padding=(0, 1))
+    return Panel(t, title=_ptitle("📷", "KAMERA-EREIGNISSE"), border_style="cyan", padding=(0, 1))
 
 
 # ── Panel: Fahrzeuge ───────────────────────────────────────────────────────────
@@ -455,7 +458,37 @@ def _panel_vehicles(data: Any, addresses: dict | None = None) -> Panel:
                 t.append(f"     {_e('📍','>>')} {ls}\n", style="dim")
         t.append("\n")
 
-    return Panel(t, title="🚗  FAHRZEUGE", border_style="magenta", padding=(0, 1))
+    return Panel(t, title=_ptitle("🚗", "FAHRZEUGE"), border_style="magenta", padding=(0, 1))
+
+
+# ── Panel: Lichter ────────────────────────────────────────────────────────────
+def _panel_lights(data: Any) -> Panel:
+    t = Text()
+    lights = (data or {}).get("lights") or []
+    if not lights:
+        t.append("  Keine Lichter konfiguriert\n", style="dim")
+        return Panel(t, title=_ptitle("💡", "LICHTER"), border_style="yellow", padding=(0, 1))
+
+    grid = Table.grid(expand=True, padding=(0, 1))
+    grid.add_column(ratio=1)
+    grid.add_column(ratio=1)
+
+    row: list[Text] = []
+    for light in lights:
+        name  = light.get("name") or light.get("entity_id","?")
+        state = (light.get("state") or "").lower()
+        is_on = state == "on"
+        cell  = Text()
+        cell.append(f"{'AN' if is_on else 'AUS'} ", style="bold yellow" if is_on else "dim")
+        cell.append(name, style="white" if is_on else "dim")
+        row.append(cell)
+        if len(row) == 2:
+            grid.add_row(*row)
+            row = []
+    if row:
+        grid.add_row(row[0], Text(""))
+
+    return Panel(grid, title=_ptitle("💡", "LICHTER"), border_style="yellow", padding=(0, 1))
 
 
 # ── Panel: Roboter ─────────────────────────────────────────────────────────────
@@ -472,15 +505,15 @@ def _panel_robots(data: Any) -> Panel:
         state   = r.get("state", "")
         battery = r.get("battery_level")
         icon, label, style = _robot_label(state)
-        t.append(f"  {icon} {name:<16}", style="bold white")
+        bat_str = f"  {int(_flt(battery))}%" if battery is not None else ""
+        bat_col = "green" if battery is not None and _flt(battery) > 20 else "red"
+        t.append(f"  {icon} {name:<13}", style="bold white")
         t.append(f"{label}", style=style)
-        if battery is not None:
-            pct  = int(_flt(battery))
-            col2 = "green" if pct > 20 else "red"
-            t.append(f"  {pct}%", style=col2)
+        if bat_str:
+            t.append(bat_str, style=bat_col)
         t.append("\n")
 
-    return Panel(t, title="🤖  ROBOTER", border_style="yellow", padding=(0, 1))
+    return Panel(t, title=_ptitle("🤖", "ROBOTER"), border_style="yellow", padding=(0, 1))
 
 
 # ── Panel: News ────────────────────────────────────────────────────────────────
@@ -521,7 +554,7 @@ def _panel_news(data: Any) -> Panel:
     sep = Text("\n".join(["│"] * 9), style="dim")
     grid.add_row(_news_text(items, 0, 3), sep, _news_text(items, 3, 3))
 
-    return Panel(grid, title="📰  NACHRICHTEN", border_style="white", padding=(0, 1))
+    return Panel(grid, title=_ptitle("📰", "NACHRICHTEN"), border_style="white", padding=(0, 1))
 
 
 # ── Panel: PV-Anlage ───────────────────────────────────────────────────────────
@@ -582,7 +615,7 @@ def _panel_pv(state_data: Any, history_data: Any) -> Panel:
         t.append(f"  {spark}\n", style="yellow")
         t.append(f"  0{'':>20}{mx:.0f} W\n", style="dim")
 
-    return Panel(t, title="☀   PV-ANLAGE", border_style="yellow", padding=(0, 1))
+    return Panel(t, title=_ptitle("☀", "PV-ANLAGE"), border_style="yellow", padding=(0, 1))
 
 
 # ── Header ─────────────────────────────────────────────────────────────────────
@@ -609,6 +642,7 @@ def _fetch() -> dict[str, Any]:
         "pv_state":   _get("/ha/pv/state"),
         "pv_history": _get("/ha/pv/history?view=today"),
         "news":       _get("/news"),
+        "lights":     _get("/ha/lights"),
         "addresses":  {},
     }
     # Letzte bekannte Adresse pro Fahrzeug (aus Geocoding-Cache, fast wenn gecacht)
@@ -668,11 +702,13 @@ def _build(d: dict[str, Any]) -> Layout:
 
     right = Layout()
     right.split_column(
-        Layout(name="veh",    ratio=5),
+        Layout(name="veh",    ratio=4),
+        Layout(name="lights", ratio=2),
         Layout(name="robots", ratio=2),
-        Layout(name="pv",     ratio=2),
+        Layout(name="pv",     ratio=3),
     )
     right["veh"].update(_panel_vehicles(d["vehicles"], d.get("addresses")))
+    right["lights"].update(_panel_lights(d.get("lights")))
     right["robots"].update(_panel_robots(d["robots"]))
     right["pv"].update(_panel_pv(d["pv_state"], d["pv_history"]))
     root["right"].update(right)
