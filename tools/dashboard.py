@@ -188,8 +188,19 @@ def _panel_weather(data: Any) -> Panel:
     t_min = today.get("temp_min", "?")
     t.append(f"\n  Max {t_max}°  Min {t_min}°\n", style="dim")
 
-    # Stunden-Forecast
-    hours = data.get("forecast_hours") or []
+    # Stunden-Forecast: hourly_by_day hat alle Tagesstunden, forecast_hours nur konfigurierte
+    today_str = _now().strftime("%Y-%m-%d")
+    now_h     = _now().hour
+    by_day    = data.get("hourly_by_day") or {}
+    hours: list = []
+    for h in (by_day.get(today_str) or []):
+        try:
+            if int(str(h.get("time","0"))[:2]) >= now_h:
+                hours.append(h)
+        except Exception:
+            pass
+    if not hours:
+        hours = data.get("forecast_hours") or []
     if hours:
         t.append("\n  STUNDEN\n", style="bold dim")
         temps = [_flt(h.get("temp")) for h in hours[:12]]
@@ -553,16 +564,24 @@ def _build(d: dict[str, Any]) -> Layout:
     )
 
     root["header"].update(_header())
-    root["left"].update(_panel_weather(d["weather"]))
 
+    # Links: Wetter oben, Kraftstoff unten
+    left = Layout()
+    left.split_column(
+        Layout(name="weather", ratio=7),
+        Layout(name="fuel",    ratio=3),
+    )
+    left["weather"].update(_panel_weather(d["weather"]))
+    left["fuel"].update(_panel_fuel(d["fuel"]))
+    root["left"].update(left)
+
+    # Mitte: Termine (groß) + Kamera-Ereignisse
     mid = Layout()
     mid.split_column(
-        Layout(name="cal",    ratio=5),
-        Layout(name="fuel",   ratio=2),
+        Layout(name="cal",    ratio=6),
         Layout(name="camera", ratio=4),
     )
     mid["cal"].update(_panel_calendar(d["calendar"]))
-    mid["fuel"].update(_panel_fuel(d["fuel"]))
     mid["camera"].update(_panel_cameras(d["cameras"]))
     root["mid"].update(mid)
 
