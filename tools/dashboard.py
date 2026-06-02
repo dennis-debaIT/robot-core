@@ -625,14 +625,18 @@ def _panel_pv(state_data: Any, history_data: Any) -> Panel:
 
 
 # ── Header ─────────────────────────────────────────────────────────────────────
+_last_data_ts: str = ""
+
 def _header() -> Panel:
     now = _now()
     t   = Text(justify="center")
     t.append("E R I K A", style="bold cyan")
     t.append("   ", style="white")
-    t.append(now.strftime("%H:%M"), style="bold white")
+    t.append(now.strftime("%H:%M:%S"), style="bold white")
     t.append("  ·  ", style="dim")
     t.append(f"{_WDAYS_DE[now.weekday()]}, {now.day}. {_MONTHS_DE[now.month - 1]} {now.year}", style="dim")
+    if _last_data_ts:
+        t.append(f"  ·  Daten: {_last_data_ts}", style="dim")
     return Panel(t, border_style="cyan", padding=(0, 2))
 
 
@@ -730,7 +734,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Erika Terminal Dashboard")
     parser.add_argument("--host",     default="localhost",  help="Erika-Host  (default: localhost)")
     parser.add_argument("--port",     default=8000, type=int, help="Port       (default: 8000)")
-    parser.add_argument("--refresh",  default=30,  type=int, help="Refresh (s) (default: 30)")
+    parser.add_argument("--refresh",  default=15,  type=int, help="Refresh (s) (default: 15)")
     parser.add_argument("--no-emoji", dest="no_emoji", action="store_true",
                         help="ASCII-Modus: keine Emojis (für Terminals ohne Emoji-Schriftart)")
     _ARGS = parser.parse_args()
@@ -740,17 +744,21 @@ def main() -> None:
 
     signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
 
+    global _last_data_ts
     console    = Console()
     data       = _fetch()
+    _last_data_ts = _now().strftime("%H:%M:%S")
     layout     = _build(data)
     last_fetch = time.time()
 
     with Live(layout, console=console, screen=True, refresh_per_second=2) as live:
         while True:
-            if time.time() - last_fetch >= _ARGS.refresh:
-                data       = _fetch()
-                layout     = _build(data)   # Panels neu aufbauen
-                last_fetch = time.time()
+            now_ts = time.time()
+            if now_ts - last_fetch >= _ARGS.refresh:
+                data           = _fetch()
+                _last_data_ts  = _now().strftime("%H:%M:%S")
+                layout         = _build(data)
+                last_fetch     = now_ts
             layout["header"].update(_header())
             live.update(layout)
             time.sleep(0.5)
