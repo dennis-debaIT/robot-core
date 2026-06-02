@@ -820,6 +820,19 @@ class HomeAssistantProvider:
             })
 
         events.sort(key=lambda x: x["when"], reverse=True)
+
+        # Für das neueste Motion-Ereignis pro Kamera: personDetected-Attribut prüfen
+        seen: set[str] = set()
+        for ev in events:
+            if ev["type"] == "motion" and ev["entity_id"] not in seen:
+                seen.add(ev["entity_id"])
+                try:
+                    raw = self._get(f"/states/{ev['entity_id']}")
+                    if raw and (raw.get("attributes") or {}).get("personDetected"):
+                        ev["type"] = "person"
+                except Exception:
+                    pass
+
         return events[:limit]
 
     def get_doorbell_sensors(self) -> list[dict]:
