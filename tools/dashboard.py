@@ -25,26 +25,25 @@ except Exception:
     _TZ = None
 
 try:
-    import rich as _rich_pkg
-    _rv = tuple(int(x) for x in _rich_pkg.__version__.split(".")[:2])
-    if _rv < (10, 0):
-        print(
-            f"rich {_rich_pkg.__version__} ist zu alt (mindestens 10.0 benötigt).\n"
-            "Bitte upgraden:\n"
-            "  pip install 'rich>=10.0' --break-system-packages",
-            file=sys.stderr,
-        )
-        sys.exit(1)
     from rich.console import Console
     from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
     from rich.text import Text
+    if not hasattr(Layout(), "split_column"):
+        print(
+            "rich ist zu alt (split_column fehlt, mindestens Version 10 benötigt).\n"
+            "Bitte upgraden:\n"
+            "  pip install 'rich>=10.0' --user\n"
+            "  # oder: pip install 'rich>=10.0' --break-system-packages",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 except ImportError:
     print(
         "rich ist nicht installiert.\n"
-        "  sudo apt install python3-rich   (dann ggf. noch upgraden)\n"
-        "  pip install 'rich>=10.0' --break-system-packages",
+        "  sudo apt install python3-rich\n"
+        "  pip install rich --user",
         file=sys.stderr,
     )
     sys.exit(1)
