@@ -25,7 +25,7 @@ except Exception:
     _TZ = None
 
 try:
-    from rich.console import Console
+    from rich.console import Console, Group
     from rich.layout import Layout
     from rich.live import Live
     from rich.panel import Panel
@@ -265,25 +265,41 @@ def _panel_weather(data: Any) -> Panel:
             t.append(f"{prob:3.0f}% ", style="blue" if prob >= 20 else "dim")
             t.append(f"{precip:4.1f}mm\n", style="cyan" if precip > 0 else "dim")
 
-    # 5-Tage-Vorschau
+    # Vorschau-Raster (3 Spalten × 3 Zeilen = 9 Tage)
     forecast = data.get("forecast_days") or []
     if forecast:
-        t.append("\n  5 TAGE\n", style="bold dim")
-        for day in forecast[:5]:
-            label = day.get("label", "?")[:2]
-            fcode = day.get("weathercode")
-            ficon = _wicon(fcode)
-            fmax  = day.get("temp_max", "?")
-            fmin  = day.get("temp_min", "?")
+        cols = 3
+        t.append("\n  VORSCHAU\n", style="bold dim")
+        grid = Table.grid(expand=True, padding=(0, 1))
+        for _ in range(cols):
+            grid.add_column(ratio=1)
+        row: list[Text] = []
+        for day in forecast[:9]:
+            label  = day.get("label", "?")[:2]
+            fcode  = day.get("weathercode")
+            ficon  = _wicon(fcode)
+            fmax   = day.get("temp_max", "?")
+            fmin   = day.get("temp_min", "?")
             precip = day.get("precipitation", 0) or 0
-            t.append(f"  {label} {ficon} ", style="white")
-            t.append(f"{fmax:>3}°", style="bold yellow")
-            t.append(f"/{fmin:<3}°", style="dim")
+            cell   = Text()
+            cell.append(f"{label} {ficon} ", style="white")
+            cell.append(f"{fmax}°", style="bold yellow")
+            cell.append(f"/{fmin}°", style="dim")
             if precip >= 1:
-                t.append(f"  ↓{precip}mm", style="blue")
-            t.append("\n")
+                cell.append(f" ↓{precip:.0f}", style="blue")
+            row.append(cell)
+            if len(row) == cols:
+                grid.add_row(*row)
+                row = []
+        if row:
+            while len(row) < cols:
+                row.append(Text(""))
+            grid.add_row(*row)
+        content: Any = Group(t, grid)
+    else:
+        content = t
 
-    return Panel(t, title="🌤  WETTER", border_style="blue", padding=(0, 1))
+    return Panel(content, title=_ptitle("🌤", "WETTER"), border_style="blue", padding=(0, 1))
 
 
 # ── Panel: Termine ─────────────────────────────────────────────────────────────

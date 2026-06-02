@@ -146,7 +146,7 @@ class WeatherProvider:
             ]),
             "timezone": "Europe/Berlin",
             "past_hours": int(settings.get("hourly_past_hours", 0)),
-            "forecast_days": 7,
+            "forecast_days": 10,
         })
         url = f"{self.WEATHER_URL}?{params}"
         try:
@@ -250,7 +250,7 @@ class WeatherProvider:
         today_entry    = _day_entry(0, "Heute")
         tomorrow_entry = _day_entry(1, "Morgen") if len(d_times) > 1 else None
         forecast_days  = [_day_entry(i, _DE_WEEKDAYS[_dt.strptime(d_times[i], "%Y-%m-%d").weekday()])
-                          for i in range(2, min(7, len(d_times)))]
+                          for i in range(2, min(10, len(d_times)))]
 
         coat = self._fetch_coat_of_arms(name)
         return {
