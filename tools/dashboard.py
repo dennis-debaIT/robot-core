@@ -469,12 +469,20 @@ def _panel_lights(data: Any) -> Panel:
         t.append("  Keine Lichter konfiguriert\n", style="dim")
         return Panel(t, title=_ptitle("💡", "LICHTER"), border_style="yellow", padding=(0, 1))
 
+    # Nur Gruppen anzeigen — dieselbe Logik wie display.html renderLightGroupsList:
+    # Gruppe = is_group:true ODER nicht in der members-Liste eines anderen Lichts
+    member_ids: set[str] = set()
+    for l in lights:
+        for m in (l.get("members") or []):
+            member_ids.add(m)
+    groups = [l for l in lights if l.get("is_group") or l.get("entity_id","") not in member_ids]
+
     grid = Table.grid(expand=True, padding=(0, 1))
     grid.add_column(ratio=1)
     grid.add_column(ratio=1)
 
     row: list[Text] = []
-    for light in lights:
+    for light in groups:
         name  = light.get("name") or light.get("entity_id","?")
         state = (light.get("state") or "").lower()
         is_on = state == "on"
