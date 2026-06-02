@@ -259,13 +259,11 @@ def _panel_weather(data: Any) -> Panel:
             precip = _flt(h.get("precipitation", 0))
             filled = max(0, int((htemp - t_mn) / span * 10))
             bar    = "█" * filled + "░" * (10 - filled)
-            prob_str   = f"{prob:3.0f}%" if prob   >  0 else "    "
-            precip_str = f"{precip:4.1f}mm" if precip > 0 else "      "
             t.append(f"  {htime} ", style="dim")
             t.append(f"{bar} ", style="cyan")
             t.append(f"{htemp:+3.0f}° {hicon} ", style="white")
-            t.append(f"{prob_str} ", style="blue" if prob >= 20 else "dim")
-            t.append(f"{precip_str}\n", style="cyan" if precip > 0 else "dim")
+            t.append(f"{prob:3.0f}% ", style="blue" if prob >= 20 else "dim")
+            t.append(f"{precip:4.1f}mm\n", style="cyan" if precip > 0 else "dim")
 
     # 5-Tage-Vorschau
     forecast = data.get("forecast_days") or []
@@ -488,7 +486,12 @@ def _news_text(items: list, start: int, count: int) -> Text:
 
 
 def _panel_news(data: Any) -> Panel:
-    items = (data or {}).get("items") or []
+    raw = (data or {}).get("items") or []
+    # Neueste zuerst
+    try:
+        items = sorted(raw, key=lambda x: x.get("pub_date",""), reverse=True)
+    except Exception:
+        items = raw
     if not items:
         t = Text()
         t.append("  Keine Neuigkeiten verfügbar\n", style="dim")
