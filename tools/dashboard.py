@@ -749,6 +749,7 @@ def main() -> None:
         while True:
             if time.time() - last_fetch >= _ARGS.refresh:
                 data       = _fetch()
+                layout     = _build(data)   # Panels neu aufbauen
                 last_fetch = time.time()
             layout["header"].update(_header())
             live.update(layout)
