@@ -369,35 +369,50 @@ def _panel_robots(data: Any) -> Panel:
     return Panel(t, title="[bold yellow]🤖  ROBOTER[/]", border_style="yellow", padding=(0, 1))
 
 
+def _pv_val(st: dict, key: str) -> float | None:
+    """Extrahiert float-Wert aus PV-State-Struktur: {"power": {"value": "3400", ...}}"""
+    entry = st.get(key)
+    if entry is None:
+        return None
+    if isinstance(entry, dict):
+        v = entry.get("value")
+    else:
+        v = entry
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 def _panel_pv(state_data: Any, history_data: Any) -> Panel:
     t = Text()
     if not state_data:
         t.append("  Keine Daten verfügbar", style="dim")
         return Panel(t, title="[bold yellow]☀   PV-ANLAGE[/]", border_style="yellow", padding=(0, 1))
 
-    st = (state_data.get("state") or {})
-    power   = st.get("power_w") or st.get("power",0) or 0
-    daily   = st.get("daily_kwh") or st.get("daily",0) or 0
-    bat_pct = st.get("battery_pct") or st.get("battery")
-    grid    = st.get("grid_w") or st.get("grid",0) or 0
-    house   = st.get("house_consumption_w") or st.get("house",0) or 0
+    st    = (state_data.get("state") or {})
+    power = _pv_val(st, "power")
+    daily = _pv_val(st, "daily")
+    bat   = _pv_val(st, "battery")
+    grid  = _pv_val(st, "grid")
+    house = _pv_val(st, "house_consumption")
 
-    t.append(f"  ☀  Leistung    {float(power):>7.0f} W\n", style="bold yellow")
-    t.append(f"  📊 Heute       {float(daily):>7.1f} kWh\n", style="white")
-    if house:
-        t.append(f"  🏠 Verbrauch   {float(house):>7.0f} W\n", style="dim")
+    if power is not None:
+        t.append(f"  ☀  Leistung    {power:>7.0f} W\n", style="bold yellow")
+    if daily is not None:
+        t.append(f"  📊 Heute       {daily:>7.1f} kWh\n", style="white")
+    if house is not None and house > 0:
+        t.append(f"  🏠 Verbrauch   {house:>7.0f} W\n", style="dim")
 
-    if bat_pct is not None:
-        pct = float(bat_pct)
-        col = "green" if pct > 20 else "red"
-        t.append(f"  🔋 Batterie    {_bar(pct,12)} {pct:.0f}%\n", style=col)
+    if bat is not None:
+        col = "green" if bat > 20 else "red"
+        t.append(f"  🔋 Batterie    {_bar(bat,12)} {bat:.0f}%\n", style=col)
 
-    if grid:
-        gf = float(grid)
-        if gf >= 0:
-            t.append(f"  ⬆  Einspeisung {gf:>6.0f} W\n", style="green")
+    if grid is not None:
+        if grid >= 0:
+            t.append(f"  ⬆  Einspeisung {grid:>6.0f} W\n", style="green")
         else:
-            t.append(f"  ⬇  Bezug       {abs(gf):>6.0f} W\n", style="red")
+            t.append(f"  ⬇  Bezug       {abs(grid):>6.0f} W\n", style="red")
 
     # Sparkline aus Tagesverlauf
     points: list[float] = []
