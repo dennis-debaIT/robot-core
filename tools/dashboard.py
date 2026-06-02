@@ -213,18 +213,15 @@ def _panel_weather(data: Any) -> Panel:
             htemp = _flt(h.get("temp"))
             hcode = h.get("code")
             hicon = _wicon(hcode)
-            prob  = h.get("precip_prob", 0) or 0
+            prob   = h.get("precip_prob", 0) or 0
             precip = _flt(h.get("precipitation", 0))
             filled = max(0, int((htemp - t_mn) / span * 10))
-            bar = "█" * filled + "░" * (10 - filled)
+            bar    = "█" * filled + "░" * (10 - filled)
             t.append(f"  {htime} ", style="dim")
             t.append(f"{bar} ", style="cyan")
-            t.append(f"{htemp:+.0f}° {hicon}", style="white")
-            if prob >= 10:
-                t.append(f" {prob:.0f}%", style="blue")
-            if precip > 0:
-                t.append(f" {precip:.1f}mm", style="cyan")
-            t.append("\n")
+            t.append(f"{htemp:+3.0f}° {hicon} ", style="white")
+            t.append(f"{prob:3.0f}% ", style="blue" if prob >= 20 else "dim")
+            t.append(f"{precip:4.1f}mm\n", style="cyan" if precip > 0 else "dim")
 
     # 5-Tage-Vorschau
     forecast = data.get("forecast_days") or []
