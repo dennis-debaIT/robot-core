@@ -1539,7 +1539,10 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
     /* legacy ids kept for non-home modes that still use setPanel directly */
     #right-cal  { flex: 1; min-height: 0; overflow-y: auto; }
@@ -1548,27 +1551,23 @@
     #left-content {
       flex: 1;
       min-height: 0;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
 
     /* ── Widget-Slot-Grid ──────────────────────────────────── */
     .widget-grid {
       display: grid;
-      flex: 1;
-      min-height: 0;
-      overflow: hidden;
+      width: 100%;
       gap: 0;
     }
     .widget-slot {
-      overflow-y: auto;
-      overflow-x: hidden;
-      min-height: 0;
+      min-height: min-content;  /* immer ganzen Inhalt zeigen */
+      overflow: visible;
       padding: 2px 6px 4px 0;
-      scrollbar-width: thin;
-      scrollbar-color: var(--border) transparent;
     }
-    .widget-slot::-webkit-scrollbar { width: 4px; }
-    .widget-slot::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     .widget-slot + .widget-slot {
       border-top: 1px solid var(--border);
       padding-top: 8px;

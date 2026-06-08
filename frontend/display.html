@@ -881,11 +881,11 @@
       if (printer?.printing) printerHtml = `<div id="right-printer">${renderPrinterWidget(printer)}</div>`;
     }
 
-    const totalSize = slots.reduce((s, w) => s + (w.size || 1), 0) || 1;
+    const rowTemplate = slots.map(s => `${s.size || 1}fr`).join(' ');
     const gridRows = slots.map((s, i) => {
       const def = _WIDGET_DEFS[s.widget];
       const content = _widgetEnabled(s.widget) ? def.render(dataArr[i], s.size || 1) : '';
-      return `<div class="widget-slot" data-widget="${s.widget}" style="grid-row:span ${s.size || 1};">${content}</div>`;
+      return `<div class="widget-slot" data-widget="${s.widget}">${content}</div>`;
     }).join('');
 
     const label = slots.map(s => {
@@ -900,7 +900,7 @@
     setTimeout(() => {
       labelEl.innerHTML = label || side;
       contentEl.innerHTML = printerHtml
-        + `<div class="widget-grid" style="grid-template-rows:repeat(${totalSize},1fr);">${gridRows}</div>`;
+        + `<div class="widget-grid" style="grid-template-rows:${rowTemplate};">${gridRows}</div>`;
       contentEl.classList.remove('fade-out');
     }, 300);
   }
