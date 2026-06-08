@@ -1187,7 +1187,7 @@
     if (!box) {
       box = document.createElement('div');
       box.id = 'printer-overlay-box';
-      box.style.cssText = 'position:absolute;inset:0;z-index:201;background:#050611;display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
+      box.style.cssText = 'position:absolute;inset:0;z-index:201;background:var(--bg);display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
       cp.style.position = 'relative';
       cp.appendChild(box);
     }
@@ -1213,21 +1213,21 @@
     const hasCancel = !!((window._printerEntities||{}).cancel);
     box.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 8px;">
-        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:#00c8ff;text-transform:uppercase;">3D-Drucker</div>
+        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;">3D-Drucker</div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:0.72rem;font-weight:700;color:${stateColor};">${stateLabel.toUpperCase()}</span>
-          <button onclick="closePrinterOverlay()" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:0.78rem;font-weight:700;cursor:pointer;padding:5px 12px;">SCHLIESSEN</button>
+          <button onclick="closePrinterOverlay()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;padding:5px 12px;">SCHLIESSEN</button>
         </div>
       </div>
       <div style="flex:1;overflow-y:auto;padding:0 20px 20px;">
         ${snap}
-        ${filename ? `<div style="font-size:0.78rem;color:#7f8dcb;margin-bottom:12px;word-break:break-all;">📄 ${filename}.gcode</div>` : ''}
+        ${filename ? `<div style="font-size:0.78rem;color:var(--muted);margin-bottom:12px;word-break:break-all;">📄 ${filename}.gcode</div>` : ''}
         <div style="margin-bottom:14px;">
-          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:#7f8dcb;margin-bottom:4px;">
-            <span>Fortschritt</span><span style="color:#00c8ff;font-weight:700;">${pct}%</span>
+          <div style="display:flex;justify-content:space-between;font-size:0.7rem;color:var(--muted);margin-bottom:4px;">
+            <span>Fortschritt</span><span style="color:var(--accent);font-weight:700;">${pct}%</span>
           </div>
-          <div style="height:6px;background:#24284a;border-radius:3px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:#00c8ff;border-radius:3px;transition:width 0.5s;"></div>
+          <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:3px;transition:width 0.5s;"></div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
@@ -1239,14 +1239,14 @@
             ['Düse', p.nozzle_temp != null ? Math.round(p.nozzle_temp) + '°C' : '–'],
             ['Bett', p.hotbed_temp != null ? Math.round(p.hotbed_temp) + '°C' : '–'],
           ].map(([label, val]) => `
-            <div style="background:#0b0b17;border:1px solid #24284a;border-radius:10px;padding:10px 12px;">
-              <div style="font-size:0.65rem;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;">${label}</div>
-              <div style="font-size:1rem;font-weight:700;margin-top:3px;">${val}</div>
+            <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+              <div style="font-size:0.65rem;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;">${label}</div>
+              <div style="font-size:1rem;font-weight:700;margin-top:3px;color:var(--text);">${val}</div>
             </div>`).join('')}
         </div>
         <div style="display:flex;gap:10px;justify-content:center;">
-          <button onclick="printerControl('pause')" style="flex:1;padding:12px;border-radius:12px;border:1px solid #24284a;background:#0b0b17;color:#ffab00;font-size:1.2rem;cursor:pointer;" title="Pause">⏸</button>
-          <button onclick="printerControl('resume')" style="flex:1;padding:12px;border-radius:12px;border:1px solid #24284a;background:#0b0b17;color:#00e676;font-size:1.2rem;cursor:pointer;" title="Fortsetzen">▶</button>
+          <button onclick="printerControl('pause')" style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--warning);font-size:1.2rem;cursor:pointer;" title="Pause">⏸</button>
+          <button onclick="printerControl('resume')" style="flex:1;padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--success);font-size:1.2rem;cursor:pointer;" title="Fortsetzen">▶</button>
           <button onclick="printerControl('cancel')" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,79,95,0.4);background:rgba(255,79,95,0.08);color:#ff4f5f;font-size:1.2rem;cursor:pointer;" title="Abbrechen">⏹</button>
         </div>
       </div>`;
@@ -1567,7 +1567,7 @@
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.id = 'month-cal-overlay';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:8000;background:#050611;display:flex;flex-direction:column;overflow:hidden;';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:8000;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;';
       document.body.appendChild(overlay);
     }
     overlay.style.display = 'flex';
@@ -1587,7 +1587,7 @@
   }
 
   async function _renderMonthCal(overlay) {
-    overlay.innerHTML = `<div style="color:#7f8dcb;font-size:0.85rem;text-align:center;padding:40px;">Lade…</div>`;
+    overlay.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px;">Lade…</div>`;
     _calData = await _fetchMonthData(_calMonth.year, _calMonth.month);
     const { year, month, events = {}, legend = [] } = _calData;
     const today = new Date();
@@ -1612,16 +1612,17 @@
         const label = ev.is_allday ? ev.title : `${ev.time} ${ev.title}`;
         return `<div style="background:${color};color:#fff;font-size:0.6rem;padding:1px 5px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:1px;" title="${ev.title}">${label}</div>`;
       }).join('');
-      const more = moreCount > 0 ? `<div style="font-size:0.58rem;color:#7f8dcb;padding-left:3px;">+${moreCount} weitere</div>` : '';
+      const more = moreCount > 0 ? `<div style="font-size:0.58rem;color:var(--muted);padding-left:3px;">+${moreCount} weitere</div>` : '';
+      const cellBg = isToday ? 'rgba(0,200,255,0.10)' : isSat||isSun ? 'var(--surface2)' : 'var(--surface)';
+      const dayColor = isToday ? 'var(--accent)' : isSat||isSun ? 'var(--muted)' : 'var(--text)';
 
       cells += `<div style="
-        min-height:90px;border:1px solid #1a1d38;padding:4px;
-        background:${isToday ? 'rgba(0,200,255,0.08)' : 'rgba(11,11,23,0.6)'};
-        ${!isValid ? 'opacity:0.2;' : ''}
-        ${isSat||isSun ? 'background:rgba(30,30,60,0.4);' : ''}
+        min-height:90px;border:1px solid var(--border);padding:4px;
+        background:${cellBg};
+        ${!isValid ? 'opacity:0.25;' : ''}
       ">
-        <div style="font-size:0.75rem;font-weight:${isToday?800:500};color:${isToday?'#00c8ff':isSat||isSun?'#7f8dcb':'#f4f7ff'};
-          ${isToday?'background:#00c8ff;color:#000;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:3px;':'margin-bottom:3px;'}">
+        <div style="font-size:0.75rem;font-weight:${isToday?800:500};color:${dayColor};
+          ${isToday?'outline:1.5px solid var(--accent);border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;margin-bottom:3px;':'margin-bottom:3px;'}">
           ${isValid ? dayNum : ''}
         </div>
         ${eventPills}${more}
@@ -1630,16 +1631,16 @@
 
     overlay.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px 12px;flex-shrink:0;">
-        <button onclick="closeMonthCalendar()" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;">SCHLIESSEN</button>
+        <button onclick="closeMonthCalendar()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;">SCHLIESSEN</button>
         <div style="display:flex;align-items:center;gap:16px;">
-          <button onclick="_calNav(-1)" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:1rem;cursor:pointer;padding:4px 12px;">‹</button>
-          <span style="font-size:1.1rem;font-weight:800;color:#f4f7ff;min-width:160px;text-align:center;">${_DE_MONTHS_FULL[month-1]} ${year}</span>
-          <button onclick="_calNav(1)" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:1rem;cursor:pointer;padding:4px 12px;">›</button>
+          <button onclick="_calNav(-1)" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px 12px;">‹</button>
+          <span style="font-size:1.1rem;font-weight:800;color:var(--text);min-width:160px;text-align:center;">${_DE_MONTHS_FULL[month-1]} ${year}</span>
+          <button onclick="_calNav(1)" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:1rem;cursor:pointer;padding:4px 12px;">›</button>
         </div>
-        <button onclick="_calNav(0)" style="background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);border-radius:8px;color:#00c8ff;font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;">HEUTE</button>
+        <button onclick="_calNav(0)" style="background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);border-radius:8px;color:var(--accent);font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;">HEUTE</button>
       </div>
       <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:0;padding:0 16px 4px;flex-shrink:0;">
-        ${_DE_DAYS_SHORT.map((d,i) => `<div style="text-align:center;font-size:0.68rem;font-weight:700;color:${i>=5?'#7f8dcb':'#a0acdb'};padding:4px 0;letter-spacing:0.08em;">${d}</div>`).join('')}
+        ${_DE_DAYS_SHORT.map((d,i) => `<div style="text-align:center;font-size:0.68rem;font-weight:700;color:var(--muted);padding:4px 0;letter-spacing:0.08em;">${d}</div>`).join('')}
       </div>
       <div style="flex:1;overflow-y:auto;padding:0 16px 8px;">
         <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;">
@@ -1647,11 +1648,11 @@
         </div>
       </div>
       ${legend.length ? `
-      <div style="flex-shrink:0;padding:8px 16px 14px;border-top:1px solid #1a1d38;display:flex;flex-wrap:wrap;gap:10px;">
+      <div style="flex-shrink:0;padding:8px 16px 14px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:10px;">
         ${legend.map(l => `
           <div style="display:flex;align-items:center;gap:5px;">
             <span style="width:10px;height:10px;border-radius:50%;background:${l.color};flex-shrink:0;"></span>
-            <span style="font-size:0.65rem;color:#a0acdb;white-space:nowrap;">${l.name}</span>
+            <span style="font-size:0.65rem;color:var(--muted);white-space:nowrap;">${l.name}</span>
           </div>`).join('')}
       </div>` : ''}`;
   }
@@ -1693,14 +1694,14 @@
         title="${labels[i]}: ${v} ${unit}"/>`;
       if (i % Math.max(1, Math.floor(labels.length / 8)) === 0 || i === labels.length - 1)
         lbls += `<text x="${(x + bw/2).toFixed(1)}" y="${(h - 6).toFixed(1)}" text-anchor="middle"
-          font-size="9" fill="rgba(127,141,203,0.9)">${labels[i]}</text>`;
+          font-size="9" style="fill:var(--muted);">${labels[i]}</text>`;
     });
     const ySteps = [0, 0.25, 0.5, 0.75, 1].map(f => ({
       y: pad.t + ch * (1 - f), v: (maxV * f).toFixed(maxV < 10 ? 1 : 0),
     }));
     const yLines = ySteps.map(s =>
-      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
-       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${s.v}</text>`
+      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" style="stroke:var(--border);opacity:0.7;" stroke-width="1"/>
+       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" style="fill:var(--muted);">${s.v}</text>`
     ).join('');
     return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:${w}px;display:block;">
       ${yLines}${bars}${lbls}
@@ -1726,19 +1727,19 @@
     labels.forEach((l, i) => {
       if (i % _step === 0 || i === labels.length - 1) {
         const anchor = i === labels.length - 1 ? 'end' : i === 0 ? 'start' : 'middle';
-        lbls += `<text x="${pts[i][0].toFixed(1)}" y="${(h-6).toFixed(1)}" text-anchor="${anchor}" font-size="9" fill="rgba(127,141,203,0.9)">${l}</text>`;
+        lbls += `<text x="${pts[i][0].toFixed(1)}" y="${(h-6).toFixed(1)}" text-anchor="${anchor}" font-size="9" style="fill:var(--muted);">${l}</text>`;
       }
     });
     const ySteps = [0, 0.25, 0.5, 0.75, 1].map(f => ({
       y: pad.t + ch * (1 - f), v: (maxV * f).toFixed(maxV < 1000 ? 0 : 0),
     }));
     const yLines = ySteps.map(s =>
-      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" stroke="rgba(42,45,85,0.6)" stroke-width="1"/>
-       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" fill="rgba(127,141,203,0.8)">${s.v}</text>`
+      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" style="stroke:var(--border);opacity:0.7;" stroke-width="1"/>
+       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" style="fill:var(--muted);">${s.v}</text>`
     ).join('');
     const lastPt = pts[pts.length - 1];
     const liveDot = lastPt
-      ? `<circle cx="${lastPt[0].toFixed(1)}" cy="${lastPt[1].toFixed(1)}" r="4" fill="#00c8ff" stroke="#050611" stroke-width="2"/>`
+      ? `<circle cx="${lastPt[0].toFixed(1)}" cy="${lastPt[1].toFixed(1)}" r="4" style="fill:var(--accent);stroke:var(--bg);" stroke-width="2"/>`
       : '';
     return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:${w}px;display:block;">
       ${yLines}
@@ -1761,31 +1762,27 @@
     if (!box) {
       box = document.createElement('div');
       box.id = 'pv-stats-box';
-      box.style.cssText = [
-        'position:absolute;inset:0;z-index:200',
-        'background:#050611;display:flex;flex-direction:column;',
-        'border-radius:inherit;overflow:hidden;',
-      ].join(';');
+      box.style.cssText = 'position:absolute;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
       cp.style.position = 'relative';
       cp.appendChild(box);
     }
     box.style.display = 'flex';
     box.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px;">
-        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:#00c8ff;text-transform:uppercase;">PV-Statistik</div>
-        <button onclick="closePvStats()" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
+        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;">PV-Statistik</div>
+        <button onclick="closePvStats()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
       </div>
       <div style="display:flex;gap:8px;padding:0 24px 16px;">
         ${['flow','today','7days','month','year'].map(v =>
           `<button onclick="loadPvStatsView('${v}')" id="pvtab-${v}"
-            style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid #24284a;background:${v===_pvStatsView?'rgba(0,200,255,0.12)':'transparent'};
-            color:${v===_pvStatsView?'#00c8ff':'#7f8dcb'};font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.2s;">
+            style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--border);background:${v===_pvStatsView?'rgba(0,200,255,0.12)':'transparent'};
+            color:${v===_pvStatsView?'var(--accent)':'var(--muted)'};font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.2s;">
             ${v==='flow'?'Fluss':v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
           </button>`
         ).join('')}
       </div>
       <div id="pv-stats-content" style="flex:1;overflow-y:auto;padding:0 24px 24px;min-height:260px;">
-        <div style="color:#7f8dcb;font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>
+        <div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>
       </div>
     </div>`;
     loadPvStatsView(_pvStatsView);
@@ -1829,9 +1826,9 @@
     };
     const spd = w => Math.max(0.35, 2.8 / (Math.abs(w) / 150 + 1)).toFixed(2);
 
-    const C_PV   = '#00c8ff', C_FEED = '#00e676', C_DRAW = '#ffab00';
-    const C_BATT = '#c084fc', C_HOUSE = '#e8eaf0', C_BASE = '#1e1e38', C_MUTED = '#7f8dcb';
-    const NODE_BG = '#0f0f1a';
+    const C_PV   = 'var(--accent)', C_FEED = 'var(--success)', C_DRAW = 'var(--warning)';
+    const C_BATT = '#c084fc', C_HOUSE = 'var(--text)', C_BASE = 'var(--border)', C_MUTED = 'var(--muted)';
+    const NODE_BG = 'var(--surface)';
 
     const VW = 300, VH = hasBatt ? 320 : 290;
     const cx = 150, nW = 96, nH = 58, nR = 11;
@@ -1843,19 +1840,23 @@
     const battX = 232;
 
     function node(x, y, topText, valText, labText, valColor) {
-      return `<rect x="${x-nW/2}" y="${y}" width="${nW}" height="${nH}" rx="${nR}" fill="${NODE_BG}" stroke="${valColor}" stroke-width="1.5"/>
-        <text x="${x}" y="${y+17}" text-anchor="middle" font-size="9" fill="${C_MUTED}" font-family="sans-serif">${topText}</text>
-        <text x="${x}" y="${y+36}" text-anchor="middle" font-size="13" fill="${valColor}" font-weight="800" font-family="monospace">${valText}</text>
-        <text x="${x}" y="${y+51}" text-anchor="middle" font-size="9" fill="${C_MUTED}" font-family="sans-serif">${labText}</text>`;
+      return `<rect x="${x-nW/2}" y="${y}" width="${nW}" height="${nH}" rx="${nR}"
+          style="fill:${NODE_BG};stroke:${valColor};stroke-width:1.5;"/>
+        <text x="${x}" y="${y+17}" text-anchor="middle" font-size="9" font-family="sans-serif"
+          style="fill:${C_MUTED};">${topText}</text>
+        <text x="${x}" y="${y+36}" text-anchor="middle" font-size="13" font-weight="800" font-family="monospace"
+          style="fill:${valColor};">${valText}</text>
+        <text x="${x}" y="${y+51}" text-anchor="middle" font-size="9" font-family="sans-serif"
+          style="fill:${C_MUTED};">${labText}</text>`;
     }
 
     function animLine(x1, y1, x2, y2, color, power, fwd) {
-      if (Math.abs(power) < 3) return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C_BASE}" stroke-width="2.5" stroke-linecap="round"/>`;
+      if (Math.abs(power) < 3) return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:${C_BASE};stroke-width:2.5;stroke-linecap:round;"/>`;
       const s = spd(power);
       const dir = fwd ? 'pv-flow-fwd' : 'pv-flow-rev';
-      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C_BASE}" stroke-width="2.5" stroke-linecap="round"/>
-        <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2.5" stroke-linecap="round"
-          stroke-dasharray="7 11" style="animation:${dir} ${s}s linear infinite;"/>`;
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:${C_BASE};stroke-width:2.5;stroke-linecap:round;"/>
+        <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-dasharray="7 11"
+          style="stroke:${color};stroke-width:2.5;stroke-linecap:round;animation:${dir} ${s}s linear infinite;"/>`;
     }
 
     const pvLine   = animLine(cx, pvY+nH, cx, houseY, C_PV, pvW, true);
@@ -1893,9 +1894,9 @@
     ['flow','today','7days','month','year'].forEach(v => {
       const btn = document.getElementById(`pvtab-${v}`);
       if (!btn) return;
-      btn.style.background = v === view ? 'rgba(0,200,255,0.12)' : 'transparent';
-      btn.style.color = v === view ? '#00c8ff' : '#7f8dcb';
-      btn.style.borderColor = v === view ? 'rgba(0,200,255,0.3)' : '#24284a';
+      btn.style.background   = v === view ? 'rgba(0,200,255,0.12)' : 'transparent';
+      btn.style.color        = v === view ? 'var(--accent)' : 'var(--muted)';
+      btn.style.borderColor  = v === view ? 'rgba(0,200,255,0.3)' : 'var(--border)';
     });
     const content = document.getElementById('pv-stats-content');
     if (!content) return;
@@ -1936,16 +1937,16 @@
         const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
         if (view === 'today') {
           gridHtml = `
-            <div style="margin-top:24px;padding-top:16px;border-top:1px solid #24284a;">
-              <div style="font-size:0.72rem;font-weight:700;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Netz heute</div>
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+              <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">Netz heute</div>
               <div style="display:flex;gap:16px;">
                 <div style="flex:1;background:rgba(0,255,120,0.07);border:1px solid rgba(0,255,120,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
-                  <div style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↑ Einspeisung</div>
-                  <div style="font-size:1.2rem;font-weight:800;color:#00ff78;">${fmtKwh(gd.einspeisung)}</div>
+                  <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↑ Einspeisung</div>
+                  <div style="font-size:1.2rem;font-weight:800;color:var(--success);">${fmtKwh(gd.einspeisung)}</div>
                 </div>
                 <div style="flex:1;background:rgba(255,160,50,0.07);border:1px solid rgba(255,160,50,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
-                  <div style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↓ Netzbezug</div>
-                  <div style="font-size:1.2rem;font-weight:800;color:#ffa032;">${fmtKwh(gd.netzbezug)}</div>
+                  <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↓ Netzbezug</div>
+                  <div style="font-size:1.2rem;font-weight:800;color:var(--warning);">${fmtKwh(gd.netzbezug)}</div>
                 </div>
               </div>
             </div>`;
@@ -1954,28 +1955,28 @@
           const einChart = glabels.length ? _svgBar(glabels, gd.einspeisung || [], 'kWh', 680, 160, '#00ff78') : '';
           const bezChart = glabels.length ? _svgBar(glabels, gd.netzbezug  || [], 'kWh', 680, 160, '#ffa032') : '';
           gridHtml = `
-            <div style="margin-top:24px;padding-top:16px;border-top:1px solid #24284a;">
-              <div style="font-size:0.72rem;font-weight:700;color:#00ff78;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↑ Einspeisung</div>
+            <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+              <div style="font-size:0.72rem;font-weight:700;color:var(--success);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↑ Einspeisung</div>
               ${einChart}
               <div style="display:flex;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
-                <span style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
-                <span style="font-size:1rem;font-weight:800;color:#00ff78;">${fmtKwh(gd.einspeisung_total)}</span>
+                <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+                <span style="font-size:1rem;font-weight:800;color:var(--success);">${fmtKwh(gd.einspeisung_total)}</span>
               </div>
-              <div style="font-size:0.72rem;font-weight:700;color:#ffa032;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↓ Netzbezug</div>
+              <div style="font-size:0.72rem;font-weight:700;color:var(--warning);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↓ Netzbezug</div>
               ${bezChart}
               <div style="display:flex;justify-content:space-between;margin-top:6px;">
-                <span style="font-size:0.65rem;color:#7f8dcb;text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
-                <span style="font-size:1rem;font-weight:800;color:#ffa032;">${fmtKwh(gd.netzbezug_total)}</span>
+                <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+                <span style="font-size:1rem;font-weight:800;color:var(--warning);">${fmtKwh(gd.netzbezug_total)}</span>
               </div>
             </div>`;
         }
       }
 
       content.innerHTML = `
-        <div style="font-size:0.72rem;font-weight:700;color:#7f8dcb;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
+        <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
         ${chart}${totalHtml}${gridHtml}`;
     } catch(e) {
-      content.innerHTML = `<div style="color:#ff4f5f;font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
+      content.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
     }
   }
 
