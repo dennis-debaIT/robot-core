@@ -21,6 +21,18 @@ COPY backend/tests /app/tests
 COPY frontend /app/frontend
 COPY VERSION /app/VERSION
 
+# ── Edition-Build ────────────────────────────────────────────
+# EDITION=plus (Default) → alle Module enthalten
+# EDITION=community       → kostenpflichtige Paid-Module werden entfernt.
+# main.py lädt Paid-Router via try/except ImportError → fehlt die Datei,
+# existiert der Endpunkt gar nicht (404). Hier neue Paid-Dateien ergänzen.
+ARG EDITION=plus
+RUN if [ "$EDITION" = "community" ]; then \
+        rm -f /app/app/api/routers/ha_pv_stats.py \
+              /app/frontend/display-plus.js ; \
+        echo "Community-Build: Paid-Module entfernt"; \
+    fi
+
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONIOENCODING=UTF-8
 ENV LANG=C.UTF-8

@@ -5,6 +5,7 @@ services:
       dockerfile: backend/Dockerfile
       args:
         GIT_HASH: ${GIT_HASH:-unknown}
+        EDITION: ${EDITION:-plus}
     container_name: robot-core
     ports:
       - "8000:8000"
