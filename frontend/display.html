@@ -1905,11 +1905,12 @@
       ? (battW > 0 ? '+'+fmtW(battW)+' lädt' : fmtW(Math.abs(battW))+' entlädt')
       : 'Standby';
 
-    const linePvHouse = flowLine(nPV, nHouse, C_PV,   pvW,   true);
-    const linePvBatt  = nBatt ? flowLine(nPV, nBatt, C_BATT, battW,  battW >= 0) : '';
-    const linePvGrid  = flowLine(nPV, nGrid, gColor, gridW,  gridW >= 0);
-    const lineBattH   = nBatt ? flowLine(nBatt, nHouse, C_BATT, -battW, battW < 0) : '';
-    const lineGridH   = flowLine(nGrid, nHouse, gColor, -gridW, gridW < 0);
+    // Richtungslogik: immer fwd=true, bei Gegenrichtung power=0 → nur Basislinie
+    const linePvHouse = flowLine(nPV,   nHouse, C_PV,   Math.max(0, pvW),    true);
+    const linePvBatt  = nBatt ? flowLine(nPV,   nBatt,  C_BATT, Math.max(0,  battW), true) : '';
+    const lineBattH   = nBatt ? flowLine(nBatt, nHouse, C_BATT, Math.max(0, -battW), true) : '';
+    const linePvGrid  = flowLine(nPV,   nGrid,  gColor, Math.max(0,  gridW), true);
+    const lineGridH   = flowLine(nGrid, nHouse, gColor, Math.max(0, -gridW), true);
 
     return `<div style="display:flex;justify-content:center;padding:8px 0 0;">
       <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:${VW}px;display:block;">
