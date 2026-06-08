@@ -1880,7 +1880,11 @@
         ${node(cx,    pvY,   'PV-Anlage', fmtW(pvW),   pvW > 3 ? 'produziert' : 'inaktiv', C_PV)}
         ${node(cx,    houseY,'Verbrauch', fmtW(houseW), 'Haus', C_HOUSE)}
         ${node(gridX, botY,  'Netz', gridLabel, gridLab2, gColor)}
-        ${hasBatt ? node(battX, botY, 'Batterie', battPct+'%', battPct > 20 ? 'geladen' : 'niedrig', C_BATT) : ''}
+        ${hasBatt ? node(battX, botY, 'Batterie', battPct+'%',
+            Math.abs(battW) > 3
+              ? (battW > 0 ? '+'+fmtW(battW)+' lädt' : fmtW(Math.abs(battW))+' entlädt')
+              : 'Standby',
+            C_BATT) : ''}
       </svg>
     </div>`;
   }
