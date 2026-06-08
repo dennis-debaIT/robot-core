@@ -88,6 +88,9 @@
         text-align:center;padding:0 3px;"></span>
     </div>
   </div>
+  <span id="sb-edition-badge" style="display:none;align-self:center;font-size:0.6rem;font-weight:800;
+        letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);
+        border:1px solid var(--border);border-radius:999px;padding:3px 10px;white-space:nowrap;">Community Edition</span>
   <a href="/local-admin" class="admin-btn" title="Admin-Menü">⚙</a>
 </div>
 
@@ -6344,7 +6347,14 @@
 
   // ── FEATURES / EDITION ────────────────────────────────────
   let _features = {};
-  fetch('/features').then(r => r.ok ? r.json() : null).then(d => { if (d) _features = d.features || {}; }).catch(() => {});
+  let _edition = 'plus';
+  fetch('/features').then(r => r.ok ? r.json() : null).then(d => {
+    if (!d) return;
+    _features = d.features || {};
+    _edition = d.edition || 'plus';
+    const badge = document.getElementById('sb-edition-badge');
+    if (badge) badge.style.display = _edition === 'community' ? 'inline-block' : 'none';
+  }).catch(() => {});
   function _hasFeature(id) { return _features[id] === true; }
 
   // Wiederverwendbare Upgrade-Box für kostenpflichtige Funktionen
