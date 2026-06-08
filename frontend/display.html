@@ -848,11 +848,11 @@
   }
 
   const _WIDGET_DEFS = {
-    weather:  { label: 'Wetter',     load: () => loadWeather(),  render: _renderWeatherSlot },
-    calendar: { label: 'Kalender',   load: () => loadCalendar(), render: _renderCalendarSlot },
-    fuel:     { label: 'Kraftstoff', load: () => loadFuel(),     render: _renderFuelSlot },
-    pv:       { label: 'PV-Anlage',  load: () => loadPvData(),   render: _renderPvSlot },
-    ev:       { label: 'Fahrzeug',   load: () => loadEV(),       render: _renderEvSlot },
+    weather:  { label: 'Wetter',     load: () => loadWeather(),  render: _renderWeatherSlot,  compact: false },
+    calendar: { label: 'Kalender',   load: () => loadCalendar(), render: _renderCalendarSlot, compact: false },
+    fuel:     { label: 'Kraftstoff', load: () => loadFuel(),     render: _renderFuelSlot,     compact: true  },
+    pv:       { label: 'PV-Anlage',  load: () => loadPvData(),   render: _renderPvSlot,       compact: true  },
+    ev:       { label: 'Fahrzeug',   load: () => loadEV(),       render: _renderEvSlot,       compact: true  },
   };
 
   function _widgetEnabled(widgetId) {
@@ -881,11 +881,13 @@
       if (printer?.printing) printerHtml = `<div id="right-printer">${renderPrinterWidget(printer)}</div>`;
     }
 
-    const rowTemplate = slots.map(s => `${s.size || 1}fr`).join(' ');
     const gridRows = slots.map((s, i) => {
       const def = _WIDGET_DEFS[s.widget];
       const content = _widgetEnabled(s.widget) ? def.render(dataArr[i], s.size || 1) : '';
-      return `<div class="widget-slot" data-widget="${s.widget}">${content}</div>`;
+      const flexStyle = def.compact
+        ? 'flex:0 0 auto;'
+        : `flex:${s.size || 1};min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border) transparent;`;
+      return `<div class="widget-slot" data-widget="${s.widget}" style="${flexStyle}">${content}</div>`;
     }).join('');
 
     const label = slots.map(s => {
@@ -900,7 +902,7 @@
     setTimeout(() => {
       labelEl.innerHTML = label || side;
       contentEl.innerHTML = printerHtml
-        + `<div class="widget-grid" style="grid-template-rows:${rowTemplate};">${gridRows}</div>`;
+        + `<div class="widget-grid">${gridRows}</div>`;
       contentEl.classList.remove('fade-out');
     }, 300);
   }
