@@ -35,3 +35,6 @@ components.flag
 wifi-scan.json
 host-ip.txt
 ha_config/
+
+# Edition-Markierung (community/plus/family) — gerätespezifisch, vom Lizenz-Check gesetzt
+edition

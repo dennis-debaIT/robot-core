@@ -46,7 +46,14 @@ hostname -I | awk '{print $1}' > host-ip.txt 2>/dev/null || true
 mkdir -p ha_config
 
 export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)
-echo "[update] Build startet (GIT_HASH=$GIT_HASH)..." | tee -a "$LOG"
+
+# Edition bestimmen: Community-Geräte werden ohne Paid-Module gebaut.
+# Die Datei "edition" überlebt git reset --hard (untracked, gitignored)
+# und wird später vom Lizenz-Check geschrieben. Default: plus.
+EDITION=$(cat "$INSTALL_DIR/edition" 2>/dev/null | tr -d '[:space:]')
+[ -z "$EDITION" ] && EDITION=plus
+export EDITION
+echo "[update] Build startet (GIT_HASH=$GIT_HASH, EDITION=$EDITION)..." | tee -a "$LOG"
 docker compose up -d --build robot-core 2>&1 | tail -4 | tee -a "$LOG"
 
 # Watcher neu starten falls nicht aktiv

@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 
-from app.api.deps import DISPLAY_CSS, DISPLAY_INDEX
+from app.api.deps import DISPLAY_CSS, DISPLAY_INDEX, DISPLAY_PLUS_JS
 from app.database.db import get_connection, read_state
 from app.services.integration_config_service import IntegrationConfigService
 from app.services.news_feed_service import NewsFeedService
@@ -237,6 +237,23 @@ def display_styles() -> FileResponse:
     return FileResponse(
         DISPLAY_CSS,
         media_type="text/css",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
+@router.get("/display-plus.js")
+def display_plus_js() -> FileResponse:
+    # Erika Plus: fehlt die Datei (Community-Build), liefert das 404 —
+    # window._pvPlus bleibt undefiniert und die Upgrade-Box greift.
+    if not DISPLAY_PLUS_JS.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(
+        DISPLAY_PLUS_JS,
+        media_type="application/javascript",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
