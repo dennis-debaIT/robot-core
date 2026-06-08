@@ -269,20 +269,27 @@ if [ "$_DO_CONFIG" = true ]; then
     # ── LLM ───────────────────────────────────────────────────
     echo -e "\n  ${BOLD}LLM (Sprachmodell)${NC}"
     echo "    [1] LM Studio / Ollama — lokal (URL eingeben)"
-    echo "    [2] OpenAI API (Key eingeben)"
-    echo "    [3] Später konfigurieren"
+    echo "    [2] Groq Cloud — kostenlos, schnell (API-Key von console.groq.com)"
+    echo "    [3] OpenAI API (Key eingeben)"
+    echo "    [4] Später im Admin-Panel konfigurieren"
     printf "    ${CYAN}›${NC} Auswahl [1]: "
     _llm=$(_choose); [ -z "$_llm" ] && _llm=1
 
     case "$_llm" in
         2)
+            _ENV_LLM_URL="https://api.groq.com/openai/v1/chat/completions"
+            _ENV_LLM_KEY=$(_read "Groq API-Key (console.groq.com)" "")
+            _ENV_LLM_MODEL=$(_read "Modellname" "llama-3.3-70b-versatile")
+            _ENV_LLM_PROVIDER="openai_compat"
+            ;;
+        3)
             _ENV_LLM_URL="https://api.openai.com/v1/chat/completions"
             _ENV_LLM_KEY=$(_read "OpenAI API-Key" "")
             _ENV_LLM_MODEL=$(_read "Modellname" "gpt-4o-mini")
             _ENV_LLM_PROVIDER="openai_compat"
             ;;
-        3)
-            info "LLM kann jederzeit im Admin-Panel unter System → LLM konfiguriert werden"
+        4)
+            info "LLM kann jederzeit im Admin-Panel unter KI / LLM konfiguriert werden"
             ;;
         *)
             _ENV_LLM_URL=$(_read "API-URL" "http://192.168.1.x:1234/v1/chat/completions")
@@ -635,34 +642,32 @@ success "Kiosk eingerichtet (TTY1-Autologin + openbox + Chromium)"
 # ── Fertig ────────────────────────────────────────────────────
 IP=$(hostname -I | awk '{print $1}')
 echo ""
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-echo -e "${BOLD}  Erika ist einsatzbereit!${NC}"
-echo ""
-echo -e "  Display-Panel:   ${CYAN}https://${IP}:8000/display${NC}"
-echo -e "  Admin-Panel:     ${CYAN}https://${IP}:8000/local-admin${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e ""
+echo -e "  ${BOLD}${GREEN}✓  Erika wurde erfolgreich installiert!${NC}"
+echo -e ""
+echo -e "  Öffne jetzt das ${BOLD}Admin-Panel${NC} im Browser, um die Einrichtung"
+echo -e "  abzuschließen. Dort siehst du direkt was noch fehlt:"
+echo -e ""
+echo -e "  ${BOLD}${CYAN}  https://${IP}:8000/local-admin${NC}"
+echo -e ""
 if [ "$_HA_SUPERVISED" = true ]; then
-    echo -e "  Home Assistant:  ${CYAN}http://${IP}:8123${NC}"
+echo -e "  ${BOLD}${CYAN}  http://${IP}:8123${NC}  ← Home Assistant (noch nicht fertig)"
+echo -e ""
 fi
-echo ""
-echo -e "  ${YELLOW}Hinweis:${NC} Browser-Warnung beim SSL-Zertifikat ist normal"
-echo -e "           (selbstsigniert). Einfach bestätigen."
-echo -e "  ${YELLOW}Hinweis:${NC} Nach Neustart → kein Login-Bildschirm, Erika startet direkt"
-echo -e "           Eigenes Splash-Bild: assets/splash.png ins Repo legen + install.sh erneut ausführen"
-echo ""
+echo -e "  ${BOLD}Hinweis zum SSL-Zertifikat:${NC} Der Browser zeigt eine Warnung —"
+echo -e "  das ist normal (selbstsigniert). Einfach auf 'Weiter' klicken."
+echo -e ""
 if [ "$_HA_SUPERVISED" = true ]; then
-    echo -e "  ${YELLOW}Nächste Schritte für Home Assistant:${NC}"
-    echo -e "    1. http://${IP}:8123 öffnen und Konto anlegen"
-    echo -e "    2. Profil → Sicherheit → Token erstellen"
-    echo -e "    3. Token im Erika Admin-Panel unter System → Home Assistant eintragen"
-    echo -e "    4. System neu starten (AppArmor aktivieren): sudo reboot"
-elif [ -z "$_ENV_HA_TOKEN" ] && [ -z "$(grep ROBOT_HA_TOKEN .env | cut -d= -f2)" ]; then
-    echo -e "  ${YELLOW}Noch offen:${NC} HA-Token im Admin-Panel unter System → Home Assistant eintragen"
+echo -e "  ${YELLOW}──  Home Assistant einrichten  ──────────────────────────────────${NC}"
+echo -e "  1. ${CYAN}http://${IP}:8123${NC} öffnen → Konto anlegen"
+echo -e "  2. Profil → Sicherheit → Langlebiger Token erstellen"
+echo -e "  3. Token im Admin-Panel unter ${BOLD}System → Home Assistant${NC} eintragen"
+echo -e "  4. ${BOLD}sudo reboot${NC}  (AppArmor dauerhaft aktivieren)"
+echo -e ""
 fi
-if [ -z "$_ENV_LLM_URL" ]; then
-    echo -e "  ${YELLOW}Noch offen:${NC} LLM im Admin-Panel unter System → LLM konfigurieren"
-fi
-echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 if ! groups "$USER_NAME" | grep -q docker; then
-    warn "Bitte neu einloggen damit Docker ohne sudo funktioniert"
+    warn "Neu einloggen damit Docker ohne sudo genutzt werden kann:  su - $USER_NAME"
 fi
