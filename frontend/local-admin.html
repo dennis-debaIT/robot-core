@@ -104,6 +104,16 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">Einrichtungs-Status</div>
+              <p>Überblick über die wichtigsten Konfigurationsschritte. Klicke auf einen Eintrag um zum entsprechenden Tab zu springen.</p>
+            </div>
+            <div id="setup-checklist" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+              <div style="color:var(--muted);font-size:0.82rem;">Lade…</div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Systemzusammenfassung</div>
               <p>Kurzer Überblick über die wichtigsten Einstellungen des lokalen Geräts.</p>
             </div>
@@ -5070,6 +5080,74 @@
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
     }
   }
+
+  // ── SETUP-CHECKLISTE ─────────────────────────────────────
+  async function loadSetupChecklist() {
+    const el = document.getElementById('setup-checklist');
+    if (!el) return;
+    const items = [];
+
+    // HA-Status
+    try {
+      const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+      const ha = (cfg.config || cfg).system?.home_assistant || {};
+      const hasHost  = !!(ha.host || ha.url);
+      const hasToken = !!(ha.token);
+      if (hasHost && hasToken) {
+        items.push({ ok: true,  label: 'Home Assistant', detail: ha.host || ha.url, tab: 'tab-system' });
+      } else if (hasHost) {
+        items.push({ ok: false, label: 'Home Assistant', detail: 'Token fehlt', tab: 'tab-system' });
+      } else {
+        items.push({ ok: false, label: 'Home Assistant', detail: 'Nicht konfiguriert', tab: 'tab-system' });
+      }
+    } catch {
+      items.push({ ok: false, label: 'Home Assistant', detail: 'Nicht erreichbar', tab: 'tab-system' });
+    }
+
+    // LLM-Status
+    try {
+      const d = await fetch('/llm/config').then(r => r.json());
+      const hasUrl   = !!(d.api_url || d.url);
+      const hasModel = !!(d.model);
+      if (hasUrl && hasModel) {
+        items.push({ ok: true,  label: 'KI / LLM', detail: (d.provider || '') + (d.model ? ' · ' + d.model : ''), tab: 'tab-llm' });
+      } else {
+        items.push({ ok: false, label: 'KI / LLM', detail: 'API-URL oder Modell fehlt', tab: 'tab-llm' });
+      }
+    } catch {
+      items.push({ ok: false, label: 'KI / LLM', detail: 'Nicht konfiguriert', tab: 'tab-llm' });
+    }
+
+    // TTS-Status
+    try {
+      const d = await fetch('/tts/status').then(r => r.json());
+      const provider = d.provider || d.engine || '';
+      const active   = d.active !== false && d.status !== 'unavailable';
+      const label    = provider === 'edge_tts' ? 'Edge TTS (Microsoft)' : provider === 'sherpa_onnx' ? 'Sherpa ONNX (lokal)' : provider || 'Standard';
+      items.push({ ok: active, label: 'Sprachausgabe (TTS)', detail: label, tab: 'tab-llm' });
+    } catch {
+      items.push({ ok: null, label: 'Sprachausgabe (TTS)', detail: 'Status unbekannt', tab: 'tab-llm' });
+    }
+
+    el.innerHTML = items.map(item => {
+      const icon  = item.ok === true ? '✅' : item.ok === false ? '❌' : '⚠️';
+      const color = item.ok === true ? 'var(--success)' : item.ok === false ? 'var(--danger)' : 'var(--warning)';
+      return `<div onclick="document.querySelector('[data-tab-target=\\"${item.tab}\\"]')?.click()"
+        style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;
+               border:1px solid var(--line);background:var(--panel-soft);cursor:pointer;transition:border-color 0.15s;"
+        onmouseover="this.style.borderColor='${item.ok ? 'var(--success)' : 'var(--danger)'}'"
+        onmouseout="this.style.borderColor='var(--line)'">
+        <span style="font-size:1.1rem;">${icon}</span>
+        <div style="flex:1;">
+          <div style="font-size:0.84rem;font-weight:700;color:var(--ink);">${item.label}</div>
+          <div style="font-size:0.74rem;color:var(--muted);margin-top:1px;">${item.detail}</div>
+        </div>
+        <span style="font-size:0.7rem;color:var(--muted);">→</span>
+      </div>`;
+    }).join('');
+  }
+
+  loadSetupChecklist();
 
   document.querySelector('[data-tab-target="tab-design"]')?.addEventListener('click', () => {
     loadTheme();
