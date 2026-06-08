@@ -19,6 +19,7 @@ from app.api.routers import (
     ha_printer,
     ha_pv,
     ha_robots,
+    layout,
     local_admin,
     memory,
     notes as notes_router,
@@ -275,3 +276,4 @@ app.include_router(ha_calendar.router)
 app.include_router(reminders_router.router)
 app.include_router(notes_router.router)
 app.include_router(theme.router)
+app.include_router(layout.router)

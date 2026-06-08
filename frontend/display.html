@@ -793,11 +793,25 @@
   }
 
   async function showWeatherLeft() {
+    if (_layoutConfig.left_widget === 'calendar') {
+      return showCalendarLeft();
+    }
     const seq = ++_homeLeftRenderSeq;
     const [w, fuel, ev] = await Promise.all([loadWeather(), loadFuel(), loadEV()]);
     if (seq !== _homeLeftRenderSeq) return;
     const weather = w?.enabled === false ? w : (w?.current ? w : (_lastWeatherData || cacheGet('weather') || w || _WEATHER_ERROR));
     applyHomeLeftModules(buildHomeLeftModules(weather, fuel, ev));
+  }
+
+  async function showCalendarLeft() {
+    const seq = ++_homeLeftRenderSeq;
+    const cal = _enabledModules.calendar !== false ? await loadCalendar() : null;
+    if (seq !== _homeLeftRenderSeq) return;
+    const calClickable = _calendarOpenTrigger === 'widget' || _calendarOpenTrigger === 'both';
+    const label = calClickable
+      ? '<span onclick="openMonthCalendar()" style="cursor:pointer;" title="Monatskalender öffnen">Kalender</span>'
+      : 'Kalender';
+    setPanel('left', label, renderCalendarData(cal));
   }
 
   // ── FOOTBALL WIDGET ───────────────────────────────────────
@@ -1827,7 +1841,9 @@
   }
 
   async function showCalendarRight() {
-    const hasCal     = _enabledModules.calendar !== false;
+    const _calInPanel = _layoutConfig.left_widget !== 'calendar'
+                     && _layoutConfig.calendar_mode !== 'nav_only';
+    const hasCal     = _enabledModules.calendar !== false && _calInPanel;
     const hasPv      = _enabledModules.pv      === true;
     const hasPrinter = _enabledModules.printer === true;
     const [cal, pvResp, printer] = await Promise.all([
@@ -3063,7 +3079,7 @@
     if (calendarConfig) {
       _calendarOpenTrigger = calendarConfig.open_trigger || 'both';
     }
-    if (calBtn) calBtn.hidden = (_calendarOpenTrigger === 'widget');
+    if (calBtn) calBtn.hidden = (_calendarOpenTrigger === 'widget') && _layoutConfig.calendar_mode !== 'nav_only';
   }
 
   function _startLightsPolling() {
@@ -6100,6 +6116,10 @@
     }
     _ttsWasActive = ttsActive;
   }, 300);
+
+  // ── LAYOUT CONFIG ─────────────────────────────────────────
+  let _layoutConfig = { left_widget: 'weather', calendar_mode: 'panel' };
+  fetch('/display/layout').then(r => r.ok ? r.json() : null).then(d => { if (d) _layoutConfig = d; }).catch(() => {});
 
   // ── THEME ─────────────────────────────────────────────────
   function _applyTheme(t) {
