@@ -792,27 +792,121 @@
       : '<div class="cal-placeholder">Keine Startmodule aktiv</div>';
   }
 
-  async function showWeatherLeft() {
-    if (_layoutConfig.left_widget === 'calendar') {
-      return showCalendarLeft();
+  // ── WIDGET RENDERERS (size-aware) ────────────────────────
+  function _renderWeatherSlot(w, size) {
+    if (!w || w.enabled === false) return '<div class="cal-placeholder">Wetter deaktiviert</div>';
+    if (w._error || !w.current) return '<div class="cal-placeholder">Wetterdaten nicht verf&uuml;gbar</div>';
+    const c = w.current; const t = w.today;
+    if (size === 1) {
+      return `<div style="padding:2px 0 0;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:2rem;">${wmoIcon(c.weathercode)}</div>
+          <div style="flex:1;">
+            <div style="font-size:1.5rem;font-weight:900;line-height:1;">${c.temperature}&deg;</div>
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:1px;">${c.description}</div>
+          </div>
+          ${t ? `<div style="text-align:right;font-size:0.76rem;line-height:1.6;color:var(--muted);">
+            <div style="color:var(--warning);">&uarr;&nbsp;${t.temp_max}&deg;C</div>
+            <div style="color:var(--accent);">&darr;&nbsp;${t.temp_min}&deg;C</div>
+          </div>` : ''}
+        </div>
+      </div>`;
     }
-    const seq = ++_homeLeftRenderSeq;
-    const [w, fuel, ev] = await Promise.all([loadWeather(), loadFuel(), loadEV()]);
-    if (seq !== _homeLeftRenderSeq) return;
-    const weather = w?.enabled === false ? w : (w?.current ? w : (_lastWeatherData || cacheGet('weather') || w || _WEATHER_ERROR));
-    applyHomeLeftModules(buildHomeLeftModules(weather, fuel, ev));
+    return renderWeather(w);
   }
 
-  async function showCalendarLeft() {
-    const seq = ++_homeLeftRenderSeq;
-    const cal = _enabledModules.calendar !== false ? await loadCalendar() : null;
-    if (seq !== _homeLeftRenderSeq) return;
-    const calClickable = _calendarOpenTrigger === 'widget' || _calendarOpenTrigger === 'both';
-    const label = calClickable
-      ? '<span onclick="openMonthCalendar()" style="cursor:pointer;" title="Monatskalender öffnen">Kalender</span>'
-      : 'Kalender';
-    setPanel('left', label, renderCalendarData(cal));
+  function _renderCalendarSlot(cal, size) {
+    if (size === 1) {
+      if (!cal?.next_event) return '<div class="cal-placeholder">Kein Termin</div>';
+      const ne = cal.next_event;
+      return `<div style="background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.25);border-radius:10px;padding:10px 12px;">
+        <div style="font-size:0.62rem;color:var(--accent);letter-spacing:0.11em;margin-bottom:4px;">N&Auml;CHSTER TERMIN</div>
+        <div style="font-weight:700;font-size:0.88rem;line-height:1.3;">${ne.title}</div>
+        <div style="color:var(--muted);font-size:0.74rem;margin-top:3px;">${ne.weekday} &middot; ${ne.date} &middot; ${ne.time}</div>
+      </div>`;
+    }
+    return renderCalendarData(cal);
   }
+
+  function _renderFuelSlot(fuel, size) {
+    const html = renderFuelPrice(fuel);
+    if (!html) return '<div class="cal-placeholder">Keine Kraftstoffpreise</div>';
+    return html;
+  }
+
+  function _renderPvSlot(pvResp, size) {
+    const pv = pvResp?.state || null;
+    const fields = pvResp?.widget_fields || {};
+    if (!pv) return '<div class="cal-placeholder">PV nicht verf&uuml;gbar</div>';
+    return renderPvWidget(pv, fields);
+  }
+
+  function _renderEvSlot(data, size) {
+    const html = renderEV(data);
+    if (!html) return '<div class="cal-placeholder">Kein Fahrzeug konfiguriert</div>';
+    return html;
+  }
+
+  const _WIDGET_DEFS = {
+    weather:  { label: 'Wetter',     load: () => loadWeather(),  render: _renderWeatherSlot },
+    calendar: { label: 'Kalender',   load: () => loadCalendar(), render: _renderCalendarSlot },
+    fuel:     { label: 'Kraftstoff', load: () => loadFuel(),     render: _renderFuelSlot },
+    pv:       { label: 'PV-Anlage',  load: () => loadPvData(),   render: _renderPvSlot },
+    ev:       { label: 'Fahrzeug',   load: () => loadEV(),       render: _renderEvSlot },
+  };
+
+  function _widgetEnabled(widgetId) {
+    if (widgetId === 'pv')       return _enabledModules.pv === true;
+    if (widgetId === 'ev')       return _enabledModules.vehicles === true;
+    if (widgetId === 'calendar') return _enabledModules.calendar !== false;
+    return true;
+  }
+
+  async function showPanel(side) {
+    const slots = (_panelConfig[side] || []).filter(s => _WIDGET_DEFS[s.widget]);
+    const labelEl   = document.getElementById(side + '-label');
+    const contentEl = document.getElementById(side + '-content');
+    if (!labelEl || !contentEl) return;
+
+    const seq = ++_panelRenderSeq[side];
+    const dataArr = await Promise.all(slots.map(s =>
+      _widgetEnabled(s.widget) ? _WIDGET_DEFS[s.widget].load() : Promise.resolve(null)
+    ));
+    if (_panelRenderSeq[side] !== seq) return;
+
+    // Drucker immer oben im rechten Panel (wenn aktiv)
+    let printerHtml = '';
+    if (side === 'right' && _enabledModules.printer) {
+      const printer = await loadPrinterData();
+      if (printer?.printing) printerHtml = `<div id="right-printer">${renderPrinterWidget(printer)}</div>`;
+    }
+
+    const totalSize = slots.reduce((s, w) => s + (w.size || 1), 0) || 1;
+    const gridRows = slots.map((s, i) => {
+      const def = _WIDGET_DEFS[s.widget];
+      const content = _widgetEnabled(s.widget) ? def.render(dataArr[i], s.size || 1) : '';
+      return `<div class="widget-slot" data-widget="${s.widget}" style="grid-row:span ${s.size || 1};">${content}</div>`;
+    }).join('');
+
+    const label = slots.map(s => {
+      if (s.widget === 'calendar') {
+        const clickable = _calendarOpenTrigger === 'widget' || _calendarOpenTrigger === 'both';
+        return clickable ? '<span onclick="openMonthCalendar()" style="cursor:pointer;" title="Monatskalender &ouml;ffnen">Kalender</span>' : 'Kalender';
+      }
+      return _WIDGET_DEFS[s.widget]?.label || s.widget;
+    }).join(' &middot; ');
+
+    contentEl.classList.add('fade-out');
+    setTimeout(() => {
+      labelEl.innerHTML = label || side;
+      contentEl.innerHTML = printerHtml
+        + `<div class="widget-grid" style="grid-template-rows:repeat(${totalSize},1fr);">${gridRows}</div>`;
+      contentEl.classList.remove('fade-out');
+    }, 300);
+  }
+
+  async function showWeatherLeft()   { return showPanel('left'); }
+  async function showCalendarRight() { return showPanel('right'); }
 
   // ── FOOTBALL WIDGET ───────────────────────────────────────
   function renderFootballMatch(f) {
@@ -1838,42 +1932,6 @@
     }
     const lastUpdate = lastUpdateStr ? `<div class="pv-footer">Aktualisiert: ${lastUpdateStr}</div>` : '';
     return `<div class="pv-widget" onclick="openPvStats()" style="cursor:pointer;" title="Statistik anzeigen">${rows}${lastUpdate}</div>`;
-  }
-
-  async function showCalendarRight() {
-    const _calInPanel = _layoutConfig.left_widget !== 'calendar'
-                     && _layoutConfig.calendar_mode !== 'nav_only';
-    const hasCal     = _enabledModules.calendar !== false && _calInPanel;
-    const hasPv      = _enabledModules.pv      === true;
-    const hasPrinter = _enabledModules.printer === true;
-    const [cal, pvResp, printer] = await Promise.all([
-      hasCal     ? loadCalendar()     : Promise.resolve(null),
-      hasPv      ? loadPvData()       : Promise.resolve(null),
-      hasPrinter ? loadPrinterData()  : Promise.resolve(null),
-    ]);
-    const pv       = pvResp?.state || null;
-    const pvFields = pvResp?.widget_fields || {};
-    const isPrinting = hasPrinter && printer?.printing;
-    const printerIcon = hasPrinter
-      ? `<span onclick="openPrinterOverlay()" title="Drucker-Details" style="cursor:pointer;opacity:${isPrinting?1:0.4};">🖨</span>`
-      : '';
-    const calClickable = _calendarOpenTrigger === 'widget' || _calendarOpenTrigger === 'both';
-    const calLabel = hasCal
-      ? (calClickable
-          ? `<span onclick="openMonthCalendar()" style="cursor:pointer;" title="Monatskalender öffnen">Kalender</span>`
-          : 'Kalender')
-      : '';
-    const parts = [calLabel, printerIcon, hasPv ? 'PV' : ''].filter(Boolean);
-    const label = parts.join(' · ') || '';
-    const calHtml      = hasCal     ? renderCalendarData(cal)    : '';
-    const printerHtml  = isPrinting ? renderPrinterWidget(printer) : '';
-    const pvHtml       = hasPv      ? renderPvWidget(pv, pvFields) : '';
-    const hasBottom = printerHtml || pvHtml;
-    const html = `<div id="right-cal">${calHtml || (hasBottom ? '' : '<div class="cal-placeholder">Kein Modul aktiv.</div>')}</div>`
-               + (printerHtml ? `<div id="right-printer">${printerHtml}</div>` : '')
-               + (printerHtml && pvHtml ? '<div class="pv-divider"></div>' : '')
-               + (pvHtml ? `<div id="right-pv">${pvHtml}</div>` : '');
-    setPanel('right', label, html);
   }
 
   // ── NEWS CENTER ───────────────────────────────────────────
@@ -3079,7 +3137,7 @@
     if (calendarConfig) {
       _calendarOpenTrigger = calendarConfig.open_trigger || 'both';
     }
-    if (calBtn) calBtn.hidden = (_calendarOpenTrigger === 'widget') && _layoutConfig.calendar_mode !== 'nav_only';
+    if (calBtn) calBtn.hidden = (_calendarOpenTrigger === 'widget');
   }
 
   function _startLightsPolling() {
@@ -6117,9 +6175,13 @@
     _ttsWasActive = ttsActive;
   }, 300);
 
-  // ── LAYOUT CONFIG ─────────────────────────────────────────
-  let _layoutConfig = { left_widget: 'weather', calendar_mode: 'panel' };
-  fetch('/display/layout').then(r => r.ok ? r.json() : null).then(d => { if (d) _layoutConfig = d; }).catch(() => {});
+  // ── PANEL LAYOUT CONFIG ───────────────────────────────────
+  let _panelConfig = {
+    left:  [{ widget: 'weather', size: 2 }, { widget: 'fuel', size: 1 }, { widget: 'ev', size: 1 }],
+    right: [{ widget: 'calendar', size: 3 }, { widget: 'pv', size: 1 }],
+  };
+  const _panelRenderSeq = { left: 0, right: 0 };
+  fetch('/display/layout').then(r => r.ok ? r.json() : null).then(d => { if (d) _panelConfig = d; }).catch(() => {});
 
   // ── THEME ─────────────────────────────────────────────────
   function _applyTheme(t) {
@@ -6163,25 +6225,27 @@
     if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
   }, TTL_15M);
 
-  // PV-Daten alle 5 Sekunden aktualisieren
+  // PV-Slot alle 5 Sekunden aktualisieren
   setInterval(async () => {
     if (!_enabledModules.pv || currentMode !== 'idle' || !_isHome()) return;
-    const pvResp2 = await loadPvData();
-    const pvEl = document.getElementById('right-pv');
-    if (pvEl) pvEl.innerHTML = renderPvWidget(pvResp2?.state || null, pvResp2?.widget_fields || {});
+    const pvResp = await loadPvData();
+    const pvSlot = document.querySelector('[data-widget="pv"]');
+    if (!pvSlot) return;
+    const size = [...(_panelConfig.left || []), ...(_panelConfig.right || [])]
+      .find(s => s.widget === 'pv')?.size || 1;
+    pvSlot.innerHTML = _renderPvSlot(pvResp, size);
   }, 5000);
 
-  // Drucker-Widget alle 30s aktualisieren
+  // Drucker alle 30s prüfen — Panel neu rendern wenn Status wechselt
   setInterval(async () => {
     if (!_enabledModules.printer || currentMode !== 'idle' || !_isHome()) return;
     const p = await loadPrinterData();
     const prEl = document.getElementById('right-printer');
     const html = renderPrinterWidget(p);
     if (prEl) {
-      if (html) { prEl.innerHTML = html; }
-      else { prEl.innerHTML = ''; } // Drucker fertig → Widget weg
+      prEl.innerHTML = html || '';
     } else if (html) {
-      showCalendarRight(); // Neues Widget einblenden
+      showPanel('right');
     }
   }, 30000);
 

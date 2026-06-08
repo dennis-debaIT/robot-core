@@ -1104,27 +1104,28 @@
 
           <section class="module-card">
             <div class="section-copy">
-              <div class="section-title">Layout</div>
-              <p>Lege fest, welche Widgets im linken und rechten Panel erscheinen und wie der Kalender angezeigt wird.</p>
+              <div class="section-title">Panel-Layout</div>
+              <p>Wähle für das linke und rechte Panel, welche Widgets erscheinen sollen und wie viel Höhe sie einnehmen. Jedes Widget kann nur einmal vorkommen.</p>
             </div>
 
-            <div style="display:flex;flex-direction:column;gap:16px;margin-top:12px;">
-              <label class="field-block">
-                <span class="field-label">Linkes Panel</span>
-                <select id="layout-left" class="field-input" onchange="onLayoutLeftChange()">
-                  <option value="weather">Wetter (Standard)</option>
-                  <option value="calendar">Kalender</option>
-                </select>
-              </label>
-
-              <div id="layout-calendar-mode-row">
-                <label class="field-block">
-                  <span class="field-label">Kalender (rechtes Panel)</span>
-                  <select id="layout-calendar-mode" class="field-input">
-                    <option value="panel">Im Panel anzeigen (Standard)</option>
-                    <option value="nav_only">Nur als Nav-Button</option>
+            <div class="layout-editor">
+              <div class="layout-panel-col">
+                <div class="layout-panel-header">Linkes Panel</div>
+                <div id="layout-left-slots" class="layout-slot-list"></div>
+                <div class="layout-add-row">
+                  <select id="layout-add-left" class="field-input layout-add-select">
+                    <option value="">+ Widget hinzufügen…</option>
                   </select>
-                </label>
+                </div>
+              </div>
+              <div class="layout-panel-col">
+                <div class="layout-panel-header">Rechtes Panel</div>
+                <div id="layout-right-slots" class="layout-slot-list"></div>
+                <div class="layout-add-row">
+                  <select id="layout-add-right" class="field-input layout-add-select">
+                    <option value="">+ Widget hinzufügen…</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -5005,41 +5006,105 @@
     loadLayout();
   });
 
-  // ── LAYOUT ───────────────────────────────────────────────
-  function onLayoutLeftChange() {
-    const left = document.getElementById('layout-left')?.value;
-    const row  = document.getElementById('layout-calendar-mode-row');
-    if (row) row.style.display = left === 'calendar' ? 'none' : '';
+  // ── LAYOUT SLOT EDITOR ───────────────────────────────────
+  const _WIDGET_META = {
+    weather:  { label: 'Wetter' },
+    calendar: { label: 'Kalender' },
+    fuel:     { label: 'Kraftstoff' },
+    pv:       { label: 'PV-Anlage' },
+    ev:       { label: 'Fahrzeug / EV' },
+  };
+
+  let _layoutState = { left: [], right: [] };
+
+  function _usedWidgets() {
+    return new Set([..._layoutState.left, ..._layoutState.right].map(s => s.widget));
   }
+
+  function _renderSlotList(side) {
+    const container = document.getElementById(`layout-${side}-slots`);
+    if (!container) return;
+    const slots = _layoutState[side];
+    if (!slots.length) {
+      container.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:8px 0;">Kein Widget</div>';
+    } else {
+      container.innerHTML = slots.map((s, i) => `
+        <div class="layout-slot-row">
+          <div class="layout-slot-name">${_WIDGET_META[s.widget]?.label || s.widget}</div>
+          <div class="layout-slot-size-ctrl">
+            <button type="button" class="layout-size-btn" onclick="_changeSize('${side}',${i},-1)" title="Kleiner">−</button>
+            <span class="layout-size-val">${s.size}</span>
+            <button type="button" class="layout-size-btn" onclick="_changeSize('${side}',${i},+1)" title="Größer">+</button>
+          </div>
+          <button type="button" class="layout-remove-btn" onclick="_removeSlot('${side}',${i})" title="Entfernen">×</button>
+        </div>`).join('');
+    }
+    _refreshAddDropdowns();
+  }
+
+  function _refreshAddDropdowns() {
+    const used = _usedWidgets();
+    ['left','right'].forEach(side => {
+      const sel = document.getElementById(`layout-add-${side}`);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">+ Widget hinzufügen…</option>'
+        + Object.entries(_WIDGET_META)
+            .filter(([id]) => !used.has(id))
+            .map(([id, m]) => `<option value="${id}">${m.label}</option>`)
+            .join('');
+    });
+  }
+
+  function _changeSize(side, idx, delta) {
+    const s = _layoutState[side][idx];
+    if (!s) return;
+    s.size = Math.max(1, Math.min(8, (s.size || 1) + delta));
+    _renderSlotList(side);
+  }
+
+  function _removeSlot(side, idx) {
+    _layoutState[side].splice(idx, 1);
+    _renderSlotList(side);
+    _renderSlotList(side === 'left' ? 'right' : 'left');
+  }
+
+  function _addWidget(side) {
+    const sel = document.getElementById(`layout-add-${side}`);
+    const widget = sel?.value;
+    if (!widget) return;
+    _layoutState[side].push({ widget, size: 1 });
+    sel.value = '';
+    _renderSlotList(side);
+    _renderSlotList(side === 'left' ? 'right' : 'left');
+  }
+
+  document.getElementById('layout-add-left')?.addEventListener('change',  () => _addWidget('left'));
+  document.getElementById('layout-add-right')?.addEventListener('change', () => _addWidget('right'));
 
   async function loadLayout() {
     try {
       const r = await fetch('/display/layout');
       if (!r.ok) return;
       const d = await r.json();
-      const leftEl = document.getElementById('layout-left');
-      const calEl  = document.getElementById('layout-calendar-mode');
-      if (leftEl) leftEl.value = d.left_widget || 'weather';
-      if (calEl)  calEl.value  = d.calendar_mode || 'panel';
-      onLayoutLeftChange();
+      _layoutState = { left: [...(d.left || [])], right: [...(d.right || [])] };
+      _renderSlotList('left');
+      _renderSlotList('right');
     } catch {}
   }
 
   async function saveLayout() {
     const statusEl = document.getElementById('layout-status');
-    const leftEl   = document.getElementById('layout-left');
-    const calEl    = document.getElementById('layout-calendar-mode');
     if (statusEl) statusEl.textContent = 'Speichern…';
     try {
       const r = await fetch('/display/layout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          left_widget:   leftEl?.value  || 'weather',
-          calendar_mode: calEl?.value   || 'panel',
-        }),
+        body: JSON.stringify(_layoutState),
       });
       if (!r.ok) throw new Error(await r.text());
+      _layoutState = await r.json();
+      _renderSlotList('left');
+      _renderSlotList('right');
       if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
@@ -5052,12 +5117,9 @@
     try {
       const r = await fetch('/display/layout/reset', { method: 'POST' });
       if (!r.ok) throw new Error(await r.text());
-      const d = await r.json();
-      const leftEl = document.getElementById('layout-left');
-      const calEl  = document.getElementById('layout-calendar-mode');
-      if (leftEl) leftEl.value = d.left_widget || 'weather';
-      if (calEl)  calEl.value  = d.calendar_mode || 'panel';
-      onLayoutLeftChange();
+      _layoutState = await r.json();
+      _renderSlotList('left');
+      _renderSlotList('right');
       if (statusEl) { statusEl.textContent = 'Zurückgesetzt ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
