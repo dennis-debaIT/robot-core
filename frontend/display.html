@@ -1827,7 +1827,7 @@
       const a = Math.abs(w);
       return a >= 1000 ? (a/1000).toFixed(2).replace('.',',') + ' kW' : Math.round(a) + ' W';
     };
-    const spd = w => Math.max(0.3, 2.5 / (Math.abs(w) / 180 + 1)).toFixed(2);
+    const spd = w => Math.max(1.5, 6 / (Math.abs(w) / 400 + 1)).toFixed(2);
 
     // Farben
     const C_PV   = '#f59e0b';  // amber — Solar
@@ -1838,11 +1838,12 @@
     const gColor  = gridW >= 0 ? C_FEED : C_DRAW;
 
     // Knotenpositionen (cx, cy, r)
-    const VW = 300, VH = hasBatt ? 330 : 300;
-    const nPV    = { x: 150, y: 56,  r: 40 };
-    const nHouse = { x: 150, y: hasBatt ? 268 : 240, r: 40 };
-    const nBatt  = hasBatt ? { x: 58,  y: 168, r: 34 } : null;
-    const nGrid  = { x: hasBatt ? 242 : 220, y: 168, r: 34 };
+    const VW = 370, VH = hasBatt ? 330 : 300;
+    const cx = VW / 2;
+    const nPV    = { x: cx,  y: 56,  r: 40 };
+    const nHouse = { x: cx,  y: hasBatt ? 268 : 240, r: 40 };
+    const nBatt  = hasBatt ? { x: 62,  y: 168, r: 34 } : null;
+    const nGrid  = { x: hasBatt ? 308 : cx+70, y: 168, r: 34 };
 
     // Kantenpunkt: vom Kreis-Rand in Richtung Ziel
     const ep = (ax, ay, bx, by, r) => {
