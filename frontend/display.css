@@ -662,7 +662,7 @@
     .printer-widget { padding: 6px 0; cursor: pointer; }
     .printer-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 0.8rem; }
     .printer-icon { font-size: 1rem; flex-shrink: 0; }
-    .printer-filename { font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .printer-filename { font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
     .printer-progress { font-family: monospace; }
     .printer-bar { color: #00c8ff; letter-spacing: -1px; }
     .printer-pct { font-weight: 700; color: #00c8ff; flex-shrink: 0; }
@@ -674,7 +674,7 @@
     .pv-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
     .pv-row:last-of-type { border-bottom: none; }
     .pv-icon { font-size: 1.1rem; width: 22px; text-align: center; flex-shrink: 0; }
-    .pv-val  { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--ink); }
+    .pv-val  { flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--text); }
     .pv-lbl  { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
     .pv-footer { font-size: 0.68rem; color: var(--muted); margin-top: 10px; text-align: left; }
 
