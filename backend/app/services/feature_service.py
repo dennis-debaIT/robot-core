@@ -11,9 +11,9 @@ _STATE_KEY = "edition"
 # So bleibt die Admin-Auswahl (DB) mit dem nächsten Build synchron.
 _EDITION_FILE = Path("/app/edition")
 
-# Phase 1: Default "plus" — alles freigeschaltet, bis die Lizenzprüfung
-# diesen Wert setzt. Später liefert der Lizenz-Check die Edition.
-DEFAULT_EDITION = "plus"
+# Secure by default: ohne gesetzte Edition gilt Community. Plus/Family wird
+# erst durch den Admin-Schalter bzw. später den Lizenz-Check aktiviert.
+DEFAULT_EDITION = "community"
 
 # Feature-ID  →  minimal nötiger Tier
 # Alles was hier NICHT steht, ist implizit "community" (immer frei).

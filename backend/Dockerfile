@@ -22,11 +22,12 @@ COPY frontend /app/frontend
 COPY VERSION /app/VERSION
 
 # ── Edition-Build ────────────────────────────────────────────
-# EDITION=plus (Default) → alle Module enthalten
-# EDITION=community       → kostenpflichtige Paid-Module werden entfernt.
+# EDITION=community (Default) → nur Community; Paid-Dateien (falls vorhanden)
+#                               werden entfernt.
+# EDITION=plus → alle Module bleiben (Plus-Build via robot-core-plus/build-plus.sh).
 # main.py lädt Paid-Router via try/except ImportError → fehlt die Datei,
 # existiert der Endpunkt gar nicht (404). Hier neue Paid-Dateien ergänzen.
-ARG EDITION=plus
+ARG EDITION=community
 RUN if [ "$EDITION" = "community" ]; then \
         rm -f /app/app/api/routers/ha_pv_stats.py \
               /app/frontend/display-plus.js ; \
