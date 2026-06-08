@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from app.database.db import get_connection, read_state, write_state
 
 _STATE_KEY = "edition"
+
+# Gemountete Host-Datei (docker-compose: ./edition:/app/edition).
+# update.sh liest sie, um Community-Geräte ohne Paid-Module zu bauen.
+# So bleibt die Admin-Auswahl (DB) mit dem nächsten Build synchron.
+_EDITION_FILE = Path("/app/edition")
 
 # Phase 1: Default "plus" — alles freigeschaltet, bis die Lizenzprüfung
 # diesen Wert setzt. Später liefert der Lizenz-Check die Edition.
@@ -32,6 +39,12 @@ class FeatureService:
             edition = DEFAULT_EDITION
         with get_connection() as conn:
             write_state(conn, _STATE_KEY, edition)
+        # Host-Datei mitschreiben, damit update.sh dieselbe Edition baut.
+        # Schlägt still fehl wenn nicht gemountet (z.B. Tests) — DB bleibt führend.
+        try:
+            _EDITION_FILE.write_text(edition + "\n")
+        except OSError:
+            pass
         return edition
 
     def enabled_features(self) -> dict:

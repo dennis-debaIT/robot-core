@@ -42,6 +42,9 @@ for _f in update.flag update.log reboot.flag timezone.flag hostname.flag wlan.fl
 done
 touch update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
 [ -s wifi-scan.json ]  || echo '{"networks":[]}' > wifi-scan.json
+# edition als Datei sicherstellen (Default plus) — Docker mountet sie sonst als Verzeichnis.
+# Bestehenden Wert (z.B. von der Admin-Auswahl) NICHT überschreiben.
+[ -f edition ] && [ ! -d edition ] || { rm -rf edition 2>/dev/null; echo plus > edition; }
 hostname -I | awk '{print $1}' > host-ip.txt 2>/dev/null || true
 mkdir -p ha_config
 

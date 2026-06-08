@@ -389,6 +389,8 @@ done
 touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
 [ -f wifi-scan.json ] || echo '{"networks":[]}' > wifi-scan.json
 [ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt
+# Edition-Markierung (Default plus) — wird vom Admin-Schalter / Lizenz-Check überschrieben
+[ -f edition ] && [ ! -d edition ] || { rm -rf edition 2>/dev/null; echo plus > edition; }
 mkdir -p ha_config
 chmod +x update.sh reboot-watcher.sh setup-watcher.sh
 nohup bash "$INSTALL_DIR/reboot-watcher.sh" >> "$INSTALL_DIR/reboot.log" 2>&1 &

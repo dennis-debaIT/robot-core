@@ -61,6 +61,7 @@ services:
       - ./wlan.flag:/wlan.flag
       - ./ha-install.flag:/ha-install.flag
       - ./components.flag:/components.flag
+      - ./edition:/app/edition
       - ./wifi-scan.json:/wifi-scan.json
       - ./host-ip.txt:/host-ip.txt
       - ./printer-start.flag:/printer-start.flag
