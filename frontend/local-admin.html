@@ -1093,6 +1093,7 @@
               <div class="section-title">Farben</div>
               <p>Passe die Farbpalette des Displays an. Änderungen werden nach dem Speichern beim nächsten Laden des Displays übernommen.</p>
             </div>
+            <div id="theme-preset-btns" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;"></div>
             <div class="theme-color-grid" id="theme-color-grid"></div>
             <div style="margin-top:20px;display:flex;gap:10px;align-items:center;">
               <button type="button" onclick="saveTheme()" style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
@@ -4921,6 +4922,74 @@
   })();
 
   // ── DESIGN / THEME ────────────────────────────────────────
+  const _PRESET_THEMES = {
+    cyan: {
+      label: 'Cyan', accent: '#00c8ff',
+      bg:'#07070f', surface:'#0f0f1a', surface2:'#16162a', border:'#1e1e38',
+      accent2:'#0077ff', success:'#00e676', warning:'#ffab00', danger:'#ff3d3d',
+      text:'#e8eaf0', muted:'#6670aa', face_bg:'#04040c',
+    },
+    green: {
+      label: 'Grün', accent: '#00e676',
+      bg:'#040f08', surface:'#0a1a10', surface2:'#112018', border:'#1a3024',
+      accent2:'#00b050', success:'#69ff47', warning:'#ffab00', danger:'#ff3d3d',
+      text:'#e8f0ea', muted:'#5a8a68', face_bg:'#020a04',
+    },
+    amber: {
+      label: 'Amber', accent: '#ffab00',
+      bg:'#0f0a04', surface:'#1a1208', surface2:'#241a0c', border:'#362610',
+      accent2:'#ff8c00', success:'#00e676', warning:'#ff6b00', danger:'#ff3d3d',
+      text:'#f0ece4', muted:'#9a8060', face_bg:'#080600',
+    },
+    violet: {
+      label: 'Violett', accent: '#c084fc',
+      bg:'#080610', surface:'#100e1e', surface2:'#18162a', border:'#2a2548',
+      accent2:'#a855f7', success:'#00e676', warning:'#ffab00', danger:'#ff3d3d',
+      text:'#ede8f8', muted:'#7c6aaa', face_bg:'#04020c',
+    },
+    red: {
+      label: 'Rot', accent: '#ff4f5f',
+      bg:'#0f0404', surface:'#1a0808', surface2:'#240c0c', border:'#3a1010',
+      accent2:'#cc2030', success:'#00e676', warning:'#ffab00', danger:'#ff8800',
+      text:'#f0e8e8', muted:'#9a6060', face_bg:'#080202',
+    },
+    light: {
+      label: 'Hell', accent: '#2563eb',
+      bg:'#f0f4ff', surface:'#ffffff', surface2:'#e8edf8', border:'#c8d4f0',
+      accent2:'#1d4ed8', success:'#16a34a', warning:'#d97706', danger:'#dc2626',
+      text:'#1e1e3a', muted:'#5a6890', face_bg:'#e8eeff',
+    },
+  };
+
+  function _renderPresetButtons() {
+    const container = document.getElementById('theme-preset-btns');
+    if (!container) return;
+    container.innerHTML = Object.entries(_PRESET_THEMES).map(([id, p]) => `
+      <button type="button" onclick="applyPreset('${id}')"
+        style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:10px;
+               border:1px solid var(--line);background:var(--panel-soft);cursor:pointer;
+               font-size:0.8rem;font-weight:600;color:var(--ink);transition:border-color 0.15s;"
+        onmouseover="this.style.borderColor='${p.accent}'"
+        onmouseout="this.style.borderColor='var(--line)'">
+        <span style="display:inline-flex;gap:3px;">
+          <span style="width:10px;height:10px;border-radius:50%;background:${p.bg};border:1px solid #fff2;"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:${p.accent};"></span>
+          <span style="width:10px;height:10px;border-radius:50%;background:${p.surface2};border:1px solid #fff2;"></span>
+        </span>
+        ${p.label}
+      </button>`).join('');
+  }
+
+  function applyPreset(id) {
+    const p = _PRESET_THEMES[id];
+    if (!p) return;
+    const { label, ...colors } = p;
+    _currentTheme = { ..._currentTheme, ...colors };
+    _buildThemeGrid(_currentTheme);
+    const statusEl = document.getElementById('theme-status');
+    if (statusEl) { statusEl.textContent = `"${label}" angewendet — noch nicht gespeichert`; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+  }
+
   const _THEME_LABELS = {
     bg:       'Hintergrund',
     surface:  'Oberfläche',
@@ -4961,6 +5030,7 @@
   }
 
   async function loadTheme() {
+    _renderPresetButtons();
     try {
       const r = await fetch('/display/theme');
       if (!r.ok) return;
