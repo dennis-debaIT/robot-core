@@ -423,7 +423,7 @@
       min-width: 0;
       border: 1px solid var(--border);
       border-radius: 16px;
-      background: rgba(22,22,42,0.65);
+      background: var(--surface2);
       padding: 13px 10px;
       display: flex;
       flex-direction: column;
@@ -434,14 +434,14 @@
       transition: border-color 0.15s, background 0.15s, transform 0.15s;
     }
     .weather-day-card:hover {
-      border-color: rgba(0,200,255,0.55);
-      background: rgba(0,200,255,0.08);
+      border-color: var(--accent);
+      background: var(--surface);
       transform: translateY(-1px);
     }
     .weather-day-card.active {
       border-color: var(--accent);
-      background: rgba(0,200,255,0.12);
-      box-shadow: 0 0 0 1px rgba(0,200,255,0.18);
+      background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
     }
     .weather-day-name {
       color: var(--accent);
@@ -458,7 +458,7 @@
     .weather-day-icon {
       font-size: 2.6rem;
       line-height: 1;
-      filter: drop-shadow(0 0 12px rgba(0,200,255,0.24));
+      filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 30%, transparent));
     }
     .weather-day-desc {
       color: var(--text);
