@@ -5100,6 +5100,10 @@
     } else {
       container.innerHTML = slots.map((s, i) => `
         <div class="layout-slot-row">
+          <div class="layout-move-btns">
+            <button type="button" class="layout-size-btn" onclick="_moveSlot('${side}',${i},-1)" title="Nach oben" ${i===0?'disabled':''}>↑</button>
+            <button type="button" class="layout-size-btn" onclick="_moveSlot('${side}',${i},+1)" title="Nach unten" ${i===slots.length-1?'disabled':''}>↓</button>
+          </div>
           <div class="layout-slot-name">${_WIDGET_META[s.widget]?.label || s.widget}</div>
           <div class="layout-slot-size-ctrl">
             <button type="button" class="layout-size-btn" onclick="_changeSize('${side}',${i},-1)" title="Kleiner">−</button>
@@ -5123,6 +5127,14 @@
             .map(([id, m]) => `<option value="${id}">${m.label}</option>`)
             .join('');
     });
+  }
+
+  function _moveSlot(side, idx, dir) {
+    const slots = _layoutState[side];
+    const target = idx + dir;
+    if (target < 0 || target >= slots.length) return;
+    [slots[idx], slots[target]] = [slots[target], slots[idx]];
+    _renderSlotList(side);
   }
 
   function _changeSize(side, idx, delta) {

@@ -1285,3 +1285,17 @@ code {
 .layout-remove-btn:hover { border-color: var(--danger); color: var(--danger); }
 .layout-add-row { margin-top: 4px; }
 .layout-add-select { width: 100%; font-size: 0.82rem; }
+
+.layout-move-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.layout-move-btns .layout-size-btn {
+  height: 18px;
+  font-size: 0.72rem;
+}
+.layout-move-btns .layout-size-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}

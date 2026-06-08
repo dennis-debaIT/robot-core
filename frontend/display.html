@@ -1671,7 +1671,7 @@
   }
 
   // ── PV STATISTIK OVERLAY ──────────────────────────────────
-  let _pvStatsView = 'today';
+  let _pvStatsView = 'flow';
 
   function _svgBar(labels, values, unit, w, h, color = '#00c8ff') {
     const valid = values.map(v => v ?? 0);
@@ -1776,11 +1776,11 @@
         <button onclick="closePvStats()" style="background:none;border:1px solid #24284a;border-radius:8px;color:#7f8dcb;font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
       </div>
       <div style="display:flex;gap:8px;padding:0 24px 16px;">
-        ${['today','7days','month','year'].map(v =>
+        ${['flow','today','7days','month','year'].map(v =>
           `<button onclick="loadPvStatsView('${v}')" id="pvtab-${v}"
             style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid #24284a;background:${v===_pvStatsView?'rgba(0,200,255,0.12)':'transparent'};
             color:${v===_pvStatsView?'#00c8ff':'#7f8dcb'};font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.2s;">
-            ${v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
+            ${v==='flow'?'Fluss':v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
           </button>`
         ).join('')}
       </div>
@@ -1790,7 +1790,8 @@
     </div>`;
     loadPvStatsView(_pvStatsView);
     clearInterval(_pvStatsRefreshInterval);
-    _pvStatsRefreshInterval = setInterval(() => loadPvStatsView(_pvStatsView), 60000);
+    _pvStatsRefreshInterval = setInterval(() => loadPvStatsView(_pvStatsView),
+      _pvStatsView === 'flow' ? 5000 : 60000);
   }
 
   // Drucker-Overlay Auto-Refresh
@@ -1814,9 +1815,82 @@
     _pvStatsRefreshInterval = null;
   }
 
+  function _renderPvFlowDiagram(pv) {
+    if (!pv) return '<div class="cal-placeholder">PV-Daten nicht verf&uuml;gbar</div>';
+    const pvW    = parseFloat(pv.power?.value   || 0);
+    const houseW = parseFloat(pv.house_consumption?.value || 0);
+    const gridW  = parseFloat(pv.grid?.value    || 0); // >0 Einspeisung, <0 Netzbezug
+    const battPct = pv.battery?.value != null ? parseFloat(pv.battery.value) : null;
+    const hasBatt = battPct !== null && !isNaN(battPct);
+
+    const fmtW = w => {
+      const a = Math.abs(w);
+      return a >= 1000 ? (a/1000).toFixed(1)+' kW' : Math.round(a)+' W';
+    };
+    const spd = w => Math.max(0.35, 2.8 / (Math.abs(w) / 150 + 1)).toFixed(2);
+
+    const C_PV   = '#00c8ff', C_FEED = '#00e676', C_DRAW = '#ffab00';
+    const C_BATT = '#c084fc', C_HOUSE = '#e8eaf0', C_BASE = '#1e1e38', C_MUTED = '#7f8dcb';
+    const NODE_BG = '#0f0f1a';
+
+    const VW = 300, VH = hasBatt ? 320 : 290;
+    const cx = 150, nW = 96, nH = 58, nR = 11;
+
+    // y-positions
+    const pvY = 8, houseY = 110;
+    const botY = hasBatt ? 230 : 215;
+    const gridX = hasBatt ? 68 : cx;
+    const battX = 232;
+
+    function node(x, y, topText, valText, labText, valColor) {
+      return `<rect x="${x-nW/2}" y="${y}" width="${nW}" height="${nH}" rx="${nR}" fill="${NODE_BG}" stroke="${valColor}" stroke-width="1.5"/>
+        <text x="${x}" y="${y+17}" text-anchor="middle" font-size="9" fill="${C_MUTED}" font-family="sans-serif">${topText}</text>
+        <text x="${x}" y="${y+36}" text-anchor="middle" font-size="13" fill="${valColor}" font-weight="800" font-family="monospace">${valText}</text>
+        <text x="${x}" y="${y+51}" text-anchor="middle" font-size="9" fill="${C_MUTED}" font-family="sans-serif">${labText}</text>`;
+    }
+
+    function animLine(x1, y1, x2, y2, color, power, fwd) {
+      if (Math.abs(power) < 3) return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C_BASE}" stroke-width="2.5" stroke-linecap="round"/>`;
+      const s = spd(power);
+      const dir = fwd ? 'pv-flow-fwd' : 'pv-flow-rev';
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${C_BASE}" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2.5" stroke-linecap="round"
+          stroke-dasharray="7 11" style="animation:${dir} ${s}s linear infinite;"/>`;
+    }
+
+    const pvLine   = animLine(cx, pvY+nH, cx, houseY, C_PV, pvW, true);
+    const gColor   = gridW >= 0 ? C_FEED : C_DRAW;
+    const gridLine = hasBatt
+      ? animLine(cx-18, houseY+nH, gridX+nW/2, botY, gColor, gridW, gridW >= 0)
+      : animLine(cx, houseY+nH, cx, botY, gColor, gridW, gridW >= 0);
+    const battLine = hasBatt ? animLine(cx+18, houseY+nH, battX-nW/2, botY, C_BATT, Math.abs(pvW - houseW + gridW), true) : '';
+
+    const gridLabel = gridW > 5 ? `${fmtW(gridW)} &#8593;` : gridW < -5 ? `${fmtW(gridW)} &#8595;` : '~0 W';
+    const gridLab2  = gridW >= 0 ? 'Einspeisung' : 'Netzbezug';
+
+    return `<div style="display:flex;justify-content:center;padding:4px 0 0;">
+      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:${VW}px;display:block;">
+        <defs><style>
+          @keyframes pv-flow-fwd { from { stroke-dashoffset: 18; } to { stroke-dashoffset: 0; } }
+          @keyframes pv-flow-rev { from { stroke-dashoffset: 0;  } to { stroke-dashoffset: 18; } }
+        </style></defs>
+        ${pvLine}${gridLine}${battLine}
+        ${node(cx,    pvY,   'PV-Anlage', fmtW(pvW),   pvW > 3 ? 'produziert' : 'inaktiv', C_PV)}
+        ${node(cx,    houseY,'Verbrauch', fmtW(houseW), 'Haus', C_HOUSE)}
+        ${node(gridX, botY,  'Netz', gridLabel, gridLab2, gColor)}
+        ${hasBatt ? node(battX, botY, 'Batterie', battPct+'%', battPct > 20 ? 'geladen' : 'niedrig', C_BATT) : ''}
+      </svg>
+    </div>`;
+  }
+
   async function loadPvStatsView(view) {
     _pvStatsView = view;
-    ['today','7days','month','year'].forEach(v => {
+    // Refresh-Intervall anpassen wenn Tab wechselt
+    clearInterval(_pvStatsRefreshInterval);
+    _pvStatsRefreshInterval = setInterval(() => loadPvStatsView(_pvStatsView),
+      view === 'flow' ? 5000 : 60000);
+
+    ['flow','today','7days','month','year'].forEach(v => {
       const btn = document.getElementById(`pvtab-${v}`);
       if (!btn) return;
       btn.style.background = v === view ? 'rgba(0,200,255,0.12)' : 'transparent';
@@ -1827,6 +1901,13 @@
     if (!content) return;
     content.innerHTML = '<div style="color:#7f8dcb;font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>';
     try {
+      if (view === 'flow') {
+        const r = await fetch('/ha/pv/state', { cache: 'no-store' });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json();
+        content.innerHTML = _renderPvFlowDiagram(d.state);
+        return;
+      }
       const [pvResp, gridResp] = await Promise.all([
         fetch(`/ha/pv/history?view=${view}`, { cache: 'no-store' }),
         fetch(`/ha/pv/grid-history?view=${view}`, { cache: 'no-store' }),
