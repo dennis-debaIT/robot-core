@@ -88,7 +88,19 @@ SSH_DIR=/home/<dein-user>/.ssh
 
 Den HA-Token erstellt du in Home Assistant unter: **Profil → Sicherheit → Langlebige Zugriffstoken → Token erstellen**.
 
-> **Tipp:** Das `install.sh`-Script führt diesen Schritt interaktiv durch — du wirst nach HA-URL, HA-Token, LLM und TTS gefragt und die `.env` wird automatisch befüllt.
+### LLM-Optionen
+
+Erika bringt **kein eigenes Sprachmodell** mit — du wählst eine der folgenden Quellen (BYOK, „Bring Your Own Key"):
+
+| Quelle | `LLM_API_URL` | Kosten |
+|---|---|---|
+| **LM Studio / Ollama** (lokal) | `http://<ip>:1234/v1/chat/completions` | kostenlos, läuft lokal |
+| **Groq Cloud** | `https://api.groq.com/openai/v1/chat/completions` | kostenloser API-Key (console.groq.com) |
+| **OpenAI** | `https://api.openai.com/v1/chat/completions` | kostenpflichtig (eigener Key) |
+
+Für Cloud-Anbieter zusätzlich `LLM_API_KEY=<dein-key>` setzen. Alle nutzen `LLM_PROVIDER=openai_compat`.
+
+> **Tipp:** Das `install.sh`-Script führt diesen Schritt interaktiv durch — du wirst nach HA-URL, HA-Token, LLM (LM Studio / Groq / OpenAI) und TTS gefragt und die `.env` wird automatisch befüllt.
 
 ---
 

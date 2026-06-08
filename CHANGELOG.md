@@ -9,6 +9,32 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-06-08
+
+### Neu
+- **Theme-System**: Vollständiges CSS-Custom-Property-System für das Display. 12 konfigurierbare Farbvariablen (Hintergrund, Oberfläche, Akzent, Text, Rand usw.) — gespeichert in der DB (`display_theme`), beim Display-Start geladen. Admin-Tab "Design" mit Farbwählern. Endpunkte `GET/POST /display/theme`, `POST /display/theme/reset`.
+- **6 vorgefertigte Themes**: Cyan (Standard), Grün, Amber, Violett, Rot, Hell (Light Theme). Klick auf Preset befüllt die Farbwähler — Speichern erst auf Knopfdruck.
+- **Widget-Slot-System**: Panel-Layout vollständig konfigurierbar im Admin (Design → Layout). Linkes und rechtes Panel bestehen aus frei wählbaren Widgets mit Größengewicht. Kompakte Widgets (PV, Fuel, EV) nehmen natürliche Höhe und scrollen nie; flexible Widgets (Kalender, Wetter, Kameras) füllen verbleibenden Raum und scrollen intern. Endpunkte `GET/POST /display/layout`, `POST /display/layout/reset`.
+- **6 Panel-Widgets**: Wetter, Kalender, Kameras, Kraftstoff, PV-Anlage, Fahrzeug/EV — frei auf linkes/rechtes Panel verteilbar, jedes Widget nur einmal verwendbar.
+- **Kamera-Widget**: Neues Panel-Widget zeigt Snapshot der ersten konfigurierten Kamera (ab Größe ≥2) sowie die letzten Kamera-Ereignisse. Klick öffnet Kameraansicht.
+- **PV-Energiefluss-Tab**: Neuer Tab "Fluss" (Standard beim Öffnen der PV-Statistiken). Visualisiert den Energiefluss als Diagramm mit runden Nodes (PV, Haus, Netz, Batterie), Glow-Effekten, SVG-Ikonen und animierten fließenden Strichen. Aktualisiert alle 5 Sekunden. Batterie zeigt Ladestand-Grafik und aktuell geladene/entladene Leistung.
+- **Slot-Editor ↑↓**: Widgets im Admin-Layout-Editor können per Pfeil-Buttons umsortiert werden, ohne löschen und neu hinzufügen zu müssen.
+- **Setup-Checkliste im Admin**: Übersicht-Tab zeigt Einrichtungs-Status für Home Assistant, KI/LLM und Sprachausgabe (TTS) mit ✅/❌/⚠️ und direktem Link zum jeweiligen Tab.
+- **Groq als LLM-Option in `install.sh`**: Option [2] konfiguriert Groq Cloud direkt (kostenloser API-Key unter console.groq.com, vorausgefüllter Endpunkt + `llama-3.3-70b-versatile`).
+
+### Verbessert
+- **`install.sh` Abschluss-Meldung**: Klarer Fokus auf Admin-Panel als einzige Anlaufstelle. Verweis auf Setup-Checkliste. HA-Schritte nur wenn tatsächlich installiert.
+- **PV-Statistik-Charts**: SVG-viewBox-Fix — Charts wurden vorher auf schmalen Displays rechts abgeschnitten.
+- **Theme-Farben in Overlays**: Monatskalender, Drucker-Overlay, PV-Statistiken, Wetter-Übersicht, Erinnerungs-Overlay und alle SVG-Charts nutzen jetzt CSS-Variablen statt hardkodierter Hex-Werte — alle funktionieren korrekt im Light Theme.
+
+### Behoben
+- **Batterie-Fließrichtung im PV-Fluss**: War immer als "lädt" animiert — korrigiert durch korrekte Energiebilanz (`Batterie = PV − Verbrauch − Netz`). Negatives Ergebnis = Entladen → Pfeil von Batterie zu Haus.
+- **PV-Fluss Netzbezug-/Einspeise-Richtung**: Beim Netzbezug floss die Animation fälschlich zu PV. Korrekt: nur Netz → Haus bei Netzbezug, nur PV → Netz bei Einspeisung.
+- **Widget-Slots scrollen nicht mehr**: Kompakte Widgets (PV, Fuel, EV) zeigen immer den vollständigen Inhalt, unabhängig von der zugewiesenen Größe.
+- **Wetter-Übersicht Tageskarten**: Dunkler Hintergrund durch `var(--surface2)` ersetzt — korrekte Darstellung im Light Theme.
+
+---
+
 ## 2026-05-29
 
 ### Neu

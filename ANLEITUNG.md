@@ -23,6 +23,7 @@ Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen.
 14. [Persönliches](#14-persönliches)
 15. [PV-Anlage](#15-pv-anlage)
 16. [System](#16-system)
+17. [Design & Layout](#17-design--layout)
 
 ---
 
@@ -393,6 +394,29 @@ Im Admin-Panel unter **System → Standort** können Koordinaten für Wetter- un
 
 ---
 
+## 17. Design & Layout
+
+Das Aussehen des Displays wird im Admin-Panel unter **Design** angepasst — nicht per Sprache.
+
+### Farben
+
+Unter **Design → Farben** lassen sich alle 12 Farben des Displays anpassen (Hintergrund, Akzent, Text, Ränder usw.). Es gibt 6 fertige Themes zum direkten Anwenden:
+
+- **Cyan** (Standard), **Grün**, **Amber**, **Violett**, **Rot**, **Hell** (helles, freundliches Theme)
+
+Ein Klick auf ein Preset füllt die Farbwähler — gespeichert wird erst über **Speichern**. Die Farben werden beim nächsten Laden des Displays übernommen.
+
+### Layout
+
+Unter **Design → Layout** wird festgelegt, welche Widgets im linken und rechten Panel erscheinen:
+
+- Verfügbare Widgets: **Wetter, Kalender, Kameras, Kraftstoff, PV-Anlage, Fahrzeug**
+- Jedes Widget kann nur einmal vorkommen
+- Pro Widget einstellbar: **Größe** (Höhengewicht) und **Reihenfolge** (↑↓)
+- Kompakte Widgets (PV, Kraftstoff, Fahrzeug) zeigen immer ihren vollen Inhalt; flexible Widgets (Kalender, Wetter, Kameras) füllen den verbleibenden Platz
+
+---
+
 ## Admin-Panel
 
 Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
@@ -403,7 +427,9 @@ Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
 | **Erika → Begrüßung** | LLM-Begrüßung an/aus, Kontext-Checkboxen (Tageszeit, Kalender, PV, Themen) |
 | **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus, Offenheit |
 | **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
-| **PV** | Sensoren konfigurieren, Widget-Felder per Checkbox, Statistiken |
+| **PV** | Sensoren konfigurieren, Widget-Felder per Checkbox, Statistiken, Energiefluss |
+| **Design → Farben** | Theme-Farben anpassen, 6 Presets (inkl. Light Theme) |
+| **Design → Layout** | Widgets auf linkes/rechtes Panel verteilen, Größe & Reihenfolge |
 | **System → Standort** | Koordinaten manuell oder via "Von HA übernehmen" (zone.home) |
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |
 | **Wetter** | Anzeige-Optionen, Anbieter (Open-Meteo / Yr.no / OpenWeatherMap) |

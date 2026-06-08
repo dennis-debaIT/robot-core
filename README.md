@@ -10,12 +10,15 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 - **LLM-Begrüßung** — KI-generierte, kontextuelle Begrüßung bei Gesichtserkennung (Tageszeit, Kalender, PV, Themen); konfigurierbarer Kontext, Template-Fallback
 - **Gesichtserkennung** — automatische Begrüßung, personenbezogener Kontext
 - **Smart Home** — Lichtsteuerung, Szenen, Zeitpläne, Staubsauger- und Mährobotersteuerung via Home Assistant
+- **Anpassbares Design** — 12 konfigurierbare Theme-Farben, 6 Presets inkl. Light Theme; im Admin (Design) editierbar
+- **Konfigurierbares Layout** — linkes/rechtes Panel aus frei wählbaren Widgets (Wetter, Kalender, Kameras, Kraftstoff, PV, Fahrzeug) mit Größengewicht
+- **Kameras** — Live-Stream, Snapshots, Ereignisliste (Bewegung/Person/Klingel), Türklingel-Overlay mit automatischem Livebild
 - **TTS** — Edge TTS (Microsoft, Online) und Sherpa ONNX (lokal, Offline-Fallback)
 - **Gedächtnis** — Langzeit-Memory mit Freigabe-Queue, Personenprofile, tägliche Zusammenfassungen, Wochensummaries
 - **Persönlichkeit** — Freundlichkeit, Humor, Direktheit u.a. — konfigurierbar und im Gespräch anpassbar
 - **Stimmung & Beziehung** — Erika entwickelt eine eigene Stimmung und Beziehungsdynamik zu Personen
 - **Fahrzeugabfragen** — Akku, Reichweite, Ladestatus per Sprache
-- **PV-Anlage** — Leistung, Hausverbrauch, Netz-Ein-/Einspeiseverfolgung, Batterieladung; konfigurierbare Widget-Felder; Echtzeit-Update alle 5 s; Tages-/Wochen-/Monatsstatistik für Einspeisung und Netzbezug
+- **PV-Anlage** — Leistung, Hausverbrauch, Netz-Ein-/Einspeiseverfolgung, Batterieladung; konfigurierbare Widget-Felder; Echtzeit-Update alle 5 s; animiertes Energiefluss-Diagramm; Tages-/Wochen-/Monatsstatistik für Einspeisung und Netzbezug
 - **Timer & Erinnerungen** — Labels, mehrere gleichzeitig, per Sprache verwalten
 - **Kalender** — Einträge per Sprache, Tagesübersicht, CalDAV-ready via Home Assistant
 - **Websuche** — Wikipedia-Provider, erweiterbar

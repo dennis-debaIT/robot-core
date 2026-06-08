@@ -1,6 +1,6 @@
 # Erika Robot Core — Roadmap
 
-> Stand: Mai 2026 · Aktuelle Version: v0.2-alpha  
+> Stand: Juni 2026 · Aktuelle Version: v0.3.0  
 > Format: abgeschlossene Phasen oben, geplante unten. Innerhalb jeder Phase sind Items nach Priorität geordnet.
 
 ---
@@ -106,8 +106,23 @@ Ziel: Bestehende Integrationen werden präziser, konfigurierbarer und zuverläss
 - [x] **PV-Echtzeit**: Widget-Aktualisierung alle 5 Sekunden
 - [x] **Standort via Koordinaten**: `zone.home` aus HA, kein mehrdeutiges Geocoding
 - [x] **TTS + Face-Recognition Race Condition behoben**: Kein ungewolltes Zuhören während Erika spricht
-- [ ] **Admin-UX Übersicht**: Health-Check / Status-Übersicht für Integrationen (Sensoren erreichbar?)
+- [x] **Admin-UX Übersicht**: Setup-Checkliste im Übersicht-Tab (HA / LLM / TTS Status mit Direkt-Link)
 - [ ] **PV-Langzeitstatistik aus Leistungssensor**: Zuverlässige kWh-Ableitung wenn kein Tageszähler konfiguriert
+
+---
+
+## ✅ Phase 4.4 — Anpassbares Display (abgeschlossen)
+
+Ziel: Nutzer können das Display optisch und strukturell an ihre Wünsche anpassen.
+
+- [x] **Theme-System**: 12 CSS-Custom-Properties, in der DB gespeichert, beim Start geladen
+- [x] **Design-Tab im Admin**: Farbwähler für alle Theme-Farben
+- [x] **6 Theme-Presets**: Cyan, Grün, Amber, Violett, Rot, Hell (Light Theme)
+- [x] **Widget-Slot-System**: Linkes/rechtes Panel aus frei wählbaren Widgets mit Größengewicht
+- [x] **6 Panel-Widgets**: Wetter, Kalender, Kameras, Kraftstoff, PV, Fahrzeug — frei verteilbar, keine Duplikate
+- [x] **Slot-Editor**: Größe (+/−) und Reihenfolge (↑↓) pro Widget
+- [x] **PV-Energiefluss-Diagramm**: Animierter Fluss mit Glow-Nodes, korrekte Richtungslogik
+- [x] **Theme-Konsistenz**: Alle Overlays/Charts nutzen CSS-Variablen (Light Theme vollständig nutzbar)
 
 ---
 
