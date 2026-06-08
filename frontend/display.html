@@ -1864,7 +1864,8 @@
     const gridLine = hasBatt
       ? animLine(cx-18, houseY+nH, gridX+nW/2, botY, gColor, gridW, gridW >= 0)
       : animLine(cx, houseY+nH, cx, botY, gColor, gridW, gridW >= 0);
-    const battLine = hasBatt ? animLine(cx+18, houseY+nH, battX-nW/2, botY, C_BATT, Math.abs(pvW - houseW + gridW), true) : '';
+    const battW = pvW - houseW - gridW; // >0 lädt, <0 entlädt
+    const battLine = hasBatt ? animLine(cx+18, houseY+nH, battX-nW/2, botY, C_BATT, battW, battW >= 0) : '';
 
     const gridLabel = gridW > 5 ? `${fmtW(gridW)} &#8593;` : gridW < -5 ? `${fmtW(gridW)} &#8595;` : '~0 W';
     const gridLab2  = gridW >= 0 ? 'Einspeisung' : 'Netzbezug';
