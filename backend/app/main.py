@@ -279,3 +279,12 @@ app.include_router(notes_router.router)
 app.include_router(theme.router)
 app.include_router(layout.router)
 app.include_router(features.router)
+
+# ── Paid-Module (Erika Plus) — optional ──────────────────────
+# Diese Module fehlen im Community-Build. Ist die Datei nicht vorhanden,
+# werden die Endpunkte gar nicht registriert (404 statt 403).
+try:
+    from app.api.routers import ha_pv_stats
+    app.include_router(ha_pv_stats.router)
+except ImportError:
+    pass
