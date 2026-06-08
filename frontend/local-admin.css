@@ -1150,3 +1150,47 @@ code {
   background: var(--accent);
   transition: width 0.4s ease, background 0.3s;
 }
+
+/* ── Design-Tab: Farbwähler-Grid ────────────────────────── */
+.theme-color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+.theme-color-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.theme-color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  background: none;
+  flex-shrink: 0;
+}
+.theme-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.theme-color-swatch::-webkit-color-swatch { border-radius: 6px; border: none; }
+.theme-color-info { flex: 1; min-width: 0; }
+.theme-color-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.theme-color-hex {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: monospace;
+  margin-top: 2px;
+}

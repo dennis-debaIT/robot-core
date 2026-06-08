@@ -6101,6 +6101,25 @@
     _ttsWasActive = ttsActive;
   }, 300);
 
+  // ── THEME ─────────────────────────────────────────────────
+  function _applyTheme(t) {
+    if (!t) return;
+    const r = document.documentElement.style;
+    if (t.bg)       r.setProperty('--bg',       t.bg);
+    if (t.surface)  r.setProperty('--surface',  t.surface);
+    if (t.surface2) r.setProperty('--surface2', t.surface2);
+    if (t.border)   r.setProperty('--border',   t.border);
+    if (t.accent)   r.setProperty('--accent',   t.accent);
+    if (t.accent2)  r.setProperty('--accent2',  t.accent2);
+    if (t.success)  r.setProperty('--success',  t.success);
+    if (t.warning)  r.setProperty('--warning',  t.warning);
+    if (t.danger)   r.setProperty('--danger',   t.danger);
+    if (t.text)     r.setProperty('--text',     t.text);
+    if (t.muted)    r.setProperty('--muted',    t.muted);
+    if (t.face_bg)  r.setProperty('--face-bg',  t.face_bg);
+  }
+  fetch('/display/theme').then(r => r.ok ? r.json() : null).then(_applyTheme).catch(() => {});
+
   // ── INIT ──────────────────────────────────────────────────
   applyMode('idle');
   setInterval(pollDisplayState, 2000);

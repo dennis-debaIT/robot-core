@@ -47,6 +47,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-erika"><span class="si-icon">🤖</span><span>Erika</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-llm"><span class="si-icon">🧠</span><span>KI / LLM</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-design"><span class="si-icon">🎨</span><span>Design</span></button>
         </div>
 
         <div class="sidebar-group">
@@ -1072,6 +1073,33 @@
               </button>
             </div>
             <div id="llm-status" style="font-size:0.82rem;color:var(--muted);min-height:24px;"></div>
+          </section>
+        </article>
+
+        <!-- ── DESIGN ──────────────────────────────────────────── -->
+        <article id="tab-design" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Erscheinungsbild</div>
+              <h2>Design</h2>
+            </div>
+            <button type="button" onclick="resetTheme()" style="padding:7px 16px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.82rem;background:rgba(255,171,0,0.1);border:1px solid var(--warning);color:var(--warning);">
+              ↺ Zurücksetzen
+            </button>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Farben</div>
+              <p>Passe die Farbpalette des Displays an. Änderungen werden nach dem Speichern beim nächsten Laden des Displays übernommen.</p>
+            </div>
+            <div class="theme-color-grid" id="theme-color-grid"></div>
+            <div style="margin-top:20px;display:flex;gap:10px;align-items:center;">
+              <button type="button" onclick="saveTheme()" style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                💾 Speichern
+              </button>
+              <span id="theme-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
           </section>
         </article>
 
@@ -4853,6 +4881,89 @@
       }
     });
   })();
+
+  // ── DESIGN / THEME ────────────────────────────────────────
+  const _THEME_LABELS = {
+    bg:       'Hintergrund',
+    surface:  'Oberfläche',
+    surface2: 'Oberfläche (tief)',
+    border:   'Rahmen',
+    accent:   'Akzentfarbe',
+    accent2:  'Akzentfarbe 2',
+    success:  'Erfolg',
+    warning:  'Warnung',
+    danger:   'Gefahr',
+    text:     'Text',
+    muted:    'Gedämpft',
+    face_bg:  'Gesichtshintergrund',
+  };
+
+  let _currentTheme = {};
+
+  function _buildThemeGrid(theme) {
+    const grid = document.getElementById('theme-color-grid');
+    if (!grid) return;
+    grid.innerHTML = Object.entries(_THEME_LABELS).map(([key, label]) => {
+      const val = theme[key] || '#000000';
+      return `<div class="theme-color-row">
+        <input type="color" class="theme-color-swatch" id="theme-${key}" value="${val}"
+               oninput="_onThemeColorInput('${key}', this.value)">
+        <div class="theme-color-info">
+          <div class="theme-color-label">${label}</div>
+          <div class="theme-color-hex" id="theme-hex-${key}">${val}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function _onThemeColorInput(key, val) {
+    _currentTheme[key] = val;
+    const hexEl = document.getElementById(`theme-hex-${key}`);
+    if (hexEl) hexEl.textContent = val;
+  }
+
+  async function loadTheme() {
+    try {
+      const r = await fetch('/display/theme');
+      if (!r.ok) return;
+      _currentTheme = await r.json();
+      _buildThemeGrid(_currentTheme);
+    } catch {}
+  }
+
+  async function saveTheme() {
+    const statusEl = document.getElementById('theme-status');
+    if (statusEl) statusEl.textContent = 'Speichern…';
+    try {
+      const r = await fetch('/display/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(_currentTheme),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      _currentTheme = await r.json();
+      _buildThemeGrid(_currentTheme);
+      if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
+  async function resetTheme() {
+    const statusEl = document.getElementById('theme-status');
+    if (statusEl) statusEl.textContent = 'Zurücksetzen…';
+    try {
+      const r = await fetch('/display/theme/reset', { method: 'POST' });
+      if (!r.ok) throw new Error(await r.text());
+      _currentTheme = await r.json();
+      _buildThemeGrid(_currentTheme);
+      if (statusEl) { statusEl.textContent = 'Zurückgesetzt ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
+  document.querySelector('[data-tab-target="tab-design"]')?.addEventListener('click', loadTheme);
   </script>
 </body>
 </html>
