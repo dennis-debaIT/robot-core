@@ -970,7 +970,7 @@
           <div style="font-size:0.76rem;margin-top:5px;font-weight:600;">${m.homeTeam?.shortName||'?'}</div>
         </div>
         <div style="text-align:center;">
-          <div style="font-size:2.8rem;font-weight:900;color:#fff;line-height:1;">${m.homeTeam?.score} : ${m.awayTeam?.score}</div>
+          <div style="font-size:2.8rem;font-weight:900;color:var(--text);line-height:1;">${m.homeTeam?.score} : ${m.awayTeam?.score}</div>
           ${ht}
         </div>
         <div style="text-align:center;flex:1;">
@@ -5305,8 +5305,8 @@
           ? (light.color_temp_kelvin <= 2800 ? 'Warmweiß' : light.color_temp_kelvin <= 4000 ? 'Neutralweiß' : 'Kaltweiß')
           : 'Aktuelle Farbe';
         const value = isCT
-          ? '<span style="color:#fff;font-weight:700;">' + light.color_temp_kelvin + ' K</span>'
-          : '<span style="color:#fff;font-weight:700;">' + hex.toUpperCase() + '</span>';
+          ? '<span style="color:var(--text);font-weight:700;">' + light.color_temp_kelvin + ' K</span>'
+          : '<span style="color:var(--text);font-weight:700;">' + hex.toUpperCase() + '</span>';
         currentColorHtml = '<div style="display:flex;align-items:center;gap:8px;margin-top:14px;justify-content:center;">'
           + '<div style="width:20px;height:20px;border-radius:50%;background:' + hex + ';border:2px solid rgba(255,255,255,0.25);flex-shrink:0;"></div>'
           + '<span style="font-size:0.72rem;color:var(--muted);">' + label + ': ' + value + '</span>'

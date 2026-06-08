@@ -304,7 +304,7 @@
     .weather-temp {
       font-size: 3.2rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text);
       line-height: 1;
     }
 
@@ -570,7 +570,7 @@
     .match-score {
       font-size: 2rem;
       font-weight: 800;
-      color: #fff;
+      color: var(--text);
       text-align: center;
       flex: 1;
     }
@@ -884,7 +884,7 @@
     .clock-time {
       font-size: 1.35rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text);
       line-height: 1;
     }
 
@@ -1479,7 +1479,7 @@
       font-weight: 800;
       line-height: 1.25;
       margin-bottom: 12px;
-      color: #fff;
+      color: var(--text);
     }
 
     .cal-center-row {
