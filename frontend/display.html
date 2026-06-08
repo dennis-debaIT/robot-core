@@ -1792,6 +1792,14 @@
   }
 
   async function openPvStats() {
+    if (!_hasFeature('pv_stats')) {
+      _showUpgradePrompt({
+        title: 'PV-Statistik & Energiefluss',
+        text: 'Detaillierte Statistiken (Tag/Woche/Monat/Jahr) und das animierte Energiefluss-Diagramm sind in Erika Plus verfügbar. Der aktuelle Live-Wert bleibt kostenlos.',
+        cta: 'Erika Plus',
+      });
+      return;
+    }
     const cp = document.getElementById('center-panel');
     if (!cp) return;
     // Overlay über dem center-panel — Inhalt bleibt erhalten
@@ -6333,6 +6341,40 @@
     }
     _ttsWasActive = ttsActive;
   }, 300);
+
+  // ── FEATURES / EDITION ────────────────────────────────────
+  let _features = {};
+  fetch('/features').then(r => r.ok ? r.json() : null).then(d => { if (d) _features = d.features || {}; }).catch(() => {});
+  function _hasFeature(id) { return _features[id] === true; }
+
+  // Wiederverwendbare Upgrade-Box für kostenpflichtige Funktionen
+  function _showUpgradePrompt({ title, text, cta } = {}) {
+    let box = document.getElementById('upgrade-prompt');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'upgrade-prompt';
+      box.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);';
+      box.addEventListener('click', e => { if (e.target === box) box.remove(); });
+      document.body.appendChild(box);
+    }
+    box.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:18px;
+                  max-width:380px;padding:28px 26px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,0.4);">
+        <div style="font-size:1.8rem;margin-bottom:10px;">⭐</div>
+        <div style="font-size:1.05rem;font-weight:800;color:var(--text);margin-bottom:8px;">${title || 'Erika Plus'}</div>
+        <div style="font-size:0.86rem;color:var(--muted);line-height:1.5;margin-bottom:20px;">${text || ''}</div>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button onclick="document.getElementById('upgrade-prompt')?.remove()"
+            style="padding:9px 18px;border-radius:10px;background:none;border:1px solid var(--border);
+                   color:var(--muted);font-size:0.84rem;font-weight:700;cursor:pointer;">Schließen</button>
+          <button onclick="document.getElementById('upgrade-prompt')?.remove()"
+            style="padding:9px 22px;border-radius:10px;background:rgba(0,200,255,0.12);
+                   border:1px solid var(--accent);color:var(--accent);font-size:0.84rem;font-weight:800;cursor:pointer;">
+            ${cta || 'Mehr erfahren'}</button>
+        </div>
+      </div>`;
+    box.style.display = 'flex';
+  }
 
   // ── PANEL LAYOUT CONFIG ───────────────────────────────────
   let _panelConfig = {

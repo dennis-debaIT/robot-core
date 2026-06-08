@@ -11,6 +11,7 @@ from app.api import deps
 from app.api.routers import (
     chat,
     content,
+    features,
     ha_calendar,
     reminders as reminders_router,
     ha_cameras,
@@ -277,3 +278,4 @@ app.include_router(reminders_router.router)
 app.include_router(notes_router.router)
 app.include_router(theme.router)
 app.include_router(layout.router)
+app.include_router(features.router)

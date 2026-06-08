@@ -1150,6 +1150,21 @@
               <span id="layout-status" style="font-size:0.8rem;color:var(--muted);"></span>
             </div>
           </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Edition (Test)</div>
+              <p>Vorschau-Schalter zum Testen, wie das Display in der jeweiligen Edition aussieht. Wird später automatisch durch die Lizenz gesetzt.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
+              <select id="edition-select" class="field-input" style="max-width:220px;" onchange="setEdition()">
+                <option value="community">Community</option>
+                <option value="plus">Plus</option>
+                <option value="family">Family</option>
+              </select>
+              <span id="edition-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+          </section>
         </article>
 
         <article id="tab-system" class="panel-card tab-panel">
@@ -5149,9 +5164,36 @@
 
   loadSetupChecklist();
 
+  async function loadEdition() {
+    try {
+      const d = await fetch('/features').then(r => r.json());
+      const sel = document.getElementById('edition-select');
+      if (sel && d.edition) sel.value = d.edition;
+    } catch {}
+  }
+
+  async function setEdition() {
+    const sel = document.getElementById('edition-select');
+    const statusEl = document.getElementById('edition-status');
+    if (!sel) return;
+    if (statusEl) statusEl.textContent = 'Speichern…';
+    try {
+      const r = await fetch('/features/edition', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ edition: sel.value }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Display neu laden zum Übernehmen'; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
   document.querySelector('[data-tab-target="tab-design"]')?.addEventListener('click', () => {
     loadTheme();
     loadLayout();
+    loadEdition();
   });
 
   // ── LAYOUT SLOT EDITOR ───────────────────────────────────
