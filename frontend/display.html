@@ -5291,8 +5291,7 @@
       video.playsInline = true;
       media.innerHTML = '';
       media.appendChild(video);
-      _attachHls(video, entityId);
-      video.play().catch(() => {});
+      _attachHlsDirect(video, m3u8_url);
     } catch {
       // Snapshot bleibt sichtbar — kein Fehler anzeigen
     }
