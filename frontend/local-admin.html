@@ -5222,7 +5222,7 @@
           border:1px solid var(--success);background:rgba(0,230,118,0.08);">
           <span style="font-size:1.1rem;">✅</span>
           <div style="font-size:0.84rem;color:var(--ink);">
-            <b>${(d.plan||'').toUpperCase()}</b> aktiv${d.valid_until ? ' · gültig bis ' + d.valid_until : ''}
+            <b>${(d.plan||'').toUpperCase()}</b> aktiv${d.valid_until ? ' · gültig bis ' + d.valid_until : ' · ♾ unbegrenzt'}
             <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${d.email || ''}</div>
           </div></div>`;
       } else {
