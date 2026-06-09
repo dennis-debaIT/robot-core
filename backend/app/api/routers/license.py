@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -14,7 +15,15 @@ from app.services.license_service import LicenseService, _LICENSE_FILE
 router = APIRouter()
 
 # Online-Lizenzserver (signiert Lizenzen). Überschreibbar via Umgebung.
-_LICENSE_SERVER = os.environ.get("LICENSE_SERVER_URL", "https://lic.wdk-it.de")
+# Custom-Port 8989, selbstsigniertes TLS (kein Let's Encrypt ohne Port 80/443).
+_LICENSE_SERVER = os.environ.get("LICENSE_SERVER_URL", "https://lic.wdk-it.de:8989")
+
+# Selbstsigniertes Server-Zertifikat akzeptieren: die Fälschungssicherheit
+# liegt in der Ed25519-Signatur der Lizenz, nicht im Transport-TLS. Ein MITM
+# kann ohne den privaten Schlüssel keine gültige Lizenz unterschieben.
+_TLS_CTX = ssl.create_default_context()
+_TLS_CTX.check_hostname = False
+_TLS_CTX.verify_mode = ssl.CERT_NONE
 
 
 @router.get("/license/status")
@@ -41,7 +50,7 @@ def activate_license(payload: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15, context=_TLS_CTX) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
