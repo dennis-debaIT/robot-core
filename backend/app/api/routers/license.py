@@ -53,27 +53,38 @@ def _install_and_apply(lic: dict) -> dict:
 
 
 def renew_license() -> str | None:
-    """Periodisches Renewal (vom Hintergrund-Loop aufgerufen).
+    """Periodisches Renewal + Edition-Abgleich (vom Hintergrund-Loop aufgerufen).
 
-    Holt für die installierte Abo-Lizenz eine frische, länger gültige Lizenz.
-    Still bei Fehlern: Server nicht erreichbar oder Code gesperrt → die lokale
-    Lizenz gilt unverändert bis zu ihrem valid_until (= Grace Period), danach
-    Rückfall auf Community. Lifetime-Lizenzen (kein valid_until) werden
-    übersprungen. Gibt den Plan bei Erfolg zurück, sonst None.
+    1. Abo-Lizenz: beim Server verlängern (frische, länger gültige Lizenz).
+    2. Danach Edition an den TATSÄCHLICHEN Lizenzstatus angleichen:
+       gültig → Plan, abgelaufen/gesperrt/ungültig → community.
+       set_edition() löst bei Änderung den Rebuild aus → entfernt den Paid-Code
+       physisch aus dem Image (bzw. bringt ihn rein). Damit werden Features bei
+       Ablauf nicht nur im Frontend, sondern auch im Image deaktiviert.
+
+    Grace Period bleibt erhalten: Server kurz offline + Lizenz noch nicht
+    abgelaufen → Edition bleibt plan (kein Rebuild). Erst wenn valid_until
+    überschritten ist → community + Rebuild.
     """
     svc = LicenseService()
     lic = svc.load()
-    if not lic or not lic.get("valid_until"):
-        return None  # keine Lizenz oder Lifetime → kein Renewal nötig
-    code = str(lic.get("license_key") or "").strip()
-    if not code:
-        return None
-    try:
-        fresh = _server_activate(code, svc.device_id())
-    except Exception:
-        return None  # offline/gesperrt → lokale Lizenz bleibt bis valid_until
-    result = _install_and_apply(fresh)
-    return result.get("plan") if result.get("valid") else None
+    if not lic:
+        return None  # keine Lizenz (Community-Gerät) — nichts zu tun
+
+    # Abo (kein Lifetime): beim Server zu verlängern versuchen
+    if lic.get("valid_until"):
+        code = str(lic.get("license_key") or "").strip()
+        if code:
+            try:
+                return _install_and_apply(_server_activate(code, svc.device_id())).get("plan")
+            except Exception:
+                pass  # offline/gesperrt → unten Edition mit Ablaufstatus abgleichen
+
+    # Edition an den effektiven Lizenzstatus angleichen (Live-Ablaufprüfung).
+    # Bei Änderung triggert set_edition den Rebuild (Paid-Code rein/raus).
+    effective = svc.current_edition()
+    FeatureService().set_edition(effective)
+    return effective if effective != "community" else None
 
 
 @router.get("/license/status")
