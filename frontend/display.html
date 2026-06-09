@@ -6085,7 +6085,17 @@
     right: [{ widget: 'calendar', size: 3 }, { widget: 'pv', size: 1 }],
   };
   const _panelRenderSeq = { left: 0, right: 0 };
-  fetch('/display/layout').then(r => r.ok ? r.json() : null).then(d => { if (d) _panelConfig = d; }).catch(() => {});
+  let _lastLayoutJson = '';
+  function _applyLayout(d) {
+    if (!d) return;
+    const j = JSON.stringify(d);
+    if (j === _lastLayoutJson) return;          // keine Änderung → nichts tun
+    _lastLayoutJson = j;
+    _panelConfig = d;
+    // Nur im Ruhe-/Home-Zustand sofort neu rendern (sonst andere Ansicht nicht stören)
+    if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
+  }
+  fetch('/display/layout').then(r => r.ok ? r.json() : null).then(_applyLayout).catch(() => {});
 
   // ── THEME ─────────────────────────────────────────────────
   function _applyTheme(t) {
@@ -6104,13 +6114,28 @@
     if (t.muted)    r.setProperty('--muted',    t.muted);
     if (t.face_bg)  r.setProperty('--face-bg',  t.face_bg);
   }
-  fetch('/display/theme').then(r => r.ok ? r.json() : null).then(_applyTheme).catch(() => {});
+  let _lastThemeJson = '';
+  function _applyThemeIfChanged(t) {
+    if (!t) return;
+    const j = JSON.stringify(t);
+    if (j === _lastThemeJson) return;
+    _lastThemeJson = j;
+    _applyTheme(t);
+  }
+  fetch('/display/theme').then(r => r.ok ? r.json() : null).then(_applyThemeIfChanged).catch(() => {});
 
   // ── INIT ──────────────────────────────────────────────────
   applyMode('idle');
   setInterval(pollDisplayState, 2000);
   setInterval(pollReplyText, 400);
   setInterval(pollDoorbellState, 3000);
+
+  // Layout/Theme-Änderungen aus dem Admin übernehmen (max. ~10s Verzögerung,
+  // wendet nur bei tatsächlicher Änderung an → kein Flackern)
+  setInterval(() => {
+    fetch('/display/layout').then(r => r.ok ? r.json() : null).then(_applyLayout).catch(() => {});
+    fetch('/display/theme').then(r => r.ok ? r.json() : null).then(_applyThemeIfChanged).catch(() => {});
+  }, 10000);
 
   const _isHome = () => _navMode === 'home';
 
