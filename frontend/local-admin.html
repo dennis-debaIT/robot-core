@@ -5247,7 +5247,7 @@
         body: JSON.stringify({ edition: sel.value }),
       });
       if (!r.ok) throw new Error(await r.text());
-      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Anzeige nach Neuladen; Paid-Module werden beim nächsten Update gebaut'; setTimeout(() => { statusEl.textContent = ''; }, 5000); }
+      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Gerät baut bei Editions-Wechsel automatisch neu (~2–5 Min)'; setTimeout(() => { statusEl.textContent = ''; }, 7000); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
     }
@@ -5290,7 +5290,7 @@
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || 'Aktivierung fehlgeschlagen');
       if (d.valid) {
-        if (statusEl) { statusEl.textContent = 'Aktiviert ✓ — Display neu laden'; setTimeout(() => statusEl.textContent = '', 5000); }
+        if (statusEl) { statusEl.textContent = 'Aktiviert ✓ — Plus wird installiert, das Gerät baut automatisch neu (~2–5 Min)'; setTimeout(() => statusEl.textContent = '', 9000); }
         if (codeEl) codeEl.value = '';
       } else {
         if (statusEl) statusEl.textContent = 'Ungültig: ' + (d.reason || '');

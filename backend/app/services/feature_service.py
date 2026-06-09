@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.database.db import get_connection, read_state, write_state
@@ -10,6 +12,10 @@ _STATE_KEY = "edition"
 # update.sh liest sie, um Community-Geräte ohne Paid-Module zu bauen.
 # So bleibt die Admin-Auswahl (DB) mit dem nächsten Build synchron.
 _EDITION_FILE = Path("/app/edition")
+
+# Update-Trigger (gemountet ./update.flag:/update.flag). Cron prüft minütlich
+# und startet update.sh → Rebuild mit der Edition aus der edition-Datei.
+_UPDATE_FLAG = Path("/update.flag")
 
 # Secure by default: ohne gesetzte Edition gilt Community. Plus/Family wird
 # erst durch den Admin-Schalter bzw. später den Lizenz-Check aktiviert.
@@ -46,6 +52,7 @@ class FeatureService:
         if edition not in _TIER_RANK:
             edition = DEFAULT_EDITION
         with get_connection() as conn:
+            previous = read_state(conn, _STATE_KEY)
             write_state(conn, _STATE_KEY, edition)
         # Host-Datei mitschreiben, damit update.sh dieselbe Edition baut.
         # Schlägt still fehl wenn nicht gemountet (z.B. Tests) — DB bleibt führend.
@@ -53,7 +60,21 @@ class FeatureService:
             _EDITION_FILE.write_text(edition + "\n")
         except OSError:
             pass
+        # Edition geändert → Rebuild anstoßen, damit Paid-Module ins Image
+        # kommen bzw. verschwinden (z.B. nach Lizenz-Aktivierung/-Entfernung).
+        if previous != edition:
+            self._trigger_rebuild()
         return edition
+
+    @staticmethod
+    def _trigger_rebuild() -> None:
+        """Setzt update.flag → Cron baut innerhalb ~1 Min mit der neuen Edition neu."""
+        try:
+            _UPDATE_FLAG.write_text(
+                json.dumps({"requested_at": datetime.now(timezone.utc).isoformat()})
+            )
+        except OSError:
+            pass
 
     def enabled_features(self) -> dict:
         rank = _TIER_RANK[self.get_edition()]
