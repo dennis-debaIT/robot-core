@@ -6,8 +6,10 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api import deps
+from app.api.deps import BASE_DIR
 from app.api.routers import (
     chat,
     content,
@@ -20,6 +22,7 @@ from app.api.routers import (
     ha_printer,
     ha_pv,
     ha_robots,
+    ha_waste,
     layout,
     license,
     local_admin,
@@ -275,6 +278,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Statische Assets (z.B. Mülltonnen-Bilder unter /assets/waste/*.png)
+app.mount("/assets", StaticFiles(directory=str(BASE_DIR / "frontend" / "assets")), name="assets")
+
 app.include_router(system.router)
 app.include_router(chat.router)
 app.include_router(memory.router)
@@ -285,6 +291,7 @@ app.include_router(ha_robots.router)
 app.include_router(ha_lights.router)
 app.include_router(ha_printer.router)
 app.include_router(ha_pv.router)
+app.include_router(ha_waste.router)
 app.include_router(local_admin.router)
 app.include_router(setup.router)
 app.include_router(simulation.router)

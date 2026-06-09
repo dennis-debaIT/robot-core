@@ -116,6 +116,10 @@ class IntegrationConfigService:
                     "last_update": "sensor.solarman_status_lastupdate",
                 },
             },
+            "waste": {
+                "enabled": False,
+                "calendar_entity": "calendar.abfallkalender",
+            },
             "meta": {
                 "version": 1,
             },

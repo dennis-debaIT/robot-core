@@ -551,6 +551,22 @@
               <button type="button" class="primary" onclick="saveDefaultWriteCalendar()">Speichern</button>
             </div>
           </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">🗑 Abfallkalender</div>
+              <p>HA-Kalender mit den Abfuhrterminen. Das Abfall-Widget zeigt pro Tonne den nächsten Termin. Im Display-Layout (Design → Layout) als Widget „Abfall" hinzufügen.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Kalender-Entity</span>
+                <input id="waste-calendar" class="field-input" type="text" placeholder="calendar.abfallkalender">
+              </label>
+            </div>
+            <div class="stack-actions" style="margin-top:10px;align-items:center;">
+              <button type="button" class="primary" onclick="saveWasteConfig()">Speichern</button>
+              <span id="waste-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+            </div>
+          </section>
         </article>
 
         <!-- ── PV-ANLAGE ─────────────────────────────────────── -->
@@ -3121,7 +3137,33 @@
       } catch {}
     }
 
+    async function _loadWasteConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const waste = (cfg.config || cfg).waste || {};
+        const el = document.getElementById('waste-calendar');
+        if (el) el.value = waste.calendar_entity || 'calendar.abfallkalender';
+      } catch {}
+    }
+
+    async function saveWasteConfig() {
+      const val = (document.getElementById('waste-calendar')?.value || '').trim() || 'calendar.abfallkalender';
+      const statusEl = document.getElementById('waste-status');
+      if (statusEl) statusEl.textContent = 'Speichere…';
+      try {
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ waste: { enabled: true, calendar_entity: val } }),
+        });
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
+    document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadWasteConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
     saveBtn.addEventListener('click', saveConfig);
@@ -5286,6 +5328,7 @@
     fuel:     { label: 'Kraftstoff' },
     pv:       { label: 'PV-Anlage' },
     ev:       { label: 'Fahrzeug / EV' },
+    waste:    { label: 'Abfall' },
   };
 
   let _layoutState = { left: [], right: [] };

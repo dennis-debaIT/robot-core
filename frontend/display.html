@@ -883,6 +883,28 @@
       + (evHtml || `<div style="color:var(--muted);font-size:0.78rem;">Keine Ereignisse</div>`);
   }
 
+  async function loadWasteData() {
+    try { const r = await fetch('/ha/waste', { cache: 'no-store' }); return r.ok ? r.json() : null; }
+    catch { return null; }
+  }
+
+  function _fmtWasteDays(d) {
+    return d === 0 ? 'Heute' : d === 1 ? 'Morgen' : 'in ' + d + ' Tagen';
+  }
+
+  function _renderWasteSlot(data, size) {
+    const bins = data?.bins || [];
+    if (!bins.length) return '<div class="cal-placeholder">Kein Abfalltermin</div>';
+    const items = bins.map(b => `
+      <div style="flex:1;text-align:center;min-width:0;">
+        <img src="/assets/waste/${b.color}.png" alt="${b.label}" title="${b.label} · ${b.date}"
+             style="height:58px;width:auto;object-fit:contain;display:block;margin:0 auto 5px;"
+             onerror="this.style.display='none'">
+        <div style="font-size:0.7rem;font-weight:800;color:${b.days<=1?'var(--warning)':'var(--text)'};white-space:nowrap;">${_fmtWasteDays(b.days)}</div>
+      </div>`).join('');
+    return `<div style="display:flex;gap:6px;align-items:flex-end;justify-content:space-around;padding:4px 0;">${items}</div>`;
+  }
+
   const _WIDGET_DEFS = {
     weather:  { label: 'Wetter',     load: () => loadWeather(),           render: _renderWeatherSlot,   compact: false },
     calendar: { label: 'Kalender',   load: () => loadCalendar(),          render: _renderCalendarSlot,  compact: false },
@@ -890,6 +912,7 @@
     fuel:     { label: 'Kraftstoff', load: () => loadFuel(),              render: _renderFuelSlot,      compact: true  },
     pv:       { label: 'PV-Anlage',  load: () => loadPvData(),            render: _renderPvSlot,        compact: true  },
     ev:       { label: 'Fahrzeug',   load: () => loadEV(),                render: _renderEvSlot,        compact: true  },
+    waste:    { label: 'Abfall',     load: () => loadWasteData(),         render: _renderWasteSlot,     compact: true  },
   };
 
   function _widgetEnabled(widgetId) {
