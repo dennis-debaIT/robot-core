@@ -21,6 +21,7 @@ from app.api.routers import (
     ha_pv,
     ha_robots,
     layout,
+    license,
     local_admin,
     memory,
     notes as notes_router,
@@ -279,6 +280,7 @@ app.include_router(notes_router.router)
 app.include_router(theme.router)
 app.include_router(layout.router)
 app.include_router(features.router)
+app.include_router(license.router)
 
 # ── Paid-Module (Erika Plus) — optional ──────────────────────
 # Diese Module fehlen im Community-Build. Ist die Datei nicht vorhanden,

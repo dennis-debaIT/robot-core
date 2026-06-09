@@ -30,6 +30,14 @@ _TIER_RANK = {"community": 0, "plus": 1, "family": 2}
 
 class FeatureService:
     def get_edition(self) -> str:
+        # Eine installierte Lizenz hat Vorrang (Live-Prüfung inkl. Ablauf):
+        # gültig → Plan aus Lizenz, abgelaufen/ungültig → community.
+        from app.services.license_service import LicenseService
+        lic = LicenseService()
+        if lic.load() is not None:
+            edition = lic.current_edition()
+            return edition if edition in _TIER_RANK else "community"
+        # Keine Lizenzdatei → manueller Wert (Admin-Test-Schalter), Default community.
         with get_connection() as conn:
             ed = read_state(conn, _STATE_KEY)
         return ed if ed in _TIER_RANK else DEFAULT_EDITION

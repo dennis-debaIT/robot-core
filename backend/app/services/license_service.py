@@ -20,7 +20,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 #
 # Der öffentliche Schlüssel wird mit gen_keys.py erzeugt und hier eingesetzt
 # (Base64 der rohen 32 Bytes). Leer = es kann keine gültige Lizenz geben.
-_PUBLIC_KEY_B64 = ""
+# Privates Gegenstück: robot-core-plus/licensing/private_key.pem
+_PUBLIC_KEY_B64 = "9gMS1WDzh0w/GBE51ykGEUDgQHKIwQFv9ZzNVTh1jBM="
 
 # Lizenz liegt im DB-Volume → überlebt Updates und Image-Wechsel.
 _LICENSE_FILE = Path("/data/license.json")
