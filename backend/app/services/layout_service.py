@@ -4,7 +4,7 @@ from app.database.db import get_connection, read_state, write_state
 
 _STATE_KEY = "display_layout"
 
-_VALID_WIDGETS = {"weather", "calendar", "fuel", "pv", "ev"}
+_VALID_WIDGETS = {"weather", "calendar", "fuel", "pv", "ev", "cameras", "waste"}
 
 DEFAULT_LAYOUT: dict = {
     "left": [
