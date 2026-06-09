@@ -202,6 +202,20 @@ async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
         await asyncio.sleep(max(10, min(interval_seconds, 300)))
 
 
+async def _license_renewal_loop(interval_hours: int = 24) -> None:
+    """Erneuert eine installierte Abo-Lizenz täglich beim Lizenzserver.
+    Lifetime-Lizenzen und fehlende Lizenzen werden übersprungen (still)."""
+    from app.api.routers.license import renew_license
+
+    await asyncio.sleep(120)  # Startup-Verzögerung (Netzwerk/HA erst hochfahren)
+    while True:
+        try:
+            renew_license()
+        except Exception:
+            pass
+        await asyncio.sleep(max(3600, interval_hours * 3600))
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> Any:
     init_db()
@@ -220,6 +234,7 @@ async def lifespan(_: FastAPI) -> Any:
     notification_task = asyncio.create_task(_notification_check_loop())
     reminder_task = asyncio.create_task(_reminder_watcher_loop())
     memory_task = asyncio.create_task(_memory_maintenance_loop())
+    license_task = asyncio.create_task(_license_renewal_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -231,6 +246,7 @@ async def lifespan(_: FastAPI) -> Any:
         notification_task.cancel()
         reminder_task.cancel()
         memory_task.cancel()
+        license_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
@@ -245,6 +261,8 @@ async def lifespan(_: FastAPI) -> Any:
             await reminder_task
         with suppress(asyncio.CancelledError):
             await memory_task
+        with suppress(asyncio.CancelledError):
+            await license_task
         deps.clear_runtime()
 
 

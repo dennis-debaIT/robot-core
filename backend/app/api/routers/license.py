@@ -26,6 +26,56 @@ _TLS_CTX.check_hostname = False
 _TLS_CTX.verify_mode = ssl.CERT_NONE
 
 
+def _server_activate(code: str, device_id: str) -> dict:
+    """Ruft den Lizenzserver und gibt das signierte Lizenz-Dokument zurück.
+    Wirft urllib-Fehler (HTTPError/URLError) bzw. ValueError weiter."""
+    body = json.dumps({"code": code, "device_id": device_id}).encode("utf-8")
+    req = urllib.request.Request(
+        f"{_LICENSE_SERVER}/activate",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15, context=_TLS_CTX) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    lic = data.get("license")
+    if not lic:
+        raise ValueError("Keine Lizenz in der Serverantwort")
+    return lic
+
+
+def _install_and_apply(lic: dict) -> dict:
+    """Lizenz installieren und bei Gültigkeit die Edition setzen."""
+    result = LicenseService().install(lic)
+    if result.get("valid"):
+        FeatureService().set_edition(result.get("plan", "community"))
+    return result
+
+
+def renew_license() -> str | None:
+    """Periodisches Renewal (vom Hintergrund-Loop aufgerufen).
+
+    Holt für die installierte Abo-Lizenz eine frische, länger gültige Lizenz.
+    Still bei Fehlern: Server nicht erreichbar oder Code gesperrt → die lokale
+    Lizenz gilt unverändert bis zu ihrem valid_until (= Grace Period), danach
+    Rückfall auf Community. Lifetime-Lizenzen (kein valid_until) werden
+    übersprungen. Gibt den Plan bei Erfolg zurück, sonst None.
+    """
+    svc = LicenseService()
+    lic = svc.load()
+    if not lic or not lic.get("valid_until"):
+        return None  # keine Lizenz oder Lifetime → kein Renewal nötig
+    code = str(lic.get("license_key") or "").strip()
+    if not code:
+        return None
+    try:
+        fresh = _server_activate(code, svc.device_id())
+    except Exception:
+        return None  # offline/gesperrt → lokale Lizenz bleibt bis valid_until
+    result = _install_and_apply(fresh)
+    return result.get("plan") if result.get("valid") else None
+
+
 @router.get("/license/status")
 def license_status() -> dict:
     result = LicenseService().status()
@@ -36,22 +86,12 @@ def license_status() -> dict:
 @router.post("/license/activate")
 def activate_license(payload: dict) -> dict:
     """Kunde gibt nur den Code ein → Server signiert eine an dieses Gerät
-    gebundene Lizenz → wird lokal installiert. Auch für periodisches Renewal."""
+    gebundene Lizenz → wird lokal installiert."""
     code = str(payload.get("code") or "").strip().upper()
     if not code:
         raise HTTPException(400, "Lizenzcode erforderlich")
-
-    device_id = LicenseService.device_id()
-    body = json.dumps({"code": code, "device_id": device_id}).encode("utf-8")
-    req = urllib.request.Request(
-        f"{_LICENSE_SERVER}/activate",
-        data=body,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(req, timeout=15, context=_TLS_CTX) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        lic = _server_activate(code, LicenseService.device_id())
     except urllib.error.HTTPError as e:
         try:
             detail = json.loads(e.read().decode("utf-8")).get("detail", "")
@@ -60,25 +100,15 @@ def activate_license(payload: dict) -> dict:
         raise HTTPException(e.code, detail or f"Aktivierung fehlgeschlagen (HTTP {e.code})")
     except urllib.error.URLError:
         raise HTTPException(503, "Lizenzserver nicht erreichbar — Internetverbindung prüfen")
-
-    license_doc = data.get("license")
-    if not license_doc:
+    except ValueError:
         raise HTTPException(502, "Ungültige Antwort vom Lizenzserver")
-
-    result = LicenseService().install(license_doc)
-    if result.get("valid"):
-        FeatureService().set_edition(result.get("plan", "community"))
-    return result
+    return _install_and_apply(lic)
 
 
 @router.post("/license")
 def install_license(payload: dict) -> dict:
-    """Signierte license.json hochladen. Bei Gültigkeit wird sie gespeichert
-    und die Edition (DB + Build-Datei) entsprechend gesetzt."""
-    result = LicenseService().install(payload)
-    if result.get("valid"):
-        FeatureService().set_edition(result.get("plan", "community"))
-    return result
+    """Signierte license.json direkt hochladen (Fallback ohne Server)."""
+    return _install_and_apply(payload)
 
 
 @router.delete("/license")
