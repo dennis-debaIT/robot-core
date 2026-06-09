@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import uuid
 from datetime import date
 from pathlib import Path
 
@@ -97,8 +98,31 @@ class LicenseService:
         return result["plan"] if result.get("valid") else "community"
 
     def install(self, lic: dict) -> dict:
-        """Lizenz prüfen und bei Gültigkeit speichern."""
+        """Lizenz prüfen und bei Gültigkeit speichern.
+
+        Bindet zusätzlich an dieses Gerät: stimmt die device_id der Lizenz
+        nicht mit der echten Hardware-ID überein, wird sie abgelehnt
+        (leere device_id = nicht gebunden, wird akzeptiert)."""
         result = self.verify(lic)
         if result.get("valid"):
+            lic_device = (lic.get("device_id") or "").strip()
+            if lic_device and lic_device != self.device_id():
+                return {"valid": False, "plan": "community", "reason": "wrong_device"}
             _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
         return result
+
+    @staticmethod
+    def device_id() -> str:
+        """Stabile Hardware-ID dieses Geräts.
+
+        Bevorzugt die Pi-Seriennummer (/proc/cpuinfo zeigt im Container die
+        des Hosts), Fallback auf MAC-Adresse. Bindet eine Lizenz ans Gerät."""
+        try:
+            for line in Path("/proc/cpuinfo").read_text().splitlines():
+                if line.lower().startswith("serial"):
+                    serial = line.split(":", 1)[1].strip()
+                    if serial and set(serial) != {"0"}:
+                        return f"pi-{serial}"
+        except OSError:
+            pass
+        return f"mac-{uuid.getnode():012x}"

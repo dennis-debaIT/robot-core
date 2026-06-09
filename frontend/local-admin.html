@@ -1153,8 +1153,29 @@
 
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">Lizenz</div>
+              <p>Erika Plus mit deinem Lizenzcode aktivieren. Der Code wird online geprüft; bei Gültigkeit schaltet sich die Edition automatisch frei.</p>
+            </div>
+            <div id="license-current" style="margin-top:8px;"></div>
+            <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;">
+              <input id="license-code" class="field-input" style="max-width:260px;text-transform:uppercase;"
+                     placeholder="EZ-XXXX-XXXX-XXXX" autocomplete="off">
+              <button type="button" onclick="activateLicense()"
+                style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                Aktivieren
+              </button>
+              <button type="button" onclick="removeLicense()"
+                style="padding:8px 14px;border-radius:10px;font-size:0.82rem;font-weight:700;cursor:pointer;background:none;border:1px solid var(--line);color:var(--muted);">
+                Entfernen
+              </button>
+              <span id="license-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Edition (Test)</div>
-              <p>Vorschau-Schalter zum Testen, wie das Display in der jeweiligen Edition aussieht. Wird später automatisch durch die Lizenz gesetzt.</p>
+              <p>Vorschau-Schalter zum Testen, wie das Display in der jeweiligen Edition aussieht. Greift nur solange keine Lizenz installiert ist — sonst hat die Lizenz Vorrang.</p>
             </div>
             <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
               <select id="edition-select" class="field-input" style="max-width:220px;" onchange="setEdition()">
@@ -5190,10 +5211,71 @@
     }
   }
 
+  // ── LIZENZ ───────────────────────────────────────────────
+  async function loadLicenseStatus() {
+    const box = document.getElementById('license-current');
+    if (!box) return;
+    try {
+      const d = await fetch('/license/status').then(r => r.json());
+      if (d.valid) {
+        box.innerHTML = `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;
+          border:1px solid var(--success);background:rgba(0,230,118,0.08);">
+          <span style="font-size:1.1rem;">✅</span>
+          <div style="font-size:0.84rem;color:var(--ink);">
+            <b>${(d.plan||'').toUpperCase()}</b> aktiv${d.valid_until ? ' · gültig bis ' + d.valid_until : ''}
+            <div style="font-size:0.72rem;color:var(--muted);margin-top:2px;">${d.email || ''}</div>
+          </div></div>`;
+      } else {
+        const reason = { no_license:'Keine Lizenz installiert', expired:'Lizenz abgelaufen',
+          bad_signature:'Lizenz ungültig', wrong_device:'Lizenz für anderes Gerät' }[d.reason] || 'Community';
+        box.innerHTML = `<div style="font-size:0.82rem;color:var(--muted);">${reason}
+          <span style="opacity:0.6;"> · Geräte-ID: ${d.device_id || '–'}</span></div>`;
+      }
+    } catch {}
+  }
+
+  async function activateLicense() {
+    const codeEl = document.getElementById('license-code');
+    const statusEl = document.getElementById('license-status');
+    const code = (codeEl?.value || '').trim();
+    if (!code) { if (statusEl) statusEl.textContent = 'Bitte Code eingeben'; return; }
+    if (statusEl) statusEl.textContent = 'Aktiviere…';
+    try {
+      const r = await fetch('/license/activate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || 'Aktivierung fehlgeschlagen');
+      if (d.valid) {
+        if (statusEl) { statusEl.textContent = 'Aktiviert ✓ — Display neu laden'; setTimeout(() => statusEl.textContent = '', 5000); }
+        if (codeEl) codeEl.value = '';
+      } else {
+        if (statusEl) statusEl.textContent = 'Ungültig: ' + (d.reason || '');
+      }
+      loadLicenseStatus();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
+  async function removeLicense() {
+    const statusEl = document.getElementById('license-status');
+    if (statusEl) statusEl.textContent = 'Entferne…';
+    try {
+      await fetch('/license', { method: 'DELETE' });
+      if (statusEl) { statusEl.textContent = 'Entfernt — zurück auf Community'; setTimeout(() => statusEl.textContent = '', 4000); }
+      loadLicenseStatus();
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
   document.querySelector('[data-tab-target="tab-design"]')?.addEventListener('click', () => {
     loadTheme();
     loadLayout();
     loadEdition();
+    loadLicenseStatus();
   });
 
   // ── LAYOUT SLOT EDITOR ───────────────────────────────────
