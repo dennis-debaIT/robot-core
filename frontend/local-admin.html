@@ -3028,12 +3028,23 @@
       }
     }
 
+    // Plus-only Admin-Tabs je nach Lizenz ein-/ausblenden
+    async function _applyFeatureGating() {
+      try {
+        const d = await fetch('/features').then(r => r.json());
+        const feats = d.features || {};
+        const wasteBtn = document.querySelector('[data-tab-target="tab-waste"]');
+        if (wasteBtn) wasteBtn.style.display = feats.waste ? '' : 'none';
+      } catch {}
+    }
+
     async function boot() {
       try {
         await loadConfig();
       } catch (error) {
         setStatus(error.message || 'Initialisierung fehlgeschlagen.', true);
       }
+      _applyFeatureGating();
       // Update-Einstellungen laden
       try {
         const s = await fetch('/system/update/settings').then(r => r.json());
