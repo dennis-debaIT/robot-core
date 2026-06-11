@@ -119,6 +119,12 @@ class IntegrationConfigService:
             "waste": {
                 "enabled": False,
                 "calendar_entity": "calendar.abfallkalender",
+                "bins": [
+                    {"match": "gelb",  "label": "Gelbe Tonne", "color": "yellow"},
+                    {"match": "braun", "label": "Biotonne",    "color": "brown"},
+                    {"match": "grau",  "label": "Restmüll",    "color": "black"},
+                    {"match": "grün",  "label": "Grüne Tonne", "color": "green"},
+                ],
             },
             "meta": {
                 "version": 1,
@@ -200,6 +206,24 @@ class IntegrationConfigService:
         pv_wf = pv.setdefault("widget_fields", {})
         for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
             pv_wf[_k] = bool(pv_wf.get(_k, _def))
+        waste = merged.setdefault("waste", {})
+        waste["enabled"] = bool(waste.get("enabled", False))
+        waste["calendar_entity"] = str(waste.get("calendar_entity") or "calendar.abfallkalender").strip()
+        _waste_colors = {"yellow", "brown", "black", "green", "blue"}
+        _bins = []
+        for _b in (waste.get("bins") or []):
+            if not isinstance(_b, dict):
+                continue
+            _match = str(_b.get("match") or "").strip()
+            _color = str(_b.get("color") or "").strip().lower()
+            if not _match or _color not in _waste_colors:
+                continue
+            _bins.append({
+                "match": _match,
+                "label": str(_b.get("label") or "").strip() or _match,
+                "color": _color,
+            })
+        waste["bins"] = _bins
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

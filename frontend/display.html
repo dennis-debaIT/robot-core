@@ -920,6 +920,7 @@
     if (widgetId === 'ev')       return _enabledModules.vehicles === true;
     if (widgetId === 'calendar') return _enabledModules.calendar !== false;
     if (widgetId === 'cameras')  return _enabledModules.cameras === true;
+    if (widgetId === 'waste')    return _hasFeature('waste');
     return true;
   }
 
@@ -945,9 +946,11 @@
     const gridRows = slots.map((s, i) => {
       const def = _WIDGET_DEFS[s.widget];
       const content = _widgetEnabled(s.widget) ? def.render(dataArr[i], s.size || 1) : '';
+      // kompakt: natürliche Höhe. flexibel: füllt Restplatz (flex-grow nach size),
+      // schrumpft aber nicht unter min-height → bei Überlauf scrollt das Panel.
       const flexStyle = def.compact
         ? 'flex:0 0 auto;'
-        : `flex:${s.size || 1};min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border) transparent;`;
+        : `flex:${s.size || 1} 1 auto;min-height:150px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-color:var(--border) transparent;`;
       return `<div class="widget-slot" data-widget="${s.widget}" style="${flexStyle}">${content}</div>`;
     }).join('');
 

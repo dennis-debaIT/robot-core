@@ -29,6 +29,7 @@ FEATURES: dict[str, str] = {
     "pv_stats":        "plus",   # PV-Statistik + Energiefluss-Diagramm
     "camera_events":   "plus",   # Kamera-Ereignisliste + Türklingel-Historie
     "vehicle_history": "plus",   # Fahrzeug-Ladeverlauf
+    "waste":           "plus",   # Abfallkalender-Widget
 }
 
 _TIER_RANK = {"community": 0, "plus": 1, "family": 2}

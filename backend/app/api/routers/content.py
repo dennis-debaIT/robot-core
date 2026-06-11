@@ -270,10 +270,12 @@ def get_calendar_month(year: int = 0, month: int = 0) -> dict[str, Any]:
     cal_cfg = config.get("calendar") or {}
     selected = [s for s in (cal_cfg.get("selected_calendars") or []) if s]
     colors   = cal_cfg.get("colors") or {}
+    _waste = ((config.get("waste") or {}).get("calendar_entity") or "").strip()
+    exclude = [_waste] if _waste else None
     now = _dt.now()
     y = year  or now.year
     m = month or now.month
-    events = HomeAssistantProvider().get_month_events(y, m, selected if selected else None)
+    events = HomeAssistantProvider().get_month_events(y, m, selected if selected else None, exclude_calendars=exclude)
     # Gruppieren nach Datum
     by_date: dict[str, list] = {}
     for ev in events:
@@ -296,6 +298,8 @@ def get_calendar_month(year: int = 0, month: int = 0) -> dict[str, Any]:
     ha = HomeAssistantProvider()
     all_cals = {c["entity_id"]: c.get("name", c["entity_id"]) for c in (ha.list_calendars() or [])}
     legend_entities = selected if selected else list(all_cals.keys())
+    if _waste:
+        legend_entities = [e for e in legend_entities if e != _waste]
     _DEFAULT_COLORS = ["#4285f4","#0f9d58","#db4437","#f4b400","#ab47bc","#00acc1","#ff7043","#9e9d24"]
     legend = [
         {
@@ -322,9 +326,13 @@ def get_calendar() -> dict[str, Any]:
     cal_cfg = config.get("calendar") or {}
     days = max(1, min(30, int(cal_cfg.get("days_count") or 7)))
     selected = [s for s in (cal_cfg.get("selected_calendars") or []) if s]
+    # Abfallkalender nie im normalen Kalender-Widget zeigen (eigenes Abfall-Widget)
+    _waste = ((config.get("waste") or {}).get("calendar_entity") or "").strip()
+    exclude = [_waste] if _waste else None
     result = HomeAssistantProvider().get_display_data(
         days=days,
         selected_calendars=selected if selected else None,
+        exclude_calendars=exclude,
     )
     if not result:
         raise HTTPException(status_code=503, detail="Kalender nicht verfügbar")

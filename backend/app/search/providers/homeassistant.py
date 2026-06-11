@@ -505,12 +505,15 @@ class HomeAssistantProvider:
         result = self._get("/calendars")
         return result if isinstance(result, list) else []
 
-    def get_events_upcoming(self, days: int = 7, selected_calendars: list[str] | None = None) -> list[dict]:
+    def get_events_upcoming(self, days: int = 7, selected_calendars: list[str] | None = None,
+                            exclude_calendars: list[str] | None = None) -> list[dict]:
         calendars = self.list_calendars()
         if not calendars:
             return []
         if selected_calendars:
             calendars = [c for c in calendars if c.get("entity_id") in selected_calendars]
+        if exclude_calendars:
+            calendars = [c for c in calendars if c.get("entity_id") not in exclude_calendars]
         if not calendars:
             return []
 
@@ -542,7 +545,8 @@ class HomeAssistantProvider:
         all_events.sort(key=sort_key)
         return all_events
 
-    def get_month_events(self, year: int, month: int, selected_calendars: list[str] | None = None) -> list[dict]:
+    def get_month_events(self, year: int, month: int, selected_calendars: list[str] | None = None,
+                         exclude_calendars: list[str] | None = None) -> list[dict]:
         """Alle Ereignisse eines Kalendermonats."""
         import calendar as _cal
         calendars = self.list_calendars()
@@ -550,6 +554,8 @@ class HomeAssistantProvider:
             return []
         if selected_calendars:
             calendars = [c for c in calendars if c.get("entity_id") in selected_calendars]
+        if exclude_calendars:
+            calendars = [c for c in calendars if c.get("entity_id") not in exclude_calendars]
         if not calendars:
             return []
         last_day = _cal.monthrange(year, month)[1]
@@ -571,9 +577,11 @@ class HomeAssistantProvider:
                 all_events.append(ev)
         return all_events
 
-    def get_display_data(self, days: int = 7, selected_calendars: list[str] | None = None) -> dict[str, Any] | None:
+    def get_display_data(self, days: int = 7, selected_calendars: list[str] | None = None,
+                         exclude_calendars: list[str] | None = None) -> dict[str, Any] | None:
         """Strukturierte Kalender-Daten für Display-Ausgabe."""
-        events    = self.get_events_upcoming(days=days, selected_calendars=selected_calendars)
+        events    = self.get_events_upcoming(days=days, selected_calendars=selected_calendars,
+                                             exclude_calendars=exclude_calendars)
         now_local = datetime.now()
         today     = now_local.date()
         tomorrow  = today + timedelta(days=1)

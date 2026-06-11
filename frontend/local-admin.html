@@ -38,6 +38,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-fuel"><span class="si-icon">⛽</span><span>Kraftstoff</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-pv"><span class="si-icon">☀️</span><span>PV-Anlage</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
         </div>
 
         <div class="sidebar-group">
@@ -551,22 +552,6 @@
               <button type="button" class="primary" onclick="saveDefaultWriteCalendar()">Speichern</button>
             </div>
           </section>
-          <section class="module-card">
-            <div class="section-copy">
-              <div class="section-title">🗑 Abfallkalender</div>
-              <p>HA-Kalender mit den Abfuhrterminen. Das Abfall-Widget zeigt pro Tonne den nächsten Termin. Im Display-Layout (Design → Layout) als Widget „Abfall" hinzufügen.</p>
-            </div>
-            <div class="field-grid">
-              <label class="field-block">
-                <span class="field-label">Kalender-Entity</span>
-                <input id="waste-calendar" class="field-input" type="text" placeholder="calendar.abfallkalender">
-              </label>
-            </div>
-            <div class="stack-actions" style="margin-top:10px;align-items:center;">
-              <button type="button" class="primary" onclick="saveWasteConfig()">Speichern</button>
-              <span id="waste-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
-            </div>
-          </section>
         </article>
 
         <!-- ── PV-ANLAGE ─────────────────────────────────────── -->
@@ -650,6 +635,42 @@
               <label class="mini-check"><input type="checkbox" id="pv-wf-temperature"><span>Temperatur</span></label>
             </div>
           </section>
+        </article>
+
+        <!-- ── ABFALL ─────────────────────────────────────────── -->
+        <article id="tab-waste" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Abfall <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
+              <h2>Abfallkalender</h2>
+            </div>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Kalender</div>
+              <p>HA-Kalender mit den Abfuhrterminen (z. B. über die Integration <em>waste_collection_schedule</em>). Diese Termine erscheinen nur im Abfall-Widget, nicht im normalen Kalender. Im Display-Layout (Design → Layout) als Widget „Abfall" hinzufügen.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Kalender-Entity</span>
+                <input id="waste-calendar" class="field-input" type="text" placeholder="calendar.abfallkalender">
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Tonnen</div>
+              <p>Lege fest, welche Tonnen angezeigt werden. <b>Suchbegriff</b> = Wort, das im Kalendereintrag vorkommt (z. B. „graue"). <b>Name</b> = Anzeige im Widget. <b>Farbe</b> = Tonnen-Symbol. Pro Tonne wird der nächste Termin angezeigt (alle Varianten zusammengefasst).</p>
+            </div>
+            <div id="waste-bins" class="layout-slot-list"></div>
+            <div class="layout-add-row" style="margin-top:10px;">
+              <button type="button" class="secondary" onclick="addWasteBin()">+ Tonne hinzufügen</button>
+            </div>
+          </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveWasteConfig()">Speichern</button>
+            <span id="waste-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <!-- ── 3D-DRUCKER ─────────────────────────────────────── -->
@@ -3137,24 +3158,64 @@
       } catch {}
     }
 
+    const _WASTE_COLORS = [
+      ['yellow', 'Gelb'], ['brown', 'Braun'], ['black', 'Schwarz/Grau'],
+      ['green', 'Grün'], ['blue', 'Blau'],
+    ];
+    let _wasteBins = [];
+
+    function _renderWasteBins() {
+      const box = document.getElementById('waste-bins');
+      if (!box) return;
+      if (!_wasteBins.length) {
+        box.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:8px 0;">Keine Tonne konfiguriert</div>';
+        return;
+      }
+      box.innerHTML = _wasteBins.map((b, i) => `
+        <div class="layout-slot-row" style="gap:10px;flex-wrap:wrap;">
+          <input class="field-input" style="flex:1;min-width:110px;" placeholder="Suchbegriff (z.B. graue)"
+                 value="${(b.match||'').replace(/"/g,'&quot;')}" oninput="_wasteBins[${i}].match=this.value">
+          <input class="field-input" style="flex:1;min-width:110px;" placeholder="Anzeigename"
+                 value="${(b.label||'').replace(/"/g,'&quot;')}" oninput="_wasteBins[${i}].label=this.value">
+          <select class="field-input" style="max-width:150px;" onchange="_wasteBins[${i}].color=this.value">
+            ${_WASTE_COLORS.map(([v,l]) => `<option value="${v}" ${b.color===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+          <button type="button" class="layout-remove-btn" onclick="_removeWasteBin(${i})" title="Entfernen">×</button>
+        </div>`).join('');
+    }
+
+    function addWasteBin() {
+      _wasteBins.push({ match: '', label: '', color: 'black' });
+      _renderWasteBins();
+    }
+    function _removeWasteBin(i) {
+      _wasteBins.splice(i, 1);
+      _renderWasteBins();
+    }
+
     async function _loadWasteConfig() {
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
         const waste = (cfg.config || cfg).waste || {};
         const el = document.getElementById('waste-calendar');
         if (el) el.value = waste.calendar_entity || 'calendar.abfallkalender';
+        _wasteBins = Array.isArray(waste.bins) ? waste.bins.map(b => ({ ...b })) : [];
+        _renderWasteBins();
       } catch {}
     }
 
     async function saveWasteConfig() {
       const val = (document.getElementById('waste-calendar')?.value || '').trim() || 'calendar.abfallkalender';
       const statusEl = document.getElementById('waste-status');
+      const bins = _wasteBins
+        .map(b => ({ match: (b.match||'').trim(), label: (b.label||'').trim(), color: b.color || 'black' }))
+        .filter(b => b.match);
       if (statusEl) statusEl.textContent = 'Speichere…';
       try {
         await fetch('/local-admin/integrations/config', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ waste: { enabled: true, calendar_entity: val } }),
+          body: JSON.stringify({ waste: { enabled: true, calendar_entity: val, bins } }),
         });
         if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
       } catch (e) {
@@ -3163,7 +3224,7 @@
     }
 
     document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
-    document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadWasteConfig);
+    document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
     saveBtn.addEventListener('click', saveConfig);

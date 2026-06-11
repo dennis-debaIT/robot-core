@@ -1539,8 +1539,13 @@
       min-height: 0;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
+    #right-content::-webkit-scrollbar { width: 4px; }
+    #right-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
     /* legacy ids kept for non-home modes that still use setPanel directly */
     #right-cal  { flex: 1; min-height: 0; overflow-y: auto; }
     #right-pv   { flex-shrink: 0; }
@@ -1548,16 +1553,21 @@
     #left-content {
       flex: 1;
       min-height: 0;
-      overflow: hidden;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
+    #left-content::-webkit-scrollbar { width: 4px; }
+    #left-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     /* ── Widget-Slot-Flex ──────────────────────────────────── */
+    /* min-height:100% → füllt das Panel; wächst der Inhalt darüber hinaus
+       (viele/große Widgets), scrollt das Panel statt abzuschneiden. */
     .widget-grid {
       display: flex;
       flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      overflow: hidden;
+      min-height: 100%;
     }
     .widget-slot {
       /* flex und overflow werden pro Widget inline gesetzt:
