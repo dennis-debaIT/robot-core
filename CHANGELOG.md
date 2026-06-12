@@ -9,6 +9,19 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-06-12
+
+### Neu
+- **PV-Energiekosten (Plus)**: Im Admin (PV → Stromtarife) können Einspeisevergütung und Strombezugstarif (ct/kWh) hinterlegt werden. In der PV-Statistik (Heute/7 Tage/Monat/Jahr) werden daraus Einspeiseerlös, Netzbezugskosten und Saldo berechnet und unter den Einspeisung-/Netzbezug-Werten angezeigt — nicht im Widget. Erfordert konfigurierten Netz-Sensor; ohne hinterlegte Tarife bleibt die Anzeige unverändert.
+
+### Verbessert
+- **PV-Statistik Ladezeit (7 Tage/Monat/Jahr)**: Einspeisung/Netzbezug und Tagesertrag (Fallback ohne Tagesertrags-Sensor) werden für Zeiträume über ~1,5 Tage jetzt aus der HA-Langzeitstatistik (1 API-Aufruf) statt einer Anfrage pro Tag berechnet — deutlich kürzere Ladezeiten bei Monats- und Jahresansicht. Der heutige Tag wird weiterhin per History nachgeladen.
+
+### Behoben
+- **PV-Statistik Monats-/Jahresansicht begann am 2. statt am 1.**: Start des Zeitraums wurde aus der bereits nach UTC konvertierten Mitternacht abgeleitet (`.replace(day=1)`), was bei Zeitzonen-Offset auf den 2. lokalen Tag verschob. Start wird jetzt korrekt aus der lokalen Zeit berechnet.
+
+---
+
 ## 2026-06-08
 
 ### Neu

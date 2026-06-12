@@ -46,6 +46,14 @@ def _safe_float(v: Any) -> float | None:
         return None
 
 
+def _pv_tariffs(config: dict) -> tuple[float, float]:
+    """Liefert (Einspeiseverguetung, Strombezugstarif) in Cent/kWh."""
+    tariffs = (config.get("pv") or {}).get("tariffs") or {}
+    feed_in_ct = _safe_float(tariffs.get("feed_in_ct")) or 0.0
+    grid_price_ct = _safe_float(tariffs.get("grid_price_ct")) or 0.0
+    return feed_in_ct, grid_price_ct
+
+
 def _to_local(raw: str) -> datetime | None:
     """Parst ISO-Zeitstempel und konvertiert in lokale Zeit via zoneinfo."""
     try:
@@ -94,7 +102,7 @@ def _history_to_daily_max(states: list[dict]) -> dict[str, float]:
     return daily
 
 
-def _integrate_power_to_daily_kwh(
+def _integrate_power_to_daily_kwh_from_history(
     power_id: str,
     start_utc: datetime,
     end_utc: datetime,
@@ -142,7 +150,69 @@ def _integrate_power_to_daily_kwh(
     return result
 
 
-def _integrate_grid_daily(
+def _integrate_power_to_daily_kwh_from_stats(
+    power_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> dict[str, float]:
+    """Wie _integrate_power_to_daily_kwh_from_history, aber aus der HA-Langzeitstatistik
+    (stündliche Mittelwerte) — 1 API-Aufruf statt einem pro Tag.
+
+    Liefert {} wenn der Sensor keine Langzeitstatistik führt; dann greift der
+    History-Fallback.
+    """
+    stats = ha.get_pv_statistics([power_id], start_utc, end_utc, "hour", ["mean"])
+    rows = stats.get(power_id) or []
+    if not rows:
+        return {}
+
+    result: dict[str, float] = {}
+    for r in rows:
+        mean_w = _safe_float(r.get("mean"))
+        if mean_w is None or mean_w < 0:
+            continue
+        dt_loc = _to_local(r.get("start") or "")
+        if not dt_loc:
+            continue
+        date_key = dt_loc.strftime("%Y-%m-%d")
+        result[date_key] = result.get(date_key, 0.0) + mean_w / 1000  # mean_W über 1h → kWh
+
+    for k in result:
+        result[k] = round(result[k], 2)
+    return result
+
+
+def _integrate_power_to_daily_kwh(
+    power_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> dict[str, float]:
+    """Leitet Tageserträge (kWh) aus einem Leistungssensor (W) ab.
+
+    Für Zeiträume über ~1 Tag wird die HA-Langzeitstatistik genutzt (1 API-Aufruf
+    statt einem pro Tag). Der heutige Tag wird per History nachgeladen, da die
+    Statistik die laufende Stunde noch nicht enthält.
+    """
+    now_loc = datetime.now(_LOCAL_TZ)
+    today_start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    if (end_utc - start_utc) <= timedelta(hours=36):
+        return _integrate_power_to_daily_kwh_from_history(power_id, start_utc, end_utc, ha)
+
+    result = _integrate_power_to_daily_kwh_from_stats(power_id, start_utc, end_utc, ha)
+    if not result:
+        return _integrate_power_to_daily_kwh_from_history(power_id, start_utc, end_utc, ha)
+
+    if end_utc > today_start_utc:
+        today = _integrate_power_to_daily_kwh_from_history(power_id, max(start_utc, today_start_utc), end_utc, ha)
+        result.update(today)
+
+    return result
+
+
+def _integrate_grid_daily_from_history(
     grid_id: str,
     start_utc: datetime,
     end_utc: datetime,
@@ -151,6 +221,7 @@ def _integrate_grid_daily(
     """Trennt den Netz-Leistungssensor (W) in tägliche Einspeisung und Netzbezug (kWh).
 
     Positiv = Einspeisung (Export), negativ = Netzbezug (Import) — Huawei-Konvention.
+    Greift auf die Rohzustands-History zu (1 API-Aufruf pro 24h-Chunk).
     """
     states = ha.get_history(grid_id, start_utc, end_utc, chunk_hours=24)
 
@@ -189,6 +260,84 @@ def _integrate_grid_daily(
     return result
 
 
+def _integrate_grid_daily_from_stats(
+    grid_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> dict[str, dict[str, float]]:
+    """Wie _integrate_grid_daily_from_history, aber aus der HA-Langzeitstatistik
+    (stündliche Mittelwerte) — 1 API-Aufruf statt einem pro Tag.
+
+    Liefert {} wenn der Sensor keine Langzeitstatistik führt (z. B. fehlendes
+    state_class: measurement); dann greift der History-Fallback.
+    """
+    stats = ha.get_pv_statistics([grid_id], start_utc, end_utc, "hour", ["mean"])
+    rows = stats.get(grid_id) or []
+    if not rows:
+        return {}
+
+    result: dict[str, dict[str, float]] = {}
+    for r in rows:
+        mean_w = _safe_float(r.get("mean"))
+        if mean_w is None:
+            continue
+        dt_loc = _to_local(r.get("start") or "")
+        if not dt_loc:
+            continue
+        bucket = result.setdefault(dt_loc.strftime("%Y-%m-%d"), {"einspeisung": 0.0, "netzbezug": 0.0})
+        kwh = mean_w / 1000  # mean_W über 1h → kWh
+        if kwh > 0:
+            bucket["einspeisung"] += kwh
+        else:
+            bucket["netzbezug"] -= kwh
+
+    for v in result.values():
+        v["einspeisung"] = round(v["einspeisung"], 2)
+        v["netzbezug"] = round(v["netzbezug"], 2)
+    return result
+
+
+def _integrate_grid_daily(
+    grid_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> dict[str, dict[str, float]]:
+    """Trennt den Netz-Leistungssensor (W) in tägliche Einspeisung und Netzbezug (kWh).
+
+    Für Zeiträume über ~1 Tag wird die HA-Langzeitstatistik genutzt (1 API-Aufruf
+    statt einem pro Tag). Der heutige Tag wird per History nachgeladen, da die
+    Statistik die laufende Stunde noch nicht enthält.
+    """
+    now_loc = datetime.now(_LOCAL_TZ)
+    today_start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    if (end_utc - start_utc) <= timedelta(hours=36):
+        return _integrate_grid_daily_from_history(grid_id, start_utc, end_utc, ha)
+
+    result = _integrate_grid_daily_from_stats(grid_id, start_utc, end_utc, ha)
+    if not result:
+        return _integrate_grid_daily_from_history(grid_id, start_utc, end_utc, ha)
+
+    if end_utc > today_start_utc:
+        today = _integrate_grid_daily_from_history(grid_id, max(start_utc, today_start_utc), end_utc, ha)
+        result.update(today)
+
+    return result
+
+
+def _energy_costs(ein_kwh: float, bez_kwh: float, feed_in_ct: float, grid_price_ct: float) -> dict[str, float]:
+    """Berechnet Einspeiseerlös und Netzbezugskosten (€) aus kWh und Cent/kWh-Tarifen."""
+    einspeisung_value = round(ein_kwh * feed_in_ct / 100, 2)
+    netzbezug_cost    = round(bez_kwh * grid_price_ct / 100, 2)
+    return {
+        "einspeisung_value": einspeisung_value,
+        "netzbezug_cost":    netzbezug_cost,
+        "saldo":             round(einspeisung_value - netzbezug_cost, 2),
+    }
+
+
 @router.get("/ha/pv/grid-history")
 def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
     config = IntegrationConfigService().get_config()
@@ -196,6 +345,8 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
     grid_id = sensors.get("grid", "")
     if not grid_id:
         raise HTTPException(404, "Netz-Sensor nicht konfiguriert")
+    feed_in_ct, grid_price_ct = _pv_tariffs(config)
+    costs_enabled = feed_in_ct > 0 or grid_price_ct > 0
 
     ha      = HomeAssistantProvider()
     now_loc = datetime.now(_LOCAL_TZ)
@@ -205,8 +356,11 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
     if view == "today":
         daily = _integrate_grid_daily(grid_id, start_utc, now_utc, ha)
         today = daily.get(now_loc.strftime("%Y-%m-%d"), {"einspeisung": 0.0, "netzbezug": 0.0})
-        return {"view": "today", "einspeisung": today["einspeisung"],
-                "netzbezug": today["netzbezug"], "unit": "kWh"}
+        result = {"view": "today", "einspeisung": today["einspeisung"],
+                  "netzbezug": today["netzbezug"], "unit": "kWh"}
+        if costs_enabled:
+            result["costs"] = _energy_costs(today["einspeisung"], today["netzbezug"], feed_in_ct, grid_price_ct)
+        return result
 
     if view == "7days":
         s7_utc = start_utc - timedelta(days=6)
@@ -217,13 +371,18 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
             labels.append(_DE_WEEKDAYS_SHORT[dt.weekday()])
             ein_vals.append(daily[date_key]["einspeisung"])
             bez_vals.append(daily[date_key]["netzbezug"])
-        return {"view": "7days", "labels": labels,
-                "einspeisung": ein_vals, "netzbezug": bez_vals,
-                "einspeisung_total": round(sum(ein_vals), 1),
-                "netzbezug_total":   round(sum(bez_vals), 1), "unit": "kWh"}
+        ein_total = round(sum(ein_vals), 1)
+        bez_total = round(sum(bez_vals), 1)
+        result = {"view": "7days", "labels": labels,
+                  "einspeisung": ein_vals, "netzbezug": bez_vals,
+                  "einspeisung_total": ein_total,
+                  "netzbezug_total":   bez_total, "unit": "kWh"}
+        if costs_enabled:
+            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct)
+        return result
 
     if view == "month":
-        sm_utc = start_utc.replace(day=1)
+        sm_utc = now_loc.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
         daily  = _integrate_grid_daily(grid_id, sm_utc, now_utc, ha)
         labels, ein_vals, bez_vals = [], [], []
         for date_key in sorted(daily):
@@ -231,13 +390,18 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
             labels.append(str(dt.day))
             ein_vals.append(daily[date_key]["einspeisung"])
             bez_vals.append(daily[date_key]["netzbezug"])
-        return {"view": "month", "labels": labels,
-                "einspeisung": ein_vals, "netzbezug": bez_vals,
-                "einspeisung_total": round(sum(ein_vals), 1),
-                "netzbezug_total":   round(sum(bez_vals), 1), "unit": "kWh"}
+        ein_total = round(sum(ein_vals), 1)
+        bez_total = round(sum(bez_vals), 1)
+        result = {"view": "month", "labels": labels,
+                  "einspeisung": ein_vals, "netzbezug": bez_vals,
+                  "einspeisung_total": ein_total,
+                  "netzbezug_total":   bez_total, "unit": "kWh"}
+        if costs_enabled:
+            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct)
+        return result
 
     if view == "year":
-        sy_utc = start_utc.replace(month=1, day=1)
+        sy_utc = now_loc.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
         daily  = _integrate_grid_daily(grid_id, sy_utc, now_utc, ha)
         monthly_ein: dict[int, float] = defaultdict(float)
         monthly_bez: dict[int, float] = defaultdict(float)
@@ -249,10 +413,15 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
         labels    = [_DE_MONTHS_SHORT[m - 1] for m in months]
         ein_vals  = [round(monthly_ein[m], 1) for m in months]
         bez_vals  = [round(monthly_bez[m], 1) for m in months]
-        return {"view": "year", "labels": labels,
-                "einspeisung": ein_vals, "netzbezug": bez_vals,
-                "einspeisung_total": round(sum(ein_vals), 1),
-                "netzbezug_total":   round(sum(bez_vals), 1), "unit": "kWh"}
+        ein_total = round(sum(ein_vals), 1)
+        bez_total = round(sum(bez_vals), 1)
+        result = {"view": "year", "labels": labels,
+                  "einspeisung": ein_vals, "netzbezug": bez_vals,
+                  "einspeisung_total": ein_total,
+                  "netzbezug_total":   bez_total, "unit": "kWh"}
+        if costs_enabled:
+            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct)
+        return result
 
     raise HTTPException(400, f"Unbekannte View: {view}")
 
@@ -339,7 +508,7 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     if view == "month":
         if not daily_id and not power_id:
             raise HTTPException(400, "Leistungs- oder Tagesertrag-Sensor nicht konfiguriert")
-        sm_utc = start_utc.replace(day=1)
+        sm_utc = now_loc.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
         if daily_id:
             stats = ha.get_pv_statistics([daily_id], sm_utc, now_utc, "day", ["max"])
@@ -370,7 +539,7 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     if view == "year":
         if not daily_id and not power_id:
             raise HTTPException(400, "Leistungs- oder Tagesertrag-Sensor nicht konfiguriert")
-        sy_utc = start_utc.replace(month=1, day=1)
+        sy_utc = now_loc.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
         if daily_id:
             stats = ha.get_pv_statistics([daily_id], sy_utc, now_utc, "month", ["sum"])

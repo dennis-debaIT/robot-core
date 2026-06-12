@@ -378,6 +378,25 @@ Welche Felder angezeigt werden, lässt sich im Admin-Panel unter **PV → Widget
 
 > **Wichtig bei DC-gekoppelten Batteriesystemen (Huawei SUN2000 + LUNA2000):** Die Wirkleistung am AC-Ausgang berücksichtigt das Laden der Batterie bereits intern. Das Feld "Batterie-Leistung" muss leer bleiben — sonst wird die Batterieleistung doppelt abgezogen und der Hausverbrauch zeigt 0 W.
 
+### PV-Statistik & Energiekosten (nur Erika Plus)
+
+Über das PV-Widget lässt sich eine ausführliche **PV-Statistik** öffnen (Reiter Fluss / Heute / 7 Tage / Monat / Jahr) mit Diagrammen zu Ertrag, Einspeisung und Netzbezug.
+
+Im Admin-Panel unter **PV → Stromtarife** können zwei Werte hinterlegt werden:
+
+| Feld | Beschreibung |
+|---|---|
+| **Einspeisevergütung (ct/kWh)** | Vergütung pro eingespeister kWh (z.B. nach EEG) |
+| **Strombezugstarif (ct/kWh)** | Preis pro kWh, der für Netzbezug bezahlt wird |
+
+Sind beide Werte hinterlegt und ein **Netz-Sensor** konfiguriert (siehe oben), berechnet die PV-Statistik daraus automatisch:
+
+- **Einspeiseerlös** = Einspeisung (kWh) × Einspeisevergütung
+- **Netzbezugskosten** = Netzbezug (kWh) × Strombezugstarif
+- **Saldo** = Einspeiseerlös − Netzbezugskosten
+
+Diese Werte erscheinen in der PV-Statistik unter den Einspeisung-/Netzbezug-Balken — für Heute, 7 Tage, Monat und Jahr. Im PV-Widget selbst werden sie nicht angezeigt. Ohne hinterlegte Tarife bleibt die Statistik unverändert (kein Block mit Beträgen).
+
 ### Standort für Wetter-Abfragen
 
 Im Admin-Panel unter **System → Standort** können Koordinaten für Wetter- und Standortabfragen gespeichert werden. Mit dem Button **"Von HA übernehmen"** werden die Koordinaten automatisch aus `zone.home` in Home Assistant gelesen — das vermeidet Verwechslungen bei gleichnamigen Orten (z.B. Frankfurt am Main vs. Frankfurt an der Oder).

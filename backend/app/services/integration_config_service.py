@@ -115,6 +115,10 @@ class IntegrationConfigService:
                     "temperature": "sensor.solarman_radiator_temperature",
                     "last_update": "sensor.solarman_status_lastupdate",
                 },
+                "tariffs": {
+                    "feed_in_ct":   0.0,
+                    "grid_price_ct": 0.0,
+                },
             },
             "waste": {
                 "enabled": False,
@@ -206,6 +210,9 @@ class IntegrationConfigService:
         pv_wf = pv.setdefault("widget_fields", {})
         for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
             pv_wf[_k] = bool(pv_wf.get(_k, _def))
+        pv_tariffs = pv.setdefault("tariffs", {})
+        pv_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(pv_tariffs.get("feed_in_ct"))
+        pv_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(pv_tariffs.get("grid_price_ct"))
         waste = merged.setdefault("waste", {})
         waste["enabled"] = bool(waste.get("enabled", False))
         waste["calendar_entity"] = str(waste.get("calendar_entity") or "calendar.abfallkalender").strip()
@@ -308,6 +315,9 @@ class IntegrationConfigService:
         pv_wf = pv.setdefault("widget_fields", {})
         for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
             pv_wf[_k] = bool(pv_wf.get(_k, _def))
+        pv_tariffs = pv.setdefault("tariffs", {})
+        pv_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(pv_tariffs.get("feed_in_ct"))
+        pv_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(pv_tariffs.get("grid_price_ct"))
         attention = updated.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
@@ -829,6 +839,16 @@ class IntegrationConfigService:
         if _re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", s):
             return s
         return default
+
+    @staticmethod
+    def _sanitize_tariff_ct(value: Any) -> float:
+        try:
+            ct = float(value)
+        except (TypeError, ValueError):
+            ct = 0.0
+        if ct != ct:  # NaN
+            ct = 0.0
+        return round(max(0.0, min(ct, 200.0)), 2)
 
     @staticmethod
     def _sanitize_config_version(value: Any) -> int:

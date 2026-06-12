@@ -256,6 +256,14 @@
       let gridHtml = '';
       if (gd) {
         const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
+        const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €' : '–';
+        const costs = gd.costs || null;
+        const saldoHtml = costs
+          ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+               <span style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Saldo (Erlös − Kosten)</span>
+               <span style="font-size:1.1rem;font-weight:800;color:${costs.saldo >= 0 ? 'var(--success)' : 'var(--warning)'};">${costs.saldo >= 0 ? '+' : ''}${fmtEur(costs.saldo)}</span>
+             </div>`
+          : '';
         if (view === 'today') {
           gridHtml = `
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
@@ -264,12 +272,15 @@
                 <div style="flex:1;background:rgba(0,255,120,0.07);border:1px solid rgba(0,255,120,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
                   <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↑ Einspeisung</div>
                   <div style="font-size:1.2rem;font-weight:800;color:var(--success);">${fmtKwh(gd.einspeisung)}</div>
+                  ${costs ? `<div style="font-size:0.7rem;color:var(--success);margin-top:4px;">≈ ${fmtEur(costs.einspeisung_value)}</div>` : ''}
                 </div>
                 <div style="flex:1;background:rgba(255,160,50,0.07);border:1px solid rgba(255,160,50,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
                   <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↓ Netzbezug</div>
                   <div style="font-size:1.2rem;font-weight:800;color:var(--warning);">${fmtKwh(gd.netzbezug)}</div>
+                  ${costs ? `<div style="font-size:0.7rem;color:var(--warning);margin-top:4px;">≈ ${fmtEur(costs.netzbezug_cost)}</div>` : ''}
                 </div>
               </div>
+              ${saldoHtml}
             </div>`;
         } else {
           const glabels = gd.labels || [];
@@ -281,14 +292,21 @@
               ${einChart}
               <div style="display:flex;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
                 <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
-                <span style="font-size:1rem;font-weight:800;color:var(--success);">${fmtKwh(gd.einspeisung_total)}</span>
+                <span style="text-align:right;">
+                  <span style="font-size:1rem;font-weight:800;color:var(--success);">${fmtKwh(gd.einspeisung_total)}</span>
+                  ${costs ? `<span style="display:block;font-size:0.7rem;color:var(--success);">≈ ${fmtEur(costs.einspeisung_value)}</span>` : ''}
+                </span>
               </div>
               <div style="font-size:0.72rem;font-weight:700;color:var(--warning);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↓ Netzbezug</div>
               ${bezChart}
               <div style="display:flex;justify-content:space-between;margin-top:6px;">
                 <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
-                <span style="font-size:1rem;font-weight:800;color:var(--warning);">${fmtKwh(gd.netzbezug_total)}</span>
+                <span style="text-align:right;">
+                  <span style="font-size:1rem;font-weight:800;color:var(--warning);">${fmtKwh(gd.netzbezug_total)}</span>
+                  ${costs ? `<span style="display:block;font-size:0.7rem;color:var(--warning);">≈ ${fmtEur(costs.netzbezug_cost)}</span>` : ''}
+                </span>
               </div>
+              ${saldoHtml}
             </div>`;
         }
       }

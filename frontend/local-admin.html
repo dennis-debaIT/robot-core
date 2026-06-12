@@ -635,6 +635,22 @@
               <label class="mini-check"><input type="checkbox" id="pv-wf-temperature"><span>Temperatur</span></label>
             </div>
           </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Stromtarife <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
+              <p>Werden genutzt, um in der PV-Statistik (Tag/7&nbsp;Tage/Monat/Jahr) die Einspeiseverg&uuml;tung und die Kosten f&uuml;r den Netzbezug auszurechnen. Erfordert einen konfigurierten Netz-Sensor.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Einspeiseverg&uuml;tung (ct/kWh)</span>
+                <input id="pv-tariff-feed-in" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 8.2">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Strombezugstarif (ct/kWh)</span>
+                <input id="pv-tariff-grid-price" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 32.0">
+              </label>
+            </div>
+          </section>
         </article>
 
         <!-- ── ABFALL ─────────────────────────────────────────── -->
@@ -1548,6 +1564,8 @@
     const pvWfDailyEl             = document.getElementById('pv-wf-daily');
     const pvWfBatteryEl           = document.getElementById('pv-wf-battery');
     const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
+    const pvTariffFeedInEl        = document.getElementById('pv-tariff-feed-in');
+    const pvTariffGridPriceEl     = document.getElementById('pv-tariff-grid-price');
     let _pvProviders = {};
     let _calendarEntities = [];
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
@@ -2822,6 +2840,9 @@
       pvWfDailyEl.checked       = wf2.daily             !== false;
       pvWfBatteryEl.checked     = wf2.battery           !== false;
       pvWfTemperatureEl.checked = wf2.temperature       === true;
+      const pvTariffs = pvConfig.tariffs || {};
+      pvTariffFeedInEl.value    = pvTariffs.feed_in_ct    ?? '';
+      pvTariffGridPriceEl.value = pvTariffs.grid_price_ct ?? '';
       loadPvProviders();
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
@@ -2962,6 +2983,10 @@
                 daily:             pvWfDailyEl.checked,
                 battery:           pvWfBatteryEl.checked,
                 temperature:       pvWfTemperatureEl.checked,
+              },
+              tariffs: {
+                feed_in_ct:    Number(pvTariffFeedInEl.value) || 0,
+                grid_price_ct: Number(pvTariffGridPriceEl.value) || 0,
               },
             },
             system: {
