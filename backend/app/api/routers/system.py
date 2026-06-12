@@ -190,6 +190,12 @@ def trigger_install() -> dict[str, Any]:
             cached["update_available"] = False
             cached["installing"] = True
             write_state(conn, "git_update_status", cached)
+        get_core().audit.log(
+            action="system.update_install",
+            target_type="system",
+            summary="Update-Installation wurde angefordert.",
+            details={"current_hash": cached.get("current_hash"), "latest_hash": cached.get("latest_hash")},
+        )
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -251,6 +257,13 @@ def create_backup() -> dict[str, Any]:
         backup_dir = Path("/data/backups")
         backup_dir.mkdir(parents=True, exist_ok=True)
         (backup_dir / filename).write_bytes(data)
+        get_core().audit.log(
+            action="system.backup_created",
+            target_type="backup",
+            target_id=filename,
+            summary="Backup wurde erstellt.",
+            details={"size": len(data)},
+        )
         return {"ok": True, "filename": filename, "size": len(data)}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -262,6 +275,13 @@ def download_backup() -> StreamingResponse:
         data = _create_backup_zip()
         ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"erika_backup_{ts}.zip"
+        get_core().audit.log(
+            action="system.backup_downloaded",
+            target_type="backup",
+            target_id=filename,
+            summary="Backup wurde heruntergeladen.",
+            details={"size": len(data)},
+        )
         return StreamingResponse(
             io.BytesIO(data),
             media_type="application/zip",
@@ -289,6 +309,13 @@ async def restore_backup(file: UploadFile = File(...)) -> dict[str, Any]:
             # Zip-Slip über Pfadtraversal in anderen Zip-Einträgen.
             with zf.open("robot_core.db") as src, open(db_path, "wb") as dst:
                 shutil.copyfileobj(src, dst)
+        get_core().audit.log(
+            action="system.backup_restored",
+            target_type="backup",
+            target_id=file.filename,
+            summary="Backup wurde wiederhergestellt.",
+            details={"restored_files": names},
+        )
         return {"ok": True, "restored_files": names}
     except HTTPException:
         raise
@@ -372,6 +399,11 @@ def trigger_reboot() -> dict[str, Any]:
     try:
         with open(_REBOOT_FLAG, "w") as f:
             json.dump({"requested_at": datetime.now(timezone.utc).isoformat()}, f)
+        get_core().audit.log(
+            action="system.reboot",
+            target_type="system",
+            summary="Neustart wurde angefordert.",
+        )
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -434,6 +466,20 @@ def save_llm_config(payload: dict[str, Any]) -> dict[str, Any]:
     }
     with get_connection() as conn:
         write_state(conn, "llm_config", cfg)
+    get_core().audit.log(
+        action="llm.config_updated",
+        target_type="llm_config",
+        summary="LLM-Konfiguration wurde geändert.",
+        details={
+            "api_provider": cfg["api_provider"],
+            "api_url": cfg["api_url"],
+            "model": cfg["model"],
+            "fallback_model": cfg["fallback_model"],
+            "max_tokens": cfg["max_tokens"],
+            "temperature": cfg["temperature"],
+            "api_key_set": bool(cfg["api_key"]),
+        },
+    )
     return {"ok": True}
 
 

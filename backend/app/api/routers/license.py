@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
+from app.audit.service import AuditService
 from app.services.feature_service import FeatureService
 from app.services.license_service import LicenseService, _LICENSE_FILE
 
@@ -113,13 +114,27 @@ def activate_license(payload: dict) -> dict:
         raise HTTPException(503, "Lizenzserver nicht erreichbar — Internetverbindung prüfen")
     except ValueError:
         raise HTTPException(502, "Ungültige Antwort vom Lizenzserver")
-    return _install_and_apply(lic)
+    result = _install_and_apply(lic)
+    AuditService().log(
+        action="license.activated",
+        target_type="license",
+        summary="Lizenz wurde aktiviert.",
+        details={"valid": result.get("valid"), "plan": result.get("plan"), "reason": result.get("reason")},
+    )
+    return result
 
 
 @router.post("/license")
 def install_license(payload: dict) -> dict:
     """Signierte license.json direkt hochladen (Fallback ohne Server)."""
-    return _install_and_apply(payload)
+    result = _install_and_apply(payload)
+    AuditService().log(
+        action="license.installed",
+        target_type="license",
+        summary="Lizenz wurde manuell installiert.",
+        details={"valid": result.get("valid"), "plan": result.get("plan"), "reason": result.get("reason")},
+    )
+    return result
 
 
 @router.delete("/license")
@@ -130,4 +145,9 @@ def remove_license() -> dict:
     except OSError:
         pass
     FeatureService().set_edition("community")
+    AuditService().log(
+        action="license.removed",
+        target_type="license",
+        summary="Lizenz wurde entfernt — zurück auf Community.",
+    )
     return {"removed": True, "plan": "community"}
