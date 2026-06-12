@@ -47,12 +47,12 @@ services:
       ROBOT_HA_USERNAME: ${ROBOT_HA_USERNAME:-}
       ROBOT_HA_PASSWORD: ${ROBOT_HA_PASSWORD:-}
       ROBOT_HA_TOKEN: ${ROBOT_HA_TOKEN:-}
+      ROBOT_CORS_ORIGINS: ${ROBOT_CORS_ORIGINS:-}
     volumes:
       - robot_core_data:/data
       - ./models:/models:ro
       - ./ssl:/ssl:ro
       - ./.git:/app/.git
-      - ${SSH_DIR:-/home/dennis/.ssh}:/root/.ssh:ro
       - ./update.flag:/update.flag
       - ./update.log:/update.log
       - ./reboot.flag:/reboot.flag
@@ -139,6 +139,7 @@ services:
       ROBOT_HA_USERNAME: ${ROBOT_HA_USERNAME:-}
       ROBOT_HA_PASSWORD: ${ROBOT_HA_PASSWORD:-}
       ROBOT_HA_TOKEN: ${ROBOT_HA_TOKEN:-}
+      ROBOT_CORS_ORIGINS: ${ROBOT_CORS_ORIGINS:-}
     command: ["pytest", "tests", "-v", "--tb=short"]
     profiles: ["test"]
 

@@ -62,7 +62,8 @@ docker compose down -v
 
 | URL | Beschreibung |
 |-----|-------------|
-| `https://<ip>:8000/` | Display-Panel (Vollbild) |
+| `https://<ip>:8000/` | Lokale Konsole (Chat, Status, Diagnose) |
+| `https://<ip>:8000/display` | Display-Panel (Vollbild) |
 | `https://<ip>:8000/local-admin` | Admin-Panel (Konfiguration) |
 | `https://<ip>:8000/docs` | API-Dokumentation (Swagger) |
 

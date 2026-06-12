@@ -83,7 +83,6 @@ LLM_API_URL=http://<deine-LM-Studio-IP>:1234/v1/chat/completions
 LLM_PROVIDER=openai_compat
 ROBOT_HA_URL=http://<deine-HA-IP>:8123
 ROBOT_HA_TOKEN=<Long-Lived Access Token aus HA>
-SSH_DIR=/home/<dein-user>/.ssh
 ```
 
 Den HA-Token erstellt du in Home Assistant unter: **Profil → Sicherheit → Langlebige Zugriffstoken → Token erstellen**.

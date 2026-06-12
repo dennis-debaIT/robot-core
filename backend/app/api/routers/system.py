@@ -5,7 +5,6 @@ import json
 import os
 import shutil
 import subprocess
-import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -59,15 +58,16 @@ def _detect_network() -> dict[str, Any]:
     return {"type": "unknown", "connected": False, "interface": ""}
 _UPDATE_FLAG = "/update.flag"
 _REBOOT_FLAG = "/reboot.flag"
-_SSH_CMD = "ssh -o StrictHostKeyChecking=no -o BatchMode=yes"
 _VERSION_FILE = "/app/VERSION"
+# Öffentliches Repo — Fetch im Container läuft über HTTPS, kein SSH-Key nötig
+# (im Gegensatz zu update.sh auf dem Host, das den eigentlichen Rebuild macht).
+_REPO_URL = "https://github.com/dennis-debaIT/robot-core.git"
 
 
 def _git(*args: str, timeout: int = 30) -> str:
-    env = {**os.environ, "GIT_SSH_COMMAND": _SSH_CMD, "HOME": "/root"}
     r = subprocess.run(
         ["git", "-c", "safe.directory=/app"] + list(args),
-        cwd=_GIT_DIR, capture_output=True, text=True, timeout=timeout, env=env,
+        cwd=_GIT_DIR, capture_output=True, text=True, timeout=timeout,
     )
     return r.stdout.strip()
 
@@ -130,7 +130,7 @@ def get_update_status() -> dict[str, Any]:
 @router.post("/system/update/check")
 def check_for_update() -> dict[str, Any]:
     try:
-        _git("fetch", "origin", "main", timeout=20)
+        _git("fetch", _REPO_URL, "main:refs/remotes/origin/main", timeout=20)
         # Laufender Build-Hash (gebacken beim docker build)
         built = _built_hash() or _git("rev-parse", "HEAD")
         latest_hash = _git("rev-parse", "origin/main")
@@ -285,9 +285,10 @@ async def restore_backup(file: UploadFile = File(...)) -> dict[str, Any]:
             # Sicherheitskopie vor Restore
             if os.path.exists(db_path):
                 shutil.copy2(db_path, db_path + ".pre_restore")
-            with tempfile.TemporaryDirectory() as tmp:
-                zf.extractall(tmp)
-                shutil.copy2(os.path.join(tmp, "robot_core.db"), db_path)
+            # Nur die DB-Datei gezielt extrahieren (kein extractall) — verhindert
+            # Zip-Slip über Pfadtraversal in anderen Zip-Einträgen.
+            with zf.open("robot_core.db") as src, open(db_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
         return {"ok": True, "restored_files": names}
     except HTTPException:
         raise

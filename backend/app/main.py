@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from contextlib import asynccontextmanager, suppress
 from typing import Any
 
@@ -270,13 +271,22 @@ async def lifespan(_: FastAPI) -> Any:
 
 
 app = FastAPI(title="Robot Core", version="0.3.0", lifespan=lifespan)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+# Sicherheit: Frontend wird same-origin von dieser API ausgeliefert, daher
+# normalerweise kein Cross-Origin-Zugriff nötig. ROBOT_CORS_ORIGINS (kommagetrennt)
+# erlaubt zusätzliche Origins für lokale Entwicklung (z.B. Vite-Dev-Server).
+# Ohne Angabe ist Cross-Origin-Zugriff komplett deaktiviert — verhindert, dass
+# eine im selben Netzwerk geöffnete fremde Webseite per Browser-JS Antworten
+# dieser API (z.B. /llm/config, /audit-log) auslesen kann.
+_cors_origins = [o.strip() for o in os.environ.get("ROBOT_CORS_ORIGINS", "").split(",") if o.strip()]
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Statische Assets (z.B. Mülltonnen-Bilder unter /assets/waste/*.png)
 app.mount("/assets", StaticFiles(directory=str(BASE_DIR / "frontend" / "assets")), name="assets")

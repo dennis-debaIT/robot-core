@@ -333,7 +333,6 @@ if [ "$_DO_CONFIG" = true ]; then
     cat > .env << EOF
 # Erika Robot Core — generiert von install.sh am $(date '+%Y-%m-%d %H:%M')
 TZ=${TZ:-Europe/Berlin}
-SSH_DIR=$HOME/.ssh
 
 # LLM
 LLM_API_URL=${_ENV_LLM_URL}
@@ -357,13 +356,6 @@ ROBOT_TTS_NUM_THREADS=2
 EOF
     success ".env geschrieben"
 
-else
-    # Bestehende .env: SSH_DIR ergänzen falls fehlend
-    if ! grep -q "SSH_DIR" .env; then
-        echo "" >> .env
-        echo "SSH_DIR=$HOME/.ssh" >> .env
-        success ".env: SSH_DIR ergänzt"
-    fi
 fi
 
 # ── 5. SSL-Zertifikat ─────────────────────────────────────────

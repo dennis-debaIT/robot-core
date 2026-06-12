@@ -449,7 +449,7 @@ Unter **Design → Layout** wird festgelegt, welche Widgets im linken und rechte
 
 ## Admin-Panel
 
-Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
+Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 
 | Bereich | Inhalt |
 |---|---|
