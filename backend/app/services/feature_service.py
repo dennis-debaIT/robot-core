@@ -30,6 +30,7 @@ FEATURES: dict[str, str] = {
     "camera_events":   "plus",   # Kamera-Ereignisliste + Türklingel-Historie
     "vehicle_history": "plus",   # Fahrzeug-Ladeverlauf
     "waste":           "plus",   # Abfallkalender-Widget
+    "theme_schedule":  "plus",   # Zeitabhängiges Design (Tag/Nacht-Theme-Wechsel)
 }
 
 _TIER_RANK = {"community": 0, "plus": 1, "family": 2}

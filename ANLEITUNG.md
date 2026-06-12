@@ -427,6 +427,15 @@ Unter **Design → Farben** lassen sich alle 12 Farben des Displays anpassen (Hi
 
 Ein Klick auf ein Preset füllt die Farbwähler — gespeichert wird erst über **Speichern**. Die Farben werden beim nächsten Laden des Displays übernommen.
 
+### Zeitabhängiges Design (Plus)
+
+Unter **Design → Zeitabhängiges Design** kann ein automatischer Tag/Nacht-Wechsel aktiviert werden:
+
+- **Tag ab** / **Nacht ab**: Uhrzeiten, zu denen zwischen dem oben konfigurierten Theme (Tag) und einem separaten, gedämpften **Nacht-Theme** gewechselt wird
+- Das Nacht-Theme wird genauso wie das Tag-Theme über Presets oder die 12 Farbwähler eingestellt
+- Außerhalb der Nachtspanne bleibt immer das normale (Community-)Theme aktiv — manuelle Theme-Änderungen unter **Design → Farben** funktionieren unverändert und unabhängig davon
+- Das Display übernimmt einen Wechsel innerhalb von ca. 10 Sekunden (gleicher Abruf wie für Layout-Änderungen)
+
 ### Layout
 
 Unter **Design → Layout** wird festgelegt, welche Widgets im linken und rechten Panel erscheinen:
@@ -450,6 +459,7 @@ Das Admin-Panel ist erreichbar unter: `http://[erika-ip]/local-admin`
 | **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
 | **PV** | Sensoren konfigurieren, Widget-Felder per Checkbox, Statistiken, Energiefluss |
 | **Design → Farben** | Theme-Farben anpassen, 6 Presets (inkl. Light Theme) |
+| **Design → Zeitabhängiges Design** *(Plus)* | Automatischer Tag/Nacht-Theme-Wechsel mit eigenem Nacht-Theme und Uhrzeiten |
 | **Design → Layout** | Widgets auf linkes/rechtes Panel verteilen, Größe & Reihenfolge |
 | **System → Standort** | Koordinaten manuell oder via "Von HA übernehmen" (zone.home) |
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |

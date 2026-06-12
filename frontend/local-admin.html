@@ -1171,6 +1171,42 @@
             </div>
           </section>
 
+          <section class="module-card" id="theme-schedule-card" style="display:none;">
+            <div class="section-copy">
+              <div class="section-title">Zeitabhängiges Design <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
+              <p>Wechselt das Display abends automatisch auf ein gedämpftes Nacht-Theme und morgens zurück auf das oben konfigurierte Theme.</p>
+            </div>
+            <label class="switch-card" style="margin-bottom:18px;">
+              <input id="theme-schedule-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Automatisch wechseln</span>
+                <span class="switch-text">Aktiviert den Tag/Nacht-Wechsel zu den unten festgelegten Zeiten</span>
+              </span>
+            </label>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Tag ab</span>
+                <input id="theme-schedule-day-start" class="field-input" type="time" style="max-width:140px;">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Nacht ab</span>
+                <input id="theme-schedule-night-start" class="field-input" type="time" style="max-width:140px;">
+              </label>
+            </div>
+            <div class="section-copy" style="margin-top:20px;">
+              <div class="section-title" style="font-size:0.9rem;">Nacht-Theme</div>
+            </div>
+            <div id="theme-night-preset-btns" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;"></div>
+            <div class="theme-color-grid" id="theme-night-color-grid"></div>
+            <div style="margin-top:20px;display:flex;gap:10px;align-items:center;">
+              <button type="button" onclick="saveThemeSchedule()" style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+                💾 Speichern
+              </button>
+              <span id="theme-schedule-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+          </section>
+
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Panel-Layout</div>
@@ -3059,13 +3095,15 @@
       }
     }
 
-    // Plus-only Admin-Tabs je nach Lizenz ein-/ausblenden
+    // Plus-only Admin-Tabs/Bereiche je nach Lizenz ein-/ausblenden
     async function _applyFeatureGating() {
       try {
         const d = await fetch('/features').then(r => r.json());
         const feats = d.features || {};
         const wasteBtn = document.querySelector('[data-tab-target="tab-waste"]');
         if (wasteBtn) wasteBtn.style.display = feats.waste ? '' : 'none';
+        const scheduleCard = document.getElementById('theme-schedule-card');
+        if (scheduleCard) scheduleCard.style.display = feats.theme_schedule ? '' : 'none';
       } catch {}
     }
 
@@ -5152,11 +5190,11 @@
     },
   };
 
-  function _renderPresetButtons() {
-    const container = document.getElementById('theme-preset-btns');
+  function _renderPresetButtons(containerId, target) {
+    const container = document.getElementById(containerId);
     if (!container) return;
     container.innerHTML = Object.entries(_PRESET_THEMES).map(([id, p]) => `
-      <button type="button" onclick="applyPreset('${id}')"
+      <button type="button" onclick="applyPreset('${target}', '${id}')"
         style="display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:10px;
                border:1px solid var(--line);background:var(--panel-soft);cursor:pointer;
                font-size:0.8rem;font-weight:600;color:var(--ink);transition:border-color 0.15s;"
@@ -5171,14 +5209,21 @@
       </button>`).join('');
   }
 
-  function applyPreset(id) {
+  function applyPreset(target, id) {
     const p = _PRESET_THEMES[id];
     if (!p) return;
     const { label, ...colors } = p;
-    _currentTheme = { ..._currentTheme, ...colors };
-    _buildThemeGrid(_currentTheme);
-    const statusEl = document.getElementById('theme-status');
-    if (statusEl) { statusEl.textContent = `"${label}" angewendet — noch nicht gespeichert`; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+    if (target === 'night') {
+      _currentNightTheme = { ..._currentNightTheme, ...colors };
+      _buildThemeGrid('theme-night-color-grid', _currentNightTheme, 'night');
+      const statusEl = document.getElementById('theme-schedule-status');
+      if (statusEl) { statusEl.textContent = `"${label}" angewendet — noch nicht gespeichert`; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+    } else {
+      _currentTheme = { ..._currentTheme, ...colors };
+      _buildThemeGrid('theme-color-grid', _currentTheme, 'day');
+      const statusEl = document.getElementById('theme-status');
+      if (statusEl) { statusEl.textContent = `"${label}" angewendet — noch nicht gespeichert`; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+    }
   }
 
   const _THEME_LABELS = {
@@ -5197,36 +5242,38 @@
   };
 
   let _currentTheme = {};
+  let _currentNightTheme = {};
 
-  function _buildThemeGrid(theme) {
-    const grid = document.getElementById('theme-color-grid');
+  function _buildThemeGrid(gridId, theme, target) {
+    const grid = document.getElementById(gridId);
     if (!grid) return;
     grid.innerHTML = Object.entries(_THEME_LABELS).map(([key, label]) => {
       const val = theme[key] || '#000000';
       return `<div class="theme-color-row">
-        <input type="color" class="theme-color-swatch" id="theme-${key}" value="${val}"
-               oninput="_onThemeColorInput('${key}', this.value)">
+        <input type="color" class="theme-color-swatch" id="${gridId}-${key}" value="${val}"
+               oninput="_onThemeColorInput('${target}', '${gridId}', '${key}', this.value)">
         <div class="theme-color-info">
           <div class="theme-color-label">${label}</div>
-          <div class="theme-color-hex" id="theme-hex-${key}">${val}</div>
+          <div class="theme-color-hex" id="${gridId}-hex-${key}">${val}</div>
         </div>
       </div>`;
     }).join('');
   }
 
-  function _onThemeColorInput(key, val) {
-    _currentTheme[key] = val;
-    const hexEl = document.getElementById(`theme-hex-${key}`);
+  function _onThemeColorInput(target, gridId, key, val) {
+    const obj = target === 'night' ? _currentNightTheme : _currentTheme;
+    obj[key] = val;
+    const hexEl = document.getElementById(`${gridId}-hex-${key}`);
     if (hexEl) hexEl.textContent = val;
   }
 
   async function loadTheme() {
-    _renderPresetButtons();
+    _renderPresetButtons('theme-preset-btns', 'day');
     try {
       const r = await fetch('/display/theme');
       if (!r.ok) return;
       _currentTheme = await r.json();
-      _buildThemeGrid(_currentTheme);
+      _buildThemeGrid('theme-color-grid', _currentTheme, 'day');
     } catch {}
   }
 
@@ -5241,7 +5288,7 @@
       });
       if (!r.ok) throw new Error(await r.text());
       _currentTheme = await r.json();
-      _buildThemeGrid(_currentTheme);
+      _buildThemeGrid('theme-color-grid', _currentTheme, 'day');
       if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
@@ -5255,8 +5302,51 @@
       const r = await fetch('/display/theme/reset', { method: 'POST' });
       if (!r.ok) throw new Error(await r.text());
       _currentTheme = await r.json();
-      _buildThemeGrid(_currentTheme);
+      _buildThemeGrid('theme-color-grid', _currentTheme, 'day');
       if (statusEl) { statusEl.textContent = 'Zurückgesetzt ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
+  // ── Zeitabhängiges Design (Plus) ──────────────────────────
+  async function loadThemeSchedule() {
+    _renderPresetButtons('theme-night-preset-btns', 'night');
+    try {
+      const r = await fetch('/display/theme/schedule');
+      if (!r.ok) return;
+      const sched = await r.json();
+      _currentNightTheme = sched.night_theme || {};
+      _buildThemeGrid('theme-night-color-grid', _currentNightTheme, 'night');
+      const enabledEl = document.getElementById('theme-schedule-enabled');
+      const dayStartEl = document.getElementById('theme-schedule-day-start');
+      const nightStartEl = document.getElementById('theme-schedule-night-start');
+      if (enabledEl) enabledEl.checked = !!sched.enabled;
+      if (dayStartEl) dayStartEl.value = sched.day_start || '07:00';
+      if (nightStartEl) nightStartEl.value = sched.night_start || '21:00';
+    } catch {}
+  }
+
+  async function saveThemeSchedule() {
+    const statusEl = document.getElementById('theme-schedule-status');
+    if (statusEl) statusEl.textContent = 'Speichern…';
+    try {
+      const payload = {
+        enabled: !!document.getElementById('theme-schedule-enabled')?.checked,
+        day_start: document.getElementById('theme-schedule-day-start')?.value || '07:00',
+        night_start: document.getElementById('theme-schedule-night-start')?.value || '21:00',
+        night_theme: _currentNightTheme,
+      };
+      const r = await fetch('/display/theme/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const sched = await r.json();
+      _currentNightTheme = sched.night_theme || {};
+      _buildThemeGrid('theme-night-color-grid', _currentNightTheme, 'night');
+      if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => { statusEl.textContent = ''; }, 2500); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
     }
@@ -5418,6 +5508,7 @@
 
   document.querySelector('[data-tab-target="tab-design"]')?.addEventListener('click', () => {
     loadTheme();
+    loadThemeSchedule();
     loadLayout();
   });
   document.querySelector('[data-tab-target="tab-system"]')?.addEventListener('click', () => {

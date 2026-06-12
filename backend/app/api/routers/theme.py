@@ -20,3 +20,19 @@ def save_theme(payload: dict) -> dict:
 @router.post("/display/theme/reset")
 def reset_theme() -> dict:
     return ThemeService().reset_theme()
+
+
+@router.get("/display/theme/effective")
+def get_effective_theme() -> dict:
+    """Aktuell anzuzeigendes Theme — berücksichtigt Zeitabhängiges Design (Plus)."""
+    return ThemeService().get_effective_theme()
+
+
+@router.get("/display/theme/schedule")
+def get_theme_schedule() -> dict:
+    return ThemeService().get_schedule()
+
+
+@router.post("/display/theme/schedule")
+def save_theme_schedule(payload: dict) -> dict:
+    return ThemeService().save_schedule(payload)

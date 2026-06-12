@@ -13,6 +13,7 @@ Format: neueste Einträge oben.
 
 ### Neu
 - **PV-Energiekosten (Plus)**: Im Admin (PV → Stromtarife) können Einspeisevergütung und Strombezugstarif (ct/kWh) hinterlegt werden. In der PV-Statistik (Heute/7 Tage/Monat/Jahr) werden daraus Einspeiseerlös, Netzbezugskosten und Saldo berechnet und unter den Einspeisung-/Netzbezug-Werten angezeigt — nicht im Widget. Erfordert konfigurierten Netz-Sensor; ohne hinterlegte Tarife bleibt die Anzeige unverändert.
+- **Zeitabhängiges Design (Plus)**: Im Admin (Design → Zeitabhängiges Design) kann ein automatischer Tag/Nacht-Theme-Wechsel aktiviert werden — eigenes, gedämpftes Nacht-Theme (per Presets oder Farbwähler) plus konfigurierbare Uhrzeiten für Tag-/Nachtbeginn. Manuelle Theme-Wahl unter Design → Farben bleibt Community und unverändert; das Display übernimmt einen Wechsel innerhalb von ~10 Sekunden über den neuen Endpunkt `GET /display/theme/effective`. Ohne Plus-Lizenz bleibt unabhängig vom gespeicherten Zeitplan immer das manuelle Theme aktiv.
 
 ### Verbessert
 - **PV-Statistik Ladezeit (7 Tage/Monat/Jahr)**: Einspeisung/Netzbezug und Tagesertrag (Fallback ohne Tagesertrags-Sensor) werden für Zeiträume über ~1,5 Tage jetzt aus der HA-Langzeitstatistik (1 WebSocket-Aufruf `recorder/statistics_during_period`) statt einer Anfrage pro Tag berechnet — deutlich kürzere Ladezeiten bei Monats- und Jahresansicht. Der heutige Tag wird für den Leistungssensor-Fallback weiterhin per History nachgeladen.

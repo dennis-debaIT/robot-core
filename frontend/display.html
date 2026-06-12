@@ -6125,7 +6125,7 @@
     _lastThemeJson = j;
     _applyTheme(t);
   }
-  fetch('/display/theme').then(r => r.ok ? r.json() : null).then(_applyThemeIfChanged).catch(() => {});
+  fetch('/display/theme/effective').then(r => r.ok ? r.json() : null).then(_applyThemeIfChanged).catch(() => {});
 
   // ── INIT ──────────────────────────────────────────────────
   applyMode('idle');
@@ -6137,7 +6137,7 @@
   // wendet nur bei tatsächlicher Änderung an → kein Flackern)
   setInterval(() => {
     fetch('/display/layout').then(r => r.ok ? r.json() : null).then(_applyLayout).catch(() => {});
-    fetch('/display/theme').then(r => r.ok ? r.json() : null).then(_applyThemeIfChanged).catch(() => {});
+    fetch('/display/theme/effective').then(r => r.ok ? r.json() : null).then(_applyThemeIfChanged).catch(() => {});
   }, 10000);
 
   const _isHome = () => _navMode === 'home';
