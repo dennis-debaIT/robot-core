@@ -6168,6 +6168,20 @@
     pvSlot.innerHTML = _renderPvSlot(pvResp, size);
   }, 5000);
 
+  // Abfall-Slot alle 60s aktualisieren — fängt ab, dass /ha/waste direkt nach
+  // einem Backend-Neustart kurzzeitig leer antwortet ("Kein Abfalltermin"),
+  // ohne auf den 15-Minuten-Kalender-Refresh warten zu müssen.
+  setInterval(async () => {
+    if (!_hasFeature('waste') || currentMode !== 'idle' || !_isHome()) return;
+    const wasteSlot = document.querySelector('[data-widget="waste"]');
+    if (!wasteSlot) return;
+    const data = await loadWasteData();
+    if (!data?.bins?.length) return; // nichts überschreiben, solange kein gültiges Ergebnis vorliegt
+    const size = [...(_panelConfig.left || []), ...(_panelConfig.right || [])]
+      .find(s => s.widget === 'waste')?.size || 1;
+    wasteSlot.innerHTML = _renderWasteSlot(data, size);
+  }, 60000);
+
   // Drucker alle 30s prüfen — Panel neu rendern wenn Status wechselt
   setInterval(async () => {
     if (!_enabledModules.printer || currentMode !== 'idle' || !_isHome()) return;
