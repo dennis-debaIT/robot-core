@@ -382,6 +382,8 @@ Welche Felder angezeigt werden, lässt sich im Admin-Panel unter **PV → Widget
 
 Über das PV-Widget lässt sich eine ausführliche **PV-Statistik** öffnen (Reiter Fluss / Heute / 7 Tage / Monat / Jahr) mit Diagrammen zu Ertrag, Einspeisung und Netzbezug.
 
+Monat und Jahr greifen auf die Langzeitstatistiken von Home Assistant zu (über dessen WebSocket-API). Die Jahresansicht zeigt daher nur Monate, für die Home Assistant selbst bereits Statistiken aufgezeichnet hat — bei neu eingerichteten Sensoren oder kurz nach der Erika-Installation können ältere Monate fehlen, bis HA entsprechend lange Daten gesammelt hat.
+
 Im Admin-Panel unter **PV → Stromtarife** können zwei Werte hinterlegt werden:
 
 | Feld | Beschreibung |

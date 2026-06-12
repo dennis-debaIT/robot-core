@@ -669,7 +669,7 @@ class HomeAssistantProvider:
     def get_state(self, entity_id: str) -> dict | None:
         return self._get(f"/states/{entity_id}")
 
-    def get_pv_statistics(
+    async def get_pv_statistics(
         self,
         statistic_ids: list[str],
         start: datetime,
@@ -677,15 +677,14 @@ class HomeAssistantProvider:
         period: str,
         types: list[str],
     ) -> dict[str, list[dict]]:
-        payload = {
-            "start_time": start.isoformat(),
-            "end_time":   end.isoformat(),
-            "statistic_ids": statistic_ids,
-            "period": period,
-            "types": types,
-        }
-        result = self._post("/statistics_during_period", payload)
-        return result if isinstance(result, dict) else {}
+        """Liefert HA-Langzeitstatistiken über die WebSocket-API (kein REST-Äquivalent)."""
+        if not self._token:
+            return {}
+        from app.services.ha_websocket_service import get_statistics_during_period
+        return await get_statistics_during_period(
+            self._base_url, self._token, statistic_ids,
+            start.isoformat(), end.isoformat(), period, types,
+        )
 
     def get_history(self, entity_id: str, start: datetime, end: datetime, chunk_hours: int = 2) -> list[dict]:
         """Rohe Zustandshistorie eines Sensors — in chunk_hours-Chunks um Truncation zu vermeiden."""

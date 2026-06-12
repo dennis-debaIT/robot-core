@@ -65,6 +65,21 @@ def _to_local(raw: str) -> datetime | None:
         return None
 
 
+def _stat_to_local(raw: Any) -> datetime | None:
+    """Konvertiert einen Statistik-Zeitstempel (Epoch-ms aus der WS-API oder
+    ISO-String) in lokale Zeit via zoneinfo."""
+    try:
+        if isinstance(raw, (int, float)):
+            dt = datetime.fromtimestamp(raw / 1000, tz=timezone.utc)
+        else:
+            dt = datetime.fromisoformat(raw)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_LOCAL_TZ).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
 def _history_to_5min_max(states: list[dict]) -> tuple[list[str], list[float | None]]:
     """Aggregiert Rohzustände zu 5-Minuten-Maximalwerten (lokale Zeit)."""
     buckets: dict[str, list[float]] = defaultdict(list)
@@ -150,7 +165,7 @@ def _integrate_power_to_daily_kwh_from_history(
     return result
 
 
-def _integrate_power_to_daily_kwh_from_stats(
+async def _integrate_power_to_daily_kwh_from_stats(
     power_id: str,
     start_utc: datetime,
     end_utc: datetime,
@@ -162,7 +177,7 @@ def _integrate_power_to_daily_kwh_from_stats(
     Liefert {} wenn der Sensor keine Langzeitstatistik führt; dann greift der
     History-Fallback.
     """
-    stats = ha.get_pv_statistics([power_id], start_utc, end_utc, "hour", ["mean"])
+    stats = await ha.get_pv_statistics([power_id], start_utc, end_utc, "hour", ["mean"])
     rows = stats.get(power_id) or []
     if not rows:
         return {}
@@ -172,7 +187,7 @@ def _integrate_power_to_daily_kwh_from_stats(
         mean_w = _safe_float(r.get("mean"))
         if mean_w is None or mean_w < 0:
             continue
-        dt_loc = _to_local(r.get("start") or "")
+        dt_loc = _stat_to_local(r.get("start"))
         if not dt_loc:
             continue
         date_key = dt_loc.strftime("%Y-%m-%d")
@@ -183,7 +198,7 @@ def _integrate_power_to_daily_kwh_from_stats(
     return result
 
 
-def _integrate_power_to_daily_kwh(
+async def _integrate_power_to_daily_kwh(
     power_id: str,
     start_utc: datetime,
     end_utc: datetime,
@@ -201,7 +216,7 @@ def _integrate_power_to_daily_kwh(
     if (end_utc - start_utc) <= timedelta(hours=36):
         return _integrate_power_to_daily_kwh_from_history(power_id, start_utc, end_utc, ha)
 
-    result = _integrate_power_to_daily_kwh_from_stats(power_id, start_utc, end_utc, ha)
+    result = await _integrate_power_to_daily_kwh_from_stats(power_id, start_utc, end_utc, ha)
     if not result:
         return _integrate_power_to_daily_kwh_from_history(power_id, start_utc, end_utc, ha)
 
@@ -260,7 +275,7 @@ def _integrate_grid_daily_from_history(
     return result
 
 
-def _integrate_grid_daily_from_stats(
+async def _integrate_grid_daily_from_stats(
     grid_id: str,
     start_utc: datetime,
     end_utc: datetime,
@@ -272,7 +287,7 @@ def _integrate_grid_daily_from_stats(
     Liefert {} wenn der Sensor keine Langzeitstatistik führt (z. B. fehlendes
     state_class: measurement); dann greift der History-Fallback.
     """
-    stats = ha.get_pv_statistics([grid_id], start_utc, end_utc, "hour", ["mean"])
+    stats = await ha.get_pv_statistics([grid_id], start_utc, end_utc, "hour", ["mean"])
     rows = stats.get(grid_id) or []
     if not rows:
         return {}
@@ -282,7 +297,7 @@ def _integrate_grid_daily_from_stats(
         mean_w = _safe_float(r.get("mean"))
         if mean_w is None:
             continue
-        dt_loc = _to_local(r.get("start") or "")
+        dt_loc = _stat_to_local(r.get("start"))
         if not dt_loc:
             continue
         bucket = result.setdefault(dt_loc.strftime("%Y-%m-%d"), {"einspeisung": 0.0, "netzbezug": 0.0})
@@ -298,7 +313,7 @@ def _integrate_grid_daily_from_stats(
     return result
 
 
-def _integrate_grid_daily(
+async def _integrate_grid_daily(
     grid_id: str,
     start_utc: datetime,
     end_utc: datetime,
@@ -316,7 +331,7 @@ def _integrate_grid_daily(
     if (end_utc - start_utc) <= timedelta(hours=36):
         return _integrate_grid_daily_from_history(grid_id, start_utc, end_utc, ha)
 
-    result = _integrate_grid_daily_from_stats(grid_id, start_utc, end_utc, ha)
+    result = await _integrate_grid_daily_from_stats(grid_id, start_utc, end_utc, ha)
     if not result:
         return _integrate_grid_daily_from_history(grid_id, start_utc, end_utc, ha)
 
@@ -339,7 +354,7 @@ def _energy_costs(ein_kwh: float, bez_kwh: float, feed_in_ct: float, grid_price_
 
 
 @router.get("/ha/pv/grid-history")
-def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
+async def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
     config = IntegrationConfigService().get_config()
     sensors = _pv_sensors(config)
     grid_id = sensors.get("grid", "")
@@ -354,7 +369,7 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
     start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     if view == "today":
-        daily = _integrate_grid_daily(grid_id, start_utc, now_utc, ha)
+        daily = await _integrate_grid_daily(grid_id, start_utc, now_utc, ha)
         today = daily.get(now_loc.strftime("%Y-%m-%d"), {"einspeisung": 0.0, "netzbezug": 0.0})
         result = {"view": "today", "einspeisung": today["einspeisung"],
                   "netzbezug": today["netzbezug"], "unit": "kWh"}
@@ -364,7 +379,7 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
 
     if view == "7days":
         s7_utc = start_utc - timedelta(days=6)
-        daily  = _integrate_grid_daily(grid_id, s7_utc, now_utc, ha)
+        daily  = await _integrate_grid_daily(grid_id, s7_utc, now_utc, ha)
         labels, ein_vals, bez_vals = [], [], []
         for date_key in sorted(daily):
             dt = datetime.fromisoformat(date_key)
@@ -383,7 +398,7 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
 
     if view == "month":
         sm_utc = now_loc.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
-        daily  = _integrate_grid_daily(grid_id, sm_utc, now_utc, ha)
+        daily  = await _integrate_grid_daily(grid_id, sm_utc, now_utc, ha)
         labels, ein_vals, bez_vals = [], [], []
         for date_key in sorted(daily):
             dt = datetime.fromisoformat(date_key)
@@ -402,7 +417,7 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
 
     if view == "year":
         sy_utc = now_loc.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
-        daily  = _integrate_grid_daily(grid_id, sy_utc, now_utc, ha)
+        daily  = await _integrate_grid_daily(grid_id, sy_utc, now_utc, ha)
         monthly_ein: dict[int, float] = defaultdict(float)
         monthly_bez: dict[int, float] = defaultdict(float)
         for date_key, v in daily.items():
@@ -427,7 +442,7 @@ def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
 
 
 @router.get("/ha/pv/history")
-def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
+async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     config = IntegrationConfigService().get_config()
     sensors = _pv_sensors(config)
     power_id = sensors.get("power", "")
@@ -466,7 +481,7 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         if total is None:
             # Tagesertrag aus der bereits geladenen Leistungshistorie ableiten
             today_str = now_loc.strftime("%Y-%m-%d")
-            today_kwh = _integrate_power_to_daily_kwh(power_id, start_utc, now_utc, ha)
+            today_kwh = await _integrate_power_to_daily_kwh(power_id, start_utc, now_utc, ha)
             total = today_kwh.get(today_str)
 
         return {"view": "today", "labels": labels, "values": values,
@@ -479,20 +494,20 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         s7_utc = (start_utc - timedelta(days=6))
 
         if daily_id:
-            stats = ha.get_pv_statistics([daily_id], s7_utc, now_utc, "day", ["max"])
+            stats = await ha.get_pv_statistics([daily_id], s7_utc, now_utc, "day", ["state"])
             rows  = stats.get(daily_id) or []
             if rows:
                 daily: dict[str, float] = {}
                 for r in rows:
-                    dt = _to_local(r["start"])
+                    dt = _stat_to_local(r.get("start"))
                     if dt:
-                        daily[dt.strftime("%Y-%m-%d")] = _safe_float(r.get("max")) or 0.0
+                        daily[dt.strftime("%Y-%m-%d")] = _safe_float(r.get("state")) or 0.0
             else:
                 states = ha.get_history(daily_id, s7_utc, now_utc)
                 daily = _history_to_daily_max(states)
         else:
             # Ableitung aus Leistungssensor (W → kWh via Integration)
-            daily = _integrate_power_to_daily_kwh(power_id, s7_utc, now_utc, ha)
+            daily = await _integrate_power_to_daily_kwh(power_id, s7_utc, now_utc, ha)
 
         labels, values = [], []
         for date_key in sorted(daily):
@@ -511,19 +526,19 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         sm_utc = now_loc.replace(day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
         if daily_id:
-            stats = ha.get_pv_statistics([daily_id], sm_utc, now_utc, "day", ["max"])
+            stats = await ha.get_pv_statistics([daily_id], sm_utc, now_utc, "day", ["state"])
             rows  = stats.get(daily_id) or []
             if rows:
                 daily_m: dict[str, float] = {}
                 for r in rows:
-                    dt = _to_local(r["start"])
+                    dt = _stat_to_local(r.get("start"))
                     if dt:
-                        daily_m[dt.strftime("%Y-%m-%d")] = _safe_float(r.get("max")) or 0.0
+                        daily_m[dt.strftime("%Y-%m-%d")] = _safe_float(r.get("state")) or 0.0
             else:
                 states = ha.get_history(daily_id, sm_utc, now_utc)
                 daily_m = _history_to_daily_max(states)
         else:
-            daily_m = _integrate_power_to_daily_kwh(power_id, sm_utc, now_utc, ha)
+            daily_m = await _integrate_power_to_daily_kwh(power_id, sm_utc, now_utc, ha)
 
         labels, values = [], []
         for date_key in sorted(daily_m):
@@ -542,32 +557,35 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
         sy_utc = now_loc.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
         if daily_id:
-            stats = ha.get_pv_statistics([daily_id], sy_utc, now_utc, "month", ["sum"])
+            # Tageswerte ("state" = Tagesertrag bei Mitternacht) je Monat summieren —
+            # robuster als monatliche "sum"-Statistik (kumulativer Zähler, der erst
+            # per Differenzbildung in Monatswerte umgerechnet werden müsste).
+            stats = await ha.get_pv_statistics([daily_id], sy_utc, now_utc, "day", ["state"])
             rows  = stats.get(daily_id) or []
-            if rows and any(r.get("sum") is not None for r in rows):
-                labels, values = [], []
+            if rows:
+                monthly: dict[int, float] = defaultdict(float)
                 for r in rows:
-                    dt = _to_local(r["start"])
-                    if dt:
-                        labels.append(_DE_MONTHS_SHORT[dt.month - 1])
-                        values.append(_safe_float(r.get("sum")))
+                    dt = _stat_to_local(r.get("start"))
+                    state = _safe_float(r.get("state"))
+                    if dt and state is not None:
+                        monthly[dt.month] += state
             else:
                 states = ha.get_history(daily_id, sy_utc, now_utc)
                 daily_y = _history_to_daily_max(states)
-                monthly: dict[int, float] = defaultdict(float)
+                monthly = defaultdict(float)
                 for date_key, v in daily_y.items():
                     monthly[int(date_key[5:7])] += v
-                labels = [_DE_MONTHS_SHORT[m - 1] for m in sorted(monthly)]
-                values = [round(monthly[m], 1) for m in sorted(monthly)]
+            labels = [_DE_MONTHS_SHORT[m - 1] for m in sorted(monthly)]
+            values = [round(monthly[m], 1) for m in sorted(monthly)]
         else:
             # Ableitung aus Leistungssensor: HA-Statistics mit "mean" (1 API-Aufruf)
             # → mean_W × Stunden_im_Monat / 1000 = kWh
-            stats = ha.get_pv_statistics([power_id], sy_utc, now_utc, "month", ["mean"])
+            stats = await ha.get_pv_statistics([power_id], sy_utc, now_utc, "month", ["mean"])
             rows  = stats.get(power_id) or []
             if rows and any(r.get("mean") is not None for r in rows):
                 labels, values = [], []
                 for r in rows:
-                    dt = _to_local(r["start"])
+                    dt = _stat_to_local(r.get("start"))
                     if dt:
                         mean_w = _safe_float(r.get("mean"))
                         hours = calendar.monthrange(dt.year, dt.month)[1] * 24
@@ -576,7 +594,7 @@ def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
                         values.append(kwh)
             else:
                 # Letzter Fallback: Tagesintegration → monatliche Summen
-                daily_y = _integrate_power_to_daily_kwh(power_id, sy_utc, now_utc, ha)
+                daily_y = await _integrate_power_to_daily_kwh(power_id, sy_utc, now_utc, ha)
                 monthly = defaultdict(float)
                 for date_key, v in daily_y.items():
                     monthly[int(date_key[5:7])] += v
