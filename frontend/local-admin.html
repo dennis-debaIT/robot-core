@@ -662,6 +662,11 @@
               <div class="section-title">Tonnen</div>
               <p>Lege fest, welche Tonnen angezeigt werden. <b>Suchbegriff</b> = Wort, das im Kalendereintrag vorkommt (z. B. „graue"). <b>Name</b> = Anzeige im Widget. <b>Farbe</b> = Tonnen-Symbol. Pro Tonne wird der nächste Termin angezeigt (alle Varianten zusammengefasst).</p>
             </div>
+            <div style="display:flex;gap:10px;padding:0 36px 6px 2px;font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">
+              <span style="flex:1;min-width:110px;">Suchbegriff (im Kalendereintrag)</span>
+              <span style="flex:1;min-width:110px;">Name (Anzeige im Widget)</span>
+              <span style="width:150px;flex-shrink:0;">Farbe</span>
+            </div>
             <div id="waste-bins" class="layout-slot-list"></div>
             <div class="layout-add-row" style="margin-top:10px;">
               <button type="button" class="secondary" onclick="addWasteBin()">+ Tonne hinzufügen</button>
@@ -1188,6 +1193,16 @@
             </div>
           </section>
 
+        </article>
+
+        <article id="tab-system" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">System</div>
+              <h2>Home Assistant und Laufzeit</h2>
+            </div>
+          </header>
+
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Lizenz</div>
@@ -1223,15 +1238,6 @@
               <span id="edition-status" style="font-size:0.8rem;color:var(--muted);"></span>
             </div>
           </section>
-        </article>
-
-        <article id="tab-system" class="panel-card tab-panel">
-          <header class="panel-header">
-            <div>
-              <div class="panel-kicker">System</div>
-              <h2>Home Assistant und Laufzeit</h2>
-            </div>
-          </header>
 
           <section class="module-card">
             <div class="section-copy">
@@ -5388,6 +5394,8 @@
   document.querySelector('[data-tab-target="tab-design"]')?.addEventListener('click', () => {
     loadTheme();
     loadLayout();
+  });
+  document.querySelector('[data-tab-target="tab-system"]')?.addEventListener('click', () => {
     loadEdition();
     loadLicenseStatus();
   });
