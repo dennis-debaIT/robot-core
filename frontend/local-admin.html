@@ -638,7 +638,7 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Stromtarife <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
-              <p>Werden genutzt, um in der PV-Statistik (Tag/7&nbsp;Tage/Monat/Jahr) die Einspeiseverg&uuml;tung und die Kosten f&uuml;r den Netzbezug auszurechnen. Erfordert einen konfigurierten Netz-Sensor.</p>
+              <p>Werden genutzt, um in der PV-Statistik (Tag/7&nbsp;Tage/Monat/Jahr) die Einspeiseverg&uuml;tung und die Kosten f&uuml;r den Netzbezug auszurechnen. Erfordert einen konfigurierten Netz-Sensor. Strombezugstarif, Grundpreis und weitere Geb&uuml;hren bitte <strong>brutto</strong> (inkl. 19&nbsp;% USt) eingeben — bei der Einspeiseverg&uuml;tung f&auml;llt f&uuml;r private PV-Anlagen (Kleinunternehmer) in der Regel keine USt an, hier also einfach den Satz vom Netzbetreiber eintragen.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
@@ -646,8 +646,16 @@
                 <input id="pv-tariff-feed-in" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 8.2">
               </label>
               <label class="field-block">
-                <span class="field-label">Strombezugstarif (ct/kWh)</span>
+                <span class="field-label">Strombezugstarif (ct/kWh, brutto)</span>
                 <input id="pv-tariff-grid-price" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 32.0">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Grundpreis (€/Jahr, brutto)</span>
+                <input id="pv-tariff-base-price" class="field-input" type="number" min="0" max="10000" step="0.01" placeholder="z. B. 60.00">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Weitere feste Geb&uuml;hren (€/Jahr, brutto)</span>
+                <input id="pv-tariff-extra-fees" class="field-input" type="number" min="0" max="10000" step="0.01" placeholder="z. B. 0.00">
               </label>
             </div>
           </section>
@@ -1602,6 +1610,8 @@
     const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
     const pvTariffFeedInEl        = document.getElementById('pv-tariff-feed-in');
     const pvTariffGridPriceEl     = document.getElementById('pv-tariff-grid-price');
+    const pvTariffBasePriceEl     = document.getElementById('pv-tariff-base-price');
+    const pvTariffExtraFeesEl     = document.getElementById('pv-tariff-extra-fees');
     let _pvProviders = {};
     let _calendarEntities = [];
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
@@ -2879,6 +2889,8 @@
       const pvTariffs = pvConfig.tariffs || {};
       pvTariffFeedInEl.value    = pvTariffs.feed_in_ct    ?? '';
       pvTariffGridPriceEl.value = pvTariffs.grid_price_ct ?? '';
+      pvTariffBasePriceEl.value = pvTariffs.base_price_eur_year ?? '';
+      pvTariffExtraFeesEl.value = pvTariffs.extra_fees_eur_year ?? '';
       loadPvProviders();
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
@@ -3023,6 +3035,8 @@
               tariffs: {
                 feed_in_ct:    Number(pvTariffFeedInEl.value) || 0,
                 grid_price_ct: Number(pvTariffGridPriceEl.value) || 0,
+                base_price_eur_year: Number(pvTariffBasePriceEl.value) || 0,
+                extra_fees_eur_year: Number(pvTariffExtraFeesEl.value) || 0,
               },
             },
             system: {

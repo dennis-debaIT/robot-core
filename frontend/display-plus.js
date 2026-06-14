@@ -258,10 +258,19 @@
         const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
         const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €' : '–';
         const costs = gd.costs || null;
+        const fixedCostsHtml = costs && costs.fixed_costs
+          ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+               <span style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Grundpreis &amp; Geb&uuml;hren</span>
+               <span style="font-size:0.85rem;font-weight:700;color:var(--warning);">−${fmtEur(costs.fixed_costs)}</span>
+             </div>`
+          : '';
         const saldoHtml = costs
-          ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
-               <span style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Saldo (Erlös − Kosten)</span>
-               <span style="font-size:1.1rem;font-weight:800;color:${costs.saldo >= 0 ? 'var(--success)' : 'var(--warning)'};">${costs.saldo >= 0 ? '+' : ''}${fmtEur(costs.saldo)}</span>
+          ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+               ${fixedCostsHtml}
+               <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                 <span style="font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Saldo (Erlös − Kosten)</span>
+                 <span style="font-size:1.1rem;font-weight:800;color:${costs.saldo >= 0 ? 'var(--success)' : 'var(--warning)'};">${costs.saldo >= 0 ? '+' : ''}${fmtEur(costs.saldo)}</span>
+               </div>
              </div>`
           : '';
         if (view === 'today') {

@@ -46,12 +46,15 @@ def _safe_float(v: Any) -> float | None:
         return None
 
 
-def _pv_tariffs(config: dict) -> tuple[float, float]:
-    """Liefert (Einspeiseverguetung, Strombezugstarif) in Cent/kWh."""
+def _pv_tariffs(config: dict) -> tuple[float, float, float, float]:
+    """Liefert (Einspeiseverguetung ct/kWh, Strombezugstarif ct/kWh,
+    Grundpreis €/Jahr brutto, weitere feste Gebühren €/Jahr brutto)."""
     tariffs = (config.get("pv") or {}).get("tariffs") or {}
     feed_in_ct = _safe_float(tariffs.get("feed_in_ct")) or 0.0
     grid_price_ct = _safe_float(tariffs.get("grid_price_ct")) or 0.0
-    return feed_in_ct, grid_price_ct
+    base_price_eur_year = _safe_float(tariffs.get("base_price_eur_year")) or 0.0
+    extra_fees_eur_year = _safe_float(tariffs.get("extra_fees_eur_year")) or 0.0
+    return feed_in_ct, grid_price_ct, base_price_eur_year, extra_fees_eur_year
 
 
 def _to_local(raw: str) -> datetime | None:
@@ -342,15 +345,35 @@ async def _integrate_grid_daily(
     return result
 
 
-def _energy_costs(ein_kwh: float, bez_kwh: float, feed_in_ct: float, grid_price_ct: float) -> dict[str, float]:
-    """Berechnet Einspeiseerlös und Netzbezugskosten (€) aus kWh und Cent/kWh-Tarifen."""
+def _fixed_costs(start: datetime, end: datetime, annual_eur: float) -> float:
+    """Verteilt einen jährlichen Brutto-Fixbetrag (Grundpreis + weitere Gebühren)
+    auf den Zeitraum [start, end] (inklusive, lokale Tage), unter Berücksichtigung
+    von Schaltjahren — analog zur Tagesanteil-Berechnung auf Stromrechnungen."""
+    if annual_eur <= 0:
+        return 0.0
+    total = 0.0
+    d = start.date()
+    end_date = end.date()
+    while d <= end_date:
+        days_in_year = 366 if calendar.isleap(d.year) else 365
+        total += annual_eur / days_in_year
+        d += timedelta(days=1)
+    return round(total, 2)
+
+
+def _energy_costs(ein_kwh: float, bez_kwh: float, feed_in_ct: float, grid_price_ct: float, fixed_costs: float = 0.0) -> dict[str, float]:
+    """Berechnet Einspeiseerlös, Netzbezugskosten und Saldo (€) aus kWh, Cent/kWh-Tarifen
+    und anteiligen Fixkosten (Grundpreis + weitere Gebühren) für den Zeitraum."""
     einspeisung_value = round(ein_kwh * feed_in_ct / 100, 2)
     netzbezug_cost    = round(bez_kwh * grid_price_ct / 100, 2)
-    return {
+    result = {
         "einspeisung_value": einspeisung_value,
         "netzbezug_cost":    netzbezug_cost,
-        "saldo":             round(einspeisung_value - netzbezug_cost, 2),
+        "saldo":             round(einspeisung_value - netzbezug_cost - fixed_costs, 2),
     }
+    if fixed_costs:
+        result["fixed_costs"] = fixed_costs
+    return result
 
 
 @router.get("/ha/pv/grid-history")
@@ -360,8 +383,9 @@ async def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
     grid_id = sensors.get("grid", "")
     if not grid_id:
         raise HTTPException(404, "Netz-Sensor nicht konfiguriert")
-    feed_in_ct, grid_price_ct = _pv_tariffs(config)
-    costs_enabled = feed_in_ct > 0 or grid_price_ct > 0
+    feed_in_ct, grid_price_ct, base_price_eur_year, extra_fees_eur_year = _pv_tariffs(config)
+    annual_fixed_eur = base_price_eur_year + extra_fees_eur_year
+    costs_enabled = feed_in_ct > 0 or grid_price_ct > 0 or annual_fixed_eur > 0
 
     ha      = HomeAssistantProvider()
     now_loc = datetime.now(_LOCAL_TZ)
@@ -374,7 +398,8 @@ async def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
         result = {"view": "today", "einspeisung": today["einspeisung"],
                   "netzbezug": today["netzbezug"], "unit": "kWh"}
         if costs_enabled:
-            result["costs"] = _energy_costs(today["einspeisung"], today["netzbezug"], feed_in_ct, grid_price_ct)
+            fixed = _fixed_costs(now_loc, now_loc, annual_fixed_eur)
+            result["costs"] = _energy_costs(today["einspeisung"], today["netzbezug"], feed_in_ct, grid_price_ct, fixed)
         return result
 
     if view == "7days":
@@ -393,7 +418,8 @@ async def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
                   "einspeisung_total": ein_total,
                   "netzbezug_total":   bez_total, "unit": "kWh"}
         if costs_enabled:
-            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct)
+            fixed = _fixed_costs(s7_utc.astimezone(_LOCAL_TZ), now_loc, annual_fixed_eur)
+            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct, fixed)
         return result
 
     if view == "month":
@@ -412,7 +438,8 @@ async def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
                   "einspeisung_total": ein_total,
                   "netzbezug_total":   bez_total, "unit": "kWh"}
         if costs_enabled:
-            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct)
+            fixed = _fixed_costs(sm_utc.astimezone(_LOCAL_TZ), now_loc, annual_fixed_eur)
+            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct, fixed)
         return result
 
     if view == "year":
@@ -435,7 +462,8 @@ async def get_pv_grid_history(view: str = Query("today")) -> dict[str, Any]:
                   "einspeisung_total": ein_total,
                   "netzbezug_total":   bez_total, "unit": "kWh"}
         if costs_enabled:
-            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct)
+            fixed = _fixed_costs(sy_utc.astimezone(_LOCAL_TZ), now_loc, annual_fixed_eur)
+            result["costs"] = _energy_costs(ein_total, bez_total, feed_in_ct, grid_price_ct, fixed)
         return result
 
     raise HTTPException(400, f"Unbekannte View: {view}")

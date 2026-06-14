@@ -118,6 +118,8 @@ class IntegrationConfigService:
                 "tariffs": {
                     "feed_in_ct":   0.0,
                     "grid_price_ct": 0.0,
+                    "base_price_eur_year": 0.0,
+                    "extra_fees_eur_year": 0.0,
                 },
             },
             "waste": {
@@ -213,6 +215,8 @@ class IntegrationConfigService:
         pv_tariffs = pv.setdefault("tariffs", {})
         pv_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(pv_tariffs.get("feed_in_ct"))
         pv_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(pv_tariffs.get("grid_price_ct"))
+        pv_tariffs["base_price_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("base_price_eur_year"))
+        pv_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("extra_fees_eur_year"))
         waste = merged.setdefault("waste", {})
         waste["enabled"] = bool(waste.get("enabled", False))
         waste["calendar_entity"] = str(waste.get("calendar_entity") or "calendar.abfallkalender").strip()
@@ -318,6 +322,8 @@ class IntegrationConfigService:
         pv_tariffs = pv.setdefault("tariffs", {})
         pv_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(pv_tariffs.get("feed_in_ct"))
         pv_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(pv_tariffs.get("grid_price_ct"))
+        pv_tariffs["base_price_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("base_price_eur_year"))
+        pv_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("extra_fees_eur_year"))
         attention = updated.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
@@ -849,6 +855,16 @@ class IntegrationConfigService:
         if ct != ct:  # NaN
             ct = 0.0
         return round(max(0.0, min(ct, 200.0)), 2)
+
+    @staticmethod
+    def _sanitize_tariff_eur_year(value: Any) -> float:
+        try:
+            eur = float(value)
+        except (TypeError, ValueError):
+            eur = 0.0
+        if eur != eur:  # NaN
+            eur = 0.0
+        return round(max(0.0, min(eur, 10000.0)), 2)
 
     @staticmethod
     def _sanitize_config_version(value: Any) -> int:

@@ -9,6 +9,13 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-06-13
+
+### Neu
+- **PV-Energiekosten (Plus): Grundpreis & weitere Gebühren**: Im Admin (PV → Stromtarife) können zusätzlich zu Einspeisevergütung und Strombezugstarif jetzt ein jährlicher Grundpreis und weitere feste Jahresgebühren hinterlegt werden (jeweils brutto inkl. 19% USt). Beide Beträge werden tagesgenau (inkl. Schaltjahr-Berücksichtigung) auf den jeweiligen Statistik-Zeitraum (Heute/7 Tage/Monat/Jahr) umgelegt und im Saldo der PV-Statistik als „Grundpreis & Gebühren" ausgewiesen.
+
+---
+
 ## 2026-06-12
 
 ### Neu
