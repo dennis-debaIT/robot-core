@@ -3302,6 +3302,14 @@
   }
 
   async function toggleVehicleHistory(vehicleId) {
+    if (!_hasFeature('vehicle_history')) {
+      _showUpgradePrompt({
+        title: 'Fahrzeug-Verlauf',
+        text: 'Der Standort- und Ladeverlauf der letzten 14 Tage ist in Erika Plus verfügbar. Der aktuelle Fahrzeug-Status bleibt kostenlos.',
+        cta: 'Erika Plus',
+      });
+      return;
+    }
     const body  = document.getElementById(`veh-history-body-${vehicleId}`);
     const arrow = document.getElementById(`veh-history-arrow-${vehicleId}`);
     if (!body) return;
@@ -3998,7 +4006,12 @@
     if (fn) fn.call(video);
   }
 
+  function _cameraEventsUpgradeHtml() {
+    return `<div class="cal-placeholder" style="cursor:pointer;" onclick="_showUpgradePrompt({title:'Kamera-Ereignisse',text:'Die Ereignis- und Türklingel-Historie ist in Erika Plus verfügbar. Live-Kamerabild und Schnappschuss bleiben kostenlos.',cta:'Erika Plus'})">⭐ Ereignisliste ist Teil von Erika Plus</div>`;
+  }
+
   function renderCameraEvents(events) {
+    if (!_hasFeature('camera_events')) return _cameraEventsUpgradeHtml();
     if (!events?.length) return '<div class="cal-placeholder">Keine Ereignisse</div>';
     return events.map(e => `
       <div class="cam-event-item">
@@ -4042,6 +4055,7 @@
   async function _refreshCameraEvents() {
     // Nur Events-Liste aktualisieren — Video-Elemente NICHT anfassen
     if (_navMode !== 'cameras') return;
+    if (!_hasFeature('camera_events')) return; // Upgrade-Teaser ist statisch
     const events = await loadCameraEvents();
     const rightEl = document.querySelector('.right-panel .panel-content, #right-content');
     const evEl = document.getElementById('cam-events-panel');

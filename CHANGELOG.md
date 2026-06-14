@@ -9,6 +9,13 @@ Format: neueste Einträge oben.
 
 ---
 
+## 2026-06-14
+
+### Geändert
+- **Kamera-Ereignisliste & Fahrzeug-Verlauf jetzt korrekt Erika Plus**: Beide Features waren in der Feature-Registry bereits als „Plus" hinterlegt, im Display aber ungated und damit für alle Editionen frei nutzbar. Die Ereignis-/Türklingel-Historie im Kamera-Bereich sowie der Standort-/Ladeverlauf der letzten 14 Tage bei Fahrzeugen zeigen ohne Plus-Lizenz jetzt eine Upgrade-Box; Live-Kamerabild, Schnappschuss und der aktuelle Fahrzeug-Status bleiben wie gewohnt kostenlos.
+
+---
+
 ## 2026-06-13
 
 ### Neu
