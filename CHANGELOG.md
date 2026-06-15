@@ -7,6 +7,9 @@ Format: neueste Einträge oben.
 
 ## [Unreleased]
 
+### Behoben
+- **Strom-Migration jetzt wirklich einmalig**: Die automatische Übernahme von `pv.sensors.grid`/`pv.tariffs` in den neuen `energy`-Bereich wurde bisher bei jedem Config-Aufruf neu berechnet statt einmalig gespeichert — spätere Änderungen an den PV-Einstellungen hätten die migrierten Strom-Werte sonst weiter überschrieben, solange im Strom-Tab nie gespeichert wurde. Wird jetzt sofort persistiert.
+
 ---
 
 ## 2026-06-14

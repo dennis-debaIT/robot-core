@@ -7,10 +7,10 @@ from fastapi import APIRouter, HTTPException
 from app.services.integration_config_service import IntegrationConfigService
 from app.services.pv_service import PV_PROVIDERS, PvService
 
-# Hinweis: Die kostenpflichtigen PV-Statistik-Endpunkte (/ha/pv/history,
-# /ha/pv/grid-history) liegen in ha_pv_stats.py und werden in main.py
-# optional registriert. Dieses Modul enthält nur die frei verfügbaren
-# Endpunkte: Live-Zustand und Provider-Liste.
+# Hinweis: Der kostenpflichtige PV-Statistik-Endpunkt (/ha/pv/history) liegt
+# in ha_pv_stats.py und wird in main.py optional registriert. Dieses Modul
+# enthält nur die frei verfügbaren Endpunkte: Live-Zustand und Provider-Liste.
+# Netzbezug/Saldo/Kosten liegen in ha_energy_costs.py (/ha/energy/history).
 
 router = APIRouter()
 

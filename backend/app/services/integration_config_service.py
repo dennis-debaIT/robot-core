@@ -239,12 +239,17 @@ class IntegrationConfigService:
         if energy_first_run and pv_sensors.get("grid"):
             # Migration: bisherige PV-Netzbezug-Tarife/Sensor in den neuen
             # "Strom"-Bereich übernehmen (einmalig, solange "energy" noch
-            # nicht gespeichert wurde).
+            # nicht gespeichert wurde). Ergebnis sofort persistieren, damit
+            # spätere Änderungen an pv.sensors.grid/pv.tariffs die einmal
+            # migrierten Strom-Werte nicht erneut überschreiben.
             energy["enabled"] = True
             energy["tariffs"] = dict(pv_tariffs)
             energy["sensors"] = self._sanitize_energy_sensors([
                 {"id": "gesamt", "label": "Gesamt-Netzbezug", "entity_id": pv_sensors["grid"], "role": "grid"},
             ])
+            current["energy"] = energy
+            with get_connection() as conn:
+                write_state(conn, self.state_key, current)
         waste = merged.setdefault("waste", {})
         waste["enabled"] = bool(waste.get("enabled", False))
         waste["calendar_entity"] = str(waste.get("calendar_entity") or "calendar.abfallkalender").strip()
