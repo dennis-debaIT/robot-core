@@ -327,3 +327,9 @@ try:
     app.include_router(ha_pv_stats.router)
 except ImportError:
     pass
+
+try:
+    from app.api.routers import chores
+    app.include_router(chores.router)
+except ImportError:
+    pass

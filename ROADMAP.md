@@ -124,6 +124,7 @@ Ziel: Nutzer können das Display optisch und strukturell an ihre Wünsche anpass
 - [x] **Slot-Editor**: Größe (+/−) und Reihenfolge (↑↓) pro Widget
 - [x] **PV-Energiefluss-Diagramm**: Animierter Fluss mit Glow-Nodes, korrekte Richtungslogik
 - [x] **Theme-Konsistenz**: Alle Overlays/Charts nutzen CSS-Variablen (Light Theme vollständig nutzbar)
+- [x] **Hausaufgaben-Modul (Plus/Family)**: Admin-verwaltete Aufgabenliste, Erledigungen pro Person über die bestehenden Personenprofile, Statistik je Aufgabe (Woche/Monat/Jahr, „Wochensieger") sowie optionaler Gesamt-Wochensieger über alle Aufgaben. Sprachsteuerung (z. B. "Ich habe gerade gestaubsaugt") ist bewusst noch offen — siehe Ideen-Backlog.
 
 ---
 
@@ -172,7 +173,7 @@ Dinge, die interessant sein könnten — kein Commitment.
 - Einkaufslisten-Sync mit Bring! oder ähnlichem
 - Kalender-Integration über CalDAV (nicht nur HA)
 - Schlaferkennung: Erika wird still, wenn sie erkennt dass jemand schläft
-- Haushaltsaufgaben-Tracking ("Wann habe ich zuletzt gestaubsaugt?")
+- Sprachsteuerung für Hausaufgaben (z. B. "Ich habe gerade gestaubsaugt" loggt eine Erledigung per Sprache, "Wer ist mit Spülmaschine dran?")
 - Sprachgesteuerte Foto-Aufnahme + lokale Galerie
 
 ---

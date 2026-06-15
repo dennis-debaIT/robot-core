@@ -32,6 +32,7 @@ FEATURES: dict[str, str] = {
     "waste":           "plus",   # Abfallkalender-Widget
     "theme_schedule":  "plus",   # Zeitabhängiges Design (Tag/Nacht-Theme-Wechsel)
     "energy_costs":    "plus",   # Stromkosten-Berechnung (Verbrauch je Sensor bleibt frei)
+    "chores":          "plus",   # Hausaufgaben-Modul (Aufgabenverwaltung + Statistik)
 }
 
 _TIER_RANK = {"community": 0, "plus": 1, "family": 2}

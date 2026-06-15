@@ -11,6 +11,7 @@ FRONTEND_INDEX = BASE_DIR / "frontend" / "index.html"
 DISPLAY_INDEX = BASE_DIR / "frontend" / "display.html"
 DISPLAY_CSS = BASE_DIR / "frontend" / "display.css"
 DISPLAY_PLUS_JS = BASE_DIR / "frontend" / "display-plus.js"
+DISPLAY_CHORES_JS = BASE_DIR / "frontend" / "display-chores.js"
 LOCAL_ADMIN_INDEX = BASE_DIR / "frontend" / "local-admin.html"
 LOCAL_ADMIN_CSS = BASE_DIR / "frontend" / "local-admin.css"
 

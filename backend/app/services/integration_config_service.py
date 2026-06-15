@@ -142,6 +142,10 @@ class IntegrationConfigService:
                     {"match": "grün",  "label": "Grüne Tonne", "color": "green"},
                 ],
             },
+            "chores": {
+                "enabled": False,
+                "overall_winner_enabled": True,
+            },
             "meta": {
                 "version": 1,
             },
@@ -268,6 +272,9 @@ class IntegrationConfigService:
                 "color": _color,
             })
         waste["bins"] = _bins
+        chores = merged.setdefault("chores", {})
+        chores["enabled"] = bool(chores.get("enabled", False))
+        chores["overall_winner_enabled"] = bool(chores.get("overall_winner_enabled", True))
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

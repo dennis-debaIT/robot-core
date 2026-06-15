@@ -30,7 +30,10 @@ COPY VERSION /app/VERSION
 ARG EDITION=community
 RUN if [ "$EDITION" = "community" ]; then \
         rm -f /app/app/api/routers/ha_pv_stats.py \
-              /app/frontend/display-plus.js ; \
+              /app/app/api/routers/chores.py \
+              /app/app/services/chore_service.py \
+              /app/frontend/display-plus.js \
+              /app/frontend/display-chores.js ; \
         echo "Community-Build: Paid-Module entfernt"; \
     fi
 

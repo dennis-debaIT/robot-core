@@ -266,6 +266,10 @@
     <span class="nav-icon">🏠</span>
     <span class="nav-label">Start</span>
   </button>
+  <button class="nav-btn" id="nav-chores" onclick="navTo('chores')">
+    <span class="nav-icon">🧹</span>
+    <span class="nav-label">Hausaufgaben</span>
+  </button>
   <button class="nav-btn" id="nav-vehicles" onclick="navTo('vehicles')">
     <span class="nav-icon">ðŸš—</span>
     <span class="nav-label">Fahrzeuge</span>
@@ -1798,6 +1802,8 @@
       ${yLines}${bars}${lbls}
     </svg>`;
   }
+  // Für display-chores.js (Erika Plus) wiederverwendbar machen
+  window._svgEnergyBar = _svgEnergyBar;
 
   function _renderEnergySensorCard(s, view) {
     const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
@@ -2995,7 +3001,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false };
   })();
   let _calendarOpenTrigger = 'both';
   let _activePersonName = null;
@@ -3172,6 +3178,7 @@
       pv:       modules?.pv       === true,
       printer:  modules?.printer  === true,
       energy:   modules?.energy   === true,
+      chores:   modules?.chores   === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;
@@ -3185,12 +3192,14 @@
     const camerasBtn = document.getElementById('nav-cameras');
     const energyBtn = document.getElementById('nav-energy');
     const calBtn = document.getElementById('nav-calendar');
+    const choresBtn = document.getElementById('nav-chores');
     if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
     if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
     if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
     if (camerasBtn) camerasBtn.hidden = !_enabledModules.cameras;
     if (energyBtn) energyBtn.hidden = !_enabledModules.energy;
-    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras)) {
+    if (choresBtn) choresBtn.hidden = !_enabledModules.chores;
+    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras) || (_navMode === 'chores' && !_enabledModules.chores)) {
       navTo('home');
     }
     // Kalender Trigger-Konfiguration anwenden
@@ -3211,7 +3220,7 @@
   }
 
   function navTo(mode) {
-    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras)) {
+    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras) || (mode === 'chores' && !_enabledModules.chores)) {
       mode = 'home';
     }
     _navMode = mode;
@@ -3227,6 +3236,7 @@
       clearCamerasView();
       clearRobotsView();
       clearVehiclesView();
+      clearChoresView();
       currentMode = null;
       applyMode('idle');
     } else if (mode === 'lights') {
@@ -3236,6 +3246,7 @@
       clearCamerasView();
       clearRobotsView();
       clearVehiclesView();
+      clearChoresView();
       showLightsView();
       _startLightsPolling();
     } else if (mode === 'cameras') {
@@ -3245,6 +3256,7 @@
       clearLightsView();
       clearRobotsView();
       clearVehiclesView();
+      clearChoresView();
       showCamerasView();
       _startCamerasPolling();
     } else if (mode === 'robots') {
@@ -3255,6 +3267,7 @@
       clearLightsView();
       clearCamerasView();
       clearVehiclesView();
+      clearChoresView();
       showRobotsView();
     } else if (mode === 'vehicles') {
       clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
@@ -3264,7 +3277,26 @@
       clearLightsView();
       clearCamerasView();
       clearRobotsView();
+      clearChoresView();
       showVehiclesView();
+    } else if (mode === 'chores') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearRobotsView();
+      clearVehiclesView();
+      if (!_hasFeature('chores') || !window._choresPlus) {
+        _showUpgradePrompt({
+          title: 'Hausaufgaben',
+          text: 'Die Hausaufgaben-Verwaltung mit Statistiken pro Person ist in Erika Plus verfügbar.',
+          cta: 'Erika Plus',
+        });
+      } else {
+        window._choresPlus.open();
+      }
     }
   }
 
@@ -3865,6 +3897,11 @@
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active', 'vehicle-map-expanded'); overlay.innerHTML = ''; }
     document.getElementById('left-content').style.overflowY = '';
+  }
+
+  // Hausaufgaben (Erika Plus) — schweres Modul liegt in display-chores.js
+  function clearChoresView() {
+    window._choresPlus?.close();
   }
 
   function formatMinutesAsHHMM(value) {
@@ -6416,5 +6453,6 @@
 </script>
 <!-- Erika Plus — Paid-Module (fehlt im Community-Build → 404, Upgrade-Box greift) -->
 <script src="/display-plus.js" defer onerror="console.info('Community Edition: Plus-Module nicht geladen')"></script>
+<script src="/display-chores.js" defer onerror="console.info('Community Edition: Hausaufgaben-Modul nicht geladen')"></script>
 </body>
 </html>

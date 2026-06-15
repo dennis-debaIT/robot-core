@@ -1199,6 +1199,28 @@
     .vehicle-empty {
       margin: auto; color: var(--muted); font-size: 0.9rem;
     }
+    .chore-banner {
+      background: rgba(255,200,0,0.08); border: 1px solid rgba(255,200,0,0.3);
+      border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;
+      font-size: 0.88rem; font-weight: 800; color: var(--text); text-align: center;
+    }
+    .chore-leader {
+      font-size: 0.82rem; font-weight: 800; color: var(--accent);
+      margin-bottom: 4px;
+    }
+    .chore-totals {
+      display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;
+    }
+    .chore-total-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 8px 14px; font-size: 0.84rem;
+    }
+    .chore-total-row span:first-child { font-weight: 700; color: var(--text); }
+    .chore-total-row span:last-child { font-weight: 800; color: var(--accent); }
+    .chore-person-flash {
+      background: rgba(0,200,80,0.18) !important;
+    }
     .vehicle-map-expanded-wrap {
       height: 100%; display: flex; flex-direction: column; gap: 12px; width: 100%;
     }

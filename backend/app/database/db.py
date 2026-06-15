@@ -320,6 +320,26 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_person_notes_person
             ON person_notes(person_id);
 
+            CREATE TABLE IF NOT EXISTS chore_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                icon TEXT,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS chore_completions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL REFERENCES chore_tasks(id),
+                person_id INTEGER NOT NULL REFERENCES persons(id),
+                completed_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_chore_completions_task
+            ON chore_completions(task_id, completed_at);
+
             CREATE TABLE IF NOT EXISTS daily_summaries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 person_name TEXT NOT NULL,

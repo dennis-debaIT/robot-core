@@ -40,6 +40,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-energy"><span class="si-icon">⚡</span><span>Strom</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-chores"><span class="si-icon">🧹</span><span>Hausaufgaben</span></button>
         </div>
 
         <div class="sidebar-group">
@@ -737,6 +738,44 @@
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
             <button type="button" class="primary" onclick="saveWasteConfig()">Speichern</button>
             <span id="waste-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
+        </article>
+
+        <!-- ── HAUSAUFGABEN ───────────────────────────────────── -->
+        <article id="tab-chores" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Hausaufgaben <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
+              <h2>Hausaufgaben-Verwaltung</h2>
+            </div>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Modul</div>
+              <p>Hausaufgaben-Tracking mit Personen-Statistik (Woche/Monat/Jahr) im Display. Erscheint als eigener Navigationspunkt zwischen „Start" und „Fahrzeuge".</p>
+            </div>
+            <label class="field-block" style="flex-direction:row;align-items:center;gap:10px;">
+              <input id="chores-enabled" type="checkbox">
+              <span class="field-label" style="margin:0;">Hausaufgaben-Modul aktivieren</span>
+            </label>
+            <label class="field-block" style="flex-direction:row;align-items:center;gap:10px;">
+              <input id="chores-overall-winner" type="checkbox">
+              <span class="field-label" style="margin:0;">Gesamt-Wochenstatistik („Wochensieger" über alle Aufgaben) anzeigen</span>
+            </label>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Aufgaben</div>
+              <p>Lege die Hausaufgaben an, die im Display erledigt werden können (z. B. „Treppe saugen"). Das Icon ist ein optionales Emoji. Reihenfolge per ↑/↓, Löschen entfernt die Aufgabe aus dem Display (bisherige Statistik bleibt erhalten).</p>
+            </div>
+            <div id="chore-tasks" class="layout-slot-list"></div>
+            <div class="layout-add-row" style="margin-top:10px;">
+              <button type="button" class="secondary" onclick="addChoreTask()">+ Aufgabe hinzufügen</button>
+            </div>
+          </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveChoresConfig()">Speichern</button>
+            <span id="chores-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
           </div>
         </article>
 
@@ -3144,6 +3183,8 @@
         const feats = d.features || {};
         const wasteBtn = document.querySelector('[data-tab-target="tab-waste"]');
         if (wasteBtn) wasteBtn.style.display = feats.waste ? '' : 'none';
+        const choresBtn = document.querySelector('[data-tab-target="tab-chores"]');
+        if (choresBtn) choresBtn.style.display = feats.chores ? '' : 'none';
         const scheduleCard = document.getElementById('theme-schedule-card');
         if (scheduleCard) scheduleCard.style.display = feats.theme_schedule ? '' : 'none';
       } catch {}
@@ -3345,6 +3386,117 @@
       }
     }
 
+    // ── HAUSAUFGABEN (Erika Plus) ─────────────────────────────
+    let _choreTasks = [];
+
+    function _renderChoreTasks() {
+      const box = document.getElementById('chore-tasks');
+      if (!box) return;
+      if (!_choreTasks.length) {
+        box.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:8px 0;">Keine Aufgabe angelegt</div>';
+        return;
+      }
+      box.innerHTML = _choreTasks.map((t, i) => `
+        <div class="layout-slot-row" style="gap:10px;flex-wrap:wrap;">
+          <input class="field-input" style="width:60px;text-align:center;" placeholder="🧹" maxlength="4"
+                 value="${(t.icon||'').replace(/"/g,'&quot;')}" onchange="_updateChoreTask(${t.id}, {icon: this.value})">
+          <input class="field-input" style="flex:1;min-width:140px;" placeholder="Aufgabenname"
+                 value="${(t.name||'').replace(/"/g,'&quot;')}" onchange="_updateChoreTask(${t.id}, {name: this.value})">
+          <button type="button" class="secondary" ${i === 0 ? 'disabled' : ''} onclick="_moveChoreTask(${i}, -1)" title="Nach oben">↑</button>
+          <button type="button" class="secondary" ${i === _choreTasks.length - 1 ? 'disabled' : ''} onclick="_moveChoreTask(${i}, 1)" title="Nach unten">↓</button>
+          <button type="button" class="layout-remove-btn" onclick="_deleteChoreTask(${t.id})" title="Löschen">×</button>
+        </div>`).join('');
+    }
+
+    async function _loadChoreTasks() {
+      try {
+        const d = await fetch('/chores/tasks').then(r => r.json());
+        _choreTasks = (d.tasks || []).slice().sort((a, b) => a.sort_order - b.sort_order);
+        _renderChoreTasks();
+      } catch {}
+    }
+
+    async function addChoreTask() {
+      try {
+        await fetch('/chores/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Neue Aufgabe', icon: '🧹' }),
+        });
+        await _loadChoreTasks();
+      } catch {}
+    }
+
+    async function _updateChoreTask(id, patch) {
+      if (patch.name !== undefined) {
+        patch.name = patch.name.trim();
+        if (!patch.name) { await _loadChoreTasks(); return; }
+      }
+      try {
+        await fetch(`/chores/tasks/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        });
+        await _loadChoreTasks();
+      } catch {}
+    }
+
+    async function _deleteChoreTask(id) {
+      try {
+        await fetch(`/chores/tasks/${id}`, { method: 'DELETE' });
+        await _loadChoreTasks();
+      } catch {}
+    }
+
+    async function _moveChoreTask(index, dir) {
+      const other = index + dir;
+      if (other < 0 || other >= _choreTasks.length) return;
+      const a = _choreTasks[index];
+      const b = _choreTasks[other];
+      try {
+        await Promise.all([
+          fetch(`/chores/tasks/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sort_order: b.sort_order }) }),
+          fetch(`/chores/tasks/${b.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sort_order: a.sort_order }) }),
+        ]);
+        await _loadChoreTasks();
+      } catch {}
+    }
+
+    async function _loadChoresConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const chores = (cfg.config || cfg).chores || {};
+        const enabledEl = document.getElementById('chores-enabled');
+        const winnerEl = document.getElementById('chores-overall-winner');
+        if (enabledEl) enabledEl.checked = chores.enabled === true;
+        if (winnerEl) winnerEl.checked = chores.overall_winner_enabled !== false;
+      } catch {}
+      await _loadChoreTasks();
+    }
+
+    async function saveChoresConfig() {
+      const enabledEl = document.getElementById('chores-enabled');
+      const winnerEl = document.getElementById('chores-overall-winner');
+      const statusEl = document.getElementById('chores-status');
+      if (statusEl) statusEl.textContent = 'Speichere…';
+      try {
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chores: {
+              enabled: enabledEl?.checked || false,
+              overall_winner_enabled: winnerEl?.checked !== false,
+            },
+          }),
+        });
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     const _ENERGY_ROLES = [
       ['device', 'Gerät (Verbrauch & Kosten)'],
       ['grid', 'Gesamt-Netzbezug (Saldo)'],
@@ -3433,6 +3585,7 @@
 
     document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
     document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
+    document.querySelector('[data-tab-target="tab-chores"]')?.addEventListener('click', _loadChoresConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
