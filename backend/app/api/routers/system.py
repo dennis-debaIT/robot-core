@@ -433,7 +433,7 @@ def get_llm_config() -> dict[str, Any]:
         "api_key_set":    bool(key),
         "model":          cfg.get("model", ""),
         "fallback_model": cfg.get("fallback_model", ""),
-        "max_tokens":     cfg.get("max_tokens", 220),
+        "max_tokens":     cfg.get("max_tokens", 320),
         "temperature":    cfg.get("temperature", 0.4),
         "enabled":        bool(cfg.get("api_url")),
         "providers":      _LLM_PROVIDERS,
@@ -448,9 +448,9 @@ def save_llm_config(payload: dict[str, Any]) -> dict[str, Any]:
     if not api_key:
         api_key = existing.get("api_key", "")
     try:
-        max_tokens = max(50, min(4096, int(payload.get("max_tokens", 220))))
+        max_tokens = max(50, min(4096, int(payload.get("max_tokens", 320))))
     except (TypeError, ValueError):
-        max_tokens = 220
+        max_tokens = 320
     try:
         temperature = max(0.0, min(2.0, float(payload.get("temperature", 0.4))))
     except (TypeError, ValueError):

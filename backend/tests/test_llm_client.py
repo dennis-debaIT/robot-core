@@ -27,6 +27,7 @@ def test_openai_compatible_request_body(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "openai_compat")
     monkeypatch.setenv("LLM_API_URL", "http://example.invalid/v1/chat/completions")
     monkeypatch.setenv("LLM_MODEL", "qwen-local")
+    monkeypatch.setenv("LLM_MAX_TOKENS", "320")
     client = ExternalLLMClient()
 
     payload = {

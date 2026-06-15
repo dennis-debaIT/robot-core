@@ -37,7 +37,7 @@ class CoreSettings(BaseModel):
     response_style: str = "kurz, freundlich und präzise"
     explain_only_on_request: bool = True
     llm_timeout_seconds: int = Field(default=45, ge=1, le=120)
-    llm_max_tokens: int = Field(default=220, ge=64, le=2048)
+    llm_max_tokens: int = Field(default=320, ge=64, le=2048)
     llm_history_turns: int = Field(default=8, ge=0, le=20)
     topic_interest_threshold: int = Field(default=8, ge=2, le=20)
     topic_interest_window_days: int = Field(default=30, ge=1, le=90)
@@ -78,7 +78,7 @@ class SettingsService:
             ),
             explain_only_on_request=env_str("ROBOT_EXPLAIN_ONLY_ON_REQUEST", "true").lower() != "false",
             llm_timeout_seconds=env_int("ROBOT_LLM_TIMEOUT_SECONDS", 45),
-            llm_max_tokens=env_int("ROBOT_LLM_MAX_TOKENS", 220),
+            llm_max_tokens=env_int("ROBOT_LLM_MAX_TOKENS", 320),
             llm_history_turns=env_int("ROBOT_LLM_HISTORY_TURNS", 8),
             topic_interest_threshold=env_int("ROBOT_TOPIC_INTEREST_THRESHOLD", 3),
             topic_interest_window_days=env_int("ROBOT_TOPIC_INTEREST_WINDOW_DAYS", 14),

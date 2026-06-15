@@ -12,6 +12,10 @@ Format: neueste Einträge oben.
 
 ### Tests
 - Neue Tests für den Strom-Bereich: Sanitizing von Sensor-Liste und Tarifen, die einmalige PV→Strom-Migration (inkl. Persistenz) sowie `/ha/energy/history` (Saldo/Kosten-Berechnung, Netzbezugs- vs. Gerätesensoren).
+- `test_openai_compatible_request_body` setzt `LLM_MAX_TOKENS` jetzt explizit und ist damit unabhängig von der Docker-Compose-Umgebung lauffähig (vorher schlug der Test bei direktem `pytest`-Lauf fehl, weil der erwartete Wert 320 nur per Compose-Env-Var injiziert wurde).
+
+### Geändert
+- **`max_tokens`-Default vereinheitlicht (220 → 320)**: Der Code-Fallback in `llm_client.py`, `core/settings.py` und den `/llm/config`-Defaults entsprach nicht dem in `.env.example`/`docker-compose.yml` dokumentierten Standard von 320. Jetzt überall 320, damit Anzeige und effektiver Wert auch ohne gesetzte Env-Variablen übereinstimmen.
 
 ---
 

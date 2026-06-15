@@ -45,7 +45,7 @@ class ExternalLLMClient:
             float(db["temperature"]) if db.get("temperature") is not None
             else self._read_float_env("LLM_TEMPERATURE", 0.4)
         )
-        self.max_tokens = int(db["max_tokens"]) if db.get("max_tokens") is not None else self._read_int_env("LLM_MAX_TOKENS", 220)
+        self.max_tokens = int(db["max_tokens"]) if db.get("max_tokens") is not None else self._read_int_env("LLM_MAX_TOKENS", 320)
 
     @staticmethod
     def _temperature_from_personality() -> float | None:
