@@ -57,6 +57,16 @@ def patch_profile_preferences(person_id: int, payload: PersonPreferencePatchRequ
     return result
 
 
+@router.patch("/profiles/{person_id}")
+def update_profile(person_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    if "gender" not in payload:
+        raise HTTPException(status_code=400, detail="Keine unterstützten Felder im Payload")
+    result = get_core().profile.set_gender(person_id, payload.get("gender"))
+    if not result:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
+
+
 @router.delete("/profiles/{person_id}")
 def delete_profile(person_id: int) -> dict[str, Any]:
     result = get_core().delete_person(person_id)

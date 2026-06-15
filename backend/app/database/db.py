@@ -412,6 +412,10 @@ def init_db() -> None:
         if "light_command" not in reminder_columns:
             conn.execute("ALTER TABLE reminders ADD COLUMN light_command TEXT")
 
+        person_columns = {row["name"] for row in conn.execute("PRAGMA table_info(persons)").fetchall()}
+        if "gender" not in person_columns:
+            conn.execute("ALTER TABLE persons ADD COLUMN gender TEXT")
+
         rows = conn.execute(
             """
             SELECT id, subject, category, content

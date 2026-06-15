@@ -311,6 +311,7 @@ class PersonProfileService:
         return {
             "id": person["id"],
             "name": person["name"],
+            "gender": person["gender"],
             "created_at": person["created_at"],
             "updated_at": person["updated_at"],
             "facts": [dict(row) for row in facts],
@@ -335,6 +336,19 @@ class PersonProfileService:
             "updated_at": None,
             "facts": [],
         }
+
+    def set_gender(self, person_id: int, gender: str | None) -> dict[str, Any] | None:
+        if gender not in (None, "m", "w"):
+            gender = None
+        with get_connection() as conn:
+            row = conn.execute("SELECT id FROM persons WHERE id = ?", (person_id,)).fetchone()
+            if not row:
+                return None
+            conn.execute(
+                "UPDATE persons SET gender = ?, updated_at = ? WHERE id = ?",
+                (gender, now_iso(), person_id),
+            )
+        return self.get_person_by_id(person_id)
 
     def delete_person(self, person_id: int) -> dict[str, Any] | None:
         person = self.get_person_by_id(person_id)
@@ -361,6 +375,7 @@ class PersonProfileService:
                 SELECT
                     p.id AS person_id,
                     p.name,
+                    p.gender AS gender,
                     p.created_at AS person_created_at,
                     p.updated_at AS person_updated_at,
                     f.trait_type,
@@ -384,6 +399,7 @@ class PersonProfileService:
                 current_person = {
                     "id": row["person_id"],
                     "name": row["name"],
+                    "gender": row["gender"],
                     "created_at": row["person_created_at"],
                     "updated_at": row["person_updated_at"],
                     "facts": [],

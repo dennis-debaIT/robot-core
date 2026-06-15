@@ -19,6 +19,7 @@ class PromptBuilder:
         search_context: str | None = None,
         notes_lines: list[str] | None = None,
         session_memory: str | None = None,
+        person_gender_line: str = "",
     ) -> dict[str, Any]:
         context = self._build_context(
             person_name=person_name,
@@ -32,6 +33,7 @@ class PromptBuilder:
             search_context=search_context,
             notes_lines=notes_lines or [],
             session_memory=session_memory,
+            person_gender_line=person_gender_line,
         )
         system_prompt = self._build_system_prompt(context=context)
 
@@ -86,9 +88,11 @@ class PromptBuilder:
         search_context: str | None = None,
         notes_lines: list[str] | None = None,
         session_memory: str | None = None,
+        person_gender_line: str = "",
     ) -> dict[str, Any]:
         return {
             "known_person": person_name or "unbekannt",
+            "person_gender_line": person_gender_line,
             "response_style": response_style,
             "explain_rule": (
                 "Erkläre nur dann ausführlicher, wenn der Nutzer ausdrücklich danach fragt."
@@ -157,6 +161,7 @@ class PromptBuilder:
             "Wenn KEINE Recherche vorliegt und du Wetter oder Kalender nachschlagen könntest, biete das kurz an. "
             "Erfinde niemals Tabellenstände, Spielergebnisse, Wetterdaten oder aktuelle Fakten. "
             f"Aktuell erkannte oder adressierte Person: {context['known_person']}. "
+            f"{context['person_gender_line']}"
             "Die gespeicherten Erinnerungen beschreiben Wissen und Vorlieben der Person, mit der du sprichst — nicht deine eigenen. "
             "Wenn du nach deinen eigenen Eigenschaften, Interessen oder Vorlieben als Roboter gefragt wirst, antworte aus deiner Rolle als Erika, nicht aus den Erinnerungen der anderen Person. "
             "Wenn du Erinnerungen über die adressierte Person verwendest, sprich sie direkt an: 'du magst', 'dein Interesse', nie 'Dennis mag' oder 'er mag'. "

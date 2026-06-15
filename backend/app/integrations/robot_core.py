@@ -146,6 +146,23 @@ class RobotCore:
                 lines.append(f"{tt.replace('_', ' ').capitalize()}: {v}.")
         return lines
 
+    def _person_gender_line(self, person_name: str | None) -> str:
+        if not person_name:
+            return ""
+        person = self.profile.get_person(person_name)
+        gender = (person or {}).get("gender")
+        if gender == "m":
+            return (
+                f"Die aktuell erkannte/adressierte Person ({person_name}) ist männlich — "
+                f"nutze bei Bedarf männliche Anredeformen (z. B. \"lieber {person_name}\"). "
+            )
+        if gender == "w":
+            return (
+                f"Die aktuell erkannte/adressierte Person ({person_name}) ist weiblich — "
+                f"nutze bei Bedarf weibliche Anredeformen (z. B. \"liebe {person_name}\"). "
+            )
+        return ""
+
     # Kategorie-Boost: wie wertvoll ist eine Memory-Kategorie als Kontext
     _MEM_CAT_BOOST: dict[str, float] = {
         "interest_signal":  1.4,
@@ -984,6 +1001,7 @@ class RobotCore:
             person_name=person_name,
             personality=effective_personality,
             approved_memories=self._approved_memories_for_prompt(person_name, message=message),
+            person_gender_line=self._person_gender_line(person_name),
             recent_messages=recent_messages,
             runtime_facts={
                 "battery_level": status["battery_level"],

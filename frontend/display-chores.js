@@ -40,7 +40,7 @@
       const r = await fetch('/profiles', { cache: 'no-store' });
       if (!r.ok) return;
       const d = await r.json();
-      state.persons = (d.items || []).map(p => ({ id: p.id, name: p.name }));
+      state.persons = (d.items || []).map(p => ({ id: p.id, name: p.name, gender: p.gender || null }));
     } catch {}
   }
 
@@ -94,13 +94,16 @@
   function _renderPersonList() {
     if (!state.selectedTaskId) return '<div class="cal-placeholder">Erst Aufgabe auswählen.</div>';
     if (!state.persons.length) return '<div class="cal-placeholder">Keine Personen angelegt.</div>';
-    return state.persons.map(p => `
+    return state.persons.map(p => {
+      const icon = p.gender === 'm' ? '🙋‍♂️' : p.gender === 'w' ? '🙋‍♀️' : '🙋';
+      return `
       <div class="vehicle-list-item" id="chore-person-${p.id}" onclick="window._choresPlus.logCompletion(${p.id})">
-        <span style="font-size:1.15rem;flex-shrink:0;">🙋</span>
+        <span style="font-size:1.15rem;flex-shrink:0;">${icon}</span>
         <div style="flex:1;min-width:0;">
           <div class="vehicle-list-name">${escapeHTML(p.name)}</div>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   async function _renderOverallBanner() {
