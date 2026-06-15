@@ -20,6 +20,7 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.venv/
 
 # Docker
 .docker/
