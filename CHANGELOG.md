@@ -16,6 +16,10 @@ Format: neueste Einträge oben.
 
 ### Geändert
 - **`max_tokens`-Default vereinheitlicht (220 → 320)**: Der Code-Fallback in `llm_client.py`, `core/settings.py` und den `/llm/config`-Defaults entsprach nicht dem in `.env.example`/`docker-compose.yml` dokumentierten Standard von 320. Jetzt überall 320, damit Anzeige und effektiver Wert auch ohne gesetzte Env-Variablen übereinstimmen.
+- **`topic_interest_threshold`/`-window_days`-Defaults in `CoreSettings` korrigiert**: Die Field-Defaults (8/30, `le=20`) waren praktisch nie wirksam (immer durch `load_env_defaults()` überschrieben: 3/14) und widersprachen den tatsächlichen Grenzen aus `schemas.py`/Admin-UI (`le=10`). Jetzt 3/14 mit `le=10`, passend zu den real genutzten Werten.
+
+### Sonstiges
+- **`CameraStreamService._HLS_DIR.mkdir`** nutzt jetzt `parents=True`, damit das Modul auch importierbar ist, wenn `/tmp` selbst noch nicht existiert (z. B. lokale Entwicklung auf Windows).
 
 ---
 

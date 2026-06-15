@@ -14,7 +14,7 @@ class CameraStreamService:
     _ffmpeg_procs: dict[str, subprocess.Popen] = {}
     _ffmpeg_last: dict[str, float] = {}
     _HLS_DIR = Path("/tmp/hls")
-    _HLS_DIR.mkdir(exist_ok=True)
+    _HLS_DIR.mkdir(parents=True, exist_ok=True)
 
     _RTSP_USER = os.environ.get("ROBOT_RING_RTSP_USER", "erika")
     _RTSP_PASS = os.environ.get("ROBOT_RING_RTSP_PASS", "erika123")
