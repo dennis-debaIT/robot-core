@@ -122,6 +122,16 @@ class IntegrationConfigService:
                     "extra_fees_eur_year": 0.0,
                 },
             },
+            "energy": {
+                "enabled": False,
+                "tariffs": {
+                    "feed_in_ct":   0.0,
+                    "grid_price_ct": 0.0,
+                    "base_price_eur_year": 0.0,
+                    "extra_fees_eur_year": 0.0,
+                },
+                "sensors": [],
+            },
             "waste": {
                 "enabled": False,
                 "calendar_entity": "calendar.abfallkalender",
@@ -217,6 +227,24 @@ class IntegrationConfigService:
         pv_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(pv_tariffs.get("grid_price_ct"))
         pv_tariffs["base_price_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("base_price_eur_year"))
         pv_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("extra_fees_eur_year"))
+        energy = merged.setdefault("energy", {})
+        energy_first_run = isinstance(current, dict) and "energy" not in current
+        energy["enabled"] = bool(energy.get("enabled", False))
+        energy_tariffs = energy.setdefault("tariffs", {})
+        energy_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(energy_tariffs.get("feed_in_ct"))
+        energy_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(energy_tariffs.get("grid_price_ct"))
+        energy_tariffs["base_price_eur_year"] = self._sanitize_tariff_eur_year(energy_tariffs.get("base_price_eur_year"))
+        energy_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(energy_tariffs.get("extra_fees_eur_year"))
+        energy["sensors"] = self._sanitize_energy_sensors(energy.get("sensors"))
+        if energy_first_run and pv_sensors.get("grid"):
+            # Migration: bisherige PV-Netzbezug-Tarife/Sensor in den neuen
+            # "Strom"-Bereich übernehmen (einmalig, solange "energy" noch
+            # nicht gespeichert wurde).
+            energy["enabled"] = True
+            energy["tariffs"] = dict(pv_tariffs)
+            energy["sensors"] = self._sanitize_energy_sensors([
+                {"id": "gesamt", "label": "Gesamt-Netzbezug", "entity_id": pv_sensors["grid"], "role": "grid"},
+            ])
         waste = merged.setdefault("waste", {})
         waste["enabled"] = bool(waste.get("enabled", False))
         waste["calendar_entity"] = str(waste.get("calendar_entity") or "calendar.abfallkalender").strip()
@@ -324,6 +352,14 @@ class IntegrationConfigService:
         pv_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(pv_tariffs.get("grid_price_ct"))
         pv_tariffs["base_price_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("base_price_eur_year"))
         pv_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("extra_fees_eur_year"))
+        energy = updated.setdefault("energy", {})
+        energy["enabled"] = bool(energy.get("enabled", False))
+        energy_tariffs = energy.setdefault("tariffs", {})
+        energy_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(energy_tariffs.get("feed_in_ct"))
+        energy_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(energy_tariffs.get("grid_price_ct"))
+        energy_tariffs["base_price_eur_year"] = self._sanitize_tariff_eur_year(energy_tariffs.get("base_price_eur_year"))
+        energy_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(energy_tariffs.get("extra_fees_eur_year"))
+        energy["sensors"] = self._sanitize_energy_sensors(energy.get("sensors"))
         attention = updated.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
@@ -865,6 +901,36 @@ class IntegrationConfigService:
         if eur != eur:  # NaN
             eur = 0.0
         return round(max(0.0, min(eur, 10000.0)), 2)
+
+    @staticmethod
+    def _sanitize_energy_sensors(value: Any) -> list[dict[str, str]]:
+        import re as _re
+        if not isinstance(value, list):
+            return []
+        sensors: list[dict[str, str]] = []
+        used_ids: set[str] = set()
+        grid_seen = False
+        for item in value[:12]:
+            if not isinstance(item, dict):
+                continue
+            entity_id = str(item.get("entity_id") or "").strip()
+            if not entity_id:
+                continue
+            label = str(item.get("label") or "").strip()[:40] or entity_id
+            role = str(item.get("role") or "device").strip().lower()
+            if role == "grid" and not grid_seen:
+                grid_seen = True
+            else:
+                role = "device"
+            slug = _re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "sensor"
+            sensor_id = slug
+            suffix = 2
+            while sensor_id in used_ids:
+                sensor_id = f"{slug}-{suffix}"
+                suffix += 1
+            used_ids.add(sensor_id)
+            sensors.append({"id": sensor_id, "label": label, "entity_id": entity_id, "role": role})
+        return sensors
 
     @staticmethod
     def _sanitize_config_version(value: Any) -> int:

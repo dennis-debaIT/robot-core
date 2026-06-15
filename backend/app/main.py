@@ -19,6 +19,7 @@ from app.api.routers import (
     reminders as reminders_router,
     ha_cameras,
     ha_devices,
+    ha_energy_costs,
     ha_lights,
     ha_printer,
     ha_pv,
@@ -301,6 +302,7 @@ app.include_router(ha_robots.router)
 app.include_router(ha_lights.router)
 app.include_router(ha_printer.router)
 app.include_router(ha_pv.router)
+app.include_router(ha_energy_costs.router)
 app.include_router(ha_waste.router)
 app.include_router(local_admin.router)
 app.include_router(setup.router)

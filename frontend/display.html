@@ -288,6 +288,10 @@
     <span class="nav-icon">🤖</span>
     <span class="nav-label">Roboter</span>
   </button>
+  <button class="nav-btn" id="nav-energy" onclick="openEnergyStats()">
+    <span class="nav-icon">⚡</span>
+    <span class="nav-label">Strom</span>
+  </button>
   <button class="nav-btn" id="nav-calendar" onclick="openMonthCalendar()">
     <span class="nav-icon">📅</span>
     <span class="nav-label">Kalender</span>
@@ -1753,6 +1757,192 @@
     window._pvPlus.open();
   }
 
+  // ── STROM-OVERLAY ──────────────────────────────────────────
+  // Verbrauch (kWh) ist für alle Editionen sichtbar. Die Kostenanzeige (€)
+  // wird nur bei vorhandenem Feature `energy_costs` (Erika Plus) eingeblendet
+  // — die Rohdaten liefert /ha/energy/history immer (Local-First).
+  let _energyStatsView = 'today';
+  let _energyStatsRefreshInterval = null;
+  const _ENERGY_COST_HINT = '<div style="font-size:0.68rem;color:var(--muted);margin-top:8px;">Kostenanzeige in Erika Plus</div>';
+
+  function _svgEnergyBar(labels, values, unit, w, h, color = '#00c8ff') {
+    const valid = values.map(v => v ?? 0);
+    const maxV  = Math.max(...valid, 0.01);
+    const pad   = { t: 10, r: 8, b: 32, l: 38 };
+    const cw    = w - pad.l - pad.r;
+    const ch    = h - pad.t - pad.b;
+    const bw    = Math.max(4, cw / Math.max(labels.length, 1) * 0.7);
+    const gap   = cw / Math.max(labels.length, 1);
+    let bars = '', lbls = '';
+    const dimColor = color.startsWith('#') ? color + '59' : color.replace(')', ',0.35)').replace('rgb(', 'rgba(');
+    valid.forEach((v, i) => {
+      const bh = ch * (v / maxV);
+      const x  = pad.l + gap * i + (gap - bw) / 2;
+      const y  = pad.t + ch - bh;
+      const isLast = (i === valid.length - 1);
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1,bh).toFixed(1)}"
+        fill="${isLast ? color : dimColor}" rx="3"
+        title="${labels[i]}: ${v} ${unit}"/>`;
+      if (i % Math.max(1, Math.floor(labels.length / 8)) === 0 || i === labels.length - 1)
+        lbls += `<text x="${(x + bw/2).toFixed(1)}" y="${(h - 6).toFixed(1)}" text-anchor="middle"
+          font-size="9" style="fill:var(--muted);">${labels[i]}</text>`;
+    });
+    const ySteps = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+      y: pad.t + ch * (1 - f), v: (maxV * f).toFixed(maxV < 10 ? 1 : 0),
+    }));
+    const yLines = ySteps.map(s =>
+      `<line x1="${pad.l}" x2="${w - pad.r}" y1="${s.y.toFixed(1)}" y2="${s.y.toFixed(1)}" style="stroke:var(--border);opacity:0.7;" stroke-width="1"/>
+       <text x="${(pad.l - 3).toFixed(1)}" y="${(s.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" style="fill:var(--muted);">${s.v}</text>`
+    ).join('');
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:${w}px;display:block;">
+      ${yLines}${bars}${lbls}
+    </svg>`;
+  }
+
+  function _renderEnergySensorCard(s, view) {
+    const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
+    const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €' : '–';
+    const showCosts = _hasFeature('energy_costs');
+    const label = s.label || s.id;
+
+    if (s.role === 'grid') {
+      if (view === 'today') {
+        return `
+          <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
+            <div style="font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:12px;">${label}</div>
+            <div style="display:flex;gap:16px;">
+              <div style="flex:1;background:rgba(0,255,120,0.07);border:1px solid rgba(0,255,120,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
+                <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↑ Einspeisung</div>
+                <div style="font-size:1.2rem;font-weight:800;color:var(--success);">${fmtKwh(s.einspeisung)}</div>
+              </div>
+              <div style="flex:1;background:rgba(255,160,50,0.07);border:1px solid rgba(255,160,50,0.2);border-radius:10px;padding:12px 16px;text-align:center;">
+                <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">↓ Netzbezug</div>
+                <div style="font-size:1.2rem;font-weight:800;color:var(--warning);">${fmtKwh(s.netzbezug)}</div>
+              </div>
+            </div>
+          </div>`;
+      }
+
+      const labels = s.labels || [];
+      const einChart = labels.length ? _svgEnergyBar(labels, s.einspeisung || [], 'kWh', 680, 160, '#00ff78') : '<div style="color:var(--muted);text-align:center;padding:20px 0;font-size:0.85rem;">Keine Daten verfügbar</div>';
+      const bezChart = labels.length ? _svgEnergyBar(labels, s.netzbezug  || [], 'kWh', 680, 160, '#ffa032') : '';
+      return `
+        <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
+          <div style="font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:12px;">${label}</div>
+          <div style="font-size:0.72rem;font-weight:700;color:var(--success);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↑ Einspeisung</div>
+          ${einChart}
+          <div style="display:flex;justify-content:space-between;margin-top:6px;margin-bottom:16px;">
+            <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+            <span style="font-size:1rem;font-weight:800;color:var(--success);">${fmtKwh(s.einspeisung_total)}</span>
+          </div>
+          ${labels.length ? `<div style="font-size:0.72rem;font-weight:700;color:var(--warning);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px;">↓ Netzbezug</div>${bezChart}` : ''}
+          <div style="display:flex;justify-content:space-between;margin-top:6px;">
+            <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+            <span style="font-size:1rem;font-weight:800;color:var(--warning);">${fmtKwh(s.netzbezug_total)}</span>
+          </div>
+        </div>`;
+    }
+
+    // role === "device": nur Verbrauch + (Plus) Kosten
+    if (view === 'today') {
+      return `
+        <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
+          <div style="font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:12px;">${label}</div>
+          <div style="background:rgba(0,200,255,0.06);border:1px solid var(--border);border-radius:10px;padding:12px 16px;text-align:center;">
+            <div style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Verbrauch heute</div>
+            <div style="font-size:1.2rem;font-weight:800;color:var(--accent);">${fmtKwh(s.verbrauch)}</div>
+            ${showCosts && s.cost != null ? `<div style="font-size:0.7rem;color:var(--muted);margin-top:4px;">≈ ${fmtEur(s.cost)}</div>` : ''}
+          </div>
+          ${!showCosts ? _ENERGY_COST_HINT : ''}
+        </div>`;
+    }
+
+    const labels = s.labels || [];
+    const chart = labels.length ? _svgEnergyBar(labels, s.verbrauch || [], 'kWh', 680, 160) : '<div style="color:var(--muted);text-align:center;padding:20px 0;font-size:0.85rem;">Keine Daten verfügbar</div>';
+    return `
+      <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border);">
+        <div style="font-size:0.78rem;font-weight:800;color:var(--text);margin-bottom:12px;">${label}</div>
+        ${chart}
+        <div style="display:flex;justify-content:space-between;margin-top:6px;">
+          <span style="font-size:0.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.1em;">Gesamt</span>
+          <span style="text-align:right;">
+            <span style="font-size:1rem;font-weight:800;color:var(--accent);">${fmtKwh(s.verbrauch_total)}</span>
+            ${showCosts && s.cost != null ? `<span style="display:block;font-size:0.7rem;color:var(--muted);">≈ ${fmtEur(s.cost)}</span>` : ''}
+          </span>
+        </div>
+        ${!showCosts ? _ENERGY_COST_HINT : ''}
+      </div>`;
+  }
+
+  async function loadEnergyStatsView(view) {
+    _energyStatsView = view;
+    clearInterval(_energyStatsRefreshInterval);
+    _energyStatsRefreshInterval = setInterval(() => loadEnergyStatsView(_energyStatsView), 60000);
+    ['today','7days','month','year'].forEach(v => {
+      const btn = document.getElementById(`energytab-${v}`);
+      if (!btn) return;
+      btn.style.background   = v === view ? 'rgba(0,200,255,0.12)' : 'transparent';
+      btn.style.color        = v === view ? 'var(--accent)' : 'var(--muted)';
+      btn.style.borderColor  = v === view ? 'rgba(0,200,255,0.3)' : 'var(--border)';
+    });
+    const content = document.getElementById('energy-stats-content');
+    if (!content) return;
+    content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>';
+    try {
+      const r = await fetch(`/ha/energy/history?view=${view}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json();
+      const sensors = d.sensors || [];
+      if (!sensors.length) {
+        content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Keine Sensoren konfiguriert</div>';
+        return;
+      }
+      content.innerHTML = sensors.map(s => _renderEnergySensorCard(s, view)).join('');
+    } catch (e) {
+      content.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
+    }
+  }
+
+  function openEnergyStats() {
+    const cp = document.getElementById('center-panel');
+    if (!cp) return;
+    let box = document.getElementById('energy-stats-box');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'energy-stats-box';
+      box.style.cssText = 'position:absolute;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
+      cp.style.position = 'relative';
+      cp.appendChild(box);
+    }
+    box.style.display = 'flex';
+    box.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px;">
+        <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;">Strom</div>
+        <button onclick="closeEnergyStats()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
+      </div>
+      <div style="display:flex;gap:8px;padding:0 24px 16px;">
+        ${['today','7days','month','year'].map(v =>
+          `<button onclick="loadEnergyStatsView('${v}')" id="energytab-${v}"
+            style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--border);background:${v===_energyStatsView?'rgba(0,200,255,0.12)':'transparent'};
+            color:${v===_energyStatsView?'var(--accent)':'var(--muted)'};font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.2s;">
+            ${v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
+          </button>`
+        ).join('')}
+      </div>
+      <div id="energy-stats-content" style="flex:1;overflow-y:auto;padding:0 24px 24px;min-height:260px;">
+        <div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>
+      </div>
+    </div>`;
+    loadEnergyStatsView(_energyStatsView);
+  }
+
+  function closeEnergyStats() {
+    const box = document.getElementById('energy-stats-box');
+    if (box) box.style.display = 'none';
+    clearInterval(_energyStatsRefreshInterval);
+    _energyStatsRefreshInterval = null;
+  }
+
   // Drucker-Overlay Auto-Refresh
   let _printerOverlayRefresh = null;
 
@@ -2805,7 +2995,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false };
   })();
   let _calendarOpenTrigger = 'both';
   let _activePersonName = null;
@@ -2981,6 +3171,7 @@
       calendar: modules?.calendar !== false,  // default true
       pv:       modules?.pv       === true,
       printer:  modules?.printer  === true,
+      energy:   modules?.energy   === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;
@@ -2992,11 +3183,13 @@
     const vehiclesBtn = document.getElementById('nav-vehicles');
     const robotsBtn = document.getElementById('nav-robots');
     const camerasBtn = document.getElementById('nav-cameras');
+    const energyBtn = document.getElementById('nav-energy');
     const calBtn = document.getElementById('nav-calendar');
     if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
     if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
     if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
     if (camerasBtn) camerasBtn.hidden = !_enabledModules.cameras;
+    if (energyBtn) energyBtn.hidden = !_enabledModules.energy;
     if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras)) {
       navTo('home');
     }

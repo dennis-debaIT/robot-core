@@ -37,6 +37,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-cameras"><span class="si-icon">📷</span><span>Kameras</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-fuel"><span class="si-icon">⛽</span><span>Kraftstoff</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-pv"><span class="si-icon">☀️</span><span>PV-Anlage</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-energy"><span class="si-icon">⚡</span><span>Strom</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
         </div>
@@ -635,30 +636,59 @@
               <label class="mini-check"><input type="checkbox" id="pv-wf-temperature"><span>Temperatur</span></label>
             </div>
           </section>
+        </article>
+
+        <!-- ── STROM ──────────────────────────────────────────── -->
+        <article id="tab-energy" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Strom</div>
+              <h2>Stromverbrauch &amp; -kosten</h2>
+            </div>
+          </header>
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Stromtarife <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
-              <p>Werden genutzt, um in der PV-Statistik (Tag/7&nbsp;Tage/Monat/Jahr) die Einspeiseverg&uuml;tung und die Kosten f&uuml;r den Netzbezug auszurechnen. Erfordert einen konfigurierten Netz-Sensor. Strombezugstarif, Grundpreis und weitere Geb&uuml;hren bitte <strong>brutto</strong> (inkl. 19&nbsp;% USt) eingeben — bei der Einspeiseverg&uuml;tung f&auml;llt f&uuml;r private PV-Anlagen (Kleinunternehmer) in der Regel keine USt an, hier also einfach den Satz vom Netzbetreiber eintragen.</p>
+              <p>Werden genutzt, um im Strom-Bereich des Displays die Einspeiseverg&uuml;tung und die Kosten f&uuml;r Netzbezug bzw. einzelne Ger&auml;te auszurechnen. Die Kostenanzeige selbst ist Teil von Erika Plus — der reine Verbrauch (kWh) ist immer sichtbar. Strombezugstarif, Grundpreis und weitere Geb&uuml;hren bitte <strong>brutto</strong> (inkl. 19&nbsp;% USt) eingeben — bei der Einspeiseverg&uuml;tung f&auml;llt f&uuml;r private PV-Anlagen (Kleinunternehmer) in der Regel keine USt an, hier also einfach den Satz vom Netzbetreiber eintragen.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
                 <span class="field-label">Einspeiseverg&uuml;tung (ct/kWh)</span>
-                <input id="pv-tariff-feed-in" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 8.2">
+                <input id="energy-tariff-feed-in" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 8.2">
               </label>
               <label class="field-block">
                 <span class="field-label">Strombezugstarif (ct/kWh, brutto)</span>
-                <input id="pv-tariff-grid-price" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 32.0">
+                <input id="energy-tariff-grid-price" class="field-input" type="number" min="0" max="200" step="0.01" placeholder="z. B. 32.0">
               </label>
               <label class="field-block">
                 <span class="field-label">Grundpreis (€/Jahr, brutto)</span>
-                <input id="pv-tariff-base-price" class="field-input" type="number" min="0" max="10000" step="0.01" placeholder="z. B. 60.00">
+                <input id="energy-tariff-base-price" class="field-input" type="number" min="0" max="10000" step="0.01" placeholder="z. B. 60.00">
               </label>
               <label class="field-block">
                 <span class="field-label">Weitere feste Geb&uuml;hren (€/Jahr, brutto)</span>
-                <input id="pv-tariff-extra-fees" class="field-input" type="number" min="0" max="10000" step="0.01" placeholder="z. B. 0.00">
+                <input id="energy-tariff-extra-fees" class="field-input" type="number" min="0" max="10000" step="0.01" placeholder="z. B. 0.00">
               </label>
             </div>
           </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Sensoren</div>
+              <p>Trage hier Leistungssensoren (W) ein, die im Strom-Bereich angezeigt werden sollen. Genau ein Sensor kann die Rolle <b>„Gesamt-Netzbezug"</b> haben (signiert: positiv = Netzbezug, negativ = Einspeisung — Saldo &amp; Grundpreis werden hierauf berechnet). Alle weiteren Sensoren sind <b>„Ger&auml;t"</b> (z. B. Waschmaschine, Trockner, Backofen) und zeigen Verbrauch + Kosten des jeweiligen Ger&auml;ts.</p>
+            </div>
+            <div style="display:flex;gap:10px;padding:0 36px 6px 2px;font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;">
+              <span style="flex:1;min-width:150px;">Entity-ID (Leistung, W)</span>
+              <span style="flex:1;min-width:110px;">Anzeigename</span>
+              <span style="width:170px;flex-shrink:0;">Rolle</span>
+            </div>
+            <div id="energy-sensors" class="layout-slot-list"></div>
+            <div class="layout-add-row" style="margin-top:10px;">
+              <button type="button" class="secondary" onclick="addEnergySensor()">+ Sensor hinzufügen</button>
+            </div>
+          </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveEnergyConfig()">Speichern</button>
+            <span id="energy-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <!-- ── ABFALL ─────────────────────────────────────────── -->
@@ -1608,10 +1638,10 @@
     const pvWfDailyEl             = document.getElementById('pv-wf-daily');
     const pvWfBatteryEl           = document.getElementById('pv-wf-battery');
     const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
-    const pvTariffFeedInEl        = document.getElementById('pv-tariff-feed-in');
-    const pvTariffGridPriceEl     = document.getElementById('pv-tariff-grid-price');
-    const pvTariffBasePriceEl     = document.getElementById('pv-tariff-base-price');
-    const pvTariffExtraFeesEl     = document.getElementById('pv-tariff-extra-fees');
+    const energyTariffFeedInEl    = document.getElementById('energy-tariff-feed-in');
+    const energyTariffGridPriceEl = document.getElementById('energy-tariff-grid-price');
+    const energyTariffBasePriceEl = document.getElementById('energy-tariff-base-price');
+    const energyTariffExtraFeesEl = document.getElementById('energy-tariff-extra-fees');
     let _pvProviders = {};
     let _calendarEntities = [];
     const robotMappingGridEl = document.getElementById('robot-mapping-grid');
@@ -2886,11 +2916,6 @@
       pvWfDailyEl.checked       = wf2.daily             !== false;
       pvWfBatteryEl.checked     = wf2.battery           !== false;
       pvWfTemperatureEl.checked = wf2.temperature       === true;
-      const pvTariffs = pvConfig.tariffs || {};
-      pvTariffFeedInEl.value    = pvTariffs.feed_in_ct    ?? '';
-      pvTariffGridPriceEl.value = pvTariffs.grid_price_ct ?? '';
-      pvTariffBasePriceEl.value = pvTariffs.base_price_eur_year ?? '';
-      pvTariffExtraFeesEl.value = pvTariffs.extra_fees_eur_year ?? '';
       loadPvProviders();
       haTestStatusEl.textContent = '';
       haTestStatusEl.classList.remove('error', 'success');
@@ -3031,12 +3056,6 @@
                 daily:             pvWfDailyEl.checked,
                 battery:           pvWfBatteryEl.checked,
                 temperature:       pvWfTemperatureEl.checked,
-              },
-              tariffs: {
-                feed_in_ct:    Number(pvTariffFeedInEl.value) || 0,
-                grid_price_ct: Number(pvTariffGridPriceEl.value) || 0,
-                base_price_eur_year: Number(pvTariffBasePriceEl.value) || 0,
-                extra_fees_eur_year: Number(pvTariffExtraFeesEl.value) || 0,
               },
             },
             system: {
@@ -3317,8 +3336,94 @@
       }
     }
 
+    const _ENERGY_ROLES = [
+      ['device', 'Gerät (Verbrauch & Kosten)'],
+      ['grid', 'Gesamt-Netzbezug (Saldo)'],
+    ];
+    let _energySensors = [];
+
+    function _renderEnergySensors() {
+      const box = document.getElementById('energy-sensors');
+      if (!box) return;
+      if (!_energySensors.length) {
+        box.innerHTML = '<div style="font-size:0.8rem;color:var(--muted);padding:8px 0;">Kein Sensor konfiguriert</div>';
+        return;
+      }
+      box.innerHTML = _energySensors.map((s, i) => `
+        <div class="layout-slot-row" style="gap:10px;flex-wrap:wrap;">
+          <input class="field-input" style="flex:1;min-width:150px;" placeholder="sensor.xxx_power"
+                 value="${(s.entity_id||'').replace(/"/g,'&quot;')}" oninput="_energySensors[${i}].entity_id=this.value">
+          <input class="field-input" style="flex:1;min-width:110px;" placeholder="Anzeigename"
+                 value="${(s.label||'').replace(/"/g,'&quot;')}" oninput="_energySensors[${i}].label=this.value">
+          <select class="field-input" style="width:170px;flex-shrink:0;" onchange="_setEnergySensorRole(${i}, this.value)">
+            ${_ENERGY_ROLES.map(([v,l]) => `<option value="${v}" ${s.role===v?'selected':''}>${l}</option>`).join('')}
+          </select>
+          <button type="button" class="layout-remove-btn" onclick="_removeEnergySensor(${i})" title="Entfernen">×</button>
+        </div>`).join('');
+    }
+
+    function addEnergySensor() {
+      _energySensors.push({ entity_id: '', label: '', role: 'device' });
+      _renderEnergySensors();
+    }
+    function _removeEnergySensor(i) {
+      _energySensors.splice(i, 1);
+      _renderEnergySensors();
+    }
+    function _setEnergySensorRole(i, role) {
+      if (role === 'grid') {
+        _energySensors.forEach((s, j) => { if (j !== i && s.role === 'grid') s.role = 'device'; });
+      }
+      _energySensors[i].role = role;
+      _renderEnergySensors();
+    }
+
+    async function _loadEnergyConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const energy = (cfg.config || cfg).energy || {};
+        const tariffs = energy.tariffs || {};
+        if (energyTariffFeedInEl)    energyTariffFeedInEl.value    = tariffs.feed_in_ct ?? '';
+        if (energyTariffGridPriceEl) energyTariffGridPriceEl.value = tariffs.grid_price_ct ?? '';
+        if (energyTariffBasePriceEl) energyTariffBasePriceEl.value = tariffs.base_price_eur_year ?? '';
+        if (energyTariffExtraFeesEl) energyTariffExtraFeesEl.value = tariffs.extra_fees_eur_year ?? '';
+        _energySensors = Array.isArray(energy.sensors) ? energy.sensors.map(s => ({ ...s })) : [];
+        _renderEnergySensors();
+      } catch {}
+    }
+
+    async function saveEnergyConfig() {
+      const statusEl = document.getElementById('energy-status');
+      const sensors = _energySensors
+        .map(s => ({ entity_id: (s.entity_id||'').trim(), label: (s.label||'').trim(), role: s.role || 'device' }))
+        .filter(s => s.entity_id);
+      if (statusEl) statusEl.textContent = 'Speichere…';
+      try {
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            energy: {
+              enabled: sensors.length > 0,
+              tariffs: {
+                feed_in_ct: Number(energyTariffFeedInEl.value) || 0,
+                grid_price_ct: Number(energyTariffGridPriceEl.value) || 0,
+                base_price_eur_year: Number(energyTariffBasePriceEl.value) || 0,
+                extra_fees_eur_year: Number(energyTariffExtraFeesEl.value) || 0,
+              },
+              sensors,
+            },
+          }),
+        });
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
     document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
+    document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
     saveBtn.addEventListener('click', saveConfig);

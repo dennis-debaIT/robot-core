@@ -230,13 +230,14 @@
         content.innerHTML = _renderPvFlowDiagram(d.state);
         return;
       }
-      const [pvResp, gridResp] = await Promise.all([
+      const [pvResp, energyResp] = await Promise.all([
         fetch(`/ha/pv/history?view=${view}`, { cache: 'no-store' }),
-        fetch(`/ha/pv/grid-history?view=${view}`, { cache: 'no-store' }),
+        fetch(`/ha/energy/history?view=${view}`, { cache: 'no-store' }),
       ]);
       if (!pvResp.ok) throw new Error(await pvResp.text());
-      const d  = await pvResp.json();
-      const gd = gridResp.ok ? await gridResp.json() : null;
+      const d = await pvResp.json();
+      const ed = energyResp.ok ? await energyResp.json() : null;
+      const gd = _hasFeature('energy_costs') ? (ed?.sensors || []).find(s => s.role === 'grid') : null;
 
       const labels = d.labels || [];
       const values = d.values || [];
@@ -252,7 +253,7 @@
              <span style="font-size:1.2rem;font-weight:800;color:var(--accent);">${typeof total==='number'?total.toLocaleString('de-DE',{maximumFractionDigits:1}):total} ${d.total_unit||unit}</span>
            </div>` : '';
 
-      // ── Netz-Sektion (nur wenn Sensor konfiguriert) ──────────
+      // ── Netz-Sektion (nur wenn Gesamt-Netzbezug-Sensor konfiguriert, Erika Plus) ──
       let gridHtml = '';
       if (gd) {
         const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';

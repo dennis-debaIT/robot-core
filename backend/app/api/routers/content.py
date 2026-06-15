@@ -194,6 +194,7 @@ def get_display_state() -> dict[str, Any]:
         "calendar": bool((config.get("calendar") or {}).get("enabled", True)),
         "pv":       bool((config.get("pv")       or {}).get("enabled", False)),
         "printer":  bool((config.get("printer")  or {}).get("enabled", False)),
+        "energy":   bool((config.get("energy")   or {}).get("sensors")),
     }
     cal_cfg = config.get("calendar") or {}
     calendar_config = {"open_trigger": cal_cfg.get("open_trigger", "both")}

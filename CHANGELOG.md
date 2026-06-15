@@ -11,7 +11,11 @@ Format: neueste Einträge oben.
 
 ## 2026-06-14
 
+### Neu
+- **Strom-Bereich: Verbrauch je Sensor (frei) + Kostenauswertung für Gerätesensoren (Plus)**: Im Admin gibt es einen neuen Bereich „Strom" mit einer frei konfigurierbaren Liste von Verbrauchssensoren (z. B. Waschmaschine, Trockner) mit eigenem Anzeigenamen, sowie optional einem „Gesamt-Netzbezug"-Sensor. Im Display zeigt der neue Navigationspunkt „⚡ Strom" für Heute/7 Tage/Monat/Jahr den Verbrauch (kWh) aller konfigurierten Sensoren, inkl. Einspeisung/Netzbezug des Gesamt-Netzbezugssensors — das bleibt für alle Editionen kostenlos. Die Kostenauswertung (€) der selbst angelegten Gerätesensoren ist Teil von Erika Plus; ohne Plus-Lizenz erscheint dort ein Hinweis auf das Upgrade. Saldo & anteiliger Grundpreis des Gesamt-Netzbezugssensors erscheinen weiterhin (wie bisher) in der PV-Statistik. Bestehende PV-Stromtarife und der bisherige PV-Netzbezugssensor wurden automatisch in die neue Strom-Konfiguration übernommen.
+
 ### Geändert
+- **PV-Statistik: Netzbezug/Saldo jetzt aus dem neuen Strom-Bereich**: Die Einspeisung-/Netzbezug-/Saldo-Anzeige in der PV-Statistik (Erika Plus) zeigt weiterhin den Gesamt-Netzbezugssensor mit Saldo & Grundpreis — die Daten kommen jetzt aus `/ha/energy/history` statt dem entfernten `/ha/pv/grid-history`. Die „Stromtarife"-Sektion im PV-Admin wurde entfernt und lebt als „Strom"-Tab weiter (siehe oben). Im „⚡ Strom"-Overlay zeigt der Gesamt-Netzbezugssensor dagegen nur noch Einspeisung/Netzbezug in kWh (alle Editionen, ohne Saldo/Kosten) — die Kostenanzeige dort ist den selbst angelegten Gerätesensoren (Waschmaschine etc., Erika Plus) vorbehalten.
 - **Kamera-Ereignisliste & Fahrzeug-Verlauf jetzt korrekt Erika Plus**: Beide Features waren in der Feature-Registry bereits als „Plus" hinterlegt, im Display aber ungated und damit für alle Editionen frei nutzbar. Die Ereignis-/Türklingel-Historie im Kamera-Bereich sowie der Standort-/Ladeverlauf der letzten 14 Tage bei Fahrzeugen zeigen ohne Plus-Lizenz jetzt eine Upgrade-Box; Live-Kamerabild, Schnappschuss und der aktuelle Fahrzeug-Status bleiben wie gewohnt kostenlos.
 
 ---
