@@ -120,6 +120,44 @@ class ChoreService:
             cur = conn.execute("DELETE FROM chore_completions WHERE id = ?", (completion_id,))
         return cur.rowcount > 0
 
+    def list_completions(
+        self,
+        task_id: int,
+        period: str = "week",
+        person_id: int | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        tz = self._local_tz()
+        now_local = datetime.now(tz)
+        start_utc = self._period_start_utc(period, now_local)
+        query = """
+            SELECT c.id AS id, p.id AS person_id, p.name AS name, c.completed_at AS completed_at
+            FROM chore_completions c
+            JOIN persons p ON p.id = c.person_id
+            WHERE c.task_id = ? AND c.completed_at >= ?
+        """
+        params: list[Any] = [task_id, start_utc.isoformat()]
+        if person_id is not None:
+            query += " AND c.person_id = ?"
+            params.append(person_id)
+        query += " ORDER BY c.completed_at DESC, c.id DESC LIMIT ?"
+        params.append(limit)
+        with get_connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        result = []
+        for r in rows:
+            completed_at = datetime.fromisoformat(r["completed_at"])
+            if completed_at.tzinfo is None:
+                completed_at = completed_at.replace(tzinfo=timezone.utc)
+            local = completed_at.astimezone(tz)
+            result.append({
+                "id": r["id"],
+                "person_id": r["person_id"],
+                "name": r["name"],
+                "completed_at_local": local.strftime("%d.%m. %H:%M"),
+            })
+        return result
+
     def task_stats(self, task_id: int, period: str = "week") -> dict[str, Any] | None:
         tz = self._local_tz()
         now_local = datetime.now(tz)

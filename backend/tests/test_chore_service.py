@@ -147,3 +147,25 @@ def test_delete_completion(temp_db):
     assert stats["leader"] is None
 
     assert svc.delete_completion(entry["id"]) is False
+
+
+def test_list_completions_filters_and_delete(temp_db):
+    svc = ChoreService()
+    task = svc.create_task("Treppe saugen")
+    dennis = _insert_person("Dennis")
+    anna = _insert_person("Anna")
+
+    first = svc.log_completion(task["id"], dennis)
+    second = svc.log_completion(task["id"], anna)
+
+    recent = svc.list_completions(task["id"], "week")
+    assert [r["id"] for r in recent] == [second["id"], first["id"]]
+    assert recent[0]["name"] == "Anna"
+    assert recent[1]["name"] == "Dennis"
+
+    dennis_only = svc.list_completions(task["id"], "week", person_id=dennis)
+    assert [r["id"] for r in dennis_only] == [first["id"]]
+
+    svc.delete_completion(second["id"])
+    recent = svc.list_completions(task["id"], "week")
+    assert [r["id"] for r in recent] == [first["id"]]

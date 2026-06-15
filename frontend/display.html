@@ -1802,9 +1802,6 @@
       ${yLines}${bars}${lbls}
     </svg>`;
   }
-  // Für display-chores.js (Erika Plus) wiederverwendbar machen
-  window._svgEnergyBar = _svgEnergyBar;
-
   function _renderEnergySensorCard(s, view) {
     const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits:1}) + ' kWh' : '–';
     const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' €' : '–';

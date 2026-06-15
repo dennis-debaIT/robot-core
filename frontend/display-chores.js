@@ -1,21 +1,29 @@
 // Hausaufgaben — Erika Plus (kostenpflichtig)
 //
 // Linkes Panel: Aufgabenliste (admin-verwaltet). Klick → Verlauf/Statistik
-// im Center-Overlay (Woche/Monat/Jahr, Personen-Totals + Balkendiagramm via
-// window._svgEnergyBar aus display.html). Rechtes Panel: Personenliste aus
-// dem bestehenden Personenprofile-System (/profiles) — Klick loggt eine
-// Erledigung für die gerade ausgewählte Aufgabe.
+// im Center-Overlay (Woche/Monat/Jahr, Personen-Totals + eigenes
+// Balkendiagramm mit Personen-Farben). Rechtes Panel: Personenliste aus dem
+// bestehenden Personenprofile-System (/profiles) — Klick loggt eine
+// Erledigung für die gerade ausgewählte Aufgabe. Klick auf eine Person in
+// den Totals/im Chart zeigt deren Erledigungen (mit Lösch-Option für
+// Verklicker).
 
 (function () {
   const state = {
     tasks: [],
     persons: [],
     selectedTaskId: null,
+    selectedPersonId: null,
     period: 'week',
     overallWinnerEnabled: true,
   };
 
   const PERIOD_LABEL = { week: 'Woche', month: 'Monat', year: 'Jahr' };
+  const PERSON_COLORS = ['#00c8ff', '#ff6b6b', '#ffd166', '#06d6a0', '#a78bfa', '#f472b6', '#fb923c', '#94a3b8'];
+
+  function _personColor(personId) {
+    return PERSON_COLORS[Math.abs(personId) % PERSON_COLORS.length];
+  }
 
   async function _loadTasks() {
     try {
@@ -43,6 +51,19 @@
       return await r.json();
     } catch {
       return null;
+    }
+  }
+
+  async function _fetchCompletions(taskId, period, personId) {
+    try {
+      let url = `/chores/tasks/${taskId}/completions?period=${encodeURIComponent(period)}`;
+      if (personId != null) url += `&person_id=${encodeURIComponent(personId)}`;
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) return [];
+      const d = await r.json();
+      return d.completions || [];
+    } catch {
+      return [];
     }
   }
 
@@ -92,20 +113,93 @@
     return `<div class="chore-banner">🏆 Wochensieger: ${escapeHTML(overall.leader.name)} (${overall.leader.count} ${unit})</div>`;
   }
 
-  function _renderTaskStats(stats) {
+  // Eigenes Balkendiagramm statt window._svgEnergyBar: Erledigungen sind
+  // immer ganze Zahlen (keine Nachkommastellen auf der Achse), und jede
+  // Person bekommt eine eigene Farbe (Klick → Verlauf der Person).
+  function _renderChoreChart(persons) {
+    if (!persons.length) {
+      return '<div style="color:var(--muted);text-align:center;padding:20px 0;font-size:0.85rem;">Keine Erledigungen in diesem Zeitraum</div>';
+    }
+    const w = 680, h = 160;
+    const pad = { t: 10, r: 8, b: 32, l: 26 };
+    const cw = w - pad.l - pad.r;
+    const ch = h - pad.t - pad.b;
+    const maxV = Math.max(...persons.map(p => p.count), 1);
+    const step = Math.max(1, Math.ceil(maxV / 4));
+    const topTick = step * Math.ceil(maxV / step);
+    const bw = Math.max(4, cw / persons.length * 0.5);
+    const gap = cw / persons.length;
+
+    let bars = '', lbls = '';
+    persons.forEach((p, i) => {
+      const bh = ch * (p.count / topTick);
+      const x = pad.l + gap * i + (gap - bw) / 2;
+      const y = pad.t + ch - bh;
+      const color = _personColor(p.person_id);
+      const selected = state.selectedPersonId === p.person_id;
+      const stroke = selected ? ` stroke="var(--text)" stroke-width="2"` : '';
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(1, bh).toFixed(1)}"
+        fill="${color}" rx="3"${stroke} style="cursor:pointer;" onclick="window._choresPlus.selectPerson(${p.person_id})"
+        title="${escapeHTML(p.name)}: ${p.count}"/>`;
+      lbls += `<text x="${(x + bw / 2).toFixed(1)}" y="${(h - 6).toFixed(1)}" text-anchor="middle"
+        font-size="9" style="fill:var(--muted);cursor:pointer;" onclick="window._choresPlus.selectPerson(${p.person_id})">${escapeHTML(p.name)}</text>`;
+    });
+
+    let yLines = '';
+    for (let v = 0; v <= topTick; v += step) {
+      const y = pad.t + ch * (1 - v / topTick);
+      yLines += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" style="stroke:var(--border);opacity:0.7;" stroke-width="1"/>
+        <text x="${(pad.l - 3).toFixed(1)}" y="${(y + 3.5).toFixed(1)}" text-anchor="end" font-size="9" style="fill:var(--muted);">${v}</text>`;
+    }
+
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;max-width:${w}px;display:block;">
+      ${yLines}${bars}${lbls}
+    </svg>`;
+  }
+
+  function _renderCompletionsList(completions, persons) {
+    const selectedPerson = state.selectedPersonId != null
+      ? persons.find(p => p.person_id === state.selectedPersonId)
+      : null;
+    const title = selectedPerson ? `Verlauf · ${escapeHTML(selectedPerson.name)}` : 'Letzte Erledigungen';
+    const resetLink = selectedPerson
+      ? `<span style="font-size:0.68rem;color:var(--accent);cursor:pointer;font-weight:700;" onclick="window._choresPlus.selectPerson(null)">Alle anzeigen</span>`
+      : '';
+    const header = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;margin-bottom:8px;">
+        <div style="font-size:0.62rem;color:var(--muted);letter-spacing:0.1em;">${title.toUpperCase()}</div>
+        ${resetLink}
+      </div>`;
+    if (!completions.length) {
+      return `${header}<div class="cal-placeholder">Keine Erledigungen in diesem Zeitraum.</div>`;
+    }
+    const rows = completions.map(c => `
+      <div class="chore-recent-row">
+        <span class="chore-color-dot" style="background:${_personColor(c.person_id)}"></span>
+        <span style="flex:1;min-width:0;">${escapeHTML(c.name)}</span>
+        <span style="color:var(--muted);font-size:0.78rem;">${escapeHTML(c.completed_at_local)}</span>
+        <button class="chore-recent-del" onclick="window._choresPlus.deleteCompletion(${c.id})" title="Eintrag löschen">×</button>
+      </div>`).join('');
+    return `${header}<div class="chore-recent-list">${rows}</div>`;
+  }
+
+  function _renderTaskStats(stats, completions) {
     if (!stats) return '<div class="cal-placeholder">Aufgabe nicht gefunden.</div>';
     const persons = stats.persons || [];
     const leaderHtml = stats.leader
       ? `<div class="chore-leader">🏆 Wochensieger dieser Aufgabe: ${escapeHTML(stats.leader.name)} (${stats.leader.count})</div>`
       : '<div class="chore-leader" style="color:var(--muted);">Noch keine Erledigungen in diesem Zeitraum.</div>';
     const totalsHtml = persons.length
-      ? persons.map(p => `<div class="chore-total-row"><span>${escapeHTML(p.name)}</span><span>${p.count}</span></div>`).join('')
+      ? persons.map(p => {
+          const selected = state.selectedPersonId === p.person_id;
+          return `<div class="chore-total-row${selected ? ' selected' : ''}" onclick="window._choresPlus.selectPerson(${p.person_id})">
+            <span><span class="chore-color-dot" style="background:${_personColor(p.person_id)}"></span>${escapeHTML(p.name)}</span>
+            <span>${p.count}</span>
+          </div>`;
+        }).join('')
       : '';
-    const labels = persons.map(p => p.name);
-    const values = persons.map(p => p.count);
-    const chart = labels.length
-      ? window._svgEnergyBar(labels, values, 'x', 680, 160, '#00c832')
-      : '<div style="color:var(--muted);text-align:center;padding:20px 0;font-size:0.85rem;">Keine Erledigungen in diesem Zeitraum</div>';
+    const chart = _renderChoreChart(persons);
+    const completionsHtml = _renderCompletionsList(completions, persons);
 
     const tabs = ['week', 'month', 'year'].map(period => {
       const active = stats.period === period;
@@ -128,6 +222,7 @@
           <div style="display:flex;gap:10px;">${tabs}</div>
         </div>
         <div id="chore-chart-inner">${chart}</div>
+        ${completionsHtml}
       </div>`;
   }
 
@@ -140,8 +235,11 @@
       overlay.classList.add('active');
       return;
     }
-    const stats = await _fetchStats(state.selectedTaskId, state.period);
-    overlay.innerHTML = banner + _renderTaskStats(stats);
+    const [stats, completions] = await Promise.all([
+      _fetchStats(state.selectedTaskId, state.period),
+      _fetchCompletions(state.selectedTaskId, state.period, state.selectedPersonId),
+    ]);
+    overlay.innerHTML = banner + _renderTaskStats(stats, completions);
     overlay.classList.add('active');
   }
 
@@ -158,6 +256,7 @@
   async function selectTask(taskId) {
     state.selectedTaskId = taskId;
     state.period = 'week';
+    state.selectedPersonId = null;
     document.getElementById('left-content').innerHTML = _renderTaskList();
     setPanel('right', 'Personen', _renderPersonList());
     await _renderCenter();
@@ -166,6 +265,11 @@
   async function showStatsTab(period) {
     if (!['week', 'month', 'year'].includes(period)) return;
     state.period = period;
+    await _renderCenter();
+  }
+
+  async function selectPerson(personId) {
+    state.selectedPersonId = state.selectedPersonId === personId ? null : personId;
     await _renderCenter();
   }
 
@@ -188,13 +292,23 @@
     await _renderCenter();
   }
 
+  async function deleteCompletion(completionId) {
+    try {
+      await fetch(`/chores/completions/${completionId}`, { method: 'DELETE' });
+    } catch {
+      return;
+    }
+    await _renderCenter();
+  }
+
   function close() {
     state.selectedTaskId = null;
+    state.selectedPersonId = null;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     const lc = document.getElementById('left-content');
     if (lc) lc.style.overflowY = '';
   }
 
-  window._choresPlus = { open, close, selectTask, showStatsTab, logCompletion };
+  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion };
 })();

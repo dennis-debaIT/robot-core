@@ -1215,9 +1215,30 @@
       display: flex; align-items: center; justify-content: space-between;
       background: var(--surface2); border: 1px solid var(--border);
       border-radius: 10px; padding: 8px 14px; font-size: 0.84rem;
+      cursor: pointer; transition: border-color 0.15s ease;
     }
-    .chore-total-row span:first-child { font-weight: 700; color: var(--text); }
+    .chore-total-row:hover { border-color: var(--accent); }
+    .chore-total-row.selected { border-color: var(--accent); border-width: 2px; }
+    .chore-total-row span:first-child { display: flex; align-items: center; font-weight: 700; color: var(--text); }
     .chore-total-row span:last-child { font-weight: 800; color: var(--accent); }
+    .chore-color-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      margin-right: 8px; flex-shrink: 0;
+    }
+    .chore-recent-list {
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .chore-recent-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 6px 10px 6px 14px; font-size: 0.82rem; color: var(--text);
+    }
+    .chore-recent-del {
+      flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+      border: 1px solid var(--border); background: transparent; color: var(--muted);
+      font-size: 1rem; line-height: 1; cursor: pointer; transition: all 0.15s ease;
+    }
+    .chore-recent-del:hover { background: rgba(255,80,80,0.18); color: #ff5050; border-color: #ff5050; }
     .chore-person-flash {
       background: rgba(0,200,80,0.18) !important;
     }

@@ -83,6 +83,13 @@ def delete_chore_completion(completion_id: int) -> dict[str, Any]:
     return {"ok": True}
 
 
+@router.get("/chores/tasks/{task_id}/completions")
+def get_chore_completions(task_id: int, period: str = "week", person_id: int | None = None) -> dict[str, Any]:
+    if period not in ("week", "month", "year"):
+        period = "week"
+    return {"completions": ChoreService().list_completions(task_id, period=period, person_id=person_id)}
+
+
 @router.get("/chores/tasks/{task_id}/stats")
 def get_chore_task_stats(task_id: int, period: str = "week") -> dict[str, Any]:
     if period not in ("week", "month", "year"):
