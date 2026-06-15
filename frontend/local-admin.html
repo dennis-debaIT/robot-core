@@ -645,6 +645,14 @@
               <div class="panel-kicker">Strom</div>
               <h2>Stromverbrauch &amp; -kosten</h2>
             </div>
+            <label class="switch-card">
+              <input id="energy-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">„Strom"-Button im Display anzeigen</span>
+              </span>
+            </label>
           </header>
           <section class="module-card">
             <div class="section-copy">
@@ -1638,6 +1646,7 @@
     const pvWfDailyEl             = document.getElementById('pv-wf-daily');
     const pvWfBatteryEl           = document.getElementById('pv-wf-battery');
     const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
+    const energyEnabledEl         = document.getElementById('energy-enabled');
     const energyTariffFeedInEl    = document.getElementById('energy-tariff-feed-in');
     const energyTariffGridPriceEl = document.getElementById('energy-tariff-grid-price');
     const energyTariffBasePriceEl = document.getElementById('energy-tariff-base-price');
@@ -3382,6 +3391,7 @@
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
         const energy = (cfg.config || cfg).energy || {};
+        if (energyEnabledEl) energyEnabledEl.checked = !!energy.enabled;
         const tariffs = energy.tariffs || {};
         if (energyTariffFeedInEl)    energyTariffFeedInEl.value    = tariffs.feed_in_ct ?? '';
         if (energyTariffGridPriceEl) energyTariffGridPriceEl.value = tariffs.grid_price_ct ?? '';
@@ -3404,7 +3414,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             energy: {
-              enabled: sensors.length > 0,
+              enabled: !!energyEnabledEl?.checked,
               tariffs: {
                 feed_in_ct: Number(energyTariffFeedInEl.value) || 0,
                 grid_price_ct: Number(energyTariffGridPriceEl.value) || 0,
