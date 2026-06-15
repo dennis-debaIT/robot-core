@@ -7,6 +7,10 @@ from app.database.db import get_connection
 from app.services.homeassistant_service import HomeAssistantService
 
 
+_DE_MONTHS_SHORT = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun",
+                    "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"]
+
+
 class VehicleService:
     def __init__(self, ha: HomeAssistantService | None = None) -> None:
         self.ha = ha or HomeAssistantService()
@@ -84,20 +88,92 @@ class VehicleService:
                     )
                 except Exception:
                     pass
+                try:
+                    self._update_charging_daily(conn, vehicle_cfg["id"], now)
+                except Exception:
+                    pass
             conn.execute(
                 "DELETE FROM vehicle_charging_history WHERE recorded_at < ?",
                 (cutoff_charging.isoformat(),),
             )
 
-    def charging_history(self, vehicle_id: str, period: str = "7days", battery_entity: str = "") -> dict[str, Any]:
+    @staticmethod
+    def _local_tz():
         import os
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
         try:
-            tz = ZoneInfo(os.environ.get("TZ", "Europe/Berlin"))
+            return ZoneInfo(os.environ.get("TZ", "Europe/Berlin"))
         except ZoneInfoNotFoundError:
-            tz = timezone.utc
+            return timezone.utc
 
+    @staticmethod
+    def _day_key(recorded_at: str, tz) -> str | None:
+        try:
+            dt = datetime.fromisoformat(recorded_at)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(tz).strftime("%Y-%m-%d")
+        except Exception:
+            return None
+
+    @staticmethod
+    def _upsert_daily(conn, vehicle_id: str, day: str, vals: list[float], now: datetime) -> None:
+        if not vals:
+            return
+        lo, hi = min(vals), max(vals)
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO vehicle_charging_daily(
+                vehicle_id, day, min_pct, max_pct, charged_pct, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (vehicle_id, day, round(lo, 1), round(hi, 1), round(max(0.0, hi - lo), 1), now.isoformat()),
+        )
+
+    def _update_charging_daily(self, conn, vehicle_id: str, now: datetime) -> None:
+        tz = self._local_tz()
+        has_any = conn.execute(
+            "SELECT 1 FROM vehicle_charging_daily WHERE vehicle_id = ? LIMIT 1",
+            (vehicle_id,),
+        ).fetchone()
+        if not has_any:
+            # Einmaliger Backfill aus vorhandener Rohhistorie (≤35 Tage)
+            rows = conn.execute(
+                """
+                SELECT battery_pct, recorded_at FROM vehicle_charging_history
+                WHERE vehicle_id = ? ORDER BY recorded_at ASC
+                """,
+                (vehicle_id,),
+            ).fetchall()
+            by_day: dict[str, list[float]] = {}
+            for row in rows:
+                day = self._day_key(row["recorded_at"], tz)
+                if day:
+                    by_day.setdefault(day, []).append(float(row["battery_pct"]))
+            for day, vals in by_day.items():
+                self._upsert_daily(conn, vehicle_id, day, vals, now)
+        else:
+            # Inkrementell: heutigen Tag neu berechnen
+            today_key = now.astimezone(tz).strftime("%Y-%m-%d")
+            start_of_today_utc = now.astimezone(tz).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ).astimezone(timezone.utc)
+            rows = conn.execute(
+                """
+                SELECT battery_pct FROM vehicle_charging_history
+                WHERE vehicle_id = ? AND recorded_at >= ?
+                """,
+                (vehicle_id, start_of_today_utc.isoformat()),
+            ).fetchall()
+            self._upsert_daily(conn, vehicle_id, today_key, [float(r["battery_pct"]) for r in rows], now)
+
+    def charging_history(self, vehicle_id: str, period: str = "7days", battery_entity: str = "") -> dict[str, Any]:
+        tz = self._local_tz()
         now = datetime.now(tz)
+
+        if period == "year":
+            return self._charging_history_year(vehicle_id, now)
+
         if period == "month":
             start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
             days_count = (now - start).days + 1
@@ -110,10 +186,24 @@ class VehicleService:
 
         start_utc = start.astimezone(timezone.utc)
         now_utc   = now.astimezone(timezone.utc)
-        by_day: dict[str, list[float]] = {}
 
-        # ── Primär: HA-History direkt abrufen ──────────────────
-        if battery_entity:
+        # ── Primär: gepflegtes Tages-Aggregat ───────────────────
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT day, min_pct, max_pct, charged_pct FROM vehicle_charging_daily
+                WHERE vehicle_id = ? AND day >= ?
+                """,
+                (vehicle_id, day_keys[0]),
+            ).fetchall()
+        daily_agg = {row["day"]: row for row in rows}
+
+        # ── Fallback: HA-History für Tage ohne Aggregat ─────────
+        # (z.B. neu hinzugefügtes Fahrzeug oder direkt nach Deploy,
+        # bevor der erste Poll das Aggregat befüllt hat)
+        by_day: dict[str, list[float]] = {}
+        missing_days = [dk for dk in day_keys if dk not in daily_agg]
+        if battery_entity and missing_days:
             try:
                 from app.search.providers.homeassistant import HomeAssistantProvider
                 ha = HomeAssistantProvider()
@@ -124,40 +214,20 @@ class VehicleService:
                     except (TypeError, ValueError):
                         continue
                     raw_ts = s.get("last_changed") or s.get("last_updated") or ""
-                    try:
-                        dt = datetime.fromisoformat(raw_ts)
-                        if dt.tzinfo is None:
-                            dt = dt.replace(tzinfo=timezone.utc)
-                        day = dt.astimezone(tz).strftime("%Y-%m-%d")
-                    except Exception:
-                        continue
-                    by_day.setdefault(day, []).append(v)
+                    day = self._day_key(raw_ts, tz)
+                    if day in missing_days:
+                        by_day.setdefault(day, []).append(v)
             except Exception:
                 pass
 
-        # ── Fallback: lokale DB ─────────────────────────────────
-        if not by_day:
-            with get_connection() as conn:
-                rows = conn.execute(
-                    """
-                    SELECT battery_pct, recorded_at FROM vehicle_charging_history
-                    WHERE vehicle_id = ? AND recorded_at >= ?
-                    ORDER BY recorded_at ASC
-                    """,
-                    (vehicle_id, start_utc.isoformat()),
-                ).fetchall()
-            for row in rows:
-                try:
-                    dt = datetime.fromisoformat(row["recorded_at"])
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    day = dt.astimezone(tz).strftime("%Y-%m-%d")
-                except Exception:
-                    continue
-                by_day.setdefault(day, []).append(float(row["battery_pct"]))
-
         min_pct, max_pct, charged_pct = [], [], []
         for dk in day_keys:
+            if dk in daily_agg:
+                row = daily_agg[dk]
+                min_pct.append(row["min_pct"])
+                max_pct.append(row["max_pct"])
+                charged_pct.append(row["charged_pct"])
+                continue
             vals = by_day.get(dk, [])
             if vals:
                 lo, hi = min(vals), max(vals)
@@ -172,6 +242,40 @@ class VehicleService:
         return {
             "vehicle_id": vehicle_id,
             "period": period,
+            "labels": labels,
+            "min_pct": min_pct,
+            "max_pct": max_pct,
+            "charged_pct": charged_pct,
+        }
+
+    def _charging_history_year(self, vehicle_id: str, now: datetime) -> dict[str, Any]:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT day, min_pct, max_pct, charged_pct FROM vehicle_charging_daily
+                WHERE vehicle_id = ? AND day LIKE ?
+                """,
+                (vehicle_id, f"{now.year}-%"),
+            ).fetchall()
+
+        monthly: dict[int, dict[str, Any]] = {}
+        for row in rows:
+            month = int(row["day"][5:7])
+            entry = monthly.setdefault(month, {"min": [], "max": [], "charged": 0.0})
+            entry["min"].append(row["min_pct"])
+            entry["max"].append(row["max_pct"])
+            entry["charged"] += row["charged_pct"]
+
+        labels, min_pct, max_pct, charged_pct = [], [], [], []
+        for month in sorted(monthly):
+            labels.append(_DE_MONTHS_SHORT[month - 1])
+            min_pct.append(round(min(monthly[month]["min"]), 1))
+            max_pct.append(round(max(monthly[month]["max"]), 1))
+            charged_pct.append(round(monthly[month]["charged"], 1))
+
+        return {
+            "vehicle_id": vehicle_id,
+            "period": "year",
             "labels": labels,
             "min_pct": min_pct,
             "max_pct": max_pct,

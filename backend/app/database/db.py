@@ -298,6 +298,16 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_vehicle_charging_history_vehicle_recorded
             ON vehicle_charging_history(vehicle_id, recorded_at DESC);
 
+            CREATE TABLE IF NOT EXISTS vehicle_charging_daily (
+                vehicle_id TEXT NOT NULL,
+                day TEXT NOT NULL,
+                min_pct REAL NOT NULL,
+                max_pct REAL NOT NULL,
+                charged_pct REAL NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (vehicle_id, day)
+            );
+
             CREATE TABLE IF NOT EXISTS person_notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 person_id INTEGER,

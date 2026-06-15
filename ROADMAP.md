@@ -108,6 +108,7 @@ Ziel: Bestehende Integrationen werden präziser, konfigurierbarer und zuverläss
 - [x] **TTS + Face-Recognition Race Condition behoben**: Kein ungewolltes Zuhören während Erika spricht
 - [x] **Admin-UX Übersicht**: Setup-Checkliste im Übersicht-Tab (HA / LLM / TTS Status mit Direkt-Link)
 - [x] **PV-Langzeitstatistik aus Leistungssensor**: Zuverlässige kWh-Ableitung wenn kein Tageszähler konfiguriert
+- [x] **Akku-Verlauf des Fahrzeugs mit Jahresübersicht**: Gepflegtes Tages-Aggregat (Min/Max/geladene % pro Tag) baut sich bei jedem Poll selbst auf; "7 Tage"/"Monat"/"Jahr" lesen daraus, lokale DB ist primäre Quelle vor HA-History
 
 ---
 

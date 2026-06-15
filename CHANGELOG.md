@@ -7,10 +7,15 @@ Format: neueste Einträge oben.
 
 ## [Unreleased]
 
+### Neu
+- **Akku-Verlauf des Fahrzeugs: gepflegte Statistik mit Jahresübersicht**: Neben „7 Tage" und „Monat" gibt es jetzt einen dritten Tab „Jahr" im Ladeverlauf des Fahrzeugs, der den Akku-Verlauf (Min/Max je Monat) über das laufende Jahr zeigt. Dafür wird bei jedem Poll ein kleines Tages-Aggregat (`vehicle_charging_daily`, min/max/geladene % pro Tag, ohne Lösch-Frist) fortgeschrieben und einmalig aus der vorhandenen 35-Tage-Rohhistorie befüllt — die Jahresübersicht baut sich dadurch von Monat zu Monat von selbst auf. „7 Tage"/„Monat" lesen jetzt ebenfalls aus diesem Aggregat (statt die Rohdaten bei jeder Anfrage neu zu gruppieren), mit unverändertem HA-History-Fallback für Tage ohne lokales Aggregat.
+
 ### Behoben
+- **Ladeverlauf des Fahrzeugs zeigte Lücken in „Monat"**: `charging_history()` nutzte HA-History als primäre Quelle und fiel nur bei komplett leerem Ergebnis auf die lokale DB zurück. Da Home Assistant rohe History standardmäßig nur ~10 Tage aufbewahrt, fehlten ältere Tage der Monatsansicht. Die lokale DB (35 Tage, dichter erfasst) ist jetzt primär; HA-History dient nur noch als Fallback für Tage, die lokal noch nicht erfasst sind.
 - **Strom-Migration jetzt wirklich einmalig**: Die automatische Übernahme von `pv.sensors.grid`/`pv.tariffs` in den neuen `energy`-Bereich wurde bisher bei jedem Config-Aufruf neu berechnet statt einmalig gespeichert — spätere Änderungen an den PV-Einstellungen hätten die migrierten Strom-Werte sonst weiter überschrieben, solange im Strom-Tab nie gespeichert wurde. Wird jetzt sofort persistiert.
 
 ### Tests
+- Neue Tests für den Akku-Verlauf des Fahrzeugs (`test_vehicle_charging_history.py`): Backfill und inkrementelle Fortschreibung des Tages-Aggregats, „7 Tage"/„Monat" aus dem Aggregat inkl. HA-Fallback für fehlende Tage, sowie die neue Jahresübersicht (Monatsaggregation, leeres Jahr).
 - Neue Tests für den Strom-Bereich: Sanitizing von Sensor-Liste und Tarifen, die einmalige PV→Strom-Migration (inkl. Persistenz) sowie `/ha/energy/history` (Saldo/Kosten-Berechnung, Netzbezugs- vs. Gerätesensoren).
 - Neue Tests für die PV-Langzeitstatistik (`/ha/pv/history`): kWh-Ableitung aus dem Leistungssensor via History (inkl. Lücken-/Negativwert-Behandlung) und Langzeitstatistik, Stats→History-Fallback und -Merge für den heutigen Tag, sowie die Endpoint-Views today/7days/year mit und ohne Tagesertrags-Sensor.
 - `test_openai_compatible_request_body` setzt `LLM_MAX_TOKENS` jetzt explizit und ist damit unabhängig von der Docker-Compose-Umgebung lauffähig (vorher schlug der Test bei direktem `pytest`-Lauf fehl, weil der erwartete Wert 320 nur per Compose-Env-Var injiziert wurde).

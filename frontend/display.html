@@ -3427,6 +3427,8 @@
               onclick="showVehicleChargingTab('${escapeAttr(vehicle.id)}','7days',${capArg})">7 Tage</span>
             <span id="veh-tab-month" style="font-size:0.72rem;cursor:pointer;color:var(--muted);"
               onclick="showVehicleChargingTab('${escapeAttr(vehicle.id)}','month',${capArg})">Monat</span>
+            <span id="veh-tab-year" style="font-size:0.72rem;cursor:pointer;color:var(--muted);"
+              onclick="showVehicleChargingTab('${escapeAttr(vehicle.id)}','year',${capArg})">Jahr</span>
           </div>
         </div>
         <div id="veh-chart-inner" style="min-height:60px;">
@@ -3763,7 +3765,7 @@
     const wrap = document.getElementById('veh-chart-inner');
     if (!wrap) return;
     wrap.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;text-align:center;padding:18px 0;">Lade…</div>';
-    ['veh-tab-7days','veh-tab-month'].forEach(id => {
+    ['veh-tab-7days','veh-tab-month','veh-tab-year'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.fontWeight = (id === 'veh-tab-' + period) ? '800' : '400';
       if (el) el.style.color = (id === 'veh-tab-' + period) ? 'var(--accent)' : 'var(--muted)';
