@@ -12,6 +12,7 @@ Format: neueste Einträge oben.
 
 ### Tests
 - Neue Tests für den Strom-Bereich: Sanitizing von Sensor-Liste und Tarifen, die einmalige PV→Strom-Migration (inkl. Persistenz) sowie `/ha/energy/history` (Saldo/Kosten-Berechnung, Netzbezugs- vs. Gerätesensoren).
+- Neue Tests für die PV-Langzeitstatistik (`/ha/pv/history`): kWh-Ableitung aus dem Leistungssensor via History (inkl. Lücken-/Negativwert-Behandlung) und Langzeitstatistik, Stats→History-Fallback und -Merge für den heutigen Tag, sowie die Endpoint-Views today/7days/year mit und ohne Tagesertrags-Sensor.
 - `test_openai_compatible_request_body` setzt `LLM_MAX_TOKENS` jetzt explizit und ist damit unabhängig von der Docker-Compose-Umgebung lauffähig (vorher schlug der Test bei direktem `pytest`-Lauf fehl, weil der erwartete Wert 320 nur per Compose-Env-Var injiziert wurde).
 
 ### Geändert

@@ -96,7 +96,7 @@ Ziel: Erika wird über Zeit klüger und persönlicher.
 
 ---
 
-## 🔧 Phase 4.3 — Integration & Display-Qualität (aktuell)
+## ✅ Phase 4.3 — Integration & Display-Qualität (abgeschlossen)
 
 Ziel: Bestehende Integrationen werden präziser, konfigurierbarer und zuverlässiger.
 
@@ -107,7 +107,7 @@ Ziel: Bestehende Integrationen werden präziser, konfigurierbarer und zuverläss
 - [x] **Standort via Koordinaten**: `zone.home` aus HA, kein mehrdeutiges Geocoding
 - [x] **TTS + Face-Recognition Race Condition behoben**: Kein ungewolltes Zuhören während Erika spricht
 - [x] **Admin-UX Übersicht**: Setup-Checkliste im Übersicht-Tab (HA / LLM / TTS Status mit Direkt-Link)
-- [ ] **PV-Langzeitstatistik aus Leistungssensor**: Zuverlässige kWh-Ableitung wenn kein Tageszähler konfiguriert
+- [x] **PV-Langzeitstatistik aus Leistungssensor**: Zuverlässige kWh-Ableitung wenn kein Tageszähler konfiguriert
 
 ---
 
