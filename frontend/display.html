@@ -4254,7 +4254,7 @@
       overlay.classList.add('active');
       _pollTournament();
       if (_trnInterval) clearInterval(_trnInterval);
-      _trnInterval = setInterval(_pollTournament, 60000);
+      _trnInterval = setInterval(_pollTournament, 10000);
     }
 
     function stopTournamentOverlay() {
