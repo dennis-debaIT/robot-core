@@ -3948,8 +3948,47 @@
       return (h != null && a != null) ? `Halbzeit ${h}:${a}` : '';
     }
 
+    const _DE_COUNTRY = {
+      'Mexico':'Mexiko','South Africa':'Südafrika','Korea Republic':'Südkorea',
+      'Korea DPR':'Nordkorea','Czechia':'Tschechien','Czech Republic':'Tschechien',
+      'Canada':'Kanada','Qatar':'Katar','Switzerland':'Schweiz',
+      'Australia':'Australien','Turkey':'Türkei','Brazil':'Brasilien',
+      'Morocco':'Marokko','Scotland':'Schottland','Germany':'Deutschland',
+      "Ivory Coast":'Elfenbeinküste',"Côte d'Ivoire":'Elfenbeinküste',
+      'Netherlands':'Niederlande','England':'England','France':'Frankreich',
+      'Spain':'Spanien','Italy':'Italien','Portugal':'Portugal',
+      'Belgium':'Belgien','Denmark':'Dänemark','Sweden':'Schweden',
+      'Norway':'Norwegen','Finland':'Finnland','Austria':'Österreich',
+      'Poland':'Polen','Hungary':'Ungarn','Romania':'Rumänien',
+      'Greece':'Griechenland','Croatia':'Kroatien','Serbia':'Serbien',
+      'Slovenia':'Slowenien','Slovakia':'Slowakei','Ukraine':'Ukraine',
+      'Russia':'Russland','Bosnia and Herzegovina':'Bosnien-Herzegowina',
+      'Bosnia-Herzegovina':'Bosnien-Hz.','Bosnia-H.':'Bosnien-Hz.',
+      'North Macedonia':'Nordmazedonien','Albania':'Albanien','Kosovo':'Kosovo',
+      'Iceland':'Island','Luxembourg':'Luxemburg',
+      'Saudi Arabia':'Saudi-Arabien','Iran':'Irak',
+      'United Arab Emirates':'V.A.E.','Iraq':'Irak',
+      'Nigeria':'Nigeria','Ghana':'Ghana','Senegal':'Senegal',
+      'Tunisia':'Tunesien','Algeria':'Algerien','Egypt':'Ägypten',
+      'Cameroon':'Kamerun','Tanzania':'Tansania',
+      'Colombia':'Kolumbien','Venezuela':'Venezuela','Bolivia':'Bolivien',
+      'Chile':'Chile','Argentina':'Argentinien','Uruguay':'Uruguay',
+      'Paraguay':'Paraguay','Peru':'Peru','Jamaica':'Jamaika',
+      'Costa Rica':'Costa Rica','Honduras':'Honduras','Cuba':'Kuba',
+      'El Salvador':'El Salvador','Panama':'Panama','Haiti':'Haiti',
+      'Dominican Republic':'Dominik. Rep.',
+      'Trinidad and Tobago':'Trinidad & Tobago',
+      'New Zealand':'Neuseeland','Japan':'Japan','China':'China',
+      'India':'Indien','Indonesia':'Indonesien','Philippines':'Philippinen',
+      'Thailand':'Thailand','Vietnam':'Vietnam','Malaysia':'Malaysia',
+      'Singapore':'Singapur','Papua New Guinea':'Papua-Neuguinea',
+      'United States':'USA','Curaçao':'Curaçao','Ecuador':'Ecuador',
+    };
+    function _de(name) { return _DE_COUNTRY[name] || name; }
+
     function _trnTeamName(team) {
-      return (team?.shortName || team?.name || team?.tla || '?').trim() || '?';
+      const raw = (team?.shortName || team?.name || team?.tla || '?').trim() || '?';
+      return _de(raw);
     }
 
     function _renderMatchday(data) {
@@ -4060,6 +4099,24 @@
       _goalFlashTimer = setTimeout(() => flash.classList.remove('active'), 5000);
     }
 
+    function _renderLiveAll(liveMatches) {
+      let html = `<div class="trn-header">⚽ LIVE</div>`;
+      liveMatches.forEach(m => {
+        const score = _scoreStr(m.score);
+        const ht = _htStr(m.score);
+        const statusLabel = m.status === 'PAUSED' ? 'HZ' : 'LIVE';
+        html += `
+          <div class="trn-match live">
+            <span class="trn-team">${escapeHTML(_trnTeamName(m.homeTeam))}</span>
+            <span class="trn-score live">${score}</span>
+            <span class="trn-team away">${escapeHTML(_trnTeamName(m.awayTeam))}</span>
+            <span class="trn-live-badge">${statusLabel}</span>
+          </div>
+          ${ht ? `<div style="font-size:0.6rem;color:var(--muted);text-align:center;margin:-3px 0 4px;">${escapeHTML(ht)}</div>` : ''}`;
+      });
+      return html;
+    }
+
     async function _pollTournament() {
       if (!_enabledModules.tournament) return;
       try {
@@ -4070,9 +4127,11 @@
         overlay.classList.add('active');
         const live = d.live || [];
         _checkGoals(live);
-        overlay.innerHTML = live.length
+        overlay.innerHTML = live.length === 1
           ? _renderLive(live[0])
-          : _renderMatchday(d);
+          : live.length > 1
+            ? _renderLiveAll(live)
+            : _renderMatchday(d);
       } catch {}
     }
 
