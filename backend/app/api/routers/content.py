@@ -195,7 +195,8 @@ def get_display_state() -> dict[str, Any]:
         "pv":       bool((config.get("pv")       or {}).get("enabled", False)),
         "printer":  bool((config.get("printer")  or {}).get("enabled", False)),
         "energy":   bool((config.get("energy")   or {}).get("enabled", False)) and bool((config.get("energy") or {}).get("sensors")),
-        "chores":   bool((config.get("chores")   or {}).get("enabled", False)),
+        "chores":      bool((config.get("chores")      or {}).get("enabled", False)),
+        "tournament":  bool((config.get("tournament")  or {}).get("enabled", False) and bool((config.get("tournament") or {}).get("api_key", ""))),
     }
     cal_cfg = config.get("calendar") or {}
     calendar_config = {"open_trigger": cal_cfg.get("open_trigger", "both")}

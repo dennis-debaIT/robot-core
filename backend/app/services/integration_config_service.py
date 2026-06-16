@@ -146,6 +146,11 @@ class IntegrationConfigService:
                 "enabled": False,
                 "overall_winner_enabled": True,
             },
+            "tournament": {
+                "enabled": False,
+                "api_key": "",
+                "competition_code": "WC",
+            },
             "meta": {
                 "version": 1,
             },
@@ -275,6 +280,10 @@ class IntegrationConfigService:
         chores = merged.setdefault("chores", {})
         chores["enabled"] = bool(chores.get("enabled", False))
         chores["overall_winner_enabled"] = bool(chores.get("overall_winner_enabled", True))
+        tournament = merged.setdefault("tournament", {})
+        tournament["enabled"] = bool(tournament.get("enabled", False))
+        tournament["api_key"] = str(tournament.get("api_key") or "").strip()
+        tournament["competition_code"] = str(tournament.get("competition_code") or "WC").strip() or "WC"
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

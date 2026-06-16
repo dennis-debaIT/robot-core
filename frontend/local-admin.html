@@ -41,6 +41,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-chores"><span class="si-icon">🧹</span><span>Hausaufgaben</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">⚽</span><span>Turnier</span></button>
         </div>
 
         <div class="sidebar-group">
@@ -776,6 +777,47 @@
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
             <button type="button" class="primary" onclick="saveChoresConfig()">Speichern</button>
             <span id="chores-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
+        </article>
+
+        <!-- ── TURNIER (WM / EM) ──────────────────────────────── -->
+        <article id="tab-tournament" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Turnier</div>
+              <h2>WM / EM – Live-Spieltag</h2>
+            </div>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Modul</div>
+              <p>Zeigt den aktuellen WM- oder EM-Spieltag im Display-Zentrum an. Wenn ein Spiel läuft, wird die Live-Ansicht angezeigt. Bei einem Tor erscheint 5 Sekunden lang eine Torjubel-Animation. Datenquelle: football-data.org (kostenloser API-Key erforderlich).</p>
+            </div>
+            <label class="field-block" style="flex-direction:row;align-items:center;gap:10px;">
+              <input id="tournament-enabled" type="checkbox">
+              <span class="field-label" style="margin:0;">Turnier-Modul aktivieren</span>
+            </label>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">API-Schlüssel</div>
+              <p>Kostenloser API-Key von <strong>football-data.org</strong>. Wird nur für die Abfrage von Spieldaten verwendet.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">API-Key (football-data.org)</span>
+                <input id="tournament-api-key" class="field-input" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Wettbewerbs-Code</span>
+                <input id="tournament-competition-code" class="field-input" type="text" placeholder="WC" style="max-width:120px;">
+                <span style="font-size:0.75rem;color:var(--muted);margin-top:4px;">WC = WM, EC = EM</span>
+              </label>
+            </div>
+          </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveTournamentConfig()">Speichern</button>
+            <span id="tournament-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
           </div>
         </article>
 
@@ -3497,6 +3539,41 @@
       }
     }
 
+    async function _loadTournamentConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const t = (cfg.config || cfg).tournament || {};
+        const enabledEl = document.getElementById('tournament-enabled');
+        const keyEl = document.getElementById('tournament-api-key');
+        const codeEl = document.getElementById('tournament-competition-code');
+        if (enabledEl) enabledEl.checked = t.enabled === true;
+        if (keyEl) keyEl.value = t.api_key || '';
+        if (codeEl) codeEl.value = t.competition_code || 'WC';
+      } catch {}
+    }
+
+    async function saveTournamentConfig() {
+      const enabledEl = document.getElementById('tournament-enabled');
+      const keyEl = document.getElementById('tournament-api-key');
+      const codeEl = document.getElementById('tournament-competition-code');
+      const statusEl = document.getElementById('tournament-status');
+      if (statusEl) statusEl.textContent = 'Speichere…';
+      try {
+        await fetch('/tournament/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: enabledEl?.checked || false,
+            api_key: (keyEl?.value || '').trim(),
+            competition_code: (codeEl?.value || 'WC').trim() || 'WC',
+          }),
+        });
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     const _ENERGY_ROLES = [
       ['device', 'Gerät (Verbrauch & Kosten)'],
       ['grid', 'Gesamt-Netzbezug (Saldo)'],
@@ -3586,6 +3663,7 @@
     document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
     document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
     document.querySelector('[data-tab-target="tab-chores"]')?.addEventListener('click', _loadChoresConfig);
+    document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);

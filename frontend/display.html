@@ -118,6 +118,14 @@
         <img id="doorbell-cam-img" src="" alt="Kamera">
       </div>
     </div>
+    <!-- Turnier-Overlay (WM/EM): überlagert das Gesicht wenn aktiv -->
+    <div id="tournament-overlay"></div>
+    <!-- Tor-Flash: Vollbild-Animation bei Torereignis -->
+    <div id="wm-goal-flash">
+      <div class="goal-ball">⚽</div>
+      <div class="goal-text" id="wm-goal-text">TOOOOR!</div>
+      <div class="goal-teams" id="wm-goal-teams"></div>
+    </div>
     <div class="face-wrap">
       <div id="speaking-indicator"><span></span><span></span><span></span><span></span><span></span></div>
       <svg id="robot-face" viewBox="0 0 420 420" xmlns="http://www.w3.org/2000/svg"
@@ -2998,7 +3006,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false, tournament: false };
   })();
   let _calendarOpenTrigger = 'both';
   let _activePersonName = null;
@@ -3163,8 +3171,9 @@
   });
 
   function applyModuleVisibility(modules, calendarConfig) {
-    const prevCal = _enabledModules.calendar !== false;
-    const prevPv  = _enabledModules.pv === true;
+    const prevCal        = _enabledModules.calendar !== false;
+    const prevPv         = _enabledModules.pv === true;
+    const prevTournament = _enabledModules.tournament === true;
     _enabledModules = {
       news:     modules?.news     === true,
       lights:   modules?.lights   === true,
@@ -3175,7 +3184,8 @@
       pv:       modules?.pv       === true,
       printer:  modules?.printer  === true,
       energy:   modules?.energy   === true,
-      chores:   modules?.chores   === true,
+      chores:      modules?.chores      === true,
+      tournament:  modules?.tournament  === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;
@@ -3204,6 +3214,12 @@
       _calendarOpenTrigger = calendarConfig.open_trigger || 'both';
     }
     if (calBtn) calBtn.hidden = (_calendarOpenTrigger === 'widget');
+    // Turnier-Overlay starten/stoppen bei Änderung
+    if (_enabledModules.tournament && !prevTournament) {
+      window._tournament?.start();
+    } else if (!_enabledModules.tournament && prevTournament) {
+      window._tournament?.stop();
+    }
   }
 
   function _startLightsPolling() {
@@ -3900,6 +3916,152 @@
   function clearChoresView() {
     window._choresPlus?.close();
   }
+
+  // ── TURNIER-OVERLAY (WM / EM) ─────────────────────────────────
+  (function () {
+    let _trnInterval = null;
+    let _trnPrevScores = {}; // match_id → {home, away}
+    let _goalFlashTimer = null;
+
+    function _fmtTime(utcDate) {
+      if (!utcDate) return '–';
+      try {
+        const d = new Date(utcDate);
+        return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      } catch { return '–'; }
+    }
+
+    function _scoreStr(score) {
+      const h = score?.fullTime?.home;
+      const a = score?.fullTime?.away;
+      if (h == null || a == null) return '–:–';
+      return `${h}:${a}`;
+    }
+
+    function _renderMatchday(data) {
+      const matches = data.matchday || [];
+      const liveIds = new Set((data.live || []).map(m => m.id));
+      const label = data.matchday_nr
+        ? `${data.competition_name || 'Turnier'} · Spieltag ${data.matchday_nr}`
+        : data.competition_name || 'Turnier';
+
+      if (!matches.length) {
+        return `<div class="trn-header">${escapeHTML(label)}</div>
+          <div style="color:var(--muted);font-size:0.8rem;text-align:center;">Keine Spiele verfügbar</div>`;
+      }
+
+      const rows = matches.map(m => {
+        const isLive = liveIds.has(m.id) || m.status === 'IN_PLAY' || m.status === 'PAUSED';
+        const score = _scoreStr(m.score);
+        const timeStr = m.status === 'FINISHED' ? `${score} ✓`
+          : isLive ? score
+          : (m.status === 'SCHEDULED' || m.status === 'TIMED') ? _fmtTime(m.utcDate)
+          : score;
+        const badge = isLive ? '<span class="trn-live-badge">LIVE</span>' : '';
+        return `
+          <div class="trn-match${isLive ? ' live' : ''}">
+            <span class="trn-team">${escapeHTML(m.homeTeam?.shortName || m.homeTeam?.name || '?')}</span>
+            <span class="trn-score${isLive ? ' live' : ''}">${isLive ? score : timeStr}</span>
+            <span class="trn-team away">${escapeHTML(m.awayTeam?.shortName || m.awayTeam?.name || '?')}</span>
+            ${badge}
+          </div>`;
+      }).join('');
+
+      return `<div class="trn-header">${escapeHTML(label)}</div>${rows}`;
+    }
+
+    function _renderLive(match) {
+      const score = match.score || {};
+      const home = score.fullTime?.home ?? '–';
+      const away = score.fullTime?.away ?? '–';
+      const ht = (score.halfTime?.home != null)
+        ? `Halbzeit ${score.halfTime.home}:${score.halfTime.away}` : '';
+      const homeName = match.homeTeam?.name || '?';
+      const awayName = match.awayTeam?.name || '?';
+      const statusLabel = match.status === 'PAUSED' ? 'Halbzeit' : 'LIVE';
+      return `
+        <div class="trn-header">⚽ ${statusLabel}</div>
+        <div class="trn-live-big">
+          <div class="trn-teams">
+            <span>${escapeHTML(match.homeTeam?.shortName || homeName)}</span>
+            <span style="color:var(--muted);font-size:0.75rem;">vs</span>
+            <span>${escapeHTML(match.awayTeam?.shortName || awayName)}</span>
+          </div>
+          <div class="trn-scoreline">${home} : ${away}</div>
+          ${ht ? `<div class="trn-matchtime">${escapeHTML(ht)}</div>` : ''}
+          <div class="trn-matchtime" style="margin-top:4px;">${escapeHTML(homeName)} – ${escapeHTML(awayName)}</div>
+        </div>`;
+    }
+
+    function _checkGoals(liveMatches) {
+      liveMatches.forEach(m => {
+        const id = m.id;
+        const home = m.score?.fullTime?.home ?? null;
+        const away = m.score?.fullTime?.away ?? null;
+        if (home === null || away === null) return;
+        const prev = _trnPrevScores[id];
+        if (prev !== undefined) {
+          const prevTotal = prev.home + prev.away;
+          const curTotal  = home + away;
+          if (curTotal > prevTotal) {
+            _showGoalFlash(m, home, away);
+          }
+        }
+        _trnPrevScores[id] = { home, away };
+      });
+    }
+
+    function _showGoalFlash(match, home, away) {
+      const flash = document.getElementById('wm-goal-flash');
+      const teamsEl = document.getElementById('wm-goal-teams');
+      if (!flash) return;
+      if (_goalFlashTimer) clearTimeout(_goalFlashTimer);
+      if (teamsEl) {
+        const hn = match.homeTeam?.shortName || match.homeTeam?.name || '?';
+        const an = match.awayTeam?.shortName || match.awayTeam?.name || '?';
+        teamsEl.textContent = `${hn}  ${home} : ${away}  ${an}`;
+      }
+      flash.classList.add('active');
+      _goalFlashTimer = setTimeout(() => flash.classList.remove('active'), 5000);
+    }
+
+    async function _pollTournament() {
+      if (!_enabledModules.tournament) return;
+      try {
+        const d = await fetch('/tournament/state', { cache: 'no-store' }).then(r => r.json());
+        if (!d.enabled) { _hideTournamentOverlay(); return; }
+        const overlay = document.getElementById('tournament-overlay');
+        if (!overlay) return;
+        const live = d.live || [];
+        _checkGoals(live);
+        overlay.innerHTML = live.length
+          ? _renderLive(live[0])
+          : _renderMatchday(d);
+      } catch {}
+    }
+
+    function _hideTournamentOverlay() {
+      const overlay = document.getElementById('tournament-overlay');
+      if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
+    }
+
+    function startTournamentOverlay() {
+      const overlay = document.getElementById('tournament-overlay');
+      if (!overlay || !_enabledModules.tournament) return;
+      overlay.classList.add('active');
+      _pollTournament();
+      if (_trnInterval) clearInterval(_trnInterval);
+      _trnInterval = setInterval(_pollTournament, 60000);
+    }
+
+    function stopTournamentOverlay() {
+      if (_trnInterval) { clearInterval(_trnInterval); _trnInterval = null; }
+      _hideTournamentOverlay();
+      _trnPrevScores = {};
+    }
+
+    window._tournament = { start: startTournamentOverlay, stop: stopTournamentOverlay };
+  })();
 
   function formatMinutesAsHHMM(value) {
     const minutes = parseInt(value, 10);

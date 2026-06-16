@@ -1666,3 +1666,89 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+    /* ── TURNIER-OVERLAY (WM / EM) ─────────────────────────── */
+    #tournament-overlay {
+      position: absolute; inset: 0; background: var(--bg);
+      display: none; z-index: 40;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 16px 14px; box-sizing: border-box; overflow-y: auto;
+    }
+    #tournament-overlay.active { display: flex; }
+    .trn-header {
+      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em;
+      color: var(--accent); text-transform: uppercase; margin-bottom: 10px;
+      text-align: center;
+    }
+    .trn-match {
+      display: flex; align-items: center; gap: 6px;
+      width: 100%; padding: 7px 10px; border-radius: 10px;
+      background: var(--surface); margin-bottom: 6px;
+      border: 1px solid var(--border);
+    }
+    .trn-match.live { border-color: #ef4444; background: rgba(239,68,68,0.07); }
+    .trn-team {
+      flex: 1; font-size: 0.78rem; font-weight: 700; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .trn-team.away { text-align: right; }
+    .trn-score {
+      font-size: 1.1rem; font-weight: 900; font-family: monospace;
+      color: var(--accent); min-width: 56px; text-align: center; flex-shrink: 0;
+    }
+    .trn-score.live { color: #ef4444; }
+    .trn-time {
+      font-size: 0.62rem; color: var(--muted); min-width: 36px;
+      text-align: center; flex-shrink: 0;
+    }
+    .trn-live-badge {
+      font-size: 0.55rem; font-weight: 800; letter-spacing: 0.08em;
+      color: #ef4444; background: rgba(239,68,68,0.12);
+      border: 1px solid rgba(239,68,68,0.3); border-radius: 4px;
+      padding: 1px 5px; flex-shrink: 0;
+    }
+    .trn-live-big {
+      text-align: center; width: 100%; padding: 0 0 12px;
+    }
+    .trn-live-big .trn-teams {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      font-size: 1rem; font-weight: 800; margin-bottom: 8px;
+    }
+    .trn-live-big .trn-scoreline {
+      font-size: 2.4rem; font-weight: 900; font-family: monospace;
+      color: #ef4444; line-height: 1;
+    }
+    .trn-live-big .trn-matchtime {
+      font-size: 0.7rem; color: var(--muted); margin-top: 4px;
+    }
+
+    /* ── TOR-FLASH ─────────────────────────────────────────── */
+    #wm-goal-flash {
+      position: fixed; inset: 0; z-index: 9000;
+      background: rgba(0,0,0,0.88);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    #wm-goal-flash.active { display: flex; }
+    #wm-goal-flash .goal-ball {
+      font-size: 5rem; animation: goal-bounce 0.5s ease-in-out infinite alternate;
+      margin-bottom: 12px;
+    }
+    #wm-goal-flash .goal-text {
+      font-size: 3rem; font-weight: 900; letter-spacing: 0.08em;
+      color: #fff; text-shadow: 0 0 30px #facc15, 0 0 60px #facc15;
+      animation: goal-pulse 0.6s ease-in-out infinite alternate;
+    }
+    #wm-goal-flash .goal-teams {
+      font-size: 1.1rem; font-weight: 700; color: rgba(255,255,255,0.75);
+      margin-top: 10px; letter-spacing: 0.05em;
+    }
+    @keyframes goal-bounce {
+      from { transform: translateY(-12px) scale(1.1); }
+      to   { transform: translateY(8px)  scale(0.95); }
+    }
+    @keyframes goal-pulse {
+      from { opacity: 1;    transform: scale(1); }
+      to   { opacity: 0.85; transform: scale(1.06); }
+    }
