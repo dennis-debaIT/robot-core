@@ -1687,6 +1687,28 @@
       color: var(--accent); text-transform: uppercase; margin-bottom: 10px;
       text-align: center;
     }
+    .trn-next-banner {
+      display: flex; flex-direction: column; align-items: center;
+      background: var(--accent); border-radius: 10px;
+      padding: 8px 12px; margin-bottom: 8px; gap: 2px;
+    }
+    .trn-next-label {
+      font-size: 0.55rem; font-weight: 800; letter-spacing: 0.12em;
+      text-transform: uppercase; color: rgba(255,255,255,0.7);
+    }
+    .trn-next-teams {
+      font-size: 0.82rem; font-weight: 700; color: #fff;
+    }
+    .trn-next-vs {
+      font-size: 0.65rem; font-weight: 400; color: rgba(255,255,255,0.6);
+      margin: 0 4px;
+    }
+    .trn-next-time {
+      font-size: 0.75rem; font-weight: 600; color: rgba(255,255,255,0.85);
+    }
+    .trn-match.next {
+      border: 1px solid var(--accent);
+    }
     .trn-group-label {
       font-size: 0.58rem; font-weight: 800; letter-spacing: 0.1em;
       color: var(--muted); text-transform: uppercase;

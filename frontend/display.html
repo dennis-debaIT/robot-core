@@ -3960,15 +3960,20 @@
       try {
         const d = new Date(utcDate);
         const now = new Date();
+        const timeStr = d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin'});
         const diffMin = Math.round((d - now) / 60000);
         if (diffMin > 0 && diffMin <= 1440) {
-          if (diffMin < 60) return `in ${diffMin} Min`;
-          const h = Math.floor(diffMin / 60);
-          const m = diffMin % 60;
-          return m > 0 ? `in ${h}h ${m}min` : `in ${h}h`;
+          let countdown;
+          if (diffMin < 60) countdown = `in ${diffMin} Min`;
+          else {
+            const h = Math.floor(diffMin / 60);
+            const m = diffMin % 60;
+            countdown = m > 0 ? `in ${h}h ${m}min` : `in ${h}h`;
+          }
+          return `${countdown} · ${timeStr}`;
         }
         const isToday = d.toLocaleDateString('de-DE', {timeZone:'Europe/Berlin'}) === now.toLocaleDateString('de-DE', {timeZone:'Europe/Berlin'});
-        if (isToday) return d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin'});
+        if (isToday) return timeStr;
         return d.toLocaleString('de-DE', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin'});
       } catch { return '–'; }
     }
@@ -4097,6 +4102,7 @@
     }
 
     function _renderMatchday(data) {
+    function _renderMatchday(data) {
       const matches = data.matchday || [];
       const liveIds = new Set((data.live || []).map(m => m.id));
       const label = data.matchday_nr
@@ -4108,6 +4114,13 @@
           <div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:12px 0;">Keine Spiele verfügbar</div>`;
       }
 
+      // Nächstes anstehendes Spiel ermitteln
+      const now = new Date();
+      const upcoming = matches
+        .filter(m => (m.status === 'SCHEDULED' || m.status === 'TIMED') && m.utcDate && new Date(m.utcDate) > now)
+        .sort((a, b) => a.utcDate.localeCompare(b.utcDate));
+      const nextMatch = upcoming[0] || null;
+
       const groups = new Map();
       matches.forEach(m => {
         const g = m.group || '';
@@ -4118,6 +4131,17 @@
       const showGroupLabels = groups.size > 1;
       let html = `<div class="trn-header">${escapeHTML(label)}</div>`;
 
+      // Banner: Nächstes Spiel
+      if (nextMatch) {
+        const kickoff = _fmtKickoff(nextMatch.utcDate);
+        html += `
+          <div class="trn-next-banner">
+            <span class="trn-next-label">Nächstes Spiel</span>
+            <span class="trn-next-teams">${_trnTeamName(nextMatch.homeTeam)} <span class="trn-next-vs">vs</span> ${_trnTeamName(nextMatch.awayTeam)}</span>
+            <span class="trn-next-time">${escapeHTML(kickoff)}</span>
+          </div>`;
+      }
+
       for (const [group, groupMatches] of groups) {
         if (showGroupLabels && group) {
           const gLabel = group.startsWith('GROUP_')
@@ -4127,6 +4151,7 @@
         }
         groupMatches.forEach(m => {
           const isLive = liveIds.has(m.id) || m.status === 'IN_PLAY' || m.status === 'PAUSED';
+          const isNext = nextMatch && m.id === nextMatch.id;
           const score = _scoreStr(m.score);
           const suffix = m.status === 'FINISHED' ? _resultSuffix(m.score) : '';
           const timeStr = m.status === 'FINISHED' ? `${score}${suffix} ✓`
@@ -4136,7 +4161,7 @@
           const min = isLive ? _matchMinute(m.score) : '';
           const badge = isLive ? `<span class="trn-live-badge">${min || 'LIVE'}</span>` : '';
           html += `
-            <div class="trn-match${isLive ? ' live' : ''}">
+            <div class="trn-match${isLive ? ' live' : ''}${isNext ? ' next' : ''}">
               <span class="trn-team">${_trnTeamName(m.homeTeam)}</span>
               <span class="trn-score${isLive ? ' live' : ''}">${isLive ? score : timeStr}</span>
               <span class="trn-team away">${_trnTeamName(m.awayTeam)}</span>
