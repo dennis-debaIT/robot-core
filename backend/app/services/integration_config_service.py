@@ -124,6 +124,7 @@ class IntegrationConfigService:
             },
             "energy": {
                 "enabled": False,
+                "show_pv_savings": True,
                 "tariffs": {
                     "feed_in_ct":   0.0,
                     "grid_price_ct": 0.0,
@@ -239,6 +240,7 @@ class IntegrationConfigService:
         energy = merged.setdefault("energy", {})
         energy_first_run = isinstance(current, dict) and "energy" not in current
         energy["enabled"] = bool(energy.get("enabled", False))
+        energy["show_pv_savings"] = bool(energy.get("show_pv_savings", True))
         energy_tariffs = energy.setdefault("tariffs", {})
         energy_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(energy_tariffs.get("feed_in_ct"))
         energy_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(energy_tariffs.get("grid_price_ct"))
@@ -375,6 +377,7 @@ class IntegrationConfigService:
         pv_tariffs["extra_fees_eur_year"] = self._sanitize_tariff_eur_year(pv_tariffs.get("extra_fees_eur_year"))
         energy = updated.setdefault("energy", {})
         energy["enabled"] = bool(energy.get("enabled", False))
+        energy["show_pv_savings"] = bool(energy.get("show_pv_savings", True))
         energy_tariffs = energy.setdefault("tariffs", {})
         energy_tariffs["feed_in_ct"]   = self._sanitize_tariff_ct(energy_tariffs.get("feed_in_ct"))
         energy_tariffs["grid_price_ct"] = self._sanitize_tariff_ct(energy_tariffs.get("grid_price_ct"))

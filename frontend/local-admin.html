@@ -682,6 +682,19 @@
           </section>
           <section class="module-card">
             <div class="section-copy">
+              <div class="section-title">PV-Statistik</div>
+            </div>
+            <label class="switch-card">
+              <input id="energy-show-pv-savings" type="checkbox" checked>
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Ersparnis anzeigen</span>
+                <span class="switch-text">„Durch PV eingespart"-Box in der PV-Statistik einblenden (Eigenverbrauch, Einspeisung, Gesamtersparnis)</span>
+              </span>
+            </label>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
               <div class="section-title">Sensoren</div>
               <p>Trage hier Leistungssensoren (W) ein, die im Strom-Bereich angezeigt werden sollen. Genau ein Sensor kann die Rolle <b>„Gesamt-Netzbezug"</b> haben (signiert: positiv = Netzbezug, negativ = Einspeisung — Saldo &amp; Grundpreis werden hierauf berechnet). Alle weiteren Sensoren sind <b>„Ger&auml;t"</b> (z. B. Waschmaschine, Trockner, Backofen) und zeigen Verbrauch + Kosten des jeweiligen Ger&auml;ts.</p>
             </div>
@@ -1728,6 +1741,7 @@
     const pvWfBatteryEl           = document.getElementById('pv-wf-battery');
     const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
     const energyEnabledEl         = document.getElementById('energy-enabled');
+    const energyShowPvSavingsEl   = document.getElementById('energy-show-pv-savings');
     const energyTariffFeedInEl    = document.getElementById('energy-tariff-feed-in');
     const energyTariffGridPriceEl = document.getElementById('energy-tariff-grid-price');
     const energyTariffBasePriceEl = document.getElementById('energy-tariff-base-price');
@@ -3621,6 +3635,7 @@
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
         const energy = (cfg.config || cfg).energy || {};
         if (energyEnabledEl) energyEnabledEl.checked = !!energy.enabled;
+        if (energyShowPvSavingsEl) energyShowPvSavingsEl.checked = energy.show_pv_savings !== false;
         const tariffs = energy.tariffs || {};
         if (energyTariffFeedInEl)    energyTariffFeedInEl.value    = tariffs.feed_in_ct ?? '';
         if (energyTariffGridPriceEl) energyTariffGridPriceEl.value = tariffs.grid_price_ct ?? '';
@@ -3644,6 +3659,7 @@
           body: JSON.stringify({
             energy: {
               enabled: !!energyEnabledEl?.checked,
+              show_pv_savings: !!energyShowPvSavingsEl?.checked,
               tariffs: {
                 feed_in_ct: Number(energyTariffFeedInEl.value) || 0,
                 grid_price_ct: Number(energyTariffGridPriceEl.value) || 0,

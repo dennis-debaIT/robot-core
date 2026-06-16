@@ -358,7 +358,9 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     grid_id  = sensors.get("grid", "")
     tariff_cfg = _tariffs(config)
     _savings_enabled = bool(
-        grid_id and (tariff_cfg.get("feed_in_ct") or tariff_cfg.get("grid_price_ct"))
+        grid_id
+        and (tariff_cfg.get("feed_in_ct") or tariff_cfg.get("grid_price_ct"))
+        and config.get("energy", {}).get("show_pv_savings", True)
     )
     ha      = HomeAssistantProvider()
     now_loc = datetime.now(_LOCAL_TZ)                  # korrekte lokale Zeit via zoneinfo
