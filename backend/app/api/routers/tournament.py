@@ -24,6 +24,15 @@ def get_tournament_state() -> dict[str, Any]:
     return {"enabled": True, **data}
 
 
+@router.get("/tournament/standings")
+def get_tournament_standings() -> dict:
+    cfg = _get_cfg()
+    if not cfg.get("enabled") or not cfg.get("api_key"):
+        return {"groups": []}
+    svc = TournamentService(cfg["api_key"], cfg.get("competition_code", "WC"))
+    return svc.get_standings()
+
+
 @router.patch("/tournament/config")
 def update_tournament_config(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     allowed = {"enabled", "api_key", "competition_code"}

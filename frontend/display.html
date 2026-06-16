@@ -3923,8 +3923,9 @@
   // ── TURNIER-OVERLAY (WM / EM) ─────────────────────────────────
   (function () {
     let _trnInterval = null;
-    let _trnPrevScores = {}; // match_id → {home, away}
+    let _trnPrevScores = {};
     let _goalFlashTimer = null;
+    let _trnView = 'matches';
 
     function _fmtTime(utcDate) {
       if (!utcDate) return '–';
@@ -4128,7 +4129,8 @@
       });
 
       const showGroupLabels = groups.size > 1;
-      let html = `<div class="trn-header">${escapeHTML(label)}</div>`;
+      const isGroupPhase = data.matchday_nr != null;
+      let html = `<div class="trn-header">${escapeHTML(label)}</div>${_trnViewToggle(isGroupPhase)}`;
 
       // Banner: Nächstes Spiel
       if (nextMatch) {
@@ -4249,6 +4251,57 @@
       return html;
     }
 
+    function _trnViewToggle(isGroupPhase) {
+      if (!isGroupPhase) return '';
+      const ms = _trnView === 'matches' ? ' active' : '';
+      const ss = _trnView === 'standings' ? ' active' : '';
+      return `<div class="trn-view-toggle">
+        <button class="trn-toggle-btn${ms}" onclick="window._tournament._setView('matches')">Spiele</button>
+        <button class="trn-toggle-btn${ss}" onclick="window._tournament._setView('standings')">Tabelle</button>
+      </div>`;
+    }
+
+    function _renderStandings(data, matchState) {
+      const groups = data.groups || [];
+      const label = matchState?.competition_name || 'Turnier';
+      const isGroupPhase = matchState?.matchday_nr != null;
+      if (!groups.length) {
+        return `<div class="trn-header">${escapeHTML(label)}</div>
+          ${_trnViewToggle(isGroupPhase)}
+          <div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:12px 0;">Keine Tabellendaten verfügbar</div>`;
+      }
+      let html = `<div class="trn-header">${escapeHTML(label)} · Tabellen</div>
+        ${_trnViewToggle(isGroupPhase)}`;
+      groups.forEach(g => {
+        const gName = (g.group || '').startsWith('GROUP_')
+          ? 'Gruppe ' + g.group.replace('GROUP_', '')
+          : (g.group || '').replace(/_/g, ' ');
+        html += `<div class="trn-group-label">${escapeHTML(gName)}</div>
+          <div class="trn-standing-table">
+            <div class="trn-standing-row trn-standing-header">
+              <span class="ts-pos">#</span>
+              <span class="ts-team"></span>
+              <span class="ts-num">Sp</span>
+              <span class="ts-num">+/-</span>
+              <span class="ts-pts">Pkt</span>
+            </div>`;
+        (g.table || []).forEach(row => {
+          const pos = row.position ?? '–';
+          const gd = row.goalDifference ?? 0;
+          const gdStr = gd > 0 ? `+${gd}` : `${gd}`;
+          html += `<div class="trn-standing-row">
+              <span class="ts-pos">${pos}</span>
+              <span class="ts-team">${_trnTeamName(row.team)}</span>
+              <span class="ts-num">${row.playedGames ?? 0}</span>
+              <span class="ts-num">${escapeHTML(gdStr)}</span>
+              <span class="ts-pts">${row.points ?? 0}</span>
+            </div>`;
+        });
+        html += `</div>`;
+      });
+      return html;
+    }
+
     async function _pollTournament() {
       if (!_enabledModules.tournament) return;
       try {
@@ -4259,11 +4312,18 @@
         overlay.classList.add('active');
         const live = d.live || [];
         _checkGoals(live);
-        overlay.innerHTML = live.length === 1
-          ? _renderLive(live[0])
-          : live.length > 1
-            ? _renderLiveAll(live)
-            : _renderMatchday(d);
+        const isGroupPhase = d.matchday_nr != null;
+        if (live.length === 1) {
+          overlay.innerHTML = _renderLive(live[0]);
+        } else if (live.length > 1) {
+          overlay.innerHTML = _renderLiveAll(live);
+        } else if (_trnView === 'standings' && isGroupPhase) {
+          const st = await fetch('/tournament/standings', { cache: 'no-store' }).then(r => r.json());
+          overlay.innerHTML = _renderStandings(st, d);
+        } else {
+          _trnView = 'matches';
+          overlay.innerHTML = _renderMatchday(d);
+        }
       } catch {}
     }
 
@@ -4285,9 +4345,14 @@
       if (_trnInterval) { clearInterval(_trnInterval); _trnInterval = null; }
       _hideTournamentOverlay();
       _trnPrevScores = {};
+      _trnView = 'matches';
     }
 
-    window._tournament = { start: startTournamentOverlay, stop: stopTournamentOverlay };
+    window._tournament = {
+      start: startTournamentOverlay,
+      stop: stopTournamentOverlay,
+      _setView: (v) => { _trnView = v; _pollTournament(); },
+    };
   })();
 
   function formatMinutesAsHHMM(value) {

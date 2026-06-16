@@ -88,10 +88,16 @@ def _resolve_matchday(all_matches: list[dict[str, Any]], hint: int | None) -> tu
     return None, []
 
 
+STANDINGS_TTL = 300  # Tabelle ändert sich selten — 5 Min reichen
+
+
 class TournamentService:
     _cache: dict[str, Any] = {}
     _cache_ts: float = 0.0
     _cache_code: str = ""
+    _standings_cache: dict[str, Any] = {}
+    _standings_cache_ts: float = 0.0
+    _standings_cache_code: str = ""
 
     def __init__(self, api_key: str, competition_code: str = "WC") -> None:
         self.api_key = api_key
@@ -148,7 +154,38 @@ class TournamentService:
         TournamentService._cache_code = self.competition_code
         return result
 
+    def get_standings(self) -> dict[str, Any]:
+        now = time.time()
+        if (
+            self._standings_cache
+            and self._standings_cache_code == self.competition_code
+            and (now - self._standings_cache_ts) < STANDINGS_TTL
+        ):
+            return self._standings_cache
+
+        data = self._fetch(f"/competitions/{self.competition_code}/standings")
+        if not data:
+            return self._standings_cache or {"groups": [], "error": True}
+
+        # Nur Gesamttabelle (TOTAL) der Gruppenphase
+        groups = [
+            {
+                "group": s.get("group", ""),
+                "table": s.get("table", []),
+            }
+            for s in data.get("standings", [])
+            if s.get("type") == "TOTAL" and s.get("group")
+        ]
+
+        result: dict[str, Any] = {"groups": groups}
+        TournamentService._standings_cache = result
+        TournamentService._standings_cache_ts = now
+        TournamentService._standings_cache_code = self.competition_code
+        return result
+
     @classmethod
     def invalidate_cache(cls) -> None:
         cls._cache = {}
         cls._cache_ts = 0.0
+        cls._standings_cache = {}
+        cls._standings_cache_ts = 0.0
