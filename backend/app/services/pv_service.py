@@ -99,9 +99,10 @@ class PvService:
         pv_w      = _safe_float((result.get("power")         or {}).get("value"))
         grid_w    = _safe_float((result.get("grid")          or {}).get("value"))
         bat_w     = _safe_float((result.get("battery_power") or {}).get("value"))
-        if pv_w is not None and grid_w is not None:
+        if grid_w is not None:
             # house = PV-Eingang − Batterieladung − Netzeinspeisung + Netzbezug
-            house = pv_w - (bat_w or 0.0) - grid_w
+            # pv_w kann None sein (Sensor unavailable z.B. offline-Balkonkraftwerk) → als 0 behandeln
+            house = (pv_w or 0.0) - (bat_w or 0.0) - grid_w
             result["house_consumption"] = {
                 "value": str(round(max(0.0, house))),
                 "unit": "W",

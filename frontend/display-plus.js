@@ -96,9 +96,9 @@
 
   function _renderPvFlowDiagram(pv) {
     if (!pv) return '<div class="cal-placeholder">PV-Daten nicht verf&uuml;gbar</div>';
-    const pvW    = parseFloat(pv.power?.value   || 0);
-    const houseW = parseFloat(pv.house_consumption?.value || 0);
-    const gridW  = parseFloat(pv.grid?.value    || 0);
+    const pvW    = parseFloat(pv.power?.value)            || 0;
+    const houseW = parseFloat(pv.house_consumption?.value) || 0;
+    const gridW  = parseFloat(pv.grid?.value)             || 0;
     const battPct = pv.battery?.value != null ? parseFloat(pv.battery.value) : null;
     const hasBatt = battPct !== null && !isNaN(battPct);
     const battW   = pvW - houseW - gridW;
