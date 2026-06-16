@@ -33,7 +33,9 @@ RUN if [ "$EDITION" = "community" ]; then \
               /app/app/api/routers/chores.py \
               /app/app/services/chore_service.py \
               /app/frontend/display-plus.js \
-              /app/frontend/display-chores.js ; \
+              /app/frontend/display-chores.js \
+              /app/tests/test_ha_pv_stats.py \
+              /app/tests/test_chore_service.py ; \
         echo "Community-Build: Paid-Module entfernt"; \
     fi
 
