@@ -3934,10 +3934,18 @@
     }
 
     function _scoreStr(score) {
-      const h = score?.fullTime?.home;
-      const a = score?.fullTime?.away;
+      const ft = score?.fullTime || {};
+      // v4 API: home/away; v3 API (legacy): homeTeam/awayTeam
+      const h = ft.home ?? ft.homeTeam;
+      const a = ft.away ?? ft.awayTeam;
       if (h == null || a == null) return '–:–';
       return `${h}:${a}`;
+    }
+    function _htStr(score) {
+      const ht = score?.halfTime || {};
+      const h = ht.home ?? ht.homeTeam;
+      const a = ht.away ?? ht.awayTeam;
+      return (h != null && a != null) ? `Halbzeit ${h}:${a}` : '';
     }
 
     function _trnTeamName(team) {
@@ -3996,10 +4004,10 @@
 
     function _renderLive(match) {
       const score = match.score || {};
-      const home = score.fullTime?.home ?? '–';
-      const away = score.fullTime?.away ?? '–';
-      const ht = (score.halfTime?.home != null)
-        ? `Halbzeit ${score.halfTime.home}:${score.halfTime.away}` : '';
+      const ft = score.fullTime || {};
+      const home = ft.home ?? ft.homeTeam ?? '–';
+      const away = ft.away ?? ft.awayTeam ?? '–';
+      const ht = _htStr(score);
       const homeShort = _trnTeamName(match.homeTeam);
       const awayShort = _trnTeamName(match.awayTeam);
       const homeFull  = match.homeTeam?.name || homeShort;
@@ -4022,8 +4030,9 @@
     function _checkGoals(liveMatches) {
       liveMatches.forEach(m => {
         const id = m.id;
-        const home = m.score?.fullTime?.home ?? null;
-        const away = m.score?.fullTime?.away ?? null;
+        const ft = m.score?.fullTime || {};
+        const home = ft.home ?? ft.homeTeam ?? null;
+        const away = ft.away ?? ft.awayTeam ?? null;
         if (home === null || away === null) return;
         const prev = _trnPrevScores[id];
         if (prev !== undefined) {
