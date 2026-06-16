@@ -3168,6 +3168,8 @@
     const vehicleIcon = document.querySelector('#nav-vehicles .nav-icon');
     if (vehicleIcon) vehicleIcon.innerHTML = '&#128663;';
     applyModuleVisibility(_enabledModules);
+    // Tournament ggf. sofort starten (falls localStorage schon true hat und kein Änderungs-Event kommt)
+    if (_enabledModules.tournament) window._tournament?.start();
   });
 
   function applyModuleVisibility(modules, calendarConfig) {
@@ -4056,6 +4058,7 @@
         if (!d.enabled) { _hideTournamentOverlay(); return; }
         const overlay = document.getElementById('tournament-overlay');
         if (!overlay) return;
+        overlay.classList.add('active');
         const live = d.live || [];
         _checkGoals(live);
         overlay.innerHTML = live.length
