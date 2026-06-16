@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -6,6 +6,7 @@
   <title>Erika Display</title>
   <link rel="stylesheet" href="/display.css?v=77">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css">
   <!-- HLS.js für go2rtc Live-Streams -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -3985,10 +3986,10 @@
     };
     function _de(name) { return _DE_COUNTRY[name] || name; }
 
-    // Flaggen-Emoji via ISO-3166-1-Alpha-2-Code (Unicode Regional Indicators)
+    // Flaggen via flag-icons CSS-Bibliothek (ISO-3166-1-Alpha-2 als fi-XX Klasse)
     const _FLAG_SPECIAL = {
-      'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
-      'Kosovo': '🇽🇰',
+      'Scotland': 'gb-sct', 'England': 'gb-eng', 'Wales': 'gb-wls',
+      'Kosovo': 'xk',
     };
     const _ISO2 = {
       // CONCACAF
@@ -4032,21 +4033,32 @@
       'Gabon':'GA','Cape Verde':'CV','Mauritania':'MR','Libya':'LY',
       'Sudan':'SD','Liberia':'LR','Sierra Leone':'SL','Benin':'BJ',
       'Togo':'TG','Niger':'NE','Namibia':'NA','Botswana':'BW',
+      'Congo DR':'CD','DR Congo':'CD','Democratic Republic of the Congo':'CD',
+      'Republic of Ireland':'IE','United Kingdom':'GB',
+      'Chinese Taipei':'TW','Hong Kong':'HK','Macau':'MO',
+      'North Korea':'KP','South Sudan':'SS','Equatorial Guinea':'GQ',
+      'Central African Republic':'CF','Guinea-Bissau':'GW',
+      'São Tomé and Príncipe':'ST','Eswatini':'SZ','Lesotho':'LS',
+      'Comoros':'KM','Seychelles':'SC','Djibouti':'DJ','Eritrea':'ER',
+      'Somalia':'SO','Mauritius':'MU','Madagascar':'MG',
     };
-    function _flag(name) {
+    function _flagCode(name) {
       if (!name) return '';
       if (_FLAG_SPECIAL[name]) return _FLAG_SPECIAL[name];
       const c = _ISO2[name];
-      if (!c || c.length !== 2) return '';
-      return String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65, 0x1F1E6 + c.charCodeAt(1) - 65);
+      return (c && c.length === 2) ? c.toLowerCase() : '';
+    }
+    function _flagSpan(name) {
+      const code = _flagCode(name);
+      return code ? `<span class="fi fi-${code}" style="margin-right:4px;font-size:1.1em;vertical-align:middle;"></span>` : ``;
     }
 
     function _trnTeamName(team) {
       if (!team) return '?';
       const raw = (team.shortName || team.name || team.tla || '?').trim() || '?';
       const displayName = _de(raw);
-      const flag = _flag(team.name) || _flag(team.shortName) || _flag(raw) || '';
-      return flag ? `${flag} ${displayName}` : displayName;
+      const flag = _flagSpan(team.name) || _flagSpan(team.shortName) || _flagSpan(raw) || ``;
+      return `${flag}${displayName}`;
     }
 
     function _renderMatchday(data) {
