@@ -4273,9 +4273,8 @@
       let html = `<div class="trn-header">${escapeHTML(label)} · Tabellen</div>
         ${_trnViewToggle(isGroupPhase)}`;
       groups.forEach(g => {
-        const gName = (g.group || '').startsWith('GROUP_')
-          ? 'Gruppe ' + g.group.replace('GROUP_', '')
-          : (g.group || '').replace(/_/g, ' ');
+        const _gm = (g.group || '').match(/^group[_ ]?([A-Z0-9]+)$/i);
+        const gName = _gm ? 'Gruppe ' + _gm[1].toUpperCase() : (g.group || '').replace(/_/g, ' ');
         html += `<div class="trn-group-label">${escapeHTML(gName)}</div>
           <div class="trn-standing-table">
             <div class="trn-standing-row trn-standing-header">
