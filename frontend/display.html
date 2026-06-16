@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -280,7 +280,7 @@
     <span class="nav-label">Hausaufgaben</span>
   </button>
   <button class="nav-btn" id="nav-vehicles" onclick="navTo('vehicles')">
-    <span class="nav-icon">ðŸš—</span>
+    <span class="nav-icon">&#128663;</span>
     <span class="nav-label">Fahrzeuge</span>
   </button>
   </div>
@@ -4101,7 +4101,6 @@
       return `${flag}${escapeHTML(displayName)}`;
     }
 
-    function _renderMatchday(data) {
     function _renderMatchday(data) {
       const matches = data.matchday || [];
       const liveIds = new Set((data.live || []).map(m => m.id));
