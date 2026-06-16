@@ -3966,7 +3966,7 @@
       'Bosnia-Herzegovina':'Bosnien-Hz.','Bosnia-H.':'Bosnien-Hz.',
       'North Macedonia':'Nordmazedonien','Albania':'Albanien','Kosovo':'Kosovo',
       'Iceland':'Island','Luxembourg':'Luxemburg',
-      'Saudi Arabia':'Saudi-Arabien','Iran':'Irak',
+      'Saudi Arabia':'Saudi-Arabien','Iran':'Iran',
       'United Arab Emirates':'V.A.E.','Iraq':'Irak',
       'Nigeria':'Nigeria','Ghana':'Ghana','Senegal':'Senegal',
       'Tunisia':'Tunesien','Algeria':'Algerien','Egypt':'Ägypten',
@@ -3976,8 +3976,7 @@
       'Paraguay':'Paraguay','Peru':'Peru','Jamaica':'Jamaika',
       'Costa Rica':'Costa Rica','Honduras':'Honduras','Cuba':'Kuba',
       'El Salvador':'El Salvador','Panama':'Panama','Haiti':'Haiti',
-      'Dominican Republic':'Dominik. Rep.',
-      'Trinidad and Tobago':'Trinidad & Tobago',
+      'Dominican Republic':'Dominik. Rep.','Trinidad and Tobago':'Trinidad & Tobago',
       'New Zealand':'Neuseeland','Japan':'Japan','China':'China',
       'India':'Indien','Indonesia':'Indonesien','Philippines':'Philippinen',
       'Thailand':'Thailand','Vietnam':'Vietnam','Malaysia':'Malaysia',
@@ -3986,9 +3985,68 @@
     };
     function _de(name) { return _DE_COUNTRY[name] || name; }
 
+    // Flaggen-Emoji via ISO-3166-1-Alpha-2-Code (Unicode Regional Indicators)
+    const _FLAG_SPECIAL = {
+      'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿',
+      'Kosovo': '🇽🇰',
+    };
+    const _ISO2 = {
+      // CONCACAF
+      'Canada':'CA','United States':'US','USA':'US','Mexico':'MX',
+      'Honduras':'HN','Costa Rica':'CR','Panama':'PA','Jamaica':'JM',
+      'El Salvador':'SV','Cuba':'CU','Haiti':'HT','Trinidad and Tobago':'TT',
+      'Curaçao':'CW','Guatemala':'GT','Nicaragua':'NI',
+      // CONMEBOL
+      'Brazil':'BR','Argentina':'AR','Uruguay':'UY','Colombia':'CO',
+      'Ecuador':'EC','Chile':'CL','Paraguay':'PY','Peru':'PE',
+      'Bolivia':'BO','Venezuela':'VE','Guyana':'GY','Suriname':'SR',
+      // Europa
+      'Germany':'DE','France':'FR','Spain':'ES','Italy':'IT','Portugal':'PT',
+      'Netherlands':'NL','Belgium':'BE','Switzerland':'CH','Austria':'AT',
+      'Poland':'PL','Denmark':'DK','Sweden':'SE','Norway':'NO','Finland':'FI',
+      'Czechia':'CZ','Czech Republic':'CZ','Hungary':'HU','Romania':'RO',
+      'Greece':'GR','Turkey':'TR','Croatia':'HR','Serbia':'RS',
+      'Slovenia':'SI','Slovakia':'SK','Ukraine':'UA','Russia':'RU',
+      'Bosnia and Herzegovina':'BA','Bosnia-Herzegovina':'BA',
+      'North Macedonia':'MK','Albania':'AL','Iceland':'IS','Luxembourg':'LU',
+      'Moldova':'MD','Estonia':'EE','Latvia':'LV','Lithuania':'LT',
+      'Belarus':'BY','Georgia':'GE','Armenia':'AM','Azerbaijan':'AZ',
+      'Cyprus':'CY','Montenegro':'ME','Malta':'MT','Ireland':'IE',
+      'Northern Ireland':'GB',
+      // Asien
+      'Japan':'JP','Korea Republic':'KR','South Korea':'KR','Korea DPR':'KP',
+      'China':'CN','Australia':'AU','Saudi Arabia':'SA','Iran':'IR',
+      'Iraq':'IQ','United Arab Emirates':'AE','Qatar':'QA','Bahrain':'BH',
+      'Oman':'OM','Kuwait':'KW','Jordan':'JO','Lebanon':'LB','Syria':'SY',
+      'Palestine':'PS','Indonesia':'ID','India':'IN','Philippines':'PH',
+      'Thailand':'TH','Vietnam':'VN','Malaysia':'MY','Singapore':'SG',
+      'Uzbekistan':'UZ','Kazakhstan':'KZ','New Zealand':'NZ',
+      'Papua New Guinea':'PG','Fiji':'FJ',
+      // Afrika
+      'Nigeria':'NG','Ghana':'GH','Senegal':'SN','Morocco':'MA','Egypt':'EG',
+      'Algeria':'DZ','Tunisia':'TN','Cameroon':'CM','South Africa':'ZA',
+      "Ivory Coast":'CI',"Côte d'Ivoire":'CI','Mali':'ML',
+      'Burkina Faso':'BF','Guinea':'GN','Tanzania':'TZ','Kenya':'KE',
+      'Ethiopia':'ET','Uganda':'UG','Rwanda':'RW','Zambia':'ZM',
+      'Zimbabwe':'ZW','Mozambique':'MZ','Angola':'AO',
+      'Gabon':'GA','Cape Verde':'CV','Mauritania':'MR','Libya':'LY',
+      'Sudan':'SD','Liberia':'LR','Sierra Leone':'SL','Benin':'BJ',
+      'Togo':'TG','Niger':'NE','Namibia':'NA','Botswana':'BW',
+    };
+    function _flag(name) {
+      if (!name) return '';
+      if (_FLAG_SPECIAL[name]) return _FLAG_SPECIAL[name];
+      const c = _ISO2[name];
+      if (!c || c.length !== 2) return '';
+      return String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65, 0x1F1E6 + c.charCodeAt(1) - 65);
+    }
+
     function _trnTeamName(team) {
-      const raw = (team?.shortName || team?.name || team?.tla || '?').trim() || '?';
-      return _de(raw);
+      if (!team) return '?';
+      const raw = (team.shortName || team.name || team.tla || '?').trim() || '?';
+      const displayName = _de(raw);
+      const flag = _flag(team.name) || _flag(team.shortName) || _flag(raw) || '';
+      return flag ? `${flag} ${displayName}` : displayName;
     }
 
     function _renderMatchday(data) {
