@@ -42,6 +42,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-chores"><span class="si-icon">🧹</span><span>Hausaufgaben</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">⚽</span><span>Turnier</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball-Liga</span></button>
         </div>
 
         <div class="sidebar-group">
@@ -839,6 +840,72 @@
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
             <button type="button" class="primary" onclick="saveTournamentConfig()">Speichern</button>
             <span id="tournament-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
+        </article>
+
+        <!-- ── FUSSBALL-LIGA ─────────────────────────────────── -->
+        <article id="tab-liga" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Fu&szlig;ball-Liga</div>
+              <h2>Bundesliga &amp; Co. – Live-Spieltag</h2>
+            </div>
+            <label class="switch-card">
+              <input id="liga-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Liga-Spieltag automatisch im Display anzeigen</span>
+              </span>
+            </label>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">API-Schl&uuml;ssel</div>
+              <p>Gleicher kostenloser API-Key wie beim Turnier-Modul (<strong>football-data.org</strong>). Du kannst denselben Key eintragen.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">API-Key (football-data.org)</span>
+                <input id="liga-api-key" class="field-input" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Ligen</div>
+              <p>W&auml;hle aus, welche Ligen angezeigt werden sollen. Die 3.&nbsp;Bundesliga erfordert m&ouml;glicherweise einen kostenpflichtigen API-Tier.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;padding:4px 0;">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input id="liga-bl1" type="checkbox">
+                <span class="field-label" style="margin:0;">1. Bundesliga (BL1)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input id="liga-bl2" type="checkbox">
+                <span class="field-label" style="margin:0;">2. Bundesliga (BL2)</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input id="liga-bl3" type="checkbox">
+                <span class="field-label" style="margin:0;">3. Bundesliga (BL3)</span>
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Lieblingsverein</div>
+              <p>Wird im Display hervorgehoben und in der Team-Fokus-Karte angezeigt. Die Liste l&auml;dt automatisch aus den gew&auml;hlten Ligen — zuerst Ligen und API-Key speichern.</p>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <select id="liga-favorite-team" class="field-input" style="max-width:320px;">
+                <option value="">— kein Lieblingsverein —</option>
+              </select>
+              <button type="button" class="secondary" onclick="_loadLigaTeams()">Teams neu laden</button>
+            </div>
+          </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveLigaConfig()">Speichern</button>
+            <span id="liga-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
           </div>
         </article>
 
@@ -3597,6 +3664,89 @@
       }
     }
 
+    let _ligaFavoriteTeamId   = null;
+    let _ligaFavoriteTeamName = '';
+
+    async function _loadLigaConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const l = (cfg.config || cfg).liga || {};
+        const enabledEl = document.getElementById('liga-enabled');
+        const keyEl     = document.getElementById('liga-api-key');
+        if (enabledEl) enabledEl.checked = l.enabled === true;
+        if (keyEl)     keyEl.value        = l.api_key || '';
+        const leagues = l.leagues || [];
+        const bl1El = document.getElementById('liga-bl1');
+        const bl2El = document.getElementById('liga-bl2');
+        const bl3El = document.getElementById('liga-bl3');
+        if (bl1El) bl1El.checked = leagues.includes('BL1');
+        if (bl2El) bl2El.checked = leagues.includes('BL2');
+        if (bl3El) bl3El.checked = leagues.includes('BL3');
+        _ligaFavoriteTeamId   = l.favorite_team_id   || null;
+        _ligaFavoriteTeamName = l.favorite_team_name || '';
+        await _loadLigaTeams();
+      } catch {}
+    }
+
+    async function _loadLigaTeams() {
+      const sel = document.getElementById('liga-favorite-team');
+      if (!sel) return;
+      try {
+        const data = await fetch('/liga/teams').then(r => r.json());
+        const teams = data.teams || [];
+        let html = '<option value="">— kein Lieblingsverein —</option>';
+        let lastLeague = '';
+        for (const t of teams) {
+          if (t.league_name !== lastLeague) {
+            if (lastLeague) html += '</optgroup>';
+            html += `<optgroup label="${t.league_name}">`;
+            lastLeague = t.league_name;
+          }
+          const sel_attr = String(t.id) === String(_ligaFavoriteTeamId) ? ' selected' : '';
+          html += `<option value="${t.id}" data-name="${t.name || ''}"${sel_attr}>${t.name || t.shortName || t.tla}</option>`;
+        }
+        if (lastLeague) html += '</optgroup>';
+        sel.innerHTML = html;
+      } catch {
+        sel.innerHTML = '<option value="">Teams konnten nicht geladen werden</option>';
+      }
+    }
+
+    async function saveLigaConfig() {
+      const statusEl  = document.getElementById('liga-status');
+      const enabledEl = document.getElementById('liga-enabled');
+      const keyEl     = document.getElementById('liga-api-key');
+      const bl1El     = document.getElementById('liga-bl1');
+      const bl2El     = document.getElementById('liga-bl2');
+      const bl3El     = document.getElementById('liga-bl3');
+      const teamSel   = document.getElementById('liga-favorite-team');
+      if (statusEl) statusEl.textContent = 'Speichere…';
+      const leagues = [];
+      if (bl1El?.checked) leagues.push('BL1');
+      if (bl2El?.checked) leagues.push('BL2');
+      if (bl3El?.checked) leagues.push('BL3');
+      const teamId   = teamSel?.value ? Number(teamSel.value) : null;
+      const teamName = teamSel?.selectedOptions[0]?.dataset?.name || '';
+      try {
+        await fetch('/liga/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            enabled: enabledEl?.checked || false,
+            api_key: (keyEl?.value || '').trim(),
+            leagues,
+            favorite_team_id:   teamId,
+            favorite_team_name: teamName,
+          }),
+        });
+        _ligaFavoriteTeamId   = teamId;
+        _ligaFavoriteTeamName = teamName;
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     const _ENERGY_ROLES = [
       ['device', 'Gerät (Verbrauch & Kosten)'],
       ['grid', 'Gesamt-Netzbezug (Saldo)'],
@@ -3691,6 +3841,7 @@
     document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
     document.querySelector('[data-tab-target="tab-chores"]')?.addEventListener('click', _loadChoresConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
+    document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);

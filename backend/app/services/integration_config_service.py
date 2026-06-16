@@ -153,6 +153,13 @@ class IntegrationConfigService:
                 "api_key": "",
                 "competition_code": "WC",
             },
+            "liga": {
+                "enabled": False,
+                "api_key": "",
+                "leagues": [],
+                "favorite_team_id": None,
+                "favorite_team_name": "",
+            },
             "meta": {
                 "version": 1,
             },
@@ -288,6 +295,13 @@ class IntegrationConfigService:
         tournament["enabled"] = bool(tournament.get("enabled", False))
         tournament["api_key"] = str(tournament.get("api_key") or "").strip()
         tournament["competition_code"] = str(tournament.get("competition_code") or "WC").strip() or "WC"
+        liga = merged.setdefault("liga", {})
+        liga["enabled"] = bool(liga.get("enabled", False))
+        liga["api_key"] = str(liga.get("api_key") or "").strip()
+        _valid_codes = {"BL1", "BL2", "BL3"}
+        liga["leagues"] = [c for c in (liga.get("leagues") or []) if c in _valid_codes]
+        liga["favorite_team_id"] = (int(liga["favorite_team_id"]) if liga.get("favorite_team_id") else None)
+        liga["favorite_team_name"] = str(liga.get("favorite_team_name") or "").strip()
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

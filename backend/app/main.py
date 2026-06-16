@@ -320,6 +320,8 @@ app.include_router(layout.router)
 app.include_router(features.router)
 app.include_router(license.router)
 app.include_router(tournament.router)
+from app.api.routers import liga
+app.include_router(liga.router)
 
 # ── Paid-Module (Erika Plus) — optional ──────────────────────
 # Diese Module fehlen im Community-Build. Ist die Datei nicht vorhanden,

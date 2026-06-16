@@ -283,6 +283,10 @@
     <span class="nav-icon">&#128663;</span>
     <span class="nav-label">Fahrzeuge</span>
   </button>
+  <button class="nav-btn" id="nav-liga" onclick="navTo('liga')">
+    <span class="nav-icon">&#9917;</span>
+    <span class="nav-label">Fu&szlig;ball</span>
+  </button>
   </div>
   <button class="nav-btn nav-mic" id="nav-mic" onclick="startInput()">
     <span class="nav-icon" id="mic-icon">🎤</span>
@@ -3007,7 +3011,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false, tournament: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false, tournament: false, liga: false };
   })();
   let _calendarOpenTrigger = 'both';
   let _activePersonName = null;
@@ -3169,14 +3173,16 @@
     const vehicleIcon = document.querySelector('#nav-vehicles .nav-icon');
     if (vehicleIcon) vehicleIcon.innerHTML = '&#128663;';
     applyModuleVisibility(_enabledModules);
-    // Tournament ggf. sofort starten (falls localStorage schon true hat und kein Änderungs-Event kommt)
+    // Tournament / Liga ggf. sofort starten
     if (_enabledModules.tournament) window._tournament?.start();
+    if (_enabledModules.liga) window._liga?.start();
   });
 
   function applyModuleVisibility(modules, calendarConfig) {
     const prevCal        = _enabledModules.calendar !== false;
     const prevPv         = _enabledModules.pv === true;
     const prevTournament = _enabledModules.tournament === true;
+    const prevLiga       = _enabledModules.liga === true;
     _enabledModules = {
       news:     modules?.news     === true,
       lights:   modules?.lights   === true,
@@ -3189,6 +3195,7 @@
       energy:   modules?.energy   === true,
       chores:      modules?.chores      === true,
       tournament:  modules?.tournament  === true,
+      liga:        modules?.liga        === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;
@@ -3209,6 +3216,8 @@
     if (camerasBtn) camerasBtn.hidden = !_enabledModules.cameras;
     if (energyBtn) energyBtn.hidden = !_enabledModules.energy;
     if (choresBtn) choresBtn.hidden = !_enabledModules.chores;
+    const ligaBtn = document.getElementById('nav-liga');
+    if (ligaBtn) ligaBtn.hidden = !_enabledModules.liga;
     if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras) || (_navMode === 'chores' && !_enabledModules.chores)) {
       navTo('home');
     }
@@ -3223,6 +3232,11 @@
     } else if (!_enabledModules.tournament && prevTournament) {
       window._tournament?.stop();
     }
+    if (_enabledModules.liga && !prevLiga) {
+      window._liga?.start();
+    } else if (!_enabledModules.liga && prevLiga) {
+      window._liga?.stop();
+    }
   }
 
   function _startLightsPolling() {
@@ -3236,7 +3250,7 @@
   }
 
   function navTo(mode) {
-    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras) || (mode === 'chores' && !_enabledModules.chores)) {
+    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras) || (mode === 'chores' && !_enabledModules.chores) || (mode === 'liga' && !_enabledModules.liga)) {
       mode = 'home';
     }
     _navMode = mode;
@@ -3253,6 +3267,7 @@
       clearRobotsView();
       clearVehiclesView();
       clearChoresView();
+      window._liga?.closeFullView();
       currentMode = null;
       applyMode('idle');
     } else if (mode === 'lights') {
@@ -3304,6 +3319,7 @@
       clearCamerasView();
       clearRobotsView();
       clearVehiclesView();
+      window._liga?.closeFullView();
       if (!_hasFeature('chores') || !window._choresPlus) {
         _showUpgradePrompt({
           title: 'Hausaufgaben',
@@ -3313,6 +3329,17 @@
       } else {
         window._choresPlus.open();
       }
+    } else if (mode === 'liga') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearRobotsView();
+      clearVehiclesView();
+      clearChoresView();
+      window._liga?.openFullView();
     }
   }
 
@@ -4185,6 +4212,7 @@
       const homeFull = escapeHTML(_de(match.homeTeam?.name || match.homeTeam?.shortName || '?'));
       const awayFull = escapeHTML(_de(match.awayTeam?.name || match.awayTeam?.shortName || '?'));
       const statusLabel = match.status === 'PAUSED' ? 'Halbzeit' : `LIVE${min ? ' ' + min : ''}`;
+      const eventsHtml = window._renderMatchEvents ? window._renderMatchEvents(match.goals, match.bookings) : '';
       return `
         <div class="trn-header">⚽ ${statusLabel}</div>
         <div class="trn-live-big">
@@ -4196,6 +4224,7 @@
           <div class="trn-scoreline">${home} : ${away}</div>
           ${ht ? `<div class="trn-matchtime">${ht}</div>` : ''}
           <div class="trn-matchtime" style="margin-top:4px;">${homeFull} – ${awayFull}</div>
+          ${eventsHtml}
         </div>`;
     }
 
@@ -6904,5 +6933,6 @@
 <!-- Erika Plus — Paid-Module (fehlt im Community-Build → 404, Upgrade-Box greift) -->
 <script src="/display-plus.js" defer onerror="console.info('Community Edition: Plus-Module nicht geladen')"></script>
 <script src="/display-chores.js" defer onerror="console.info('Community Edition: Hausaufgaben-Modul nicht geladen')"></script>
+<script src="/display-liga.js" defer onerror="console.info('Liga-Modul nicht geladen')"></script>
 </body>
 </html>
