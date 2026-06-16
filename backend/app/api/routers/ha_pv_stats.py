@@ -38,6 +38,27 @@ def _pv_sensors(config: dict) -> dict[str, str]:
     return (config.get("pv") or {}).get("sensors") or {}
 
 
+def _tariffs(config: dict) -> dict:
+    return (config.get("energy") or {}).get("tariffs") or {}
+
+
+def _calc_savings(pv_kwh: float, feed_in_kwh: float, tariffs: dict) -> dict:
+    feed_in_ct = _safe_float(tariffs.get("feed_in_ct")) or 0.0
+    grid_price_ct = _safe_float(tariffs.get("grid_price_ct")) or 0.0
+    self_consumption_kwh = max(0.0, pv_kwh - feed_in_kwh)
+    savings_eur = (
+        self_consumption_kwh * grid_price_ct / 100.0
+        + feed_in_kwh * feed_in_ct / 100.0
+    )
+    return {
+        "feed_in_kwh": round(feed_in_kwh, 2),
+        "self_consumption_kwh": round(self_consumption_kwh, 2),
+        "savings_eur": round(savings_eur, 2),
+        "feed_in_ct": feed_in_ct,
+        "grid_price_ct": grid_price_ct,
+    }
+
+
 def _safe_float(v: Any) -> float | None:
     try:
         f = float(v)
@@ -219,12 +240,126 @@ async def _integrate_power_to_daily_kwh(
     return result
 
 
+def _integrate_signed_power_to_daily_kwh_from_history(
+    power_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Integriert vorzeichenbehafteten Leistungssensor (W) → (import_daily, export_daily) in kWh.
+
+    Positiv = Netzbezug (Strom kaufen), Negativ = Einspeisung (Strom verkaufen).
+    """
+    states = ha.get_history(power_id, start_utc, end_utc, chunk_hours=24)
+    by_date: dict[str, list[tuple[float, float]]] = defaultdict(list)
+    for s in states:
+        v = _safe_float(s.get("state"))
+        if v is None:
+            continue
+        ts_str = s.get("last_changed") or s.get("last_updated") or ""
+        if not ts_str:
+            continue
+        try:
+            dt_utc = datetime.fromisoformat(ts_str)
+            if dt_utc.tzinfo is None:
+                dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+            dt_loc = dt_utc.astimezone(_LOCAL_TZ)
+        except Exception:
+            continue
+        date_key = dt_loc.strftime("%Y-%m-%d")
+        by_date[date_key].append((dt_utc.timestamp(), v))
+
+    import_daily: dict[str, float] = {}
+    export_daily: dict[str, float] = {}
+    for date_key, readings in by_date.items():
+        readings.sort(key=lambda x: x[0])
+        imp = exp = 0.0
+        for i in range(len(readings) - 1):
+            dt_secs = readings[i + 1][0] - readings[i][0]
+            if 0 < dt_secs <= 1800:
+                w = readings[i][1]
+                kwh = abs(w) * dt_secs / 3_600_000
+                if w >= 0:
+                    imp += kwh
+                else:
+                    exp += kwh
+        import_daily[date_key] = round(imp, 2)
+        export_daily[date_key] = round(exp, 2)
+    return import_daily, export_daily
+
+
+async def _integrate_signed_power_to_daily_kwh_from_stats(
+    power_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Wie _integrate_signed_power_to_daily_kwh_from_history, aber aus HA-Statistik.
+
+    Nutzt stündliche Mittelwerte; positive → Import, negative → Export.
+    Liefert ({}, {}) wenn keine Statistik verfügbar.
+    """
+    stats = await ha.get_pv_statistics([power_id], start_utc, end_utc, "hour", ["mean"])
+    rows = stats.get(power_id) or []
+    if not rows:
+        return {}, {}
+
+    import_daily: dict[str, float] = {}
+    export_daily: dict[str, float] = {}
+    for r in rows:
+        mean_w = _safe_float(r.get("mean"))
+        if mean_w is None:
+            continue
+        dt_loc = _stat_to_local(r.get("start"))
+        if not dt_loc:
+            continue
+        date_key = dt_loc.strftime("%Y-%m-%d")
+        kwh = abs(mean_w) / 1000.0  # mean W über 1h → kWh
+        if mean_w >= 0:
+            import_daily[date_key] = round(import_daily.get(date_key, 0.0) + kwh, 2)
+        else:
+            export_daily[date_key] = round(export_daily.get(date_key, 0.0) + kwh, 2)
+    return import_daily, export_daily
+
+
+async def _integrate_signed_power_to_daily_kwh(
+    power_id: str,
+    start_utc: datetime,
+    end_utc: datetime,
+    ha: "HomeAssistantProvider",
+) -> tuple[dict[str, float], dict[str, float]]:
+    """Wrapper: History für ≤ 36h, Statistics + heutiger History-Patch für längere Zeiträume."""
+    now_loc = datetime.now(_LOCAL_TZ)
+    today_start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    if (end_utc - start_utc) <= timedelta(hours=36):
+        return _integrate_signed_power_to_daily_kwh_from_history(power_id, start_utc, end_utc, ha)
+
+    imp_d, exp_d = await _integrate_signed_power_to_daily_kwh_from_stats(power_id, start_utc, end_utc, ha)
+    if not imp_d and not exp_d:
+        return _integrate_signed_power_to_daily_kwh_from_history(power_id, start_utc, end_utc, ha)
+
+    if end_utc > today_start_utc:
+        today_imp, today_exp = _integrate_signed_power_to_daily_kwh_from_history(
+            power_id, max(start_utc, today_start_utc), end_utc, ha
+        )
+        imp_d.update(today_imp)
+        exp_d.update(today_exp)
+
+    return imp_d, exp_d
+
+
 @router.get("/ha/pv/history")
 async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     config = IntegrationConfigService().get_config()
     sensors = _pv_sensors(config)
     power_id = sensors.get("power", "")
     daily_id = sensors.get("daily", "")
+    grid_id  = sensors.get("grid", "")
+    tariff_cfg = _tariffs(config)
+    _savings_enabled = bool(
+        grid_id and (tariff_cfg.get("feed_in_ct") or tariff_cfg.get("grid_price_ct"))
+    )
     ha      = HomeAssistantProvider()
     now_loc = datetime.now(_LOCAL_TZ)                  # korrekte lokale Zeit via zoneinfo
     now_utc = now_loc.astimezone(timezone.utc)
@@ -262,8 +397,15 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             today_kwh = await _integrate_power_to_daily_kwh(power_id, start_utc, now_utc, ha)
             total = today_kwh.get(today_str)
 
+        savings = None
+        if _savings_enabled and total is not None:
+            today_str = now_loc.strftime("%Y-%m-%d")
+            _, exp_d = _integrate_signed_power_to_daily_kwh_from_history(grid_id, start_utc, now_utc, ha)
+            feed_in_kwh = exp_d.get(today_str, 0.0)
+            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+
         return {"view": "today", "labels": labels, "values": values,
-                "unit": "W", "total": total, "total_unit": "kWh"}
+                "unit": "W", "total": total, "total_unit": "kWh", "savings": savings}
 
     # ── 7 Tage: Tagesertrag ───────────────────────────────────
     if view == "7days":
@@ -294,8 +436,15 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             values.append(round(daily[date_key], 2))
 
         total = round(sum(v for v in values if v is not None), 1)
+
+        savings = None
+        if _savings_enabled:
+            _, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, s7_utc, now_utc, ha)
+            feed_in_kwh = round(sum(exp_d.values()), 2)
+            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+
         return {"view": "7days", "labels": labels, "values": values,
-                "unit": "kWh", "total": total, "total_unit": "kWh"}
+                "unit": "kWh", "total": total, "total_unit": "kWh", "savings": savings}
 
     # ── Monat: alle Tage des Monats ───────────────────────────
     if view == "month":
@@ -325,8 +474,15 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             values.append(round(daily_m[date_key], 2))
 
         total = round(sum(v for v in values if v is not None), 1)
+
+        savings = None
+        if _savings_enabled:
+            _, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sm_utc, now_utc, ha)
+            feed_in_kwh = round(sum(exp_d.values()), 2)
+            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+
         return {"view": "month", "labels": labels, "values": values,
-                "unit": "kWh", "total": total, "total_unit": "kWh"}
+                "unit": "kWh", "total": total, "total_unit": "kWh", "savings": savings}
 
     # ── Jahr: Monatserträge ───────────────────────────────────
     if view == "year":
@@ -380,7 +536,14 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
                 values = [round(monthly[m], 1) for m in sorted(monthly)]
 
         total = round(sum(v for v in values if v is not None), 1)
+
+        savings = None
+        if _savings_enabled:
+            _, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sy_utc, now_utc, ha)
+            feed_in_kwh = round(sum(exp_d.values()), 2)
+            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+
         return {"view": "year", "labels": labels, "values": values,
-                "unit": "kWh", "total": total, "total_unit": "kWh"}
+                "unit": "kWh", "total": total, "total_unit": "kWh", "savings": savings}
 
     raise HTTPException(400, f"Unbekannte View: {view}")

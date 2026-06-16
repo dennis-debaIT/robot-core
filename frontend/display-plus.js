@@ -253,6 +253,35 @@
              <span style="font-size:1.2rem;font-weight:800;color:var(--accent);">${typeof total==='number'?total.toLocaleString('de-DE',{maximumFractionDigits:1}):total} ${d.total_unit||unit}</span>
            </div>` : '';
 
+      // ── PV-Ersparnis (wenn Backend Netz-Sensor + Tarife konfiguriert hat) ──
+      let savingsHtml = '';
+      if (d.savings) {
+        const s = d.savings;
+        const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 1}) + ' kWh' : '–';
+        const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €' : '–';
+        const fmtCt  = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 2}) + ' ct/kWh' : '–';
+        savingsHtml = `
+          <div style="margin-top:16px;padding:14px 16px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.22);border-radius:10px;">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">&#9889; Durch PV eingespart</div>
+            <div style="display:flex;gap:10px;">
+              <div style="flex:1;text-align:center;">
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Eigenverbrauch</div>
+                <div style="font-size:1rem;font-weight:800;color:var(--success);">${fmtKwh(s.self_consumption_kwh)}</div>
+                <div style="font-size:0.6rem;color:var(--muted);">&agrave; ${fmtCt(s.grid_price_ct)}</div>
+              </div>
+              <div style="flex:1;text-align:center;">
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Einspeisung</div>
+                <div style="font-size:1rem;font-weight:800;color:var(--accent);">${fmtKwh(s.feed_in_kwh)}</div>
+                <div style="font-size:0.6rem;color:var(--muted);">&agrave; ${fmtCt(s.feed_in_ct)}</div>
+              </div>
+              <div style="flex:1;text-align:center;">
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Ersparnis</div>
+                <div style="font-size:1.2rem;font-weight:900;color:var(--success);">+${fmtEur(s.savings_eur)}</div>
+              </div>
+            </div>
+          </div>`;
+      }
+
       // ── Netz-Sektion (nur wenn Gesamt-Netzbezug-Sensor konfiguriert, Erika Plus) ──
       let gridHtml = '';
       if (gd) {
@@ -323,7 +352,7 @@
 
       content.innerHTML = `
         <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
-        ${chart}${totalHtml}${gridHtml}`;
+        ${chart}${totalHtml}${savingsHtml}${gridHtml}`;
     } catch(e) {
       content.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
     }
