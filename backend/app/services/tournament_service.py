@@ -45,7 +45,10 @@ class TournamentService:
 
         all_matches: list[dict[str, Any]] = data.get("matches", [])
         competition: dict[str, Any] = data.get("competition", {})
-        current_matchday: int | None = competition.get("currentMatchday")
+        current_matchday: int | None = (
+            competition.get("currentMatchday")
+            or (competition.get("currentSeason") or {}).get("currentMatchday")
+        )
 
         live_statuses = {"IN_PLAY", "PAUSED"}
         live_matches = [m for m in all_matches if m.get("status") in live_statuses]

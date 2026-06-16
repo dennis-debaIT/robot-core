@@ -3938,6 +3938,10 @@
       return `${h}:${a}`;
     }
 
+    function _trnTeamName(team) {
+      return (team?.shortName || team?.name || team?.tla || '?').trim() || '?';
+    }
+
     function _renderMatchday(data) {
       const matches = data.matchday || [];
       const liveIds = new Set((data.live || []).map(m => m.id));
@@ -3947,27 +3951,45 @@
 
       if (!matches.length) {
         return `<div class="trn-header">${escapeHTML(label)}</div>
-          <div style="color:var(--muted);font-size:0.8rem;text-align:center;">Keine Spiele verfügbar</div>`;
+          <div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:12px 0;">Keine Spiele verfügbar</div>`;
       }
 
-      const rows = matches.map(m => {
-        const isLive = liveIds.has(m.id) || m.status === 'IN_PLAY' || m.status === 'PAUSED';
-        const score = _scoreStr(m.score);
-        const timeStr = m.status === 'FINISHED' ? `${score} ✓`
-          : isLive ? score
-          : (m.status === 'SCHEDULED' || m.status === 'TIMED') ? _fmtTime(m.utcDate)
-          : score;
-        const badge = isLive ? '<span class="trn-live-badge">LIVE</span>' : '';
-        return `
-          <div class="trn-match${isLive ? ' live' : ''}">
-            <span class="trn-team">${escapeHTML(m.homeTeam?.shortName || m.homeTeam?.name || '?')}</span>
-            <span class="trn-score${isLive ? ' live' : ''}">${isLive ? score : timeStr}</span>
-            <span class="trn-team away">${escapeHTML(m.awayTeam?.shortName || m.awayTeam?.name || '?')}</span>
-            ${badge}
-          </div>`;
-      }).join('');
+      // Nach Gruppe sortieren
+      const groups = new Map();
+      matches.forEach(m => {
+        const g = m.group || '';
+        if (!groups.has(g)) groups.set(g, []);
+        groups.get(g).push(m);
+      });
 
-      return `<div class="trn-header">${escapeHTML(label)}</div>${rows}`;
+      const showGroupLabels = groups.size > 1;
+      let html = `<div class="trn-header">${escapeHTML(label)}</div>`;
+
+      for (const [group, groupMatches] of groups) {
+        if (showGroupLabels && group) {
+          const gLabel = group.startsWith('GROUP_')
+            ? 'Gruppe ' + group.replace('GROUP_', '')
+            : group.replace(/_/g, ' ');
+          html += `<div class="trn-group-label">${escapeHTML(gLabel)}</div>`;
+        }
+        groupMatches.forEach(m => {
+          const isLive = liveIds.has(m.id) || m.status === 'IN_PLAY' || m.status === 'PAUSED';
+          const score = _scoreStr(m.score);
+          const timeStr = m.status === 'FINISHED' ? `${score} ✓`
+            : isLive ? score
+            : (m.status === 'SCHEDULED' || m.status === 'TIMED') ? _fmtTime(m.utcDate)
+            : score;
+          const badge = isLive ? '<span class="trn-live-badge">LIVE</span>' : '';
+          html += `
+            <div class="trn-match${isLive ? ' live' : ''}">
+              <span class="trn-team">${escapeHTML(_trnTeamName(m.homeTeam))}</span>
+              <span class="trn-score${isLive ? ' live' : ''}">${isLive ? score : timeStr}</span>
+              <span class="trn-team away">${escapeHTML(_trnTeamName(m.awayTeam))}</span>
+              ${badge}
+            </div>`;
+        });
+      }
+      return html;
     }
 
     function _renderLive(match) {
@@ -3976,20 +3998,22 @@
       const away = score.fullTime?.away ?? '–';
       const ht = (score.halfTime?.home != null)
         ? `Halbzeit ${score.halfTime.home}:${score.halfTime.away}` : '';
-      const homeName = match.homeTeam?.name || '?';
-      const awayName = match.awayTeam?.name || '?';
+      const homeShort = _trnTeamName(match.homeTeam);
+      const awayShort = _trnTeamName(match.awayTeam);
+      const homeFull  = match.homeTeam?.name || homeShort;
+      const awayFull  = match.awayTeam?.name || awayShort;
       const statusLabel = match.status === 'PAUSED' ? 'Halbzeit' : 'LIVE';
       return `
         <div class="trn-header">⚽ ${statusLabel}</div>
         <div class="trn-live-big">
           <div class="trn-teams">
-            <span>${escapeHTML(match.homeTeam?.shortName || homeName)}</span>
+            <span>${escapeHTML(homeShort)}</span>
             <span style="color:var(--muted);font-size:0.75rem;">vs</span>
-            <span>${escapeHTML(match.awayTeam?.shortName || awayName)}</span>
+            <span>${escapeHTML(awayShort)}</span>
           </div>
           <div class="trn-scoreline">${home} : ${away}</div>
           ${ht ? `<div class="trn-matchtime">${escapeHTML(ht)}</div>` : ''}
-          <div class="trn-matchtime" style="margin-top:4px;">${escapeHTML(homeName)} – ${escapeHTML(awayName)}</div>
+          <div class="trn-matchtime" style="margin-top:4px;">${escapeHTML(homeFull)} – ${escapeHTML(awayFull)}</div>
         </div>`;
     }
 
