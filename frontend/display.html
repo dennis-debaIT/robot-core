@@ -3930,7 +3930,7 @@
       if (!utcDate) return '–';
       try {
         const d = new Date(utcDate);
-        return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
       } catch { return '–'; }
     }
 
@@ -3947,6 +3947,40 @@
       const h = ht.home ?? ht.homeTeam;
       const a = ht.away ?? ht.awayTeam;
       return (h != null && a != null) ? `Halbzeit ${h}:${a}` : '';
+    }
+
+    function _matchMinute(score) {
+      const min = score?.minute;
+      if (min == null) return '';
+      const addl = score?.injuryTime;
+      return addl ? `${min}+${addl}'` : `${min}'`;
+    }
+    function _fmtKickoff(utcDate) {
+      if (!utcDate) return '–';
+      try {
+        const d = new Date(utcDate);
+        const now = new Date();
+        const diffMin = Math.round((d - now) / 60000);
+        if (diffMin > 0 && diffMin <= 1440) {
+          if (diffMin < 60) return `in ${diffMin} Min`;
+          const h = Math.floor(diffMin / 60);
+          const m = diffMin % 60;
+          return m > 0 ? `in ${h}h ${m}min` : `in ${h}h`;
+        }
+        const isToday = d.toLocaleDateString('de-DE', {timeZone:'Europe/Berlin'}) === now.toLocaleDateString('de-DE', {timeZone:'Europe/Berlin'});
+        if (isToday) return d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin'});
+        return d.toLocaleString('de-DE', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'Europe/Berlin'});
+      } catch { return '–'; }
+    }
+    function _resultSuffix(score) {
+      if (!score) return '';
+      const pen = score.penalties || {};
+      const et  = score.extraTime || {};
+      const penH = pen.home ?? pen.homeTeam;
+      const etH  = et.home  ?? et.homeTeam;
+      if (penH != null) return ' n.E.';
+      if (etH  != null) return ' n.V.';
+      return '';
     }
 
     const _DE_COUNTRY = {
@@ -4050,15 +4084,16 @@
     }
     function _flagSpan(name) {
       const code = _flagCode(name);
-      return code ? `<span class="fi fi-${code}" style="margin-right:4px;font-size:1.1em;vertical-align:middle;"></span>` : ``;
+      if (!code && name && name.length > 1 && !/^[A-Z]{2,3}$/.test(name)) console.warn('[trn] kein Flag-Code:', name);
+      return code ? `<span class="fi fi-${code}" style="margin-right:4px;font-size:1.1em;vertical-align:middle;"></span>` : '';
     }
 
     function _trnTeamName(team) {
       if (!team) return '?';
       const raw = (team.shortName || team.name || team.tla || '?').trim() || '?';
       const displayName = _de(raw);
-      const flag = _flagSpan(team.name) || _flagSpan(team.shortName) || _flagSpan(raw) || ``;
-      return `${flag}${displayName}`;
+      const flag = _flagSpan(team.name) || _flagSpan(team.shortName) || _flagSpan(raw) || '';
+      return `${flag}${escapeHTML(displayName)}`;
     }
 
     function _renderMatchday(data) {
@@ -4073,7 +4108,6 @@
           <div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:12px 0;">Keine Spiele verfügbar</div>`;
       }
 
-      // Nach Gruppe sortieren
       const groups = new Map();
       matches.forEach(m => {
         const g = m.group || '';
@@ -4094,16 +4128,18 @@
         groupMatches.forEach(m => {
           const isLive = liveIds.has(m.id) || m.status === 'IN_PLAY' || m.status === 'PAUSED';
           const score = _scoreStr(m.score);
-          const timeStr = m.status === 'FINISHED' ? `${score} ✓`
+          const suffix = m.status === 'FINISHED' ? _resultSuffix(m.score) : '';
+          const timeStr = m.status === 'FINISHED' ? `${score}${suffix} ✓`
             : isLive ? score
-            : (m.status === 'SCHEDULED' || m.status === 'TIMED') ? _fmtTime(m.utcDate)
+            : (m.status === 'SCHEDULED' || m.status === 'TIMED') ? _fmtKickoff(m.utcDate)
             : score;
-          const badge = isLive ? '<span class="trn-live-badge">LIVE</span>' : '';
+          const min = isLive ? _matchMinute(m.score) : '';
+          const badge = isLive ? `<span class="trn-live-badge">${min || 'LIVE'}</span>` : '';
           html += `
             <div class="trn-match${isLive ? ' live' : ''}">
-              <span class="trn-team">${escapeHTML(_trnTeamName(m.homeTeam))}</span>
+              <span class="trn-team">${_trnTeamName(m.homeTeam)}</span>
               <span class="trn-score${isLive ? ' live' : ''}">${isLive ? score : timeStr}</span>
-              <span class="trn-team away">${escapeHTML(_trnTeamName(m.awayTeam))}</span>
+              <span class="trn-team away">${_trnTeamName(m.awayTeam)}</span>
               ${badge}
             </div>`;
         });
@@ -4117,22 +4153,23 @@
       const home = ft.home ?? ft.homeTeam ?? '–';
       const away = ft.away ?? ft.awayTeam ?? '–';
       const ht = _htStr(score);
+      const min = _matchMinute(score);
       const homeShort = _trnTeamName(match.homeTeam);
       const awayShort = _trnTeamName(match.awayTeam);
-      const homeFull  = match.homeTeam?.name || homeShort;
-      const awayFull  = match.awayTeam?.name || awayShort;
-      const statusLabel = match.status === 'PAUSED' ? 'Halbzeit' : 'LIVE';
+      const homeFull = escapeHTML(_de(match.homeTeam?.name || match.homeTeam?.shortName || '?'));
+      const awayFull = escapeHTML(_de(match.awayTeam?.name || match.awayTeam?.shortName || '?'));
+      const statusLabel = match.status === 'PAUSED' ? 'Halbzeit' : `LIVE${min ? ' ' + min : ''}`;
       return `
         <div class="trn-header">⚽ ${statusLabel}</div>
         <div class="trn-live-big">
           <div class="trn-teams">
-            <span>${escapeHTML(homeShort)}</span>
+            <span>${homeShort}</span>
             <span style="color:var(--muted);font-size:0.75rem;">vs</span>
-            <span>${escapeHTML(awayShort)}</span>
+            <span>${awayShort}</span>
           </div>
           <div class="trn-scoreline">${home} : ${away}</div>
-          ${ht ? `<div class="trn-matchtime">${escapeHTML(ht)}</div>` : ''}
-          <div class="trn-matchtime" style="margin-top:4px;">${escapeHTML(homeFull)} – ${escapeHTML(awayFull)}</div>
+          ${ht ? `<div class="trn-matchtime">${ht}</div>` : ''}
+          <div class="trn-matchtime" style="margin-top:4px;">${homeFull} – ${awayFull}</div>
         </div>`;
     }
 
@@ -4174,15 +4211,16 @@
       liveMatches.forEach(m => {
         const score = _scoreStr(m.score);
         const ht = _htStr(m.score);
-        const statusLabel = m.status === 'PAUSED' ? 'HZ' : 'LIVE';
+        const min = _matchMinute(m.score);
+        const statusLabel = m.status === 'PAUSED' ? 'HZ' : (min ? min : 'LIVE');
         html += `
           <div class="trn-match live">
-            <span class="trn-team">${escapeHTML(_trnTeamName(m.homeTeam))}</span>
+            <span class="trn-team">${_trnTeamName(m.homeTeam)}</span>
             <span class="trn-score live">${score}</span>
-            <span class="trn-team away">${escapeHTML(_trnTeamName(m.awayTeam))}</span>
+            <span class="trn-team away">${_trnTeamName(m.awayTeam)}</span>
             <span class="trn-live-badge">${statusLabel}</span>
           </div>
-          ${ht ? `<div style="font-size:0.6rem;color:var(--muted);text-align:center;margin:-3px 0 4px;">${escapeHTML(ht)}</div>` : ''}`;
+          ${ht ? `<div style="font-size:0.6rem;color:var(--muted);text-align:center;margin:-3px 0 4px;">${ht}</div>` : ''}`;
       });
       return html;
     }
