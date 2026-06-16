@@ -42,6 +42,21 @@ def _tariffs(config: dict) -> dict:
     return (config.get("energy") or {}).get("tariffs") or {}
 
 
+def _calc_autarkie(pv_kwh: float, feed_in_kwh: float, import_kwh: float) -> dict:
+    self_consumption_kwh = max(0.0, pv_kwh - feed_in_kwh)
+    total_consumption_kwh = self_consumption_kwh + import_kwh
+    autarkie_pct = (
+        round(self_consumption_kwh / total_consumption_kwh * 100, 1)
+        if total_consumption_kwh > 0 else 0.0
+    )
+    self_use_pct = round(self_consumption_kwh / pv_kwh * 100, 1) if pv_kwh > 0 else 0.0
+    return {
+        "autarkie_pct": autarkie_pct,
+        "self_use_pct": self_use_pct,
+        "import_kwh": round(import_kwh, 2),
+    }
+
+
 def _calc_savings(pv_kwh: float, feed_in_kwh: float, tariffs: dict) -> dict:
     feed_in_ct = _safe_float(tariffs.get("feed_in_ct")) or 0.0
     grid_price_ct = _safe_float(tariffs.get("grid_price_ct")) or 0.0
@@ -357,11 +372,13 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     daily_id = sensors.get("daily", "")
     grid_id  = sensors.get("grid", "")
     tariff_cfg = _tariffs(config)
+    _energy_cfg = config.get("energy") or {}
     _savings_enabled = bool(
         grid_id
         and (tariff_cfg.get("feed_in_ct") or tariff_cfg.get("grid_price_ct"))
-        and config.get("energy", {}).get("show_pv_savings", True)
+        and _energy_cfg.get("show_pv_savings", True)
     )
+    _autarkie_enabled = bool(grid_id and _energy_cfg.get("show_autarkie", True))
     ha      = HomeAssistantProvider()
     now_loc = datetime.now(_LOCAL_TZ)                  # korrekte lokale Zeit via zoneinfo
     now_utc = now_loc.astimezone(timezone.utc)
@@ -399,15 +416,20 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             today_kwh = await _integrate_power_to_daily_kwh(power_id, start_utc, now_utc, ha)
             total = today_kwh.get(today_str)
 
-        savings = None
-        if _savings_enabled and total is not None:
+        savings = autarkie = None
+        if (_savings_enabled or _autarkie_enabled) and total is not None:
             today_str = now_loc.strftime("%Y-%m-%d")
-            _, exp_d = _integrate_signed_power_to_daily_kwh_from_history(grid_id, start_utc, now_utc, ha)
+            imp_d, exp_d = _integrate_signed_power_to_daily_kwh_from_history(grid_id, start_utc, now_utc, ha)
             feed_in_kwh = exp_d.get(today_str, 0.0)
-            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            import_kwh  = imp_d.get(today_str, 0.0)
+            if _savings_enabled:
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            if _autarkie_enabled:
+                autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
         return {"view": "today", "labels": labels, "values": values,
-                "unit": "W", "total": total, "total_unit": "kWh", "savings": savings}
+                "unit": "W", "total": total, "total_unit": "kWh",
+                "savings": savings, "autarkie": autarkie}
 
     # ── 7 Tage: Tagesertrag ───────────────────────────────────
     if view == "7days":
@@ -439,14 +461,19 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
 
         total = round(sum(v for v in values if v is not None), 1)
 
-        savings = None
-        if _savings_enabled:
-            _, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, s7_utc, now_utc, ha)
+        savings = autarkie = None
+        if _savings_enabled or _autarkie_enabled:
+            imp_d, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, s7_utc, now_utc, ha)
             feed_in_kwh = round(sum(exp_d.values()), 2)
-            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            import_kwh  = round(sum(imp_d.values()), 2)
+            if _savings_enabled:
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            if _autarkie_enabled:
+                autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
         return {"view": "7days", "labels": labels, "values": values,
-                "unit": "kWh", "total": total, "total_unit": "kWh", "savings": savings}
+                "unit": "kWh", "total": total, "total_unit": "kWh",
+                "savings": savings, "autarkie": autarkie}
 
     # ── Monat: alle Tage des Monats ───────────────────────────
     if view == "month":
@@ -477,14 +504,19 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
 
         total = round(sum(v for v in values if v is not None), 1)
 
-        savings = None
-        if _savings_enabled:
-            _, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sm_utc, now_utc, ha)
+        savings = autarkie = None
+        if _savings_enabled or _autarkie_enabled:
+            imp_d, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sm_utc, now_utc, ha)
             feed_in_kwh = round(sum(exp_d.values()), 2)
-            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            import_kwh  = round(sum(imp_d.values()), 2)
+            if _savings_enabled:
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            if _autarkie_enabled:
+                autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
         return {"view": "month", "labels": labels, "values": values,
-                "unit": "kWh", "total": total, "total_unit": "kWh", "savings": savings}
+                "unit": "kWh", "total": total, "total_unit": "kWh",
+                "savings": savings, "autarkie": autarkie}
 
     # ── Jahr: Monatserträge ───────────────────────────────────
     if view == "year":
@@ -539,13 +571,18 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
 
         total = round(sum(v for v in values if v is not None), 1)
 
-        savings = None
-        if _savings_enabled:
-            _, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sy_utc, now_utc, ha)
+        savings = autarkie = None
+        if _savings_enabled or _autarkie_enabled:
+            imp_d, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sy_utc, now_utc, ha)
             feed_in_kwh = round(sum(exp_d.values()), 2)
-            savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            import_kwh  = round(sum(imp_d.values()), 2)
+            if _savings_enabled:
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+            if _autarkie_enabled:
+                autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
         return {"view": "year", "labels": labels, "values": values,
-                "unit": "kWh", "total": total, "total_unit": "kWh", "savings": savings}
+                "unit": "kWh", "total": total, "total_unit": "kWh",
+                "savings": savings, "autarkie": autarkie}
 
     raise HTTPException(400, f"Unbekannte View: {view}")

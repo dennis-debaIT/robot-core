@@ -692,6 +692,14 @@
                 <span class="switch-text">„Durch PV eingespart"-Box in der PV-Statistik einblenden (Eigenverbrauch, Einspeisung, Gesamtersparnis)</span>
               </span>
             </label>
+            <label class="switch-card" style="margin-top:8px;">
+              <input id="energy-show-autarkie" type="checkbox" checked>
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Autarkie anzeigen</span>
+                <span class="switch-text">Autarkie- &amp; Eigenverbrauchsquote in der PV-Statistik einblenden (% selbst versorgt / % PV genutzt)</span>
+              </span>
+            </label>
           </section>
           <section class="module-card">
             <div class="section-copy">
@@ -1742,6 +1750,7 @@
     const pvWfTemperatureEl       = document.getElementById('pv-wf-temperature');
     const energyEnabledEl         = document.getElementById('energy-enabled');
     const energyShowPvSavingsEl   = document.getElementById('energy-show-pv-savings');
+    const energyShowAutarkieEl    = document.getElementById('energy-show-autarkie');
     const energyTariffFeedInEl    = document.getElementById('energy-tariff-feed-in');
     const energyTariffGridPriceEl = document.getElementById('energy-tariff-grid-price');
     const energyTariffBasePriceEl = document.getElementById('energy-tariff-base-price');
@@ -3636,6 +3645,7 @@
         const energy = (cfg.config || cfg).energy || {};
         if (energyEnabledEl) energyEnabledEl.checked = !!energy.enabled;
         if (energyShowPvSavingsEl) energyShowPvSavingsEl.checked = energy.show_pv_savings !== false;
+        if (energyShowAutarkieEl)  energyShowAutarkieEl.checked  = energy.show_autarkie  !== false;
         const tariffs = energy.tariffs || {};
         if (energyTariffFeedInEl)    energyTariffFeedInEl.value    = tariffs.feed_in_ct ?? '';
         if (energyTariffGridPriceEl) energyTariffGridPriceEl.value = tariffs.grid_price_ct ?? '';
@@ -3660,6 +3670,7 @@
             energy: {
               enabled: !!energyEnabledEl?.checked,
               show_pv_savings: !!energyShowPvSavingsEl?.checked,
+              show_autarkie:   !!energyShowAutarkieEl?.checked,
               tariffs: {
                 feed_in_ct: Number(energyTariffFeedInEl.value) || 0,
                 grid_price_ct: Number(energyTariffGridPriceEl.value) || 0,

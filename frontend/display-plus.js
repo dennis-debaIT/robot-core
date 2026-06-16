@@ -282,6 +282,37 @@
           </div>`;
       }
 
+      // ── Autarkie-Anzeige ──
+      let autarkieHtml = '';
+      if (d.autarkie) {
+        const a = d.autarkie;
+        const fmtPct = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 1}) + ' %' : '–';
+        const bar = (pct, color) => {
+          const w = Math.min(100, Math.max(0, pct || 0));
+          return `<div style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;margin-top:5px;overflow:hidden;">
+            <div style="width:${w}%;height:100%;background:${color};border-radius:3px;transition:width 0.4s;"></div>
+          </div>`;
+        };
+        autarkieHtml = `
+          <div style="margin-top:10px;padding:14px 16px;background:rgba(0,180,255,0.07);border:1px solid rgba(0,180,255,0.2);border-radius:10px;">
+            <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">&#9728; Autarkie</div>
+            <div style="display:flex;gap:16px;">
+              <div style="flex:1;">
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Autarkie</div>
+                <div style="font-size:1.1rem;font-weight:800;color:var(--accent);">${fmtPct(a.autarkie_pct)}</div>
+                <div style="font-size:0.6rem;color:var(--muted);margin-top:1px;">selbst versorgt</div>
+                ${bar(a.autarkie_pct, 'var(--accent)')}
+              </div>
+              <div style="flex:1;">
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">Eigenverbrauch</div>
+                <div style="font-size:1.1rem;font-weight:800;color:var(--success);">${fmtPct(a.self_use_pct)}</div>
+                <div style="font-size:0.6rem;color:var(--muted);margin-top:1px;">der PV genutzt</div>
+                ${bar(a.self_use_pct, 'var(--success)')}
+              </div>
+            </div>
+          </div>`;
+      }
+
       // ── Netz-Sektion (nur wenn Gesamt-Netzbezug-Sensor konfiguriert, Erika Plus) ──
       let gridHtml = '';
       if (gd) {
@@ -352,7 +383,7 @@
 
       content.innerHTML = `
         <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
-        ${chart}${totalHtml}${savingsHtml}${gridHtml}`;
+        ${chart}${totalHtml}${savingsHtml}${autarkieHtml}${gridHtml}`;
     } catch(e) {
       content.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
     }
