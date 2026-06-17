@@ -56,12 +56,30 @@ def _names_match(n1: str, n2: str) -> bool:
 
 
 def _get_oldb_matches(oldb_code: str) -> list[dict[str, Any]]:
+    """Liefert Spiele des aktuellen Spieltags aus OpenLigaDB.
+
+    Strategie:
+    1. /getmatchdata/{code}           — aktuelle Gruppe ohne Parameter
+    2. Wenn leer: /getcurrentgroup    → Gruppen-ID → /getmatchdata/{code}/2026/{id}
+    """
     now = time.time()
     cached = _MATCHDAY_CACHE.get(oldb_code)
     if cached and (now - cached[0]) < CACHE_TTL:
         return cached[1]
+
+    # Versuch 1: einfacher Endpunkt
     data = _fetch_json(f"{BASE_URL}/getmatchdata/{oldb_code}")
     matches: list[dict[str, Any]] = data if isinstance(data, list) else []
+
+    # Versuch 2: über currentgroup → explizite Saison + Gruppe
+    if not matches:
+        group = _fetch_json(f"{BASE_URL}/getcurrentgroup/{oldb_code}")
+        if isinstance(group, dict):
+            gid = group.get("groupOrderID") or group.get("groupOrderId")
+            if gid is not None:
+                data2 = _fetch_json(f"{BASE_URL}/getmatchdata/{oldb_code}/2026/{gid}")
+                matches = data2 if isinstance(data2, list) else []
+
     _MATCHDAY_CACHE[oldb_code] = (now, matches)
     return matches
 

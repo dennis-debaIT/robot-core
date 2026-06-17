@@ -4276,6 +4276,7 @@
         const ht = _htStr(m.score);
         const min = _matchMinute(m.score);
         const statusLabel = m.status === 'PAUSED' ? 'HZ' : (min ? min : 'LIVE');
+        const eventsHtml = window._renderMatchEvents ? window._renderMatchEvents(m.goals, m.bookings) : '';
         html += `
           <div class="trn-match live">
             <span class="trn-team">${_trnTeamName(m.homeTeam)}</span>
@@ -4283,7 +4284,8 @@
             <span class="trn-team away">${_trnTeamName(m.awayTeam)}</span>
             <span class="trn-live-badge">${statusLabel}</span>
           </div>
-          ${ht ? `<div style="font-size:0.6rem;color:var(--muted);text-align:center;margin:-3px 0 4px;">${ht}</div>` : ''}`;
+          ${ht ? `<div style="font-size:0.6rem;color:var(--muted);text-align:center;margin:-3px 0 4px;">${ht}</div>` : ''}
+          ${eventsHtml}`;
       });
       return html;
     }
