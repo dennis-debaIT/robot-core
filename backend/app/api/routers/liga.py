@@ -109,6 +109,18 @@ def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
     return LigaService(cfg["api_key"]).get_team_focus(team_id)
 
 
+@router.get("/liga/team-squad")
+def get_team_squad(team_id: int = Query(...)) -> dict[str, Any]:
+    """Kader eines Teams inkl. Trikotnummern — funktioniert für National- und Vereinsmannschaften."""
+    cfg = _get_cfg()
+    if not cfg.get("api_key"):
+        raise HTTPException(400, "Liga nicht konfiguriert")
+    data = LigaService(cfg["api_key"]).get_team_squad(team_id)
+    if not data:
+        raise HTTPException(404, "Team nicht gefunden oder kein Kader verfügbar")
+    return data
+
+
 @router.get("/liga/tm/img")
 def proxy_tm_image(url: str = Query(...)) -> Response:
     """TM-Bild-Proxy mit Disk-Cache — überlebt Container-Neustarts."""

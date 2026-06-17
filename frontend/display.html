@@ -4150,8 +4150,9 @@
     function _trnTeamBtn(team) {
       const display = _trnTeamName(team);
       const name = team?.name || team?.shortName || '';
+      const id   = team?.id   || '';
       if (!name) return display;
-      return `<span class="trn-team-link" data-trn-team="${escapeHTML(name)}" onclick="window._tournament.openKader(this.dataset.trnTeam)">${display}</span>`;
+      return `<span class="trn-team-link" data-trn-team="${escapeHTML(name)}" data-trn-team-id="${escapeHTML(String(id))}" onclick="window._tournament.openKader(this.dataset.trnTeam,this.dataset.trnTeamId)">${display}</span>`;
     }
 
     function _renderMatchday(data) {
@@ -4417,10 +4418,10 @@
       stop: stopTournamentOverlay,
       _setView: (v) => { _trnView = v; _pollTournament(); },
       _refresh: () => { _trnKaderOpen = false; _pollTournament(); },
-      openKader: (teamName) => {
+      openKader: (teamName, teamId) => {
         if (!teamName || !window._liga) return;
         _trnKaderOpen = true;
-        window._liga._showKader(teamName, 'tournament');
+        window._liga._showKader(teamName, 'tournament', teamId ? Number(teamId) : null);
       },
     };
   })();

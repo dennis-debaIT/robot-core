@@ -23,7 +23,8 @@
   let _teamDetailId    = null;   // team_id der aktuell angezeigten Vereinsdetails
   let _teamDetailName  = null;   // Vereinsname für Team-Detail
   let _kaderTeamName   = null;   // null = Lieblingsverein, sonst überschriebener Name
-  let _kaderBackAction = 'matchday'; // 'matchday' | 'team' — wohin zurück aus Kader
+  let _kaderTeamId     = null;   // football-data.org team_id für squad-Endpoint (Turnierteams)
+  let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' — wohin zurück aus Kader
 
   const POLL_MS = 10_000;
 
@@ -100,6 +101,10 @@
     'Right Winger':       { short: 'RA',  group: 3, de: 'Rechtsaußen' },
     'Second Striker':     { short: 'HS',  group: 3, de: 'Hängende Spitze' },
     'Centre-Forward':     { short: 'ST',  group: 3, de: 'Mittelstürmer' },
+    // football-data.org Positionen (Turnierteams / Nationalmannschaften)
+    'Defence':            { short: 'DEF', group: 1, de: 'Verteidiger' },
+    'Midfield':           { short: 'MF',  group: 2, de: 'Mittelfeld' },
+    'Offence':            { short: 'ANG', group: 3, de: 'Angreifer' },
   };
   const _POS_GROUP_LABEL = ['Tor', 'Abwehr', 'Mittelfeld', 'Sturm'];
 
@@ -248,28 +253,92 @@
       </div>`;
   }
 
-  async function _showKader(teamNameOverride, backAction) {
+  async function _showKader(teamNameOverride, backAction, teamId) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
+    _kaderTeamId     = teamId || null;
     _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
     overlay.classList.add('active');
     let players = [];
-    try {
-      const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' });
-      if (r.ok) players = (await r.json()).players || [];
-    } catch {}
+    // Für Teams mit bekannter football-data.org ID: Kader inkl. Trikotnummer direkt laden
+    // (funktioniert für Nationalmannschaften + Vereinsmannschaften aus Turnieren)
+    if (teamId) {
+      try {
+        const r = await fetch(`/liga/team-squad?team_id=${encodeURIComponent(teamId)}`, { cache: 'no-store' });
+        if (r.ok) {
+          const data = await r.json();
+          players = (data.squad || []).map(p => ({ ...p, _profileLoaded: true, _source: 'fdo' }));
+        }
+      } catch {}
+    }
+    // Fallback auf Transfermarkt (Bundesliga-Kader, oder wenn fd.org keinen Kader hat)
+    if (!players.length) {
+      try {
+        const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' });
+        if (r.ok) players = (await r.json()).players || [];
+      } catch {}
+    }
     players.sort((a, b) => {
       const ga = _posGroup(a.position), gb = _posGroup(b.position);
       if (ga !== gb) return ga - gb;
+      if (a._source === 'fdo' && b._source === 'fdo') {
+        return (a.shirtNumber ?? 99) - (b.shirtNumber ?? 99);
+      }
       return _mvParse(b.marketValue) - _mvParse(a.marketValue);
     });
     _kaderPlayers = players;
     _renderKaderContent();
+    _prefetchKaderProfiles(); // no-op für fdo-Spieler (bereits _profileLoaded)
+  }
+
+  async function _prefetchKaderProfiles() {
+    const BATCH_SIZE = 3;
+    const DELAY_MS   = 250;
+    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && p.id);
+    if (!toLoad.length) return;
+    for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
+      if (!_kaderOpen) return;
+      const batch = toLoad.slice(i, i + BATCH_SIZE);
+      await Promise.allSettled(batch.map(async p => {
+        try {
+          const r = await fetch(`/liga/tm/player/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
+          if (!r.ok) return;
+          const prof = await r.json();
+          Object.assign(p, {
+            _profileLoaded: true,
+            shirtNumber:    prof.shirtNumber    || p.shirtNumber    || null,
+            imageURL:       prof.imageUrl || prof.imageURL || prof.image || p.imageURL || null,
+            dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
+            age:            prof.age            ?? p.age,
+            nationality:    prof.citizenship    || prof.nationality || p.nationality,
+            height:         prof.height         || p.height,
+            weight:         prof.weight         || p.weight,
+            foot:           prof.foot           || p.foot           || null,
+            placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
+            joinedOn:       prof.joinedOn       || prof.club?.joined           || p.joinedOn,
+            signedFrom:     prof.signedFrom     || prof.club?.lastClubName    || p.signedFrom     || null,
+            contractUntil:  prof.contractUntil  || prof.club?.contractExpires || p.contractUntil  || null,
+            contractOption: prof.contractOption || prof.club?.contractOption  || p.contractOption || null,
+            lastUpdate:     prof.lastUpdate     || p.lastUpdate,
+            marketValue:    prof.marketValue    || p.marketValue,
+            position:       prof.position       || p.position,
+            club:           prof.club           || p.club,
+          });
+        } catch {}
+      }));
+      // Re-render list only when player card is not open
+      if (_kaderOpen && !document.querySelector('.liga-player-card')) {
+        _renderKaderContent();
+      }
+      if (i + BATCH_SIZE < toLoad.length) {
+        await new Promise(res => setTimeout(res, DELAY_MS));
+      }
+    }
   }
 
   // ── Crest-Helfer ───────────────────────────────────────────────
@@ -349,7 +418,7 @@
      .map(([l, v]) => `<span class="liga-player-detail-label">${l}</span><span class="liga-player-detail-value">${v.includes('<') ? v : _esc(v)}</span>`)
      .join('');
 
-    const backLabel    = _kaderBackAction === 'team' ? '← Verein' : '← Spieltag';
+    const backLabel    = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
     const loadingHint  = p._profileLoaded ? '' : '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade Profil…</div>';
 
     overlay.innerHTML = `
@@ -914,6 +983,7 @@
     _teamDetailId    = null;
     _teamDetailName  = null;
     _kaderTeamName   = null;
+    _kaderTeamId     = null;
     _kaderBackAction = 'matchday';
     _tmProfile       = null;
     _tmLoadedFor     = null;

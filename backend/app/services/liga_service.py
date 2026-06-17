@@ -16,6 +16,7 @@ STATE_TTL     = 55    # Live-Daten — unter 60s damit Rate-Limit eingehalten wi
 STANDINGS_TTL = 300   # Tabelle ändert sich selten
 TEAMS_TTL     = 21600 # Team-Listen: 6h (ändert sich nur im Sommer)
 FOCUS_TTL     = 55    # Team-Fokus: gleich wie Live-Daten
+SQUAD_TTL     = 3600  # Kader: 1h
 
 COMPETITION_NAMES: dict[str, str] = {
     "BL1": "1. Bundesliga",
@@ -31,6 +32,7 @@ class LigaService:
     _standings_cache: dict[str, dict[str, Any]] = {}
     _teams_cache:     dict[str, dict[str, Any]] = {}
     _focus_cache:     dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
+    _squad_cache:     dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
     # Match-Detail-Cache: match_id → (timestamp, detail_dict)
     _detail_cache: dict[int, tuple[float, dict[str, Any]]] = {}
 
@@ -250,6 +252,44 @@ class LigaService:
             "next_match": next_match,
         }
         LigaService._focus_cache[key] = {"data": result, "ts": now}
+        return result
+
+    # ── Team-Kader (via /v4/teams/{id}) ──────────────────────────
+    def get_team_squad(self, team_id: int) -> dict[str, Any] | None:
+        """Kader eines Teams inkl. Trikotnummern — aus football-data.org /v4/teams/{id}.
+
+        Funktioniert für Nationalmannschaften und Vereinsmannschaften gleichermaßen.
+        """
+        now = time.time()
+        key = str(team_id)
+        cached = LigaService._squad_cache.get(key)
+        if cached and (now - cached["ts"]) < SQUAD_TTL:
+            return cached["data"]
+
+        data = self._fetch(f"/teams/{team_id}")
+        if not data:
+            return None
+        squad = data.get("squad") or []
+        result: dict[str, Any] = {
+            "id":        data.get("id"),
+            "name":      data.get("name"),
+            "shortName": data.get("shortName"),
+            "tla":       data.get("tla"),
+            "crest":     data.get("crest"),
+            "squad": [
+                {
+                    "id":          p.get("id"),
+                    "name":        p.get("name"),
+                    "position":    p.get("position"),
+                    "dateOfBirth": p.get("dateOfBirth"),
+                    "nationality": p.get("nationality"),
+                    "shirtNumber": p.get("shirtNumber"),
+                }
+                for p in squad
+            ],
+        }
+        if squad:
+            LigaService._squad_cache[key] = {"data": result, "ts": now}
         return result
 
     # ── Cache invalidieren ────────────────────────────────────────
