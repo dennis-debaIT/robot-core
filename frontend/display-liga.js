@@ -303,6 +303,7 @@
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
     _kaderTeamId     = teamId || null;
+    _kaderTeamCrest  = null;   // Reset sofort — wird nach fdoData-Load gesetzt
     _kaderFdoNames   = [];
     _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
     const overlay = document.getElementById('cal-overlay');
@@ -471,11 +472,12 @@
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
     const shirt    = shirtRaw ? `#${shirtRaw}` : '';
 
-    // Vereinslogo: zuerst das echte Vereinswappen (aus fd.o Personenprofil oder TM),
-    // dann Fallback auf Kader-Teamwappen (korrekt für Bundesliga, falsch für Nationalteams)
-    const crest    = p.club?.imageURL || p.club?.image
-      || _kaderTeamCrest || _getTeamCrest(_teamDetailId)
-      || (!p._source?.startsWith('fdo') ? _favCrest() : '') || '';
+    // Vereinslogo: fd.o-Spieler haben eigenes Club-Wappen (nach Personenprofil-Load),
+    // reine TM-Spieler nutzen _kaderTeamCrest als Fallback (sind im Vereinskader des Kader-Teams)
+    const crest = p.club?.imageURL || p.club?.image
+      || (p._source?.startsWith('fdo')
+          ? ''
+          : (_kaderTeamCrest || _getTeamCrest(_teamDetailId) || _favCrest())) || '';
     const clubName = p.club?.name || (_kaderStack.length ? '' : _kaderTeamName) || _ligaData?.favorite_team_name || '';
     // Verein anklickbar wenn fd.o team_id bekannt (ermöglicht Navigation zum Vereinskader)
     const clubFdoId  = p.currentTeamId || null;

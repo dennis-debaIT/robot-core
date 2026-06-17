@@ -27,12 +27,15 @@ COMPETITION_NAMES: dict[str, str] = {
 _LIVE = {"IN_PLAY", "PAUSED"}
 
 
+COMP_TEAMS_TTL = 3600  # WC/EC-Teamlisten: 1h
+
 class LigaService:
-    _state_cache:     dict[str, dict[str, Any]] = {}  # code → {data, ts}
-    _standings_cache: dict[str, dict[str, Any]] = {}
-    _teams_cache:     dict[str, dict[str, Any]] = {}
-    _focus_cache:     dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
-    _squad_cache:     dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
+    _state_cache:      dict[str, dict[str, Any]] = {}  # code → {data, ts}
+    _standings_cache:  dict[str, dict[str, Any]] = {}
+    _teams_cache:      dict[str, dict[str, Any]] = {}
+    _focus_cache:      dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
+    _squad_cache:      dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
+    _comp_teams_cache: dict[str, dict[str, Any]] = {}  # comp_code → {data:{team_id: squad}, ts}
     # Match-Detail-Cache: match_id → (timestamp, detail_dict)
     _detail_cache: dict[int, tuple[float, dict[str, Any]]] = {}
 
@@ -255,10 +258,32 @@ class LigaService:
         return result
 
     # ── Team-Kader (via /v4/teams/{id}) ──────────────────────────
+
+    def _get_comp_squad(self, comp_code: str, team_id: int, now: float) -> list[dict[str, Any]]:
+        """Sucht den Kader eines Teams in einem Wettkampf (z.B. WC, EC).
+
+        Cached die gesamte Teamliste des Wettkampfs (1h), um API-Calls zu minimieren.
+        """
+        cached = LigaService._comp_teams_cache.get(comp_code)
+        if cached and (now - cached["ts"]) < COMP_TEAMS_TTL:
+            squads_by_id: dict[int, list] = cached["data"]
+        else:
+            data = self._fetch(f"/competitions/{comp_code}/teams")
+            if not data:
+                return []
+            squads_by_id = {
+                t["id"]: t.get("squad") or []
+                for t in (data.get("teams") or [])
+                if t.get("id")
+            }
+            LigaService._comp_teams_cache[comp_code] = {"data": squads_by_id, "ts": now}
+        return squads_by_id.get(team_id) or []
+
     def get_team_squad(self, team_id: int) -> dict[str, Any] | None:
         """Kader eines Teams inkl. Trikotnummern — aus football-data.org /v4/teams/{id}.
 
-        Funktioniert für Nationalmannschaften und Vereinsmannschaften gleichermaßen.
+        Fallback auf WC/EC-Teamliste wenn der direkte Endpoint keinen Kader liefert
+        (passiert z.B. bei Kroatien, da fd.o Nationalkader nur in aktiven Turnieren populiert).
         """
         now = time.time()
         key = str(team_id)
@@ -270,6 +295,14 @@ class LigaService:
         if not data:
             return None
         squad = data.get("squad") or []
+
+        # Fallback: WC- und EC-Teamlisten durchsuchen wenn Kader leer
+        if not squad:
+            for comp_code in ("WC", "EC", "CL", "EL"):
+                squad = self._get_comp_squad(comp_code, team_id, now)
+                if squad:
+                    break
+
         result: dict[str, Any] = {
             "id":        data.get("id"),
             "name":      data.get("name"),
