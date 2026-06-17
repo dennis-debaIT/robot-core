@@ -13,6 +13,7 @@
   let _interval       = null;
   let _fullViewOpen   = false;
   let _kaderOpen      = false;   // Kader-Overlay aktiv → Poll überspringt Left+Center
+  let _kaderPlayers   = [];      // geladener + sortierter Kader für Back-Navigation
   let _selectedCode   = null;
   let _ligaData       = null;
   let _standingsCache = {};
@@ -76,33 +77,49 @@
 
   // ── Transfermarkt ──────────────────────────────────────────────
 
-  const _POS_SHORT = {
-    'Torwart': 'TW', 'Torhüter': 'TW',
-    'Innenverteidiger': 'IV', 'Linker Verteidiger': 'LV', 'Rechter Verteidiger': 'RV',
-    'Defensives Mittelfeld': 'DM', 'Zentrales Mittelfeld': 'ZM',
-    'Offensives Mittelfeld': 'OM', 'Linkes Mittelfeld': 'LM', 'Rechtes Mittelfeld': 'RM',
-    'Linksaußen': 'LA', 'Rechtsaußen': 'RA', 'Hängende Spitze': 'HS', 'Mittelstürmer': 'ST',
-  };
-
-  const _POS_GROUP = {
-    'Torwart': 0, 'Torhüter': 0,
-    'Innenverteidiger': 1, 'Linker Verteidiger': 1, 'Rechter Verteidiger': 1,
-    'Defensives Mittelfeld': 2, 'Zentrales Mittelfeld': 2,
-    'Offensives Mittelfeld': 2, 'Linkes Mittelfeld': 2, 'Rechtes Mittelfeld': 2,
-    'Linksaußen': 3, 'Rechtsaußen': 3, 'Hängende Spitze': 3, 'Mittelstürmer': 3,
+  // TM API liefert englische Positionsnamen — einheitliche Map für Short, Gruppe und deutschen Label
+  const _TM_POS = {
+    'Goalkeeper':         { short: 'TW',  group: 0, de: 'Torwart' },
+    'Sweeper':            { short: 'LIB', group: 1, de: 'Libero' },
+    'Centre-Back':        { short: 'IV',  group: 1, de: 'Innenverteidiger' },
+    'Left-Back':          { short: 'LV',  group: 1, de: 'Linker Verteidiger' },
+    'Right-Back':         { short: 'RV',  group: 1, de: 'Rechter Verteidiger' },
+    'Left Wing-Back':     { short: 'LWB', group: 1, de: 'Linker Wingback' },
+    'Right Wing-Back':    { short: 'RWB', group: 1, de: 'Rechter Wingback' },
+    'Defensive Midfield': { short: 'DM',  group: 2, de: 'Defensives Mittelfeld' },
+    'Central Midfield':   { short: 'ZM',  group: 2, de: 'Zentrales Mittelfeld' },
+    'Attacking Midfield': { short: 'OM',  group: 2, de: 'Offensives Mittelfeld' },
+    'Left Midfield':      { short: 'LM',  group: 2, de: 'Linkes Mittelfeld' },
+    'Right Midfield':     { short: 'RM',  group: 2, de: 'Rechtes Mittelfeld' },
+    'Left Winger':        { short: 'LA',  group: 3, de: 'Linksaußen' },
+    'Right Winger':       { short: 'RA',  group: 3, de: 'Rechtsaußen' },
+    'Second Striker':     { short: 'HS',  group: 3, de: 'Hängende Spitze' },
+    'Centre-Forward':     { short: 'ST',  group: 3, de: 'Mittelstürmer' },
   };
   const _POS_GROUP_LABEL = ['Tor', 'Abwehr', 'Mittelfeld', 'Sturm'];
 
-  function _posShort(pos) {
-    if (!pos) return '–';
-    const main = (typeof pos === 'object' ? pos.main : pos) || '';
-    return _POS_SHORT[main] || main.slice(0, 3) || '–';
+  function _posEntry(pos) {
+    const key = (typeof pos === 'object' ? (pos.main || '') : (pos || ''));
+    return _TM_POS[key] || null;
+  }
+  function _posShort(pos)  { const e = _posEntry(pos); return e ? e.short : (pos ? String(typeof pos === 'object' ? pos.main || '' : pos).slice(0, 3) : '–') || '–'; }
+  function _posGroup(pos)  { const e = _posEntry(pos); return e ? e.group : 99; }
+  function _posLabel(pos)  { const e = _posEntry(pos); return e ? e.de   : (pos ? String(typeof pos === 'object' ? pos.main || '' : pos) : '–') || '–'; }
+
+  function _fmtDateISO(s) {
+    if (!s) return '–';
+    const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}.${m[2]}.${m[1]}` : String(s);
   }
 
-  function _posGroup(pos) {
-    if (!pos) return 99;
-    const key = (typeof pos === 'object' ? pos.main : pos) || '';
-    return _POS_GROUP[key] ?? 2;
+  function _fmtHeight(h) {
+    if (!h) return '–';
+    if (typeof h === 'number') {
+      const wh = Math.floor(h / 100);
+      const cm = h % 100;
+      return `${wh},${String(cm).padStart(2, '0')} m`;
+    }
+    return String(h);
   }
 
   function _contractYear(contract) {
@@ -154,7 +171,7 @@
     const p = _tmProfile;
     const mv    = _fmtMv(p.currentMarketValue);
     const stad  = [p.stadiumName, p.stadiumSeats ? `${Number(p.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
-    const found = p.foundedOn ? `📅 ${p.foundedOn}` : '';
+    const found = p.foundedOn ? `📅 ${_fmtDateISO(p.foundedOn)}` : '';
     const web   = p.website   ? `🌐 ${_esc(p.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
     const tel   = p.tel       ? `📞 ${_esc(p.tel)}` : '';
     const rows  = [stad ? `🏟 ${_esc(stad)}` : '', found, web, tel].filter(Boolean);
@@ -166,30 +183,14 @@
       <button class="liga-kader-btn" onclick="window._liga._showKader()">👥 Kader anzeigen</button>`;
   }
 
-  async function _showKader() {
+  function _renderKaderContent() {
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
-    const favName = _ligaData?.favorite_team_name;
-    if (!favName) return;
-    _kaderOpen = true;
-    overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
-    overlay.classList.add('active');
-    let players = [];
-    try {
-      const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(favName)}`, { cache: 'no-store' });
-      if (r.ok) players = (await r.json()).players || [];
-    } catch {}
-
-    // Primär: Positionsgruppe (Tor→Abwehr→Mittelfeld→Sturm), sekundär: Marktwert
-    players.sort((a, b) => {
-      const ga = _posGroup(a.position), gb = _posGroup(b.position);
-      if (ga !== gb) return ga - gb;
-      return _mvParse(b.marketValue) - _mvParse(a.marketValue);
-    });
-
+    const favName = _ligaData?.favorite_team_name || '';
+    const players = _kaderPlayers;
     let rows = '';
     let lastGroup = -1;
-    for (const p of players) {
+    players.forEach((p, idx) => {
       const grp = _posGroup(p.position);
       if (grp !== lastGroup) {
         lastGroup = grp;
@@ -204,7 +205,7 @@
       const img = p.image
         ? `<img src="${_esc(p.image)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
         : '<span class="liga-kader-img-ph"></span>';
-      rows += `<div class="liga-kader-row">
+      rows += `<div class="liga-kader-row" onclick="window._liga._showPlayerProfile(${idx})">
         <span class="liga-kader-pos">${_esc(pos)}</span>
         <span class="liga-kader-num">${num}</span>
         <span class="liga-kader-namecell">${img}<span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
@@ -213,8 +214,8 @@
         <span style="color:var(--muted);">${_esc(bis)}</span>
         <span class="liga-kader-mv">${_esc(mv)}</span>
       </div>`;
-    }
-
+    });
+    overlay.classList.add('active');
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -230,6 +231,94 @@
         </div>
         <div class="liga-kader-grid">${rows}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
       </div>`;
+  }
+
+  async function _showKader() {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    const favName = _ligaData?.favorite_team_name;
+    if (!favName) return;
+    _kaderOpen = true;
+    overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
+    overlay.classList.add('active');
+    let players = [];
+    try {
+      const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(favName)}`, { cache: 'no-store' });
+      if (r.ok) players = (await r.json()).players || [];
+    } catch {}
+    players.sort((a, b) => {
+      const ga = _posGroup(a.position), gb = _posGroup(b.position);
+      if (ga !== gb) return ga - gb;
+      return _mvParse(b.marketValue) - _mvParse(a.marketValue);
+    });
+    _kaderPlayers = players;
+    _renderKaderContent();
+  }
+
+  function _showPlayerProfile(idx) {
+    const p = _kaderPlayers[idx];
+    if (!p) return;
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+
+    const portrait = p.image
+      ? `<img src="${_esc(p.image)}" class="liga-player-portrait" onerror="this.style.display='none'" loading="lazy">`
+      : '<div class="liga-player-portrait liga-player-portrait-ph"></div>';
+    const shirt = p.shirtNumber != null ? `#${p.shirtNumber}` : '';
+
+    const clubImg  = p.club?.imageURL || p.club?.image || '';
+    const clubName = p.club?.name || '';
+    const clubHtml = clubName ? `<div class="liga-player-club">
+      ${clubImg ? `<img src="${_esc(clubImg)}" onerror="this.style.display='none'">` : ''}
+      <span>${_esc(clubName)}</span></div>` : '';
+
+    const nats   = Array.isArray(p.nationality) ? p.nationality.join(', ') : (p.nationality || '');
+    const pob    = p.placeOfBirth;
+    const pobStr = pob ? [pob.city, pob.country].filter(Boolean).join(', ') : '';
+    const dob    = _fmtDateISO(p.dateOfBirth);
+    const dobStr = (dob !== '–' && p.age) ? `${dob} · ${p.age} J.` : (dob !== '–' ? dob : (p.age ? `${p.age} J.` : ''));
+    const ht     = _fmtHeight(p.height);
+    const wt     = p.weight ? `${p.weight} kg` : '';
+    const joined = _fmtDateISO(p.joinedOn);
+    const upd    = _fmtDateISO(p.lastUpdate);
+    const mv     = _fmtMv(p.marketValue);
+
+    const detailRows = [
+      ['Nationalität',    nats],
+      ['Marktwert',       mv !== '–' ? `<span style="color:var(--success);font-weight:700;">${_esc(mv)}</span>` : ''],
+      ['Geboren',         dobStr],
+      ['Geburtsort',      pobStr],
+      ['Größe',           ht !== '–' ? ht : ''],
+      ['Gewicht',         wt],
+      ['Im Verein seit',  joined !== '–' ? joined : ''],
+      ['Datenstand',      upd !== '–' ? upd : ''],
+    ].filter(([, v]) => v)
+     .map(([l, v]) => `<span class="liga-player-detail-label">${l}</span><span class="liga-player-detail-value">${v.includes('<') ? v : _esc(v)}</span>`)
+     .join('');
+
+    overlay.innerHTML = `
+      <div class="liga-kader-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <button class="liga-kader-back" onclick="window._liga._backToKaderList()">← Kader</button>
+          <button class="liga-kader-back" onclick="window._liga._backToMatchday()">← Spieltag</button>
+        </div>
+        <div class="liga-player-card">
+          <div class="liga-player-portrait-wrap">
+            ${portrait}
+            ${shirt ? `<div class="liga-player-shirt">${_esc(shirt)}</div>` : ''}
+          </div>
+          <div class="liga-player-info">
+            <div class="liga-player-name">${_esc(p.name || '–')}</div>
+            <div class="liga-player-pos-badge">${_esc(_posLabel(p.position))}</div>
+            ${clubHtml}
+            <div class="liga-player-detail-grid">${detailRows}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function _backToKaderList() {
+    _renderKaderContent();
   }
 
   // ── Event-Ticker ───────────────────────────────────────────────
@@ -603,5 +692,5 @@
     }
   });
 
-  window._liga = { start, stop, openFullView, closeFullView, _selectLeague, _showKader, _backToMatchday };
+  window._liga = { start, stop, openFullView, closeFullView, _selectLeague, _showKader, _backToMatchday, _showPlayerProfile, _backToKaderList };
 })();

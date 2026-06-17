@@ -1946,3 +1946,17 @@
 .liga-kader-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .liga-kader-pos { color: var(--accent); font-size: 0.7rem; font-weight: 700; }
 .liga-kader-mv { color: var(--success); font-weight: 700; text-align: right; font-size: 0.74rem; }
+.liga-kader-row { cursor: pointer; }
+.liga-player-card { display: flex; gap: 20px; align-items: flex-start; }
+.liga-player-portrait-wrap { position: relative; flex-shrink: 0; }
+.liga-player-portrait { width: 115px; border-radius: 10px; object-fit: cover; border: 2px solid var(--border); display: block; }
+.liga-player-portrait-ph { width: 115px; height: 145px; background: rgba(255,255,255,0.06); border-radius: 10px; }
+.liga-player-shirt { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--bg); font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 12px; white-space: nowrap; }
+.liga-player-info { flex: 1; min-width: 0; padding-top: 2px; }
+.liga-player-name { font-size: 1.1rem; font-weight: 800; }
+.liga-player-pos-badge { font-size: 0.7rem; color: var(--accent); font-weight: 700; margin: 3px 0 8px; letter-spacing: 0.04em; }
+.liga-player-club { display: flex; align-items: center; gap: 7px; font-size: 0.78rem; color: var(--muted); margin-bottom: 12px; }
+.liga-player-club img { width: 20px; height: 20px; object-fit: contain; flex-shrink: 0; }
+.liga-player-detail-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; font-size: 0.76rem; }
+.liga-player-detail-label { color: var(--muted); white-space: nowrap; }
+.liga-player-detail-value { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }

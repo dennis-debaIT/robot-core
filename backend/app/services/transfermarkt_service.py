@@ -34,7 +34,7 @@ def _store(key: str, data: Any) -> None:
 
 
 def _fetch_player_enriched(player_id: str) -> tuple[str, dict]:
-    """Profilbild und Rückennummer eines Spielers per /players/{id}/profile."""
+    """Profilbild, Rückennummer und Profildetails eines Spielers per /players/{id}/profile."""
     data = _get(f"/players/{player_id}/profile")
     if not data:
         return player_id, {}
@@ -45,6 +45,11 @@ def _fetch_player_enriched(player_id: str) -> tuple[str, dict]:
     shirt = data.get("shirtNumber") if data.get("shirtNumber") is not None else data.get("jerseyNumber")
     if shirt is not None:
         result["shirtNumber"] = shirt
+    for field in ("dateOfBirth", "placeOfBirth", "height", "weight",
+                  "joinedOn", "contractUntil", "lastUpdate", "club"):
+        val = data.get(field)
+        if val is not None:
+            result[field] = val
     return player_id, result
 
 
