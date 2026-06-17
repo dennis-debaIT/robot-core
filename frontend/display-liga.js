@@ -214,15 +214,10 @@
       const bis = _contractYear(p.contract);
       const age = p.age ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
-      const rawImg = p.image || p.imageURL || '';
-      const imgSrc = rawImg ? `/liga/tm/img?url=${encodeURIComponent(rawImg)}` : '';
-      const img = imgSrc
-        ? `<img src="${_esc(imgSrc)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
-        : '<span class="liga-kader-img-ph"></span>';
       rows += `<div class="liga-kader-row" onclick="window._liga._showPlayerProfile(${idx})">
         <span class="liga-kader-pos">${_esc(pos)}</span>
         <span class="liga-kader-num">${num}</span>
-        <span class="liga-kader-namecell">${img}<span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
+        <span class="liga-kader-namecell"><span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
         <span style="color:var(--muted);">${age}</span>
         <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(nat)}</span>
         <span style="color:var(--muted);">${_esc(bis)}</span>
@@ -302,7 +297,7 @@
 
     // Initialen als Fallback wenn kein Bild geladen werden kann
     const initials = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
-    const rawPortrait = p.image || p.imageURL || '';
+    const rawPortrait = p.imageURL || p.image || '';
     const portraitSrc = rawPortrait ? `/liga/tm/img?url=${encodeURIComponent(rawPortrait)}` : '';
     const portrait = portraitSrc
       ? `<img src="${_esc(portraitSrc)}" class="liga-player-portrait"
