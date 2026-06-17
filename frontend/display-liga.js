@@ -202,8 +202,9 @@
       const bis = _contractYear(p.contract);
       const age = p.age ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
-      const img = p.image
-        ? `<img src="${_esc(p.image)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
+      const imgSrc = p.image ? `/liga/tm/img?url=${encodeURIComponent(p.image)}` : '';
+      const img = imgSrc
+        ? `<img src="${_esc(imgSrc)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
         : '<span class="liga-kader-img-ph"></span>';
       rows += `<div class="liga-kader-row" onclick="window._liga._showPlayerProfile(${idx})">
         <span class="liga-kader-pos">${_esc(pos)}</span>
@@ -273,8 +274,9 @@
 
     // Initialen als Fallback wenn kein Bild geladen werden kann
     const initials = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
-    const portrait = p.image
-      ? `<img src="${_esc(p.image)}" class="liga-player-portrait"
+    const portraitSrc = p.image ? `/liga/tm/img?url=${encodeURIComponent(p.image)}` : '';
+    const portrait = portraitSrc
+      ? `<img src="${_esc(portraitSrc)}" class="liga-player-portrait"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy">
          <div class="liga-player-portrait liga-player-portrait-ph" style="display:none">${_esc(initials)}</div>`
       : `<div class="liga-player-portrait liga-player-portrait-ph">${_esc(initials)}</div>`;

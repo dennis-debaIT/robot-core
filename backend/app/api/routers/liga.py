@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import time
+import urllib.parse
+import urllib.request
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi.responses import Response
 
 from app.services.integration_config_service import IntegrationConfigService
 from app.services.liga_service import LigaService
@@ -10,6 +14,10 @@ from app.services.liga_service import LigaService
 router = APIRouter()
 
 _ALLOWED_CODES = {"BL1", "BL2", "BL3"}
+
+# ── TM-Bild-Proxy ─────────────────────────────────────────────────────────────
+_img_cache: dict[str, dict] = {}
+_IMG_TTL = 86_400  # 24 h
 
 
 def _get_cfg() -> dict[str, Any]:
@@ -81,6 +89,34 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
     if players is None:
         raise HTTPException(404, "Verein nicht auf Transfermarkt gefunden")
     return {"players": players}
+
+
+@router.get("/liga/tm/img")
+def proxy_tm_image(url: str = Query(...)) -> Response:
+    """Proxied TM-Bild — setzt richtigen Referer/User-Agent, umgeht Browser-Hotlink-Sperren."""
+    parsed = urllib.parse.urlparse(url)
+    if not (parsed.scheme == "https" and parsed.hostname and
+            (parsed.hostname == "img.transfermarkt.com" or
+             parsed.hostname.endswith(".transfermarkt.com"))):
+        raise HTTPException(403, "Nur Transfermarkt-Bilder erlaubt")
+    cached = _img_cache.get(url)
+    if cached and time.time() - cached["ts"] < _IMG_TTL:
+        return Response(content=cached["data"], media_type=cached["ct"],
+                        headers={"Cache-Control": "public, max-age=86400"})
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://www.transfermarkt.de/",
+            "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+        })
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = resp.read()
+            ct = resp.headers.get("Content-Type", "image/jpeg")
+        _img_cache[url] = {"data": data, "ct": ct, "ts": time.time()}
+        return Response(content=data, media_type=ct,
+                        headers={"Cache-Control": "public, max-age=86400"})
+    except Exception:
+        raise HTTPException(502, "Bild konnte nicht geladen werden")
 
 
 @router.patch("/liga/config")
