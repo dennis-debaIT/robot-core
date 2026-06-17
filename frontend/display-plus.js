@@ -191,7 +191,7 @@
     const lineGridH   = flowLine(nGrid, nHouse, gColor, Math.max(0, -gridW), true);
 
     return `<div style="display:flex;justify-content:center;padding:8px 0 0;">
-      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:560px;display:block;">
+      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:480px;display:block;">
         <defs><style>
           @keyframes pv-flow-fwd { from{stroke-dashoffset:36;} to{stroke-dashoffset:0;} }
           @keyframes pv-flow-rev { from{stroke-dashoffset:0;} to{stroke-dashoffset:36;} }
@@ -390,13 +390,15 @@
   }
 
   function openPvStats() {
-    // Overlay über alle drei Spalten (fixed, zwischen Status- und Nav-Bar)
+    const cp = document.getElementById('center-panel');
+    if (!cp) return;
     let box = document.getElementById('pv-stats-box');
     if (!box) {
       box = document.createElement('div');
       box.id = 'pv-stats-box';
-      box.style.cssText = 'position:fixed;left:50%;top:52px;bottom:64px;width:780px;transform:translateX(-50%);z-index:200;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;border-left:1px solid var(--border);border-right:1px solid var(--border);';
-      document.body.appendChild(box);
+      box.style.cssText = 'position:absolute;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
+      cp.style.position = 'relative';
+      cp.appendChild(box);
     }
     box.style.display = 'flex';
     box.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
