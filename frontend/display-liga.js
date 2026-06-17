@@ -26,7 +26,8 @@
   let _kaderTeamId     = null;   // football-data.org team_id für squad-Endpoint (Turnierteams)
   let _kaderTeamCrest  = null;   // Wappen des aktuellen Kader-Teams (fdo-Quelle)
   let _kaderFdoNames   = [];    // Alternative Teamnamen aus fd.o für TM-Fallback-Suche
-  let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' — wohin zurück aus Kader
+  let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' | 'kader-back' — wohin zurück aus Kader
+  let _kaderStack      = [];         // Stapel vorheriger Kader-Zustände für Club-Navigation
 
   const POLL_MS = 10_000;
 
@@ -217,7 +218,7 @@
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     const displayName = _kaderTeamName || _ligaData?.favorite_team_name || '';
-    const backLabel   = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
+    const backLabel   = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : _kaderBackAction === 'kader-back' ? '← Kader' : '← Spieltag';
     const players = _kaderPlayers;
 
     // Gesamtmarktwert aus geladenen Spielern
@@ -470,11 +471,20 @@
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
     const shirt    = shirtRaw ? `#${shirtRaw}` : '';
 
-    const crest    = _kaderTeamCrest || _getTeamCrest(_teamDetailId) || (!p._source?.startsWith('fdo') ? _favCrest() : '') || p.club?.imageURL || p.club?.image || '';
-    const clubName = p.club?.name || _kaderTeamName || _ligaData?.favorite_team_name || '';
-    const clubHtml = clubName ? `<div class="liga-player-club">
+    // Vereinslogo: zuerst das echte Vereinswappen (aus fd.o Personenprofil oder TM),
+    // dann Fallback auf Kader-Teamwappen (korrekt für Bundesliga, falsch für Nationalteams)
+    const crest    = p.club?.imageURL || p.club?.image
+      || _kaderTeamCrest || _getTeamCrest(_teamDetailId)
+      || (!p._source?.startsWith('fdo') ? _favCrest() : '') || '';
+    const clubName = p.club?.name || (_kaderStack.length ? '' : _kaderTeamName) || _ligaData?.favorite_team_name || '';
+    // Verein anklickbar wenn fd.o team_id bekannt (ermöglicht Navigation zum Vereinskader)
+    const clubFdoId  = p.currentTeamId || null;
+    const clubOnClick = clubFdoId
+      ? `onclick="window._liga._showClubKader(${JSON.stringify(clubName)},${clubFdoId})" style="cursor:pointer;" title="Zum Vereinskader"`
+      : '';
+    const clubHtml = clubName ? `<div class="liga-player-club" ${clubOnClick}>
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
-      <span>${_esc(clubName)}</span></div>` : '';
+      <span style="${clubFdoId ? 'text-decoration:underline;opacity:0.85;' : ''}">${_esc(clubName)}</span></div>` : '';
 
     const nats   = Array.isArray(p.nationality) ? p.nationality.join(', ') : (p.nationality || '');
     const pob    = p.placeOfBirth;
@@ -634,6 +644,7 @@
             shirtNumber:   person.shirtNumber  ?? p.shirtNumber,
             lastUpdate:    person.lastUpdated  || p.lastUpdate,
             contractUntil: ct?.contractUntil   || p.contractUntil || null,
+            currentTeamId: ct?.id              || p.currentTeamId || null,
             club: ct ? { name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
           });
           _rerender();
@@ -768,8 +779,34 @@
 
   // ── Kader-Rücknavigation ───────────────────────────────────────
 
+  // Öffnet den Stammverein eines Spielers als neuen Kader (mit Rücknavigation)
+  function _showClubKader(clubName, fdoTeamId) {
+    _kaderStack.push({
+      players:    _kaderPlayers,
+      teamName:   _kaderTeamName,
+      teamId:     _kaderTeamId,
+      backAction: _kaderBackAction,
+      teamCrest:  _kaderTeamCrest,
+      fdoNames:   _kaderFdoNames,
+    });
+    _showKader(clubName, 'kader-back', fdoTeamId || null);
+  }
+
   function _backFromKader() {
-    _kaderOpen = false;
+    // Vorherigen Kader aus dem Stapel wiederherstellen (bei Club-Navigation)
+    if (_kaderBackAction === 'kader-back' && _kaderStack.length) {
+      const prev = _kaderStack.pop();
+      _kaderPlayers    = prev.players;
+      _kaderTeamName   = prev.teamName;
+      _kaderTeamId     = prev.teamId;
+      _kaderBackAction = prev.backAction;
+      _kaderTeamCrest  = prev.teamCrest;
+      _kaderFdoNames   = prev.fdoNames;
+      _renderKaderContent();
+      return;
+    }
+    _kaderOpen  = false;
+    _kaderStack = [];
     if (_kaderBackAction === 'team' && _teamViewOpen && _teamDetailId) {
       const crest = _getTeamCrest(_teamDetailId);
       _showTeamDetail(_teamDetailId, _teamDetailName, crest);
@@ -1137,6 +1174,7 @@
   function closeFullView() {
     _fullViewOpen    = false;
     _kaderOpen       = false;
+    _kaderStack      = [];
     _teamViewOpen    = false;
     _teamDetailId    = null;
     _teamDetailName  = null;
@@ -1179,7 +1217,7 @@
   window._liga = {
     start, stop, openFullView, closeFullView,
     _selectLeague,
-    _showKader,
+    _showKader, _showClubKader,
     _backFromKader,
     _backToMatchday: _backFromKader, // Alias für alte onclick-Referenzen
     _showPlayerProfile, _backToKaderList,
