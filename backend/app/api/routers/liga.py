@@ -90,20 +90,16 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
     return {"players": players or []}
 
 
-@router.get("/liga/tm/player-by-name")
-def get_tm_player_by_name(name: str = Query(""), nationality: str = Query("")) -> dict[str, Any]:
-    """TM-Profil per Spielername (Fallback für Turnier-/Nationalspieler ohne TM-ID)."""
-    from app.services.transfermarkt_service import TransfermarktService
-    if not name.strip():
-        raise HTTPException(400, "name fehlt")
-    svc = TransfermarktService()
-    tm_id = svc.search_player_id(name.strip(), nationality.strip() or None)
-    if not tm_id:
-        raise HTTPException(404, "Spieler nicht gefunden")
-    profile = svc.get_player_profile(tm_id)
-    if not profile:
+@router.get("/liga/person/{person_id}")
+def get_person_profile(person_id: int) -> dict[str, Any]:
+    """Erweitertes Spielerprofil via football-data.org /v4/persons/{id} — aktueller Verein + Vertrag."""
+    cfg = _get_cfg()
+    if not cfg.get("api_key"):
+        raise HTTPException(400, "Liga nicht konfiguriert")
+    data = LigaService(cfg["api_key"]).get_person_profile(person_id)
+    if not data:
         raise HTTPException(404, "Spielerprofil nicht verfügbar")
-    return profile
+    return data
 
 
 @router.get("/liga/tm/player/{player_id}")

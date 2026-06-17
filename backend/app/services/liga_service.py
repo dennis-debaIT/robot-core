@@ -292,6 +292,42 @@ class LigaService:
             LigaService._squad_cache[key] = {"data": result, "ts": now}
         return result
 
+    # ── Spielerprofil (via /v4/persons/{id}) ─────────────────────
+    def get_person_profile(self, person_id: int) -> dict[str, Any] | None:
+        """Erweitertes Spielerprofil inkl. aktuellem Verein + Vertrag."""
+        now = time.time()
+        key = f"person:{person_id}"
+        cached = LigaService._squad_cache.get(key)
+        if cached and (now - cached["ts"]) < SQUAD_TTL:
+            return cached["data"]
+
+        data = self._fetch(f"/persons/{person_id}")
+        if not data:
+            return None
+
+        ct = data.get("currentTeam") or {}
+        result: dict[str, Any] = {
+            "id":           data.get("id"),
+            "name":         data.get("name"),
+            "firstName":    data.get("firstName"),
+            "lastName":     data.get("lastName"),
+            "dateOfBirth":  data.get("dateOfBirth"),
+            "nationality":  data.get("nationality"),
+            "position":     data.get("position"),
+            "shirtNumber":  data.get("shirtNumber"),
+            "lastUpdated":  data.get("lastUpdated"),
+            "currentTeam": {
+                "id":          ct.get("id"),
+                "name":        ct.get("name"),
+                "shortName":   ct.get("shortName"),
+                "tla":         ct.get("tla"),
+                "crest":       ct.get("crest"),
+                "contractUntil": (ct.get("contract") or {}).get("until"),
+            } if ct else None,
+        }
+        LigaService._squad_cache[key] = {"data": result, "ts": now}
+        return result
+
     # ── Cache invalidieren ────────────────────────────────────────
     @classmethod
     def invalidate_cache(cls) -> None:

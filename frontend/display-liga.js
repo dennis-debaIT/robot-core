@@ -469,15 +469,23 @@
           }
         }
       } catch {}
-    } else if (p._source === 'fdo' && !p._tmProfileLoaded && p.name) {
-      // Turnier-/Nationalspieler: TM-Profil per Namenssuche nachladen
+    } else if (p._source === 'fdo' && !p._tmProfileLoaded && p.id) {
+      // Turnier-/Nationalspieler: erweitertes Profil via football-data.org /v4/persons/{id}
       p._tmProfileLoaded = true; // nicht nochmal versuchen
       try {
-        const nat = Array.isArray(p.nationality) ? (p.nationality[0] || '') : (p.nationality || '');
-        const url = `/liga/tm/player-by-name?name=${encodeURIComponent(p.name)}${nat ? `&nationality=${encodeURIComponent(nat)}` : ''}`;
-        const r = await fetch(url, { cache: 'no-store' });
+        const r = await fetch(`/liga/person/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
         if (r.ok) {
-          _mergePlayerProfile(p, await r.json());
+          const person = await r.json();
+          const ct = person.currentTeam;
+          Object.assign(p, {
+            dateOfBirth:   person.dateOfBirth  || p.dateOfBirth,
+            nationality:   person.nationality  || p.nationality,
+            position:      person.position     || p.position,
+            shirtNumber:   person.shirtNumber  ?? p.shirtNumber,
+            lastUpdate:    person.lastUpdated  || p.lastUpdate,
+            contractUntil: ct?.contractUntil   || null,
+            club: ct ? { name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
+          });
           if (_kaderPlayers[idx] === p && document.querySelector('.liga-player-card')) {
             _drawPlayerCard(p, overlay);
           }
