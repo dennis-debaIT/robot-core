@@ -184,22 +184,21 @@ def enrich_goals(
     if not oldb_match:
         return
 
-    # Score aus letztem Toreintrag ableiten (oder 0:0 wenn noch keine Tore)
     raw_goals: list[dict] = oldb_match.get("goals") or []
-    if raw_goals:
+
+    # Score nur aus OpenLigaDB setzen wenn football-data.org null liefert
+    ft = (match.get("score") or {}).get("fullTime") or {}
+    fdorg_home = ft.get("home") if ft.get("home") is not None else ft.get("homeTeam")
+    if fdorg_home is None and raw_goals:
         last = sorted(raw_goals, key=lambda x: x.get("matchMinute") or 0)[-1]
         s1 = last.get("scoreTeam1", 0) or 0
         s2 = last.get("scoreTeam2", 0) or 0
-    else:
-        s1, s2 = 0, 0
-
-    home_score = s1 if home_is_team1 else s2
-    away_score = s2 if home_is_team1 else s1
-
-    score = match.setdefault("score", {})
-    full_time = score.setdefault("fullTime", {})
-    full_time["home"] = home_score
-    full_time["away"] = away_score
+        home_score = s1 if home_is_team1 else s2
+        away_score = s2 if home_is_team1 else s1
+        score = match.setdefault("score", {})
+        full_time = score.setdefault("fullTime", {})
+        full_time["home"] = home_score
+        full_time["away"] = away_score
 
     # Goals nur setzen wenn football-data.org nichts geliefert hat
     if not match.get("goals") and raw_goals:
