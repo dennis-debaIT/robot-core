@@ -147,8 +147,9 @@
 
     /* â”€â”€ NEWS MODE (Kopf klein + Nachrichten) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .center-panel.news-mode {
-      justify-content: flex-start;
+      justify-content: space-between;
       padding-top: 18px;
+      padding-bottom: 12px;
       gap: 10px;
       overflow: visible;
     }
@@ -188,7 +189,8 @@
     }
     #news-center.collapsed {
       flex: 0 0 auto;
-      max-height: 245px;
+      max-height: 340px;
+      overflow: hidden;
     }
     .news-section-label {
       font-size: 0.62rem;
@@ -287,6 +289,7 @@
       border-color: var(--accent);
       background: rgba(0,200,255,0.12);
     }
+    #news-more-wrap { flex-shrink: 0; }
 
     /* â”€â”€ WEATHER WIDGET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .weather-main {

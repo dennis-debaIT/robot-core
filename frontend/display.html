@@ -2051,6 +2051,7 @@
     (document.getElementById('nf-' + source) || document.getElementById('nf-all')).classList.add('active');
     const el = document.getElementById('news-list');
     if (el && _lastNewsData) el.innerHTML = _renderNewsList(_lastNewsData);
+    _updateNewsMoreWrap();
   }
 
   function toggleNewsCollapsed() {
@@ -2058,6 +2059,7 @@
     _applyNewsLayoutState();
     const el = document.getElementById('news-list');
     if (el && _lastNewsData) el.innerHTML = _renderNewsList(_lastNewsData);
+    _updateNewsMoreWrap();
   }
 
   function _applyNewsLayoutState() {
@@ -2078,8 +2080,7 @@
     if (!items.length) return '<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">Keine Nachrichten</div>';
     const settings = _newsDisplaySettings(data);
     const visibleItems = _newsCollapsed ? items.slice(0, settings.collapsedCount) : items;
-    const hiddenCount = Math.max(0, items.length - visibleItems.length);
-    const rows = visibleItems.map(item => {
+    return visibleItems.map(item => {
       const logo = item.icon_url;
       const logoHtml = logo
         ? `<img src="${logo}" class="news-source-logo" alt="${item.source}" onerror="this.style.opacity='0'">`
@@ -2090,9 +2091,23 @@
         <div class="news-time">${item.pub_date ? _relTime(item.pub_date) : ''}</div>
       </div>`;
     }).join('');
-    return rows + (_newsCollapsed && hiddenCount
+  }
+
+  function _renderNewsMoreBtn(data) {
+    if (!_newsCollapsed || !data) return '';
+    const items = _newsFilter === 'all'
+      ? (data.items || [])
+      : (data.items || []).filter(i => i.source_key === _newsFilter);
+    const settings = _newsDisplaySettings(data);
+    const hiddenCount = Math.max(0, items.length - settings.collapsedCount);
+    return hiddenCount
       ? `<button class="news-more-row" onclick="toggleNewsCollapsed()">+${hiddenCount} weitere News anzeigen</button>`
-      : '');
+      : '';
+  }
+
+  function _updateNewsMoreWrap() {
+    const wrap = document.getElementById('news-more-wrap');
+    if (wrap) wrap.innerHTML = _renderNewsMoreBtn(_lastNewsData);
   }
 
   function renderNewsItems(data) {
@@ -2125,7 +2140,8 @@
       <div class="news-filter-bar">
         ${_renderNewsFilters(data)}
       </div>
-      <div id="news-list">${renderNewsItems(data)}</div>`;
+      <div id="news-list">${renderNewsItems(data)}</div>
+      <div id="news-more-wrap">${_renderNewsMoreBtn(data)}</div>`;
     _applyNewsLayoutState();
     clearInterval(_newsInterval);
     _newsInterval = setInterval(async () => {
@@ -2135,6 +2151,7 @@
       if (el) {
         el.innerHTML = renderNewsItems(d);
         _applyNewsLayoutState();
+        _updateNewsMoreWrap();
       }
     }, 60 * 1000);
   }
