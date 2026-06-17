@@ -209,3 +209,42 @@ class ChoreService:
             "persons": persons,
             "leader": persons[0] if persons else None,
         }
+
+    def person_completions(self, person_id: int, period: str = "week") -> dict[str, Any]:
+        tz = self._local_tz()
+        now_local = datetime.now(tz)
+        start_utc = self._period_start_utc(period, now_local)
+        with get_connection() as conn:
+            person_row = conn.execute(
+                "SELECT name FROM persons WHERE id = ?", (person_id,)
+            ).fetchone()
+            if not person_row:
+                return {"person_id": person_id, "person_name": "", "period": period, "completions": []}
+            rows = conn.execute(
+                """
+                SELECT c.id, t.id AS task_id, t.name AS task_name, c.completed_at
+                FROM chore_completions c
+                JOIN chore_tasks t ON t.id = c.task_id
+                WHERE c.person_id = ? AND c.completed_at >= ?
+                ORDER BY c.completed_at DESC, c.id DESC LIMIT 100
+                """,
+                (person_id, start_utc.isoformat()),
+            ).fetchall()
+        completions = []
+        for r in rows:
+            completed_at = datetime.fromisoformat(r["completed_at"])
+            if completed_at.tzinfo is None:
+                completed_at = completed_at.replace(tzinfo=timezone.utc)
+            local_dt = completed_at.astimezone(tz)
+            completions.append({
+                "id": r["id"],
+                "task_id": r["task_id"],
+                "task_name": r["task_name"],
+                "completed_at_local": local_dt.strftime("%d.%m. %H:%M"),
+            })
+        return {
+            "person_id": person_id,
+            "person_name": person_row["name"],
+            "period": period,
+            "completions": completions,
+        }

@@ -295,7 +295,7 @@
       rankHtml = sorted.map((p, i) => {
         const medal = medals[i] || `${i + 1}.`;
         const isLeader = overall?.leader?.person_id === p.person_id;
-        return `<div class="chore-rank-row${isLeader ? ' chore-rank-leader' : ''}">
+        return `<div class="chore-rank-row${isLeader ? ' chore-rank-leader' : ''}" style="cursor:pointer;" onclick="window._choresPlus.showPersonDetail(${p.person_id})">
           <span class="chore-rank-pos">${medal}</span>
           <span class="chore-color-dot" style="background:${_personColor(p.person_id)}"></span>
           <span class="chore-rank-name">${escapeHTML(p.name)}</span>
@@ -307,6 +307,42 @@
     overlay.innerHTML = `
       <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;margin-bottom:14px;">📊 Wochenübersicht</div>
       <div class="chore-rank-list">${rankHtml}</div>`;
+  }
+
+  async function showPersonDetail(personId) {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
+    overlay.classList.add('active');
+    try {
+      const r = await fetch(`/chores/persons/${personId}/completions?period=week`, { cache: 'no-store' });
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      const completions = d.completions || [];
+      let rowsHtml;
+      if (!completions.length) {
+        rowsHtml = '<div class="cal-placeholder">Keine Erledigungen diese Woche.</div>';
+      } else {
+        rowsHtml = `<div class="chore-recent-list">${completions.map(c => `
+          <div class="chore-recent-row">
+            <span style="flex:1;min-width:0;font-weight:600;">${escapeHTML(c.task_name)}</span>
+            <span style="color:var(--muted);font-size:0.78rem;flex-shrink:0;">${escapeHTML(c.completed_at_local)}</span>
+          </div>`).join('')}</div>`;
+      }
+      overlay.innerHTML = `
+        <div class="vehicle-detail-wrap">
+          <div class="vehicle-detail-header">
+            <div>
+              <div class="vehicle-detail-kicker">Hausaufgaben · Diese Woche</div>
+              <div class="vehicle-detail-title">${escapeHTML(d.person_name)}</div>
+            </div>
+            <button class="chore-back-btn" onclick="window._choresPlus.showOverall()">← Übersicht</button>
+          </div>
+          ${rowsHtml}
+        </div>`;
+    } catch {
+      overlay.innerHTML = '<div class="cal-placeholder">Fehler beim Laden.</div>';
+    }
   }
 
   async function showStatsTab(period) {
@@ -360,5 +396,5 @@
     if (lf) lf.innerHTML = '';
   }
 
-  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion, showOverall };
+  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion, showOverall, showPersonDetail };
 })();

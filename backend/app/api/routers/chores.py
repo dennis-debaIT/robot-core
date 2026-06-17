@@ -103,3 +103,10 @@ def get_chore_task_stats(task_id: int, period: str = "week") -> dict[str, Any]:
 @router.get("/chores/overall-stats")
 def get_chore_overall_stats() -> dict[str, Any]:
     return ChoreService().overall_weekly_stats()
+
+
+@router.get("/chores/persons/{person_id}/completions")
+def get_person_completions(person_id: int, period: str = "week") -> dict[str, Any]:
+    if period not in ("week", "month", "year"):
+        period = "week"
+    return ChoreService().person_completions(person_id, period=period)
