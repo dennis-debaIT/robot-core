@@ -332,13 +332,14 @@
     const contractOptDe   = _contractOptionDe(p.contractOption || rawContract?.option || '');
     const signedFrom      = p.signedFrom || '';
 
+    const footDe = p.foot === 'left' ? 'Links' : p.foot === 'right' ? 'Rechts' : p.foot === 'both' ? 'Beidfüßig' : '';
     const detailRows = [
       ['Nationalität',    nats],
       ['Marktwert',       mv !== '–' ? `<span style="color:var(--success);font-weight:700;">${_esc(mv)}</span>` : ''],
       ['Geboren',         dobStr],
       ['Geburtsort',      pobStr],
       ['Größe',           ht !== '–' ? ht : ''],
-      ['Gewicht',         wt],
+      ['Fuß',             footDe],
       ['Im Verein seit',  joined !== '–' ? joined : ''],
       ['Kommt von',       signedFrom],
       ['Vertrag bis',     contractUntilStr && contractUntilStr !== '–' ? contractUntilStr : ''],
@@ -388,14 +389,15 @@
           const prof = await r.json();
           Object.assign(p, {
             _profileLoaded: true,
-            imageURL:       prof.imageURL       || prof.image || prof.profileImage || p.imageURL || null,
+            imageURL:       prof.imageUrl || prof.imageURL || prof.image || prof.profileImage || p.imageURL || null,
             dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
             age:            prof.age            ?? p.age,
-            nationality:    prof.nationality    || p.nationality,
+            nationality:    prof.citizenship    || prof.nationality || p.nationality,
             height:         prof.height         || p.height,
             weight:         prof.weight         || p.weight,
+            foot:           prof.foot           || p.foot || null,
             placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
-            joinedOn:       prof.joinedOn       || p.joinedOn,
+            joinedOn:       prof.joinedOn       || prof.club?.joined || p.joinedOn,
             signedFrom:     prof.signedFrom     || null,
             contractUntil:  prof.contractUntil  || null,
             contractOption: prof.contractOption || null,

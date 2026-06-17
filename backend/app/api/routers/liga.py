@@ -114,8 +114,9 @@ def proxy_tm_image(url: str = Query(...)) -> Response:
     """TM-Bild-Proxy mit Disk-Cache — überlebt Container-Neustarts."""
     parsed = urllib.parse.urlparse(url)
     if not (parsed.scheme == "https" and parsed.hostname and
-            (parsed.hostname == "img.transfermarkt.com" or
-             parsed.hostname.endswith(".transfermarkt.com"))):
+            (parsed.hostname.endswith(".transfermarkt.com") or
+             parsed.hostname.endswith(".transfermarkt.technology") or
+             parsed.hostname == "img.transfermarkt.com")):
         raise HTTPException(403, "Nur Transfermarkt-Bilder erlaubt")
 
     try:
