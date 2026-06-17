@@ -322,7 +322,8 @@ class LigaService:
                 "shortName":   ct.get("shortName"),
                 "tla":         ct.get("tla"),
                 "crest":       ct.get("crest"),
-                "contractUntil": (ct.get("contract") or {}).get("until"),
+                "contractUntil":       (ct.get("contract") or {}).get("until"),
+                "runningCompetitions": ct.get("runningCompetitions") or [],
             } if ct else None,
         }
         LigaService._squad_cache[key] = {"data": result, "ts": now}

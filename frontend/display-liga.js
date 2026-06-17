@@ -482,9 +482,13 @@
     const clubOnClick = clubFdoId
       ? `onclick="window._liga._showClubKader(${JSON.stringify(clubName)},${clubFdoId})" style="cursor:pointer;" title="Zum Vereinskader"`
       : '';
+    const clubLeague = p.currentTeamLeague || '';
     const clubHtml = clubName ? `<div class="liga-player-club" ${clubOnClick}>
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
-      <span style="${clubFdoId ? 'text-decoration:underline;opacity:0.85;' : ''}">${_esc(clubName)}</span></div>` : '';
+      <div style="display:flex;flex-direction:column;gap:1px;">
+        <span style="${clubFdoId ? 'text-decoration:underline;opacity:0.85;' : ''}">${_esc(clubName)}</span>
+        ${clubLeague ? `<span style="font-size:0.62rem;color:var(--muted);font-weight:500;">${_esc(clubLeague)}</span>` : ''}
+      </div></div>` : '';
 
     const nats   = Array.isArray(p.nationality) ? p.nationality.join(', ') : (p.nationality || '');
     const pob    = p.placeOfBirth;
@@ -577,7 +581,10 @@
       marketValue:    prof.marketValue    || p.marketValue,
       shirtNumber:    prof.shirtNumber    ?? p.shirtNumber   ?? null,
       position:       prof.position       || p.position,
-      club:           prof.club           || p.club,
+      // Spread-Merge: TM-Daten (id, joined) + vorhandenes imageURL/tla (aus fd.o) erhalten
+      club:           prof.club ? { ...(p.club || {}), ...prof.club } : p.club,
+      currentTeamId:     p.currentTeamId     || null,
+      currentTeamLeague: p.currentTeamLeague || null,
     });
   }
 
@@ -599,8 +606,9 @@
       }
     };
 
-    // TM-Profil laden: fdo+tm per _tmId, reine TM per p.id, reine fdo per Namenssuche
-    if (!p._profileLoaded) {
+    // TM-Profil + fd.o-Personenprofil parallel laden (schnellstes Ergebnis zuerst sichtbar)
+    const fetchTm = async () => {
+      if (p._profileLoaded) return;
       let tmId = p._tmId || (!p._source?.startsWith('fdo') && p.id ? String(p.id) : null);
       if (!tmId && p._source?.startsWith('fdo') && p.name) {
         try {
@@ -608,13 +616,12 @@
           if (sr.ok) {
             const sd = await sr.json();
             if (sd.tm_id) {
-              tmId          = sd.tm_id;
-              p._tmId       = tmId;
+              tmId = sd.tm_id; p._tmId = tmId;
               p.marketValue = sd.marketValue ?? p.marketValue;
-              if (sd.club)          p.club        = { name: sd.club.name };
+              if (sd.club)          p.club        = { ...(p.club || {}), name: sd.club.name };
               if (sd.age)           p.age         = sd.age;
               if (sd.nationalities) p.nationality  = sd.nationalities;
-              _rerender();  // Marktwert + Verein sofort sichtbar
+              _rerender();
             }
           }
         } catch {}
@@ -627,10 +634,10 @@
       } else {
         p._profileLoaded = true;
       }
-    }
+    };
 
-    // fd.o Personenprofil: Vertragsdaten + Trikotnummer vom aktuellen Verein
-    if (p._source?.startsWith('fdo') && !p._fdoPersonLoaded && p.id) {
+    const fetchFdo = async () => {
+      if (!p._source?.startsWith('fdo') || p._fdoPersonLoaded || !p.id) return;
       p._fdoPersonLoaded = true;
       try {
         const r = await fetch(`/liga/person/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
@@ -644,13 +651,17 @@
             shirtNumber:   person.shirtNumber  ?? p.shirtNumber,
             lastUpdate:    person.lastUpdated  || p.lastUpdate,
             contractUntil: ct?.contractUntil   || p.contractUntil || null,
-            currentTeamId: ct?.id              || p.currentTeamId || null,
-            club: ct ? { name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
+            currentTeamId:     ct?.id           || p.currentTeamId     || null,
+            currentTeamLeague: ((ct?.runningCompetitions || []).find(c => c.type === 'LEAGUE')?.name) || p.currentTeamLeague || null,
+            // Spread: fd.o liefert imageURL + tla, TM-Daten (id, joined) bleiben erhalten
+            club: ct ? { ...(p.club || {}), name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
           });
           _rerender();
         }
       } catch {}
-    }
+    };
+
+    await Promise.allSettled([fetchTm(), fetchFdo()]);
   }
 
   function _backToKaderList() {
