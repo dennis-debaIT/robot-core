@@ -14,9 +14,33 @@ _LIVE = {"IN_PLAY", "PAUSED"}
 _ACTIVE = {"IN_PLAY", "PAUSED", "SCHEDULED", "TIMED"}
 _DONE = {"FINISHED"}
 
+# Maximale Spieldauer inkl. Verlängerung + Elfmeterschießen (Puffer)
+_MAX_MATCH_MINUTES = 130
+
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _infer_probably_live(match: dict[str, Any]) -> bool:
+    """Fallback für Free-Tier: gibt True zurück wenn der Anpfiff vor 0–130 Minuten lag.
+
+    football-data.org Free-Tier aktualisiert den Status nicht immer zuverlässig auf
+    IN_PLAY. Dieses Heuristik greift nur wenn status noch SCHEDULED/TIMED ist.
+    """
+    if match.get("status") in _LIVE:
+        return True
+    if match.get("status") not in {"SCHEDULED", "TIMED"}:
+        return False
+    utc_date = match.get("utcDate")
+    if not utc_date:
+        return False
+    try:
+        kickoff = datetime.fromisoformat(utc_date.replace("Z", "+00:00"))
+        elapsed_min = (_utc_now() - kickoff).total_seconds() / 60
+        return 0 <= elapsed_min <= _MAX_MATCH_MINUTES
+    except Exception:
+        return False
 
 
 def _parse_dt(s: str | None) -> datetime | None:
@@ -137,6 +161,9 @@ class TournamentService:
         )
 
         live_matches = [m for m in all_matches if m.get("status") in _LIVE]
+        # Fallback für Free-Tier: zeitbasierte Heuristik wenn API kein IN_PLAY liefert
+        if not live_matches:
+            live_matches = [m for m in all_matches if _infer_probably_live(m)]
 
         # Aktuellen Spieltag aus Match-Daten ermitteln (robust, unabhängig vom API-Hint)
         matchday_nr, matchday_matches = _resolve_matchday(all_matches, api_hint)

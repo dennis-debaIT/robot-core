@@ -6,7 +6,7 @@ from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from app.services.tournament_service import _resolve_matchday
+from app.services.tournament_service import _resolve_matchday, _infer_probably_live
 
 BASE_URL = "https://api.football-data.org/v4"
 
@@ -72,6 +72,8 @@ class LigaService:
             matchday_nr, matchday_matches = _resolve_matchday(all_matches, api_hint)
             matchday_matches.sort(key=lambda m: m.get("utcDate") or "")
             live = [m for m in matchday_matches if m.get("status") in _LIVE]
+            if not live:
+                live = [m for m in matchday_matches if _infer_probably_live(m)]
 
             league_data: dict[str, Any] = {
                 "code": code,
