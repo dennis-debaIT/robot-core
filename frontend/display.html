@@ -4198,7 +4198,7 @@
         html += `
           <div class="trn-next-banner">
             <span class="trn-next-label">Nächstes Spiel</span>
-            <span class="trn-next-teams">${_trnTeamName(nextMatch.homeTeam)} <span class="trn-next-vs">vs</span> ${_trnTeamName(nextMatch.awayTeam)}</span>
+            <span class="trn-next-teams">${_trnTeamBtn(nextMatch.homeTeam)} <span class="trn-next-vs">vs</span> ${_trnTeamBtn(nextMatch.awayTeam)}</span>
             <span class="trn-next-time">${escapeHTML(kickoff)}</span>
           </div>`;
       }
@@ -4240,8 +4240,8 @@
       const away = ft.away ?? ft.awayTeam ?? '–';
       const ht = _htStr(score);
       const min = _matchMinute(score);
-      const homeShort = _trnTeamName(match.homeTeam);
-      const awayShort = _trnTeamName(match.awayTeam);
+      const homeShort = _trnTeamBtn(match.homeTeam);
+      const awayShort = _trnTeamBtn(match.awayTeam);
       const homeFull = escapeHTML(_de(match.homeTeam?.name || match.homeTeam?.shortName || '?'));
       const awayFull = escapeHTML(_de(match.awayTeam?.name || match.awayTeam?.shortName || '?'));
       const statusLabel = match.status === 'PAUSED' ? 'Halbzeit' : `LIVE${min ? ' ' + min : ''}`;
