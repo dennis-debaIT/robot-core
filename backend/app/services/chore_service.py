@@ -59,7 +59,7 @@ class ChoreService:
 
     def create_task(self, name: str, icon: str | None = None, points: int = 1) -> dict[str, Any]:
         now = datetime.now(timezone.utc).isoformat()
-        points = max(1, int(points))
+        points = min(5, max(1, int(points)))
         with get_connection() as conn:
             next_sort = conn.execute(
                 "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM chore_tasks"
@@ -90,7 +90,7 @@ class ChoreService:
                 return None
             new_name = name if name is not None else row["name"]
             new_icon = icon if icon is not None else row["icon"]
-            new_points = max(1, int(points)) if points is not None else (row["points"] if row["points"] is not None else 1)
+            new_points = min(5, max(1, int(points))) if points is not None else (row["points"] if row["points"] is not None else 1)
             new_sort = sort_order if sort_order is not None else row["sort_order"]
             new_active = int(active) if active is not None else row["active"]
             conn.execute(

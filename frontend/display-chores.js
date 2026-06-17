@@ -21,9 +21,21 @@
 
   const PERIOD_LABEL = { week: 'Woche', month: 'Monat', year: 'Jahr' };
   const PERSON_COLORS = ['#00c8ff', '#ff6b6b', '#ffd166', '#06d6a0', '#a78bfa', '#f472b6', '#fb923c', '#94a3b8'];
+  const POINTS_COLORS = ['', '#94a3b8', '#00c8ff', '#06d6a0', '#f59e0b', '#ef4444'];
+  // 1=grau, 2=cyan, 3=grün, 4=amber, 5=rot — zeigt Schwierigkeitsgrad an
 
   function _personColor(personId) {
     return PERSON_COLORS[Math.abs(personId) % PERSON_COLORS.length];
+  }
+
+  function _pointsColor(pts) {
+    return POINTS_COLORS[Math.min(Math.max(1, pts || 1), 5)] || '#94a3b8';
+  }
+
+  function _ptsBadge(pts) {
+    if (!pts || pts <= 1) return '';
+    const color = _pointsColor(pts);
+    return `<span style="font-size:0.6rem;background:${color}22;color:${color};border:1px solid ${color}66;border-radius:999px;padding:1px 7px;margin-left:6px;font-weight:700;">${pts} Pkt</span>`;
   }
 
   async function _loadTasks() {
@@ -82,12 +94,16 @@
     if (!state.tasks.length) return '<div class="cal-placeholder">Keine Hausaufgaben angelegt.</div>';
     return state.tasks.map(t => {
       const selected = t.id === state.selectedTaskId ? ' selected' : '';
+      const pts = t.points || 1;
+      const pColor = _pointsColor(pts);
+      const ptsDot = `<span style="width:8px;height:8px;border-radius:50%;background:${pColor};flex-shrink:0;opacity:0.85;"></span>`;
       return `
-        <div class="vehicle-list-item${selected}" onclick="window._choresPlus.selectTask(${t.id})">
+        <div class="vehicle-list-item${selected}" onclick="window._choresPlus.selectTask(${t.id})" style="border-left:3px solid ${pColor}40;">
           <span style="font-size:1.15rem;flex-shrink:0;">${escapeHTML(t.icon || '🧹')}</span>
           <div style="flex:1;min-width:0;">
             <div class="vehicle-list-name">${escapeHTML(t.name)}</div>
           </div>
+          ${ptsDot}
         </div>`;
     }).join('');
   }
@@ -194,7 +210,8 @@
     const persons = stats.persons || [];
     const taskPts = stats.task_points ?? 1;
     const ptsLabel = taskPts === 1 ? '1 Punkt' : `${taskPts} Punkte`;
-    const ptsBadge = `<span style="font-size:0.65rem;background:rgba(0,200,80,0.12);color:#00c832;border:1px solid rgba(0,200,80,0.3);border-radius:999px;padding:1px 8px;margin-left:8px;">${ptsLabel} pro Erledigung</span>`;
+    const pColor = _pointsColor(taskPts);
+    const ptsBadge = `<span style="font-size:0.65rem;background:${pColor}22;color:${pColor};border:1px solid ${pColor}66;border-radius:999px;padding:1px 8px;margin-left:8px;">${ptsLabel} pro Erledigung</span>`;
     const leaderHtml = stats.leader
       ? `<div class="chore-leader">🏆 ${PERIOD_LABEL[stats.period]}: ${escapeHTML(stats.leader.name)} (${stats.leader.points_total ?? stats.leader.count} ${(stats.leader.points_total ?? stats.leader.count) === 1 ? 'Punkt' : 'Punkte'})</div>`
       : '<div class="chore-leader" style="color:var(--muted);">Noch keine Erledigungen in diesem Zeitraum.</div>';
@@ -334,14 +351,11 @@
       if (!completions.length) {
         rowsHtml = '<div class="cal-placeholder">Keine Erledigungen diese Woche.</div>';
       } else {
-        rowsHtml = `<div class="chore-recent-list">${completions.map(c => {
-          const pts = c.task_points ?? 1;
-          const ptsBadge = pts > 1 ? `<span style="font-size:0.65rem;background:rgba(0,200,80,0.12);color:#00c832;border:1px solid rgba(0,200,80,0.3);border-radius:999px;padding:1px 6px;margin-left:6px;">${pts} Pkt</span>` : '';
-          return `<div class="chore-recent-row">
-            <span style="flex:1;min-width:0;font-weight:600;">${escapeHTML(c.task_name)}${ptsBadge}</span>
+        rowsHtml = `<div class="chore-recent-list">${completions.map(c => `
+          <div class="chore-recent-row">
+            <span style="flex:1;min-width:0;font-weight:600;">${escapeHTML(c.task_name)}${_ptsBadge(c.task_points)}</span>
             <span style="color:var(--muted);font-size:0.78rem;flex-shrink:0;">${escapeHTML(c.completed_at_local)}</span>
-          </div>`;
-        }).join('')}</div>`;
+          </div>`).join('')}</div>`;
       }
       overlay.innerHTML = `
         <div class="vehicle-detail-wrap">

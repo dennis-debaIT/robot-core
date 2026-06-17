@@ -256,7 +256,17 @@
       // ── PV-Ersparnis (wenn Backend Netz-Sensor + Tarife konfiguriert hat) ──
       let savingsHtml = '';
       if (d.savings) {
-        const s = d.savings;
+        // Wenn gd.einspeisung vorhanden (direkter HA-Energiezähler), nutzen wir
+        // diesen genaueren Wert statt der approximierten Power-Integration.
+        let s = { ...d.savings };
+        if (view === 'today' && gd && typeof gd.einspeisung === 'number') {
+          const corrFeedIn = gd.einspeisung;
+          const corrSelfC = Math.max(0, (total || 0) - corrFeedIn - (s.battery_charge_kwh || 0));
+          const corrSavings = Math.round(
+            ((corrSelfC + (s.battery_charge_kwh || 0)) * s.grid_price_ct / 100 + corrFeedIn * s.feed_in_ct / 100) * 100
+          ) / 100;
+          s = { ...s, feed_in_kwh: corrFeedIn, self_consumption_kwh: corrSelfC, savings_eur: corrSavings };
+        }
         const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 1}) + ' kWh' : '–';
         const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €' : '–';
         const fmtCt  = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 2}) + ' ct/kWh' : '–';

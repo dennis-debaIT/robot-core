@@ -3536,7 +3536,7 @@
                  value="${(t.name||'').replace(/"/g,'&quot;')}" onchange="_updateChoreTask(${t.id}, {name: this.value})">
           <label style="display:flex;align-items:center;gap:5px;font-size:0.78rem;color:var(--muted);white-space:nowrap;">
             <span title="Punkte pro Erledigung">Pkt</span>
-            <input class="field-input" type="number" min="1" max="99" style="width:52px;text-align:center;"
+            <input class="field-input" type="number" min="1" max="5" style="width:52px;text-align:center;"
                    value="${t.points || 1}" onchange="_updateChoreTask(${t.id}, {points: +this.value})">
           </label>
           <button type="button" class="secondary" ${i === 0 ? 'disabled' : ''} onclick="_moveChoreTask(${i}, -1)" title="Nach oben">↑</button>
