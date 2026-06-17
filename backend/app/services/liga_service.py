@@ -12,7 +12,8 @@ from app.services.tournament_service import (
 
 BASE_URL = "https://api.football-data.org/v4"
 
-STATE_TTL     = 55    # Live-Daten — unter 60s damit Rate-Limit eingehalten wird
+STATE_TTL      = 55   # Normal-Zustand
+LIVE_STATE_TTL = 20   # Kürzere TTL wenn Live-Spiele laufen (Score-Updates ~alle 20s)
 STANDINGS_TTL = 300   # Tabelle ändert sich selten
 TEAMS_TTL     = 21600 # Team-Listen: 6h (ändert sich nur im Sommer)
 FOCUS_TTL     = 55    # Team-Fokus: gleich wie Live-Daten
@@ -86,9 +87,12 @@ class LigaService:
         result: list[dict[str, Any]] = []
         for code in codes:
             cached = LigaService._state_cache.get(code)
-            if cached and (now - cached["ts"]) < STATE_TTL:
-                result.append(cached["data"])
-                continue
+            if cached:
+                # Live-Spiele öfter aktualisieren — kürzere TTL für zügige Score-Updates
+                ttl = LIVE_STATE_TTL if cached["data"].get("live") else STATE_TTL
+                if (now - cached["ts"]) < ttl:
+                    result.append(cached["data"])
+                    continue
 
             data = self._fetch(f"/competitions/{code}/matches")
             if not data:

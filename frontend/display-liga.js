@@ -29,6 +29,11 @@
   let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' | 'kader-back' — wohin zurück aus Kader
   let _kaderStack      = [];         // Stapel vorheriger Kader-Zustände für Club-Navigation
 
+  // Kader-Profil-Cache: Team-Key → {players, crest, fdoNames, ts}
+  // Überleben Navigation weg + zurück ohne erneuten Prefetch (1h TTL)
+  const _kaderProfileCache = new Map();
+  const KADER_PROFILE_CACHE_MS = 3_600_000; // 1h
+
   const POLL_MS = 10_000;
 
   // ── Hilfsfunktionen ────────────────────────────────────────────
@@ -300,6 +305,24 @@
   async function _showKader(teamNameOverride, backAction, teamId) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
+
+    // Kader-Profil-Cache: sofortige Anzeige ohne erneuten Fetch/Prefetch
+    const _cacheKey = `${teamId || ''}_${teamName}`;
+    const _cached   = _kaderProfileCache.get(_cacheKey);
+    if (_cached && (Date.now() - _cached.ts) < KADER_PROFILE_CACHE_MS) {
+      _kaderOpen       = true;
+      _kaderTeamName   = teamName;
+      _kaderTeamId     = teamId || null;
+      _kaderTeamCrest  = _cached.crest;
+      _kaderFdoNames   = _cached.fdoNames;
+      _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
+      _kaderPlayers    = _cached.players;
+      const ov = document.getElementById('cal-overlay');
+      if (ov) { ov.innerHTML = ''; ov.classList.add('active'); }
+      _renderKaderContent();
+      return;
+    }
+
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
     _kaderTeamId     = teamId || null;
@@ -436,6 +459,13 @@
       if (i + BATCH_SIZE < toLoad.length) {
         await new Promise(res => setTimeout(res, DELAY_MS));
       }
+    }
+    // Profil-Cache füllen: nächster Besuch dieses Kaders ist sofort (kein Prefetch nötig)
+    if (_kaderOpen) {
+      _kaderProfileCache.set(`${_kaderTeamId || ''}_${_kaderTeamName}`, {
+        players: _kaderPlayers, crest: _kaderTeamCrest,
+        fdoNames: _kaderFdoNames, ts: Date.now(),
+      });
     }
   }
 
@@ -1190,6 +1220,8 @@
     if (_selectedCode) {
       _fetchStandings(_selectedCode).then(_renderRight);
     }
+    // Frische Daten sofort holen (nicht auf nächsten Polling-Tick warten)
+    _poll();
   }
 
   function closeFullView() {

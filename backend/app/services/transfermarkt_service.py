@@ -23,7 +23,8 @@ _PLAYER_DISK_TTL = 30 * 86_400  # Spieler-Einzel-Profil: 30 Tage Disk-Cache
 
 _cache: dict[str, dict[str, Any]] = {}
 
-_PLAYER_CACHE_DIR = pathlib.Path("/data/tm_cache/players")
+_PLAYER_CACHE_DIR  = pathlib.Path("/data/tm_cache/players")
+_SEARCH_CACHE_DIR  = pathlib.Path("/data/tm_cache/searches")
 
 
 def _cached(key: str, ttl: float) -> Any | None:
@@ -120,12 +121,30 @@ class TransfermarktService:
     def search_player(self, name: str) -> dict | None:
         """Spieler per Name auf TM suchen — liefert id, marketValue, club, position, age, nationalities.
 
-        7 Tage gecacht (TTL analog club-Suche).
+        7 Tage gecacht: In-Memory (verloren bei Restart) + Disk /data/tm_cache/searches/
+        (überlebt Restarts — wichtig für Nationalspieler ohne TM-Vereinskader).
         """
+        slug = re.sub(r'[^a-z0-9]', '_', name.lower().strip())
         key = f"tm_player_search:{name.lower().strip()}"
+        # 1. In-Memory-Cache
         cached = _cached(key, _SEARCH_TTL)
         if cached is not None:
             return cached
+        # 2. Disk-Cache (überlebt Container-Restarts)
+        try:
+            _SEARCH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        cache_path = _SEARCH_CACHE_DIR / f"{slug}.json"
+        if cache_path.exists():
+            try:
+                if time.time() - cache_path.stat().st_mtime < _SEARCH_TTL:
+                    data = json.loads(cache_path.read_text(encoding="utf-8"))
+                    _store(key, data)
+                    return data
+            except Exception:
+                pass
+        # 3. API-Abfrage
         data = _get(f"/players/search/{urllib.parse.quote(name)}")
         results: list[dict] = (data or {}).get("results") or []
         if not results:
@@ -141,6 +160,10 @@ class TransfermarktService:
             "marketValue":   r.get("marketValue"),
         }
         _store(key, result)
+        try:
+            cache_path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
         return result
 
     def get_player_profile(self, player_id: str) -> dict | None:

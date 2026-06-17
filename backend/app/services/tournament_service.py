@@ -122,7 +122,7 @@ def _resolve_matchday(all_matches: list[dict[str, Any]], hint: int | None) -> tu
 
 
 STANDINGS_TTL = 300   # Tabelle ändert sich selten — 5 Min reichen
-DETAIL_TTL    = 110   # Spieldetails (goals/bookings): alle 2 Haupt-Zyklen
+DETAIL_TTL    = 30    # Spieldetails (goals/bookings): alle 30s für zügige Tor-Anzeige
 MAX_LIVE_DETAILS = 2  # max. Extra-API-Calls pro Refresh (Rate-Limit-Schutz)
 
 
