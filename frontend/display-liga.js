@@ -24,6 +24,7 @@
   let _teamDetailName  = null;   // Vereinsname für Team-Detail
   let _kaderTeamName   = null;   // null = Lieblingsverein, sonst überschriebener Name
   let _kaderTeamId     = null;   // football-data.org team_id für squad-Endpoint (Turnierteams)
+  let _kaderTeamCrest  = null;   // Wappen des aktuellen Kader-Teams (fdo-Quelle)
   let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' — wohin zurück aus Kader
 
   const POLL_MS = 10_000;
@@ -272,6 +273,7 @@
         const r = await fetch(`/liga/team-squad?team_id=${encodeURIComponent(teamId)}`, { cache: 'no-store' });
         if (r.ok) {
           const data = await r.json();
+          _kaderTeamCrest = data.crest || null;
           players = (data.squad || []).map(p => ({ ...p, _profileLoaded: true, _source: 'fdo' }));
         }
       } catch {}
@@ -308,27 +310,7 @@
         try {
           const r = await fetch(`/liga/tm/player/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
           if (!r.ok) return;
-          const prof = await r.json();
-          Object.assign(p, {
-            _profileLoaded: true,
-            shirtNumber:    prof.shirtNumber    || p.shirtNumber    || null,
-            imageURL:       prof.imageUrl || prof.imageURL || prof.image || p.imageURL || null,
-            dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
-            age:            prof.age            ?? p.age,
-            nationality:    prof.citizenship    || prof.nationality || p.nationality,
-            height:         prof.height         || p.height,
-            weight:         prof.weight         || p.weight,
-            foot:           prof.foot           || p.foot           || null,
-            placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
-            joinedOn:       prof.joinedOn       || prof.club?.joined           || p.joinedOn,
-            signedFrom:     prof.signedFrom     || prof.club?.lastClubName    || p.signedFrom     || null,
-            contractUntil:  prof.contractUntil  || prof.club?.contractExpires || p.contractUntil  || null,
-            contractOption: prof.contractOption || prof.club?.contractOption  || p.contractOption || null,
-            lastUpdate:     prof.lastUpdate     || p.lastUpdate,
-            marketValue:    prof.marketValue    || p.marketValue,
-            position:       prof.position       || p.position,
-            club:           prof.club           || p.club,
-          });
+          _mergePlayerProfile(p, await r.json());
         } catch {}
       }));
       // Re-render list only when player card is not open
@@ -377,7 +359,7 @@
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
     const shirt    = shirtRaw ? `#${shirtRaw}` : '';
 
-    const crest    = _getTeamCrest(_teamDetailId) || _favCrest() || p.club?.imageURL || p.club?.image || '';
+    const crest    = _kaderTeamCrest || _getTeamCrest(_teamDetailId) || (p._source !== 'fdo' ? _favCrest() : '') || p.club?.imageURL || p.club?.image || '';
     const clubName = p.club?.name || _kaderTeamName || _ligaData?.favorite_team_name || '';
     const clubHtml = clubName ? `<div class="liga-player-club">
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
@@ -419,7 +401,9 @@
      .join('');
 
     const backLabel    = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
-    const loadingHint  = p._profileLoaded ? '' : '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade Profil…</div>';
+    const loadingHint  = (!p._profileLoaded || (p._source === 'fdo' && !p._tmProfileLoaded))
+      ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade TM-Profil…</div>'
+      : '';
 
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
@@ -443,6 +427,29 @@
       </div>`;
   }
 
+  function _mergePlayerProfile(p, prof) {
+    Object.assign(p, {
+      _profileLoaded: true,
+      imageURL:       prof.imageUrl || prof.imageURL || prof.image || prof.profileImage || p.imageURL || null,
+      dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
+      age:            prof.age            ?? p.age,
+      nationality:    prof.citizenship    || prof.nationality || p.nationality,
+      height:         prof.height         || p.height,
+      weight:         prof.weight         || p.weight,
+      foot:           prof.foot           || p.foot           || null,
+      placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
+      joinedOn:       prof.joinedOn       || prof.club?.joined           || p.joinedOn,
+      signedFrom:     prof.signedFrom     || prof.club?.lastClubName    || p.signedFrom     || null,
+      contractUntil:  prof.contractUntil  || prof.club?.contractExpires || p.contractUntil  || null,
+      contractOption: prof.contractOption || prof.club?.contractOption  || p.contractOption || null,
+      lastUpdate:     prof.lastUpdate     || p.lastUpdate,
+      marketValue:    prof.marketValue    || p.marketValue,
+      shirtNumber:    prof.shirtNumber    || p.shirtNumber,
+      position:       prof.position       || p.position,
+      club:           prof.club           || p.club,
+    });
+  }
+
   async function _showPlayerProfile(idx) {
     const p = _kaderPlayers[idx];
     if (!p) return;
@@ -451,31 +458,26 @@
 
     _drawPlayerCard(p, overlay);
 
-    if (!p._profileLoaded && p.id) {
+    if (!p._profileLoaded && p.id && p._source !== 'fdo') {
+      // Bundesliga-Spieler: TM-Profil per ID laden
       try {
         const r = await fetch(`/liga/tm/player/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
         if (r.ok) {
-          const prof = await r.json();
-          Object.assign(p, {
-            _profileLoaded: true,
-            imageURL:       prof.imageUrl || prof.imageURL || prof.image || prof.profileImage || p.imageURL || null,
-            dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
-            age:            prof.age            ?? p.age,
-            nationality:    prof.citizenship    || prof.nationality || p.nationality,
-            height:         prof.height         || p.height,
-            weight:         prof.weight         || p.weight,
-            foot:           prof.foot           || p.foot           || null,
-            placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
-            joinedOn:       prof.joinedOn       || prof.club?.joined           || p.joinedOn,
-            signedFrom:     prof.signedFrom     || prof.club?.lastClubName    || p.signedFrom     || null,
-            contractUntil:  prof.contractUntil  || prof.club?.contractExpires || p.contractUntil  || null,
-            contractOption: prof.contractOption || prof.club?.contractOption  || p.contractOption || null,
-            lastUpdate:     prof.lastUpdate     || p.lastUpdate,
-            marketValue:    prof.marketValue    || p.marketValue,
-            shirtNumber:    prof.shirtNumber    || p.shirtNumber,
-            position:       prof.position       || p.position,
-            club:           prof.club           || p.club,
-          });
+          _mergePlayerProfile(p, await r.json());
+          if (_kaderPlayers[idx] === p && document.querySelector('.liga-player-card')) {
+            _drawPlayerCard(p, overlay);
+          }
+        }
+      } catch {}
+    } else if (p._source === 'fdo' && !p._tmProfileLoaded && p.name) {
+      // Turnier-/Nationalspieler: TM-Profil per Namenssuche nachladen
+      p._tmProfileLoaded = true; // nicht nochmal versuchen
+      try {
+        const nat = Array.isArray(p.nationality) ? (p.nationality[0] || '') : (p.nationality || '');
+        const url = `/liga/tm/player-by-name?name=${encodeURIComponent(p.name)}${nat ? `&nationality=${encodeURIComponent(nat)}` : ''}`;
+        const r = await fetch(url, { cache: 'no-store' });
+        if (r.ok) {
+          _mergePlayerProfile(p, await r.json());
           if (_kaderPlayers[idx] === p && document.querySelector('.liga-player-card')) {
             _drawPlayerCard(p, overlay);
           }
@@ -984,6 +986,7 @@
     _teamDetailName  = null;
     _kaderTeamName   = null;
     _kaderTeamId     = null;
+    _kaderTeamCrest  = null;
     _kaderBackAction = 'matchday';
     _tmProfile       = null;
     _tmLoadedFor     = null;

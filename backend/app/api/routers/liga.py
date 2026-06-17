@@ -90,6 +90,22 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
     return {"players": players or []}
 
 
+@router.get("/liga/tm/player-by-name")
+def get_tm_player_by_name(name: str = Query(""), nationality: str = Query("")) -> dict[str, Any]:
+    """TM-Profil per Spielername (Fallback für Turnier-/Nationalspieler ohne TM-ID)."""
+    from app.services.transfermarkt_service import TransfermarktService
+    if not name.strip():
+        raise HTTPException(400, "name fehlt")
+    svc = TransfermarktService()
+    tm_id = svc.search_player_id(name.strip(), nationality.strip() or None)
+    if not tm_id:
+        raise HTTPException(404, "Spieler nicht gefunden")
+    profile = svc.get_player_profile(tm_id)
+    if not profile:
+        raise HTTPException(404, "Spielerprofil nicht verfügbar")
+    return profile
+
+
 @router.get("/liga/tm/player/{player_id}")
 def get_tm_player_profile(player_id: str) -> dict[str, Any]:
     """Einzelnes Spieler-Profil — 30-Tage-Disk-Cache, lazy auf Profilaufruf."""
