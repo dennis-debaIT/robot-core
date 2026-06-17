@@ -201,7 +201,7 @@
       const mv  = _fmtMv(p.marketValue);
       const bis = _contractYear(p.contract);
       const age = p.age ?? '–';
-      const num = p.shirtNumber ?? '–';
+      const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
       const img = p.image
         ? `<img src="${_esc(p.image)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
         : '<span class="liga-kader-img-ph"></span>';
@@ -255,21 +255,39 @@
     _renderKaderContent();
   }
 
+  function _favCrest() {
+    const favId = _favId();
+    if (!favId) return '';
+    for (const s of Object.values(_standingsCache)) {
+      const row = (s?.table || []).find(r => r.team?.id === favId);
+      if (row?.team?.crest) return row.team.crest;
+    }
+    return '';
+  }
+
   function _showPlayerProfile(idx) {
     const p = _kaderPlayers[idx];
     if (!p) return;
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
 
+    // Initialen als Fallback wenn kein Bild geladen werden kann
+    const initials = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
     const portrait = p.image
-      ? `<img src="${_esc(p.image)}" class="liga-player-portrait" onerror="this.style.display='none'" loading="lazy">`
-      : '<div class="liga-player-portrait liga-player-portrait-ph"></div>';
-    const shirt = p.shirtNumber != null ? `#${p.shirtNumber}` : '';
+      ? `<img src="${_esc(p.image)}" class="liga-player-portrait"
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy">
+         <div class="liga-player-portrait liga-player-portrait-ph" style="display:none">${_esc(initials)}</div>`
+      : `<div class="liga-player-portrait liga-player-portrait-ph">${_esc(initials)}</div>`;
 
-    const clubImg  = p.club?.imageURL || p.club?.image || '';
-    const clubName = p.club?.name || '';
+    // Trikotnummer: TM liefert z.T. "#16" als String → # entfernen, dann selbst ergänzen
+    const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
+    const shirt = shirtRaw ? `#${shirtRaw}` : '';
+
+    // Vereinslogo: bevorzugt aus den Tabellendaten (football-data.org), Fallback TM
+    const crest   = _favCrest() || p.club?.imageURL || p.club?.image || '';
+    const clubName = p.club?.name || _ligaData?.favorite_team_name || '';
     const clubHtml = clubName ? `<div class="liga-player-club">
-      ${clubImg ? `<img src="${_esc(clubImg)}" onerror="this.style.display='none'">` : ''}
+      ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
       <span>${_esc(clubName)}</span></div>` : '';
 
     const nats   = Array.isArray(p.nationality) ? p.nationality.join(', ') : (p.nationality || '');
