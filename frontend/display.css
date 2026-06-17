@@ -1894,3 +1894,5 @@
 .lt-team { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lt-num  { width: 28px; text-align: center; color: var(--muted); flex-shrink: 0; }
 .lt-pts  { width: 28px; text-align: center; font-weight: 800; color: var(--accent); flex-shrink: 0; }
+.lt-crest     { width: 18px; flex-shrink: 0; }
+.lt-crest-img { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; }
