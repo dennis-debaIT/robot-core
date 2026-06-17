@@ -395,16 +395,16 @@
     if (!box) {
       box = document.createElement('div');
       box.id = 'pv-stats-box';
-      box.style.cssText = 'position:fixed;left:0;top:52px;right:0;bottom:64px;z-index:200;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;';
+      box.style.cssText = 'position:fixed;left:50%;top:52px;bottom:64px;width:780px;transform:translateX(-50%);z-index:200;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;border-left:1px solid var(--border);border-right:1px solid var(--border);';
       document.body.appendChild(box);
     }
     box.style.display = 'flex';
     box.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 32px 12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px;">
         <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;">PV-Statistik</div>
         <button onclick="closePvStats()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
       </div>
-      <div style="display:flex;gap:8px;padding:0 32px 16px;">
+      <div style="display:flex;gap:8px;padding:0 24px 16px;">
         ${['flow','today','7days','month','year'].map(v =>
           `<button onclick="loadPvStatsView('${v}')" id="pvtab-${v}"
             style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--border);background:${v===_pvStatsView?'rgba(0,200,255,0.12)':'transparent'};
@@ -413,7 +413,7 @@
           </button>`
         ).join('')}
       </div>
-      <div id="pv-stats-content" style="flex:1;overflow-y:auto;padding:0 32px 32px;min-height:260px;">
+      <div id="pv-stats-content" style="flex:1;overflow-y:auto;padding:0 24px 24px;min-height:260px;">
         <div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>
       </div>
     </div>`;
