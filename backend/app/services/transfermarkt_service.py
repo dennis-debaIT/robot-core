@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -51,21 +52,40 @@ def _get(path: str) -> dict | None:
 
 class TransfermarktService:
     def search_club_id(self, name: str) -> str | None:
-        """TM-ID per Namenssuche — bevorzugt deutschen Treffer."""
+        """TM-ID per Namenssuche — bevorzugt deutschen Treffer.
+
+        Probiert mehrere Suchbegriffe falls der exakte Name keine Treffer liefert:
+        1. Original ("1. FC Heidenheim 1846")
+        2. Ohne führende "N. " ("FC Heidenheim 1846")
+        3. Ohne abschließende Jahreszahl ("FC Heidenheim")
+        """
         key = f"tm_search:{name.lower().strip()}"
         cached = _cached(key, _SEARCH_TTL)
         if cached is not None:
             return cached
-        data = _get(f"/clubs/search/{urllib.parse.quote(name)}")
-        results: list[dict] = (data or {}).get("results") or []
+
+        base = name.strip()
+        candidates: list[str] = [base]
+        c1 = re.sub(r'^\d+\.\s+', '', base)          # "1. FC Köln" → "FC Köln"
+        if c1 != base:
+            candidates.append(c1)
+        c2 = re.sub(r'\s+\d{4}$', '', candidates[-1]) # "FC Heidenheim 1846" → "FC Heidenheim"
+        if c2 != candidates[-1]:
+            candidates.append(c2)
+
         tm_id: str | None = None
-        for r in results:
-            country = str(r.get("country") or "").lower()
-            if country in ("germany", "deutschland"):
-                tm_id = str(r["id"])
+        for candidate in candidates:
+            data = _get(f"/clubs/search/{urllib.parse.quote(candidate)}")
+            results: list[dict] = (data or {}).get("results") or []
+            for r in results:
+                if str(r.get("country") or "").lower() in ("germany", "deutschland"):
+                    tm_id = str(r["id"])
+                    break
+            if tm_id is None and results:
+                tm_id = str(results[0]["id"])
+            if tm_id:
                 break
-        if tm_id is None and results:
-            tm_id = str(results[0]["id"])
+
         if tm_id:
             _store(key, tm_id)
         return tm_id
