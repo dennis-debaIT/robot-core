@@ -331,8 +331,8 @@
   }
 
   async function _prefetchKaderProfiles() {
-    const BATCH_SIZE = 3;
-    const DELAY_MS   = 250;
+    const BATCH_SIZE = 6;
+    const DELAY_MS   = 80;
     const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && p.id);
     if (!toLoad.length) return;
     for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
@@ -459,24 +459,34 @@
       </div>`;
   }
 
+  // TM liefert Datum manchmal als "Jan 5, 1990" — für _fmtDateISO in ISO wandeln
+  function _normDate(s) {
+    if (!s) return null;
+    const iso = String(s).match(/^\d{4}-\d{2}-\d{2}/);
+    if (iso) return iso[0];
+    // "Jan 5, 1990" → "1990-01-05"
+    try { const d = new Date(s); if (!isNaN(d)) return d.toISOString().slice(0, 10); } catch {}
+    return s;
+  }
+
   function _mergePlayerProfile(p, prof) {
     Object.assign(p, {
       _profileLoaded: true,
       imageURL:       prof.imageUrl || prof.imageURL || prof.image || prof.profileImage || p.imageURL || null,
-      dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
+      dateOfBirth:    _normDate(prof.dateOfBirth)  || p.dateOfBirth,
       age:            prof.age            ?? p.age,
       nationality:    prof.citizenship    || prof.nationality || p.nationality,
       height:         prof.height         || p.height,
       weight:         prof.weight         || p.weight,
       foot:           prof.foot           || p.foot           || null,
       placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
-      joinedOn:       prof.joinedOn       || prof.club?.joined           || p.joinedOn,
+      joinedOn:       _normDate(prof.joinedOn  || prof.club?.joined)   || p.joinedOn,
       signedFrom:     prof.signedFrom     || prof.club?.lastClubName    || p.signedFrom     || null,
       contractUntil:  prof.contractUntil  || prof.club?.contractExpires || p.contractUntil  || null,
       contractOption: prof.contractOption || prof.club?.contractOption  || p.contractOption || null,
-      lastUpdate:     prof.lastUpdate     || p.lastUpdate,
+      lastUpdate:     _normDate(prof.lastUpdate) || p.lastUpdate,
       marketValue:    prof.marketValue    || p.marketValue,
-      shirtNumber:    prof.shirtNumber    || p.shirtNumber,
+      shirtNumber:    prof.shirtNumber    ?? p.shirtNumber   ?? null,
       position:       prof.position       || p.position,
       club:           prof.club           || p.club,
     });
