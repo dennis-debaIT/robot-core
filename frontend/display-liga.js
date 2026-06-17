@@ -278,74 +278,116 @@
     return out;
   }
 
+  // Normalisiert Namen für Spieler-Matching: Umlaute, Akzente, Sonderzeichen entfernen
+  function _normName(n) {
+    return (n || '').toLowerCase()
+      .replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e').replace(/[ìíîï]/g, 'i')
+      .replace(/[òóôõöø]/g, 'o').replace(/[ùúûü]/g, 'u').replace(/[ýÿ]/g, 'y')
+      .replace(/ñ/g, 'n').replace(/ç/g, 'c').replace(/ß/g, 'ss').replace(/đ/g, 'd')
+      .replace(/[^a-z]/g, '');
+  }
+
   async function _showKader(teamNameOverride, backAction, teamId) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
     _kaderTeamId     = teamId || null;
+    _kaderFdoNames   = [];
     _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
     overlay.classList.add('active');
-    let players = [];
-    // Für Teams mit bekannter football-data.org ID: Kader inkl. Trikotnummer direkt laden
-    // (funktioniert für Nationalmannschaften + Vereinsmannschaften aus Turnieren)
-    _kaderFdoNames = [];
-    if (teamId) {
-      try {
-        const r = await fetch(`/liga/team-squad?team_id=${encodeURIComponent(teamId)}`, { cache: 'no-store' });
-        if (r.ok) {
-          const data = await r.json();
-          _kaderTeamCrest = data.crest || null;
-          // Alternative Namen für TM-Fallback (fd.o name/shortName können abweichen)
-          _kaderFdoNames = [data.name, data.shortName].filter(n => n && n !== teamName);
-          players = (data.squad || []).map(p => ({ ...p, _profileLoaded: true, _source: 'fdo' }));
-        }
-      } catch {}
+
+    // fd.o squad (Trikotnummern) + TM kader (Marktwerte) parallel laden
+    const tmCandidates = _buildTmCandidates(teamName, []);
+    const [fdoRes, tmRes] = await Promise.allSettled([
+      teamId
+        ? fetch(`/liga/team-squad?team_id=${encodeURIComponent(teamId)}`, { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+        : Promise.resolve(null),
+      tmCandidates.length
+        ? fetch(`/liga/tm/players?team_name=${encodeURIComponent(tmCandidates[0])}`, { cache: 'no-store' })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    const fdoData = fdoRes.status === 'fulfilled' ? fdoRes.value : null;
+    let   tmData  = tmRes.status  === 'fulfilled' ? tmRes.value  : null;
+
+    let fdoPlayers = [];
+    if (fdoData) {
+      _kaderTeamCrest = fdoData.crest || null;
+      _kaderFdoNames  = [fdoData.name, fdoData.shortName].filter(n => n && n !== teamName);
+      fdoPlayers = fdoData.squad || [];
     }
-    // Fallback auf Transfermarkt — probiert Namensvarianten ("Congo DR" → "DR Congo" usw.)
-    if (!players.length) {
-      const tmCandidates = _buildTmCandidates(teamName, _kaderFdoNames);
-      for (const cand of tmCandidates) {
+
+    // Weitere TM-Kandidaten falls erster leer oder fehlgeschlagen
+    if (!(tmData?.players?.length)) {
+      const moreCands = _buildTmCandidates(teamName, _kaderFdoNames);
+      for (const cand of moreCands.slice(1)) {
         try {
           const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(cand)}`, { cache: 'no-store' });
           if (!r.ok) continue;
           const d = await r.json();
-          if ((d.players || []).length) { players = d.players; break; }
+          if ((d.players || []).length) { tmData = d; break; }
         } catch {}
       }
     }
+    const tmPlayers = tmData?.players || [];
+
+    // Merge: Trikotnummern (fd.o) + Marktwerte (TM) per Namensabgleich zusammenführen
+    let players = [];
+    if (fdoPlayers.length && tmPlayers.length) {
+      const tmByName = new Map(tmPlayers.map(p => [_normName(p.name), p]));
+      players = fdoPlayers.map(p => {
+        const tm = tmByName.get(_normName(p.name));
+        return {
+          ...p,
+          _tmId:          tm ? String(tm.id) : null,
+          marketValue:    tm?.marketValue    ?? null,
+          _source:        tm ? 'fdo+tm'      : 'fdo',
+          _profileLoaded: !tm,   // fdo+tm: TM-Profil noch ausstehend; pure fdo: kein TM-Profil
+        };
+      });
+    } else if (fdoPlayers.length) {
+      players = fdoPlayers.map(p => ({ ...p, _source: 'fdo', _profileLoaded: true }));
+    } else {
+      players = tmPlayers;
+    }
+
     players.sort((a, b) => {
       const ga = _posGroup(a.position), gb = _posGroup(b.position);
       if (ga !== gb) return ga - gb;
-      if (a._source === 'fdo' && b._source === 'fdo') {
-        return (a.shirtNumber ?? 99) - (b.shirtNumber ?? 99);
-      }
+      const aFdo = a._source?.startsWith('fdo');
+      const bFdo = b._source?.startsWith('fdo');
+      if (aFdo && bFdo) return (a.shirtNumber ?? 99) - (b.shirtNumber ?? 99);
       return _mvParse(b.marketValue) - _mvParse(a.marketValue);
     });
     _kaderPlayers = players;
     _renderKaderContent();
-    _prefetchKaderProfiles(); // no-op für fdo-Spieler (bereits _profileLoaded)
+    _prefetchKaderProfiles();
   }
 
   async function _prefetchKaderProfiles() {
     const BATCH_SIZE = 6;
     const DELAY_MS   = 80;
-    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && p.id);
+    // Lädt TM-Profile für Spieler mit TM-ID (fdo+tm) oder reine TM-Spieler
+    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && (p._tmId || (p.id && !p._source?.startsWith('fdo'))));
     if (!toLoad.length) return;
     for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
       if (!_kaderOpen) return;
       const batch = toLoad.slice(i, i + BATCH_SIZE);
       await Promise.allSettled(batch.map(async p => {
         try {
-          const r = await fetch(`/liga/tm/player/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
+          const tmId = p._tmId || String(p.id);
+          const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
           if (!r.ok) return;
           _mergePlayerProfile(p, await r.json());
         } catch {}
       }));
-      // Re-render list only when player card is not open
+      // Liste neu rendern wenn kein Spieler-Karte offen
       if (_kaderOpen && !document.querySelector('.liga-player-card')) {
         _renderKaderContent();
       }
@@ -391,7 +433,7 @@
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
     const shirt    = shirtRaw ? `#${shirtRaw}` : '';
 
-    const crest    = _kaderTeamCrest || _getTeamCrest(_teamDetailId) || (p._source !== 'fdo' ? _favCrest() : '') || p.club?.imageURL || p.club?.image || '';
+    const crest    = _kaderTeamCrest || _getTeamCrest(_teamDetailId) || (!p._source?.startsWith('fdo') ? _favCrest() : '') || p.club?.imageURL || p.club?.image || '';
     const clubName = p.club?.name || _kaderTeamName || _ligaData?.favorite_team_name || '';
     const clubHtml = clubName ? `<div class="liga-player-club">
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
@@ -433,7 +475,7 @@
      .join('');
 
     const backLabel    = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
-    const loadingHint  = (!p._profileLoaded && p._source !== 'fdo')
+    const loadingHint  = !p._profileLoaded
       ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade Profil…</div>'
       : '';
 
@@ -500,20 +542,31 @@
 
     _drawPlayerCard(p, overlay);
 
-    if (!p._profileLoaded && p.id && p._source !== 'fdo') {
-      // Bundesliga-Spieler: TM-Profil per ID laden
+    // Nach Profil-Load: Karte neu rendern wenn noch offen, sonst Liste aktualisieren
+    const _rerender = () => {
+      if (_kaderPlayers[idx] !== p) return;
+      if (document.querySelector('.liga-player-card')) {
+        _drawPlayerCard(p, overlay);
+      } else if (_kaderOpen) {
+        _renderKaderContent();
+      }
+    };
+
+    // TM-Profil laden (für TM-Spieler direkt per id, für fdo+tm per _tmId)
+    if (!p._profileLoaded && (p._tmId || (p.id && !p._source?.startsWith('fdo')))) {
       try {
-        const r = await fetch(`/liga/tm/player/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
+        const tmId = p._tmId || String(p.id);
+        const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
         if (r.ok) {
           _mergePlayerProfile(p, await r.json());
-          if (_kaderPlayers[idx] === p && document.querySelector('.liga-player-card')) {
-            _drawPlayerCard(p, overlay);
-          }
+          _rerender();
         }
       } catch {}
-    } else if (p._source === 'fdo' && !p._tmProfileLoaded && p.id) {
-      // Turnier-/Nationalspieler: erweitertes Profil via football-data.org /v4/persons/{id}
-      p._tmProfileLoaded = true; // nicht nochmal versuchen
+    }
+
+    // fd.o Personenprofil: Vertragsdaten + Trikotnummer vom aktuellen Verein
+    if (p._source?.startsWith('fdo') && !p._fdoPersonLoaded && p.id) {
+      p._fdoPersonLoaded = true;
       try {
         const r = await fetch(`/liga/person/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
         if (r.ok) {
@@ -525,12 +578,10 @@
             position:      person.position     || p.position,
             shirtNumber:   person.shirtNumber  ?? p.shirtNumber,
             lastUpdate:    person.lastUpdated  || p.lastUpdate,
-            contractUntil: ct?.contractUntil   || null,
+            contractUntil: ct?.contractUntil   || p.contractUntil || null,
             club: ct ? { name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
           });
-          if (_kaderPlayers[idx] === p && document.querySelector('.liga-player-card')) {
-            _drawPlayerCard(p, overlay);
-          }
+          _rerender();
         }
       } catch {}
     }
