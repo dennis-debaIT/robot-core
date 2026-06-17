@@ -96,6 +96,11 @@
 
   // ── Einzel-Spielkarte ──────────────────────────────────────────
 
+  function _crestImg(team, cls) {
+    if (!team?.crest) return '';
+    return `<img src="${_esc(team.crest)}" class="${cls}" onerror="this.style.display='none'" loading="lazy">`;
+  }
+
   function _matchCard(m, compact) {
     const status   = m.status || '';
     const score    = m.score  || {};
@@ -106,6 +111,8 @@
     const isFav    = _isFav(m);
     const home     = _esc(m.homeTeam?.shortName || m.homeTeam?.name || '?');
     const away     = _esc(m.awayTeam?.shortName || m.awayTeam?.name || '?');
+    const hCrest   = _crestImg(m.homeTeam, compact ? 'lcc-crest' : 'liga-match-crest');
+    const aCrest   = _crestImg(m.awayTeam, compact ? 'lcc-crest' : 'liga-match-crest');
     const hg       = ft.home ?? (isDone ? 0 : null);
     const ag       = ft.away ?? (isDone ? 0 : null);
     const scoreStr = hg != null ? `${hg}${_suffix(score)}:${ag}` : '–:–';
@@ -117,9 +124,9 @@
     if (compact) {
       return `<div class="liga-card liga-card-compact${favCls}${isLive ? ' liga-card-live' : ''}">
         <span class="lcc-time">${isLive ? (min || 'LIVE') : (isDone ? 'FT' : time)}</span>
-        <span class="lcc-home">${home}</span>
+        <span class="lcc-home">${hCrest}${home}</span>
         <span class="lcc-score${isLive ? ' lcc-live' : ''}">${isLive || isDone ? scoreStr : '–'}</span>
-        <span class="lcc-away">${away}</span>
+        <span class="lcc-away">${aCrest}${away}</span>
         ${isFav ? '<span class="lcc-fav">★</span>' : ''}
       </div>`;
     }
@@ -134,9 +141,9 @@
             : `<span class="liga-badge-time">${cd ? `${cd} · ` : ''}${time}</span>`}
       </div>
       <div class="liga-card-teams">
-        <span class="liga-team${hg != null && ag != null && hg > ag ? ' liga-team-winner' : ''}">${home}</span>
+        <span class="liga-team${hg != null && ag != null && hg > ag ? ' liga-team-winner' : ''}">${hCrest}${home}</span>
         <span class="liga-score${isLive ? ' liga-score-live' : ''}">${isLive || isDone ? scoreStr : 'vs'}</span>
-        <span class="liga-team${hg != null && ag != null && ag > hg ? ' liga-team-winner' : ''}">${away}</span>
+        <span class="liga-team${hg != null && ag != null && ag > hg ? ' liga-team-winner' : ''}">${aCrest}${away}</span>
       </div>
       ${htStr}
       ${isLive ? _renderMatchEvents(m.goals, m.bookings) : ''}

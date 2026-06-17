@@ -1922,3 +1922,5 @@
 .lt-pts  { width: 28px; text-align: center; font-weight: 800; color: var(--accent); flex-shrink: 0; }
 .lt-crest     { width: 18px; flex-shrink: 0; }
 .lt-crest-img { width: 16px; height: 16px; object-fit: contain; vertical-align: middle; flex-shrink: 0; }
+.liga-match-crest { width: 20px; height: 20px; object-fit: contain; vertical-align: middle; flex-shrink: 0; margin-right: 5px; }
+.lcc-crest { width: 13px; height: 13px; object-fit: contain; vertical-align: middle; flex-shrink: 0; margin-right: 3px; }
