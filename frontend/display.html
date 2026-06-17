@@ -4141,10 +4141,18 @@
           <div style="color:var(--muted);font-size:0.8rem;text-align:center;padding:12px 0;">Keine Spiele verfügbar</div>`;
       }
 
-      // Nächstes anstehendes Spiel ermitteln
+      // Nächstes anstehendes Spiel: zukünftige SCHEDULED/TIMED-Spiele, außerdem
+      // SCHEDULED-Spiele die lt. Uhrzeit schon angefangen haben sollten aber vom
+      // Free-Tier nicht auf IN_PLAY gesetzt wurden (max 130 Min nach Anpfiff).
       const now = new Date();
+      const _couldBeLive = m => {
+        if (!m.utcDate) return false;
+        const diff = (now - new Date(m.utcDate)) / 60000;
+        return diff >= 0 && diff <= 130;
+      };
       const upcoming = matches
-        .filter(m => (m.status === 'SCHEDULED' || m.status === 'TIMED') && m.utcDate && new Date(m.utcDate) > now)
+        .filter(m => (m.status === 'SCHEDULED' || m.status === 'TIMED') && m.utcDate
+          && (new Date(m.utcDate) > now || _couldBeLive(m)))
         .sort((a, b) => a.utcDate.localeCompare(b.utcDate));
       const nextMatch = upcoming[0] || null;
 

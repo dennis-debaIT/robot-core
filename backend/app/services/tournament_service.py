@@ -56,33 +56,45 @@ def _resolve_matchday(all_matches: list[dict[str, Any]], hint: int | None) -> tu
     """Ermittelt den aktuellen Spieltag aus den Match-Daten selbst.
 
     Rückgabe: (matchday_nr, matches_for_that_day)
-    matchday_nr ist None bei KO-Runden ohne Spieltag-Nummerierung.
+    matchday_nr ist None bei KO-Runden ohne Spieltag-Nummerierung oder wenn
+    Spiele aus mehreren Matchdays zusammengefasst werden (z.B. WM-Gruppenphase).
     """
-    # 1) Wenn API-Hint vorhanden → direkt nutzen
-    if hint is not None:
-        matches = [m for m in all_matches if m.get("matchday") == hint]
-        if matches:
-            return hint, matches
-
-    # 2) Gruppen-Phase: alle Matches mit matchday-Nummer vorhanden?
     group_matches = [m for m in all_matches if m.get("matchday") is not None]
     if group_matches:
         now = _utc_now()
+        today_str = now.strftime("%Y-%m-%d")
 
-        # a) Gibt es gerade laufende oder bald startende Spiele? → deren Spieltag
+        # a) Echte Live-Spiele (API-Status IN_PLAY/PAUSED) → deren Spieltag
         for m in group_matches:
             if m.get("status") in _LIVE:
                 day = m["matchday"]
                 return day, [x for x in group_matches if x.get("matchday") == day]
 
-        # b) Nächster geplanter Spieltag (frühestes Datum in der Zukunft)
+        # b) Zeitbasiert wahrscheinlich live (Free-Tier-Fallback) → deren Spieltag
+        for m in group_matches:
+            if _infer_probably_live(m):
+                day = m["matchday"]
+                return day, [x for x in group_matches if x.get("matchday") == day]
+
+        # c) Heute laufende oder geplante Spiele — können über mehrere Matchdays verteilt
+        #    sein (WM-Format: mehrere Gruppen gleichzeitig aktiv).
+        today_games = [m for m in group_matches if (m.get("utcDate") or "").startswith(today_str)]
+        if today_games:
+            days_today = {m["matchday"] for m in today_games}
+            if len(days_today) == 1:
+                day = next(iter(days_today))
+                return day, [x for x in group_matches if x.get("matchday") == day]
+            # Mehrere Matchdays heute → alle heutigen Spiele, matchday_nr=None
+            return None, sorted(today_games, key=lambda m: m.get("utcDate") or "")
+
+        # d) Nächstes geplantes Spiel (frühestes Datum in der Zukunft, beliebiger Spieltag)
         upcoming = [m for m in group_matches if m.get("status") in {"SCHEDULED", "TIMED"}]
         if upcoming:
             upcoming.sort(key=lambda x: x.get("utcDate") or "")
             day = upcoming[0]["matchday"]
             return day, [x for x in group_matches if x.get("matchday") == day]
 
-        # c) Alle Gruppenspiele abgeschlossen → letzter Spieltag
+        # e) Alle Gruppenspiele abgeschlossen → letzter Spieltag
         finished = [m for m in group_matches if m.get("status") in _DONE]
         if finished:
             finished.sort(key=lambda x: x.get("utcDate") or "")
@@ -91,21 +103,18 @@ def _resolve_matchday(all_matches: list[dict[str, Any]], hint: int | None) -> tu
 
         return None, group_matches  # Fallback: alles
 
-    # 3) KO-Phase (kein matchday): aktive Stage finden
-    now = _utc_now()
+    # KO-Phase (kein matchday): aktive Stage finden
     stages_order: list[str] = []
     for m in all_matches:
         s = m.get("stage") or ""
         if s and s not in stages_order:
             stages_order.append(s)
 
-    # Prüfe Stages von vorn (Gruppe → KO) und wähle die früheste mit aktiven Spielen
     for stage in stages_order:
         stage_matches = [m for m in all_matches if m.get("stage") == stage]
         if any(m.get("status") in _ACTIVE for m in stage_matches):
             return None, stage_matches
 
-    # Fallback: letzte Stage (FINAL oder ähnliches)
     active_stage = stages_order[-1] if stages_order else None
     if active_stage:
         return None, [m for m in all_matches if m.get("stage") == active_stage]
