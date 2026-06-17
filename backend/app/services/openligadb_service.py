@@ -90,8 +90,11 @@ def _find_oldb_match(
     away_tla: str,
     home_name: str,
     away_name: str,
-) -> dict[str, Any] | None:
-    """Findet das passende OpenLigaDB-Spiel per TLA oder Namensvergleich."""
+) -> tuple[dict[str, Any], bool] | tuple[None, None]:
+    """Findet das passende OpenLigaDB-Spiel per TLA oder Namensvergleich.
+
+    Rückgabe: (match_dict, home_is_team1) — home_is_team1=True wenn team1 das Heimteam ist.
+    """
     home_tla_up = (home_tla or "").upper()
     away_tla_up = (away_tla or "").upper()
 
@@ -104,19 +107,19 @@ def _find_oldb_match(
         # 1) TLA-Match
         if home_tla_up and away_tla_up:
             if s1 == home_tla_up and s2 == away_tla_up:
-                return m
+                return m, True
             if s1 == away_tla_up and s2 == home_tla_up:
-                return m
+                return m, False
 
         # 2) Name-Fallback
         n1 = t1.get("teamName") or ""
         n2 = t2.get("teamName") or ""
         if _names_match(home_name, n1) and _names_match(away_name, n2):
-            return m
+            return m, True
         if _names_match(home_name, n2) and _names_match(away_name, n1):
-            return m
+            return m, False
 
-    return None
+    return None, None
 
 
 def _convert_goals(
@@ -159,14 +162,12 @@ def enrich_goals(
     match: dict[str, Any],
     competition_code: str,
 ) -> None:
-    """Ergänzt match["goals"] aus OpenLigaDB wenn das Feld leer ist.
+    """Ergänzt match["goals"] und match["score"]["fullTime"] aus OpenLigaDB.
 
-    Modifiziert `match` in-place. Macht nichts wenn goals bereits vorhanden
-    oder keine OpenLigaDB-Daten für den Wettbewerb verfügbar sind.
+    Modifiziert `match` in-place. Überschreibt Score immer wenn ein passendes
+    OpenLigaDB-Spiel gefunden wird (OpenLigaDB ist aktueller als football-data.org
+    Free-Tier, der fullTime.home/away während des Spiels null lässt).
     """
-    if match.get("goals"):
-        return  # bereits befüllt — nicht überschreiben
-
     oldb_code = _COMP_MAP.get((competition_code or "").upper())
     if not oldb_code:
         return
@@ -179,14 +180,32 @@ def enrich_goals(
     away_name = away.get("name") or away.get("shortName") or ""
 
     oldb_matches = _get_oldb_matches(oldb_code)
-    oldb_match = _find_oldb_match(oldb_matches, home_tla, away_tla, home_name, away_name)
+    oldb_match, home_is_team1 = _find_oldb_match(oldb_matches, home_tla, away_tla, home_name, away_name)
     if not oldb_match:
         return
 
+    # Score aus letztem Toreintrag ableiten (oder 0:0 wenn noch keine Tore)
     raw_goals: list[dict] = oldb_match.get("goals") or []
-    if not raw_goals:
-        return
+    if raw_goals:
+        last = sorted(raw_goals, key=lambda x: x.get("matchMinute") or 0)[-1]
+        s1 = last.get("scoreTeam1", 0) or 0
+        s2 = last.get("scoreTeam2", 0) or 0
+    else:
+        s1, s2 = 0, 0
 
-    home_short = (home.get("shortName") or home_name)
-    away_short = (away.get("shortName") or away_name)
-    match["goals"] = _convert_goals(raw_goals, home_short, away_short)
+    home_score = s1 if home_is_team1 else s2
+    away_score = s2 if home_is_team1 else s1
+
+    score = match.setdefault("score", {})
+    full_time = score.setdefault("fullTime", {})
+    full_time["home"] = home_score
+    full_time["away"] = away_score
+
+    # Goals nur setzen wenn football-data.org nichts geliefert hat
+    if not match.get("goals") and raw_goals:
+        home_short = (home.get("shortName") or home_name)
+        away_short = (away.get("shortName") or away_name)
+        # team1/team2 in OpenLigaDB ≠ zwingend home/away — korrekte Zuordnung
+        team1_short = home_short if home_is_team1 else away_short
+        team2_short = away_short if home_is_team1 else home_short
+        match["goals"] = _convert_goals(raw_goals, team1_short, team2_short)

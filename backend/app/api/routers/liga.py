@@ -50,10 +50,9 @@ def get_liga_teams() -> dict[str, Any]:
     cfg = _get_cfg()
     if not cfg.get("api_key"):
         return {"teams": []}
-    codes = [c for c in (cfg.get("leagues") or []) if c in _ALLOWED_CODES]
-    if not codes:
-        return {"teams": []}
-    return {"teams": LigaService(cfg["api_key"]).get_teams(codes)}
+    # Immer alle drei Ligen — der Lieblingsverein-Picker soll unabhängig von
+    # den aktivierten Anzeigeligen alle Teams zeigen.
+    return {"teams": LigaService(cfg["api_key"]).get_teams(sorted(_ALLOWED_CODES))}
 
 
 @router.patch("/liga/config")
