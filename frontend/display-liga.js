@@ -15,6 +15,8 @@
   let _selectedCode   = null;
   let _ligaData       = null;
   let _standingsCache = {};
+  let _tmProfile      = null;   // gecachtes TM-Vereinsprofil
+  let _tmLoadedFor    = null;   // team_name für den _tmProfile geladen wurde
 
   const POLL_MS = 10_000;
 
@@ -69,6 +71,117 @@
   function _isFav(match) {
     const fav = _favId();
     return fav ? (match?.homeTeam?.id === fav || match?.awayTeam?.id === fav) : false;
+  }
+
+  // ── Transfermarkt ──────────────────────────────────────────────
+
+  const _POS_SHORT = {
+    'Torwart': 'TW', 'Torhüter': 'TW',
+    'Innenverteidiger': 'IV', 'Linker Verteidiger': 'LV', 'Rechter Verteidiger': 'RV',
+    'Defensives Mittelfeld': 'DM', 'Zentrales Mittelfeld': 'ZM',
+    'Offensives Mittelfeld': 'OM', 'Linkes Mittelfeld': 'LM', 'Rechtes Mittelfeld': 'RM',
+    'Linksaußen': 'LA', 'Rechtsaußen': 'RA', 'Hängende Spitze': 'HS', 'Mittelstürmer': 'ST',
+  };
+
+  function _posShort(pos) {
+    if (!pos) return '–';
+    const main = pos.main || pos;
+    return _POS_SHORT[main] || main.slice(0, 3);
+  }
+
+  function _contractYear(contract) {
+    if (!contract?.date) return '–';
+    const m = String(contract.date).match(/\d{4}/);
+    return m ? `'${m[0].slice(2)}` : '–';
+  }
+
+  function _mvParse(str) {
+    if (!str) return 0;
+    const m = String(str).match(/([\d,.]+)\s*(Mio\.|Tsd\.)/);
+    if (!m) return 0;
+    const n = parseFloat(m[1].replace(',', '.'));
+    return m[2].includes('Mio') ? n * 1_000_000 : n * 1_000;
+  }
+
+  async function _loadTmProfile(teamName) {
+    if (_tmLoadedFor === teamName && _tmProfile) return;
+    _tmLoadedFor = teamName;
+    _tmProfile = null;
+    const el = document.getElementById('liga-tm-card');
+    if (el) el.innerHTML = '<div style="font-size:0.72rem;color:var(--muted);">Lade Vereinsinfos…</div>';
+    try {
+      const r = await fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' });
+      if (r.ok) _tmProfile = await r.json();
+    } catch {}
+    _renderTmCard();
+  }
+
+  function _renderTmCard() {
+    const el = document.getElementById('liga-tm-card');
+    if (!el) return;
+    if (!_tmProfile) {
+      el.innerHTML = '';
+      return;
+    }
+    const p = _tmProfile;
+    const mv    = p.currentMarketValue || '';
+    const stad  = [p.stadiumName, p.stadiumSeats ? `${Number(p.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
+    const found = p.foundedOn ? `📅 ${p.foundedOn}` : '';
+    const web   = p.website   ? `🌐 ${_esc(p.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
+    const tel   = p.tel       ? `📞 ${_esc(p.tel)}` : '';
+    const rows  = [stad ? `🏟 ${_esc(stad)}` : '', found, web, tel].filter(Boolean);
+    const favName = _ligaData?.favorite_team_name || '';
+    el.innerHTML = `
+      <div class="liga-tm-label">Vereinsinfo · Transfermarkt</div>
+      ${mv ? `<div class="liga-tm-mv">💶 Kaderwert: ${_esc(mv)}</div>` : ''}
+      ${rows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}
+      <button class="liga-kader-btn" onclick="window._liga._showKader()">👥 Kader anzeigen</button>`;
+  }
+
+  async function _showKader() {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    const favName = _ligaData?.favorite_team_name;
+    if (!favName) return;
+    overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
+    overlay.classList.add('active');
+    let players = [];
+    try {
+      const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(favName)}`, { cache: 'no-store' });
+      if (r.ok) players = (await r.json()).players || [];
+    } catch {}
+    players.sort((a, b) => _mvParse(b.marketValue) - _mvParse(a.marketValue));
+    const rows = players.map(p => {
+      const nat = (p.nationality || [])[0] || '–';
+      const pos = _posShort(p.position);
+      const mv  = p.marketValue || '–';
+      const bis = _contractYear(p.contract);
+      const age = p.age ?? '–';
+      const ht  = p.height ? p.height.replace(' m','m') : '–';
+      return `<div class="liga-kader-row">
+        <span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span>
+        <span class="liga-kader-pos">${_esc(pos)}</span>
+        <span style="color:var(--muted);">${age}</span>
+        <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(nat)}</span>
+        <span style="color:var(--muted);">${_esc(bis)}</span>
+        <span class="liga-kader-mv">${_esc(mv)}</span>
+      </div>`;
+    }).join('');
+    overlay.innerHTML = `
+      <div class="liga-kader-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <div>
+            <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader</div>
+            <div style="font-size:1.05rem;font-weight:800;">${_esc(favName)}</div>
+          </div>
+          <button class="liga-kader-back" onclick="window._liga._backToMatchday()">← Spieltag</button>
+        </div>
+        ${players.length ? `
+        <div class="liga-kader-hdr">
+          <span>Name</span><span>Pos</span><span>Alt</span><span>Nation</span><span>bis</span><span>Marktwert</span>
+        </div>
+        <div class="liga-kader-grid">${rows}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
+      </div>`;
   }
 
   // ── Event-Ticker ───────────────────────────────────────────────
@@ -256,7 +369,11 @@
       </div>`;
     }
 
-    lc.innerHTML = `<div class="liga-sel">${leagueBtns}</div>${focusHtml}`;
+    const tmHtml = (focus && favName)
+      ? `<div id="liga-tm-card" class="liga-tm-card"></div>`
+      : '';
+    lc.innerHTML = `<div class="liga-sel">${leagueBtns}</div>${focusHtml}${tmHtml}`;
+    if (focus && favName) _loadTmProfile(favName);
   }
 
   function _renderCenter() {
@@ -397,8 +514,14 @@
     }
   }
 
+  function _backToMatchday() {
+    _renderCenter();
+  }
+
   function closeFullView() {
     _fullViewOpen = false;
+    _tmProfile   = null;
+    _tmLoadedFor = null;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     const lc = document.getElementById('left-content');
@@ -428,5 +551,5 @@
     }
   });
 
-  window._liga = { start, stop, openFullView, closeFullView, _selectLeague };
+  window._liga = { start, stop, openFullView, closeFullView, _selectLeague, _showKader, _backToMatchday };
 })();

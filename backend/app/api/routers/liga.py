@@ -61,6 +61,28 @@ def get_liga_teams() -> dict[str, Any]:
     return {"teams": teams}
 
 
+@router.get("/liga/tm/profile")
+def get_tm_profile(team_name: str = Query("")) -> dict[str, Any]:
+    from app.services.transfermarkt_service import TransfermarktService
+    if not team_name.strip():
+        raise HTTPException(400, "team_name fehlt")
+    profile = TransfermarktService().get_club_profile(team_name.strip())
+    if not profile:
+        raise HTTPException(404, "Verein nicht auf Transfermarkt gefunden")
+    return profile
+
+
+@router.get("/liga/tm/players")
+def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
+    from app.services.transfermarkt_service import TransfermarktService
+    if not team_name.strip():
+        raise HTTPException(400, "team_name fehlt")
+    players = TransfermarktService().get_club_players(team_name.strip())
+    if players is None:
+        raise HTTPException(404, "Verein nicht auf Transfermarkt gefunden")
+    return {"players": players}
+
+
 @router.patch("/liga/config")
 def update_liga_config(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     allowed = {"enabled", "api_key", "leagues", "favorite_team_id", "favorite_team_name"}
