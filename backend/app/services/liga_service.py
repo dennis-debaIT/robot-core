@@ -201,9 +201,9 @@ class LigaService:
         if cached and (now - cached["ts"]) < FOCUS_TTL:
             return cached["data"]
 
-        # Letzte 5 abgeschlossene Spiele
+        # Letzte 5 abgeschlossene Spiele (ohne Competition-Filter — Free Tier erlaubt BL2/BL3 nicht)
         last5_raw = self._fetch(
-            f"/teams/{team_id}/matches?status=FINISHED&limit=5&competitions=BL1,BL2,BL3"
+            f"/teams/{team_id}/matches?status=FINISHED&limit=5"
         )
         last5: list[dict[str, Any]] = []
         if last5_raw:
@@ -230,7 +230,7 @@ class LigaService:
 
         # Nächstes geplantes Spiel
         next_raw = self._fetch(
-            f"/teams/{team_id}/matches?status=SCHEDULED,TIMED&limit=1&competitions=BL1,BL2,BL3"
+            f"/teams/{team_id}/matches?status=SCHEDULED,TIMED&limit=1"
         )
         next_match: dict[str, Any] | None = None
         if next_raw:

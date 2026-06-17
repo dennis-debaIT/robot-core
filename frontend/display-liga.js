@@ -214,7 +214,8 @@
       const bis = _contractYear(p.contract);
       const age = p.age ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
-      const imgSrc = p.image ? `/liga/tm/img?url=${encodeURIComponent(p.image)}` : '';
+      const rawImg = p.image || p.imageURL || '';
+      const imgSrc = rawImg ? `/liga/tm/img?url=${encodeURIComponent(rawImg)}` : '';
       const img = imgSrc
         ? `<img src="${_esc(imgSrc)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
         : '<span class="liga-kader-img-ph"></span>';
@@ -301,7 +302,8 @@
 
     // Initialen als Fallback wenn kein Bild geladen werden kann
     const initials = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
-    const portraitSrc = p.image ? `/liga/tm/img?url=${encodeURIComponent(p.image)}` : '';
+    const rawPortrait = p.image || p.imageURL || '';
+    const portraitSrc = rawPortrait ? `/liga/tm/img?url=${encodeURIComponent(rawPortrait)}` : '';
     const portrait = portraitSrc
       ? `<img src="${_esc(portraitSrc)}" class="liga-player-portrait"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy">
@@ -312,8 +314,8 @@
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
     const shirt = shirtRaw ? `#${shirtRaw}` : '';
 
-    // Vereinslogo: bevorzugt aus den Tabellendaten (football-data.org), Fallback TM
-    const crest    = _favCrest() || _getTeamCrest(_teamDetailId) || p.club?.imageURL || p.club?.image || '';
+    // Vereinslogo: erst Team-Detail-Crest, dann Lieblingsverein-Crest, dann TM-Daten
+    const crest    = _getTeamCrest(_teamDetailId) || _favCrest() || p.club?.imageURL || p.club?.image || '';
     const clubName = p.club?.name || _kaderTeamName || _ligaData?.favorite_team_name || '';
     const clubHtml = clubName ? `<div class="liga-player-club">
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
@@ -442,13 +444,17 @@
 
     let tmHtml = '';
     if (tmProfile) {
-      const mv   = _fmtMv(tmProfile.currentMarketValue);
-      const stad = [tmProfile.stadiumName, tmProfile.stadiumSeats ? `${Number(tmProfile.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
+      const mv    = _fmtMv(tmProfile.currentMarketValue);
+      const stad  = [tmProfile.stadiumName, tmProfile.stadiumSeats ? `${Number(tmProfile.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
       const found = tmProfile.foundedOn ? `📅 ${_fmtDateISO(tmProfile.foundedOn)}` : '';
+      const web   = tmProfile.website ? `🌐 ${_esc(tmProfile.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
+      const tel   = tmProfile.tel ? `📞 ${_esc(tmProfile.tel)}` : '';
       const tmRows = [
         mv && mv !== '–' ? `💶 Kaderwert: ${_esc(mv)}` : '',
         stad ? `🏟 ${_esc(stad)}` : '',
         found,
+        web,
+        tel,
       ].filter(Boolean);
       if (tmRows.length) tmHtml = `<div class="liga-td-divider"></div>${tmRows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`;
     }
