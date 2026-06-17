@@ -191,7 +191,7 @@
     const lineGridH   = flowLine(nGrid, nHouse, gColor, Math.max(0, -gridW), true);
 
     return `<div style="display:flex;justify-content:center;padding:8px 0 0;">
-      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:${VW}px;display:block;">
+      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:560px;display:block;">
         <defs><style>
           @keyframes pv-flow-fwd { from{stroke-dashoffset:36;} to{stroke-dashoffset:0;} }
           @keyframes pv-flow-rev { from{stroke-dashoffset:0;} to{stroke-dashoffset:36;} }
@@ -390,33 +390,30 @@
   }
 
   function openPvStats() {
-    const cp = document.getElementById('center-panel');
-    if (!cp) return;
-    // Overlay über dem center-panel — Inhalt bleibt erhalten
+    // Overlay über alle drei Spalten (fixed, zwischen Status- und Nav-Bar)
     let box = document.getElementById('pv-stats-box');
     if (!box) {
       box = document.createElement('div');
       box.id = 'pv-stats-box';
-      box.style.cssText = 'position:absolute;inset:0;z-index:200;background:var(--bg);display:flex;flex-direction:column;border-radius:inherit;overflow:hidden;';
-      cp.style.position = 'relative';
-      cp.appendChild(box);
+      box.style.cssText = 'position:fixed;left:0;top:52px;right:0;bottom:64px;z-index:200;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;';
+      document.body.appendChild(box);
     }
     box.style.display = 'flex';
     box.innerHTML = `<div style="width:100%;height:100%;display:flex;flex-direction:column;padding:0;">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 32px 12px;">
         <div style="font-size:0.65rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;">PV-Statistik</div>
         <button onclick="closePvStats()" style="background:none;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:0.78rem;font-weight:700;cursor:pointer;padding:6px 14px;letter-spacing:0.05em;">SCHLIESSEN</button>
       </div>
-      <div style="display:flex;gap:8px;padding:0 24px 16px;">
+      <div style="display:flex;gap:8px;padding:0 32px 16px;">
         ${['flow','today','7days','month','year'].map(v =>
           `<button onclick="loadPvStatsView('${v}')" id="pvtab-${v}"
             style="flex:1;padding:10px 6px;border-radius:10px;border:1px solid var(--border);background:${v===_pvStatsView?'rgba(0,200,255,0.12)':'transparent'};
             color:${v===_pvStatsView?'var(--accent)':'var(--muted)'};font-size:0.78rem;font-weight:700;cursor:pointer;transition:all 0.2s;">
-            ${v==='flow'?'Fluss':v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
+            ${v==='flow'?'Live':v==='today'?'Heute':v==='7days'?'7 Tage':v==='month'?'Monat':'Jahr'}
           </button>`
         ).join('')}
       </div>
-      <div id="pv-stats-content" style="flex:1;overflow-y:auto;padding:0 24px 24px;min-height:260px;">
+      <div id="pv-stats-content" style="flex:1;overflow-y:auto;padding:0 32px 32px;min-height:260px;">
         <div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>
       </div>
     </div>`;
