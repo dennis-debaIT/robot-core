@@ -121,7 +121,9 @@ def _resolve_matchday(all_matches: list[dict[str, Any]], hint: int | None) -> tu
     return None, []
 
 
-STANDINGS_TTL = 300  # Tabelle ändert sich selten — 5 Min reichen
+STANDINGS_TTL = 300   # Tabelle ändert sich selten — 5 Min reichen
+DETAIL_TTL    = 110   # Spieldetails (goals/bookings): alle 2 Haupt-Zyklen
+MAX_LIVE_DETAILS = 2  # max. Extra-API-Calls pro Refresh (Rate-Limit-Schutz)
 
 
 class TournamentService:
@@ -131,6 +133,8 @@ class TournamentService:
     _standings_cache: dict[str, Any] = {}
     _standings_cache_ts: float = 0.0
     _standings_cache_code: str = ""
+    # Match-Detail-Cache: match_id → (timestamp, detail_dict)
+    _detail_cache: dict[int, tuple[float, dict[str, Any]]] = {}
 
     def __init__(self, api_key: str, competition_code: str = "WC") -> None:
         self.api_key = api_key
@@ -146,6 +150,30 @@ class TournamentService:
                 return json.loads(resp.read().decode())
         except (URLError, OSError, json.JSONDecodeError, Exception):
             return None
+
+    def _enrich_with_details(self, live_matches: list[dict[str, Any]], now: float) -> None:
+        """Holt goals + bookings via /matches/{id} für die ersten Live-Spiele.
+
+        Separate API-Calls werden gecacht (DETAIL_TTL) und auf MAX_LIVE_DETAILS
+        begrenzt, damit das Rate-Limit von 10 req/min eingehalten wird.
+        """
+        fetches = 0
+        for m in live_matches:
+            if fetches >= MAX_LIVE_DETAILS:
+                break
+            mid = m.get("id")
+            if not mid:
+                continue
+            cached_ts, cached_detail = TournamentService._detail_cache.get(mid, (0.0, {}))
+            if now - cached_ts < DETAIL_TTL:
+                detail = cached_detail
+            else:
+                detail = self._fetch(f"/matches/{mid}") or {}
+                TournamentService._detail_cache[mid] = (now, detail)
+                fetches += 1
+            if detail:
+                m["goals"]    = detail.get("goals")    or m.get("goals")    or []
+                m["bookings"] = detail.get("bookings") or m.get("bookings") or []
 
     def get_current(self) -> dict[str, Any]:
         now = time.time()
@@ -173,6 +201,10 @@ class TournamentService:
         # Fallback für Free-Tier: zeitbasierte Heuristik wenn API kein IN_PLAY liefert
         if not live_matches:
             live_matches = [m for m in all_matches if _infer_probably_live(m)]
+
+        # Spieldetails (goals/bookings) für Live-Spiele separat nachladen
+        if live_matches:
+            self._enrich_with_details(live_matches, now)
 
         # Aktuellen Spieltag aus Match-Daten ermitteln (robust, unabhängig vom API-Hint)
         matchday_nr, matchday_matches = _resolve_matchday(all_matches, api_hint)

@@ -6,7 +6,9 @@ from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from app.services.tournament_service import _resolve_matchday, _infer_probably_live
+from app.services.tournament_service import (
+    _resolve_matchday, _infer_probably_live, DETAIL_TTL, MAX_LIVE_DETAILS,
+)
 
 BASE_URL = "https://api.football-data.org/v4"
 
@@ -29,6 +31,8 @@ class LigaService:
     _standings_cache: dict[str, dict[str, Any]] = {}
     _teams_cache:     dict[str, dict[str, Any]] = {}
     _focus_cache:     dict[str, dict[str, Any]] = {}  # str(team_id) → {data, ts}
+    # Match-Detail-Cache: match_id → (timestamp, detail_dict)
+    _detail_cache: dict[int, tuple[float, dict[str, Any]]] = {}
 
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
@@ -44,6 +48,26 @@ class LigaService:
                 return json.loads(resp.read().decode())
         except (URLError, OSError, json.JSONDecodeError, Exception):
             return None
+
+    def _enrich_with_details(self, live_matches: list[dict[str, Any]], now: float) -> None:
+        """Holt goals + bookings via /matches/{id} für die ersten Live-Spiele."""
+        fetches = 0
+        for m in live_matches:
+            if fetches >= MAX_LIVE_DETAILS:
+                break
+            mid = m.get("id")
+            if not mid:
+                continue
+            cached_ts, cached_detail = LigaService._detail_cache.get(mid, (0.0, {}))
+            if now - cached_ts < DETAIL_TTL:
+                detail = cached_detail
+            else:
+                detail = self._fetch(f"/matches/{mid}") or {}
+                LigaService._detail_cache[mid] = (now, detail)
+                fetches += 1
+            if detail:
+                m["goals"]    = detail.get("goals")    or m.get("goals")    or []
+                m["bookings"] = detail.get("bookings") or m.get("bookings") or []
 
     # ── State (Spieltag + Live) ───────────────────────────────────
     def get_state(self, codes: list[str]) -> list[dict[str, Any]]:
@@ -74,6 +98,10 @@ class LigaService:
             live = [m for m in matchday_matches if m.get("status") in _LIVE]
             if not live:
                 live = [m for m in matchday_matches if _infer_probably_live(m)]
+
+            # Spieldetails (goals/bookings) für Live-Spiele separat nachladen
+            if live:
+                self._enrich_with_details(live, now)
 
             league_data: dict[str, Any] = {
                 "code": code,
