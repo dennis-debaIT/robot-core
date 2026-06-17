@@ -385,7 +385,8 @@
   async function _prefetchKaderProfiles() {
     const BATCH_SIZE = 4;
     const DELAY_MS   = 120;
-    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && p.id);
+    // Auch fdo-Spieler ohne p.id (z.B. WC-Kader ohne Player-IDs im Endpoint) per Namenssuche laden
+    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && (p.id || (p._source?.startsWith('fdo') && p.name)));
     if (!toLoad.length) return;
     for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
       if (!_kaderOpen) return;
@@ -402,7 +403,9 @@
                 tmId          = sd.tm_id;
                 p._tmId       = tmId;
                 p.marketValue = sd.marketValue ?? p.marketValue;
-                if (sd.club)          p.club        = { name: sd.club.name };
+                // sd.club kann String oder Objekt sein — beides abfangen
+                const sdClubName = sd.club ? (typeof sd.club === 'string' ? sd.club : sd.club.name) : null;
+                if (sdClubName) p.club = { ...(p.club || {}), name: sdClubName };
                 if (sd.age)           p.age         = sd.age;
                 if (sd.nationalities) p.nationality  = sd.nationalities;
               }
@@ -478,7 +481,10 @@
       || (p._source?.startsWith('fdo')
           ? ''
           : (_kaderTeamCrest || _getTeamCrest(_teamDetailId) || _favCrest())) || '';
-    const clubName = p.club?.name || (_kaderStack.length ? '' : _kaderTeamName) || _ligaData?.favorite_team_name || '';
+    // fdo-Spieler spielen für einen anderen Verein als das Kader-Team → kein Fallback auf _kaderTeamName
+    const clubName = p.club?.name
+      || (p._source?.startsWith('fdo') ? '' : (_kaderStack.length ? '' : _kaderTeamName))
+      || _ligaData?.favorite_team_name || '';
     // Verein anklickbar wenn fd.o team_id bekannt (ermöglicht Navigation zum Vereinskader)
     const clubFdoId  = p.currentTeamId || null;
     const clubOnClick = clubFdoId
@@ -620,7 +626,9 @@
             if (sd.tm_id) {
               tmId = sd.tm_id; p._tmId = tmId;
               p.marketValue = sd.marketValue ?? p.marketValue;
-              if (sd.club)          p.club        = { ...(p.club || {}), name: sd.club.name };
+              // sd.club kann String oder Objekt sein — beides abfangen
+              const sdClubName = sd.club ? (typeof sd.club === 'string' ? sd.club : sd.club.name) : null;
+              if (sdClubName) p.club = { ...(p.club || {}), name: sdClubName };
               if (sd.age)           p.age         = sd.age;
               if (sd.nationalities) p.nationality  = sd.nationalities;
               _rerender();
