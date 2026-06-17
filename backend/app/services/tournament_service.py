@@ -156,9 +156,10 @@ class TournamentService:
 
         Separate API-Calls werden gecacht (DETAIL_TTL) und auf MAX_LIVE_DETAILS
         begrenzt, damit das Rate-Limit von 10 req/min eingehalten wird.
-        Wenn football-data.org keine Goals liefert, Fallback auf OpenLigaDB.
+        Danach: worldcup26.ir (WM) → OpenLigaDB (Fallback) für Score + Tore.
         """
         from app.services.openligadb_service import enrich_goals as _oldb_enrich
+        from app.services.worldcup26_service import enrich_match as _wc26_enrich
         fetches = 0
         for m in live_matches:
             if fetches >= MAX_LIVE_DETAILS:
@@ -176,7 +177,10 @@ class TournamentService:
             if detail:
                 m["goals"]    = detail.get("goals")    or m.get("goals")    or []
                 m["bookings"] = detail.get("bookings") or m.get("bookings") or []
-            # Fallback: OpenLigaDB wenn football-data.org keine Tore liefert
+            # WM: worldcup26.ir als primäre Quelle (Score + Torschützen)
+            if self.competition_code == "WC":
+                _wc26_enrich(m)
+            # Fallback: OpenLigaDB (Score wenn null, Tore wenn noch keine vorhanden)
             _oldb_enrich(m, self.competition_code)
 
     def get_current(self) -> dict[str, Any]:
