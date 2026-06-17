@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import time
+import hashlib
+import json
+import pathlib
 import urllib.parse
 import urllib.request
 from typing import Any
@@ -15,9 +17,8 @@ router = APIRouter()
 
 _ALLOWED_CODES = {"BL1", "BL2", "BL3"}
 
-# ── TM-Bild-Proxy ─────────────────────────────────────────────────────────────
-_img_cache: dict[str, dict] = {}
-_IMG_TTL = 86_400  # 24 h
+# ── Disk-Cache für TM-Bilder ───────────────────────────────────────────────────
+_IMG_CACHE_DIR = pathlib.Path("/data/tm_cache/img")
 
 
 def _get_cfg() -> dict[str, Any]:
@@ -59,9 +60,7 @@ def get_liga_teams() -> dict[str, Any]:
     cfg = _get_cfg()
     api_key = cfg.get("api_key")
     if api_key:
-        # football-data.org als Primärquelle (BL1), OpenLigaDB-Fallback für BL2/BL3
         return {"teams": LigaService(api_key).get_teams(sorted(_ALLOWED_CODES))}
-    # Kein API-Key: direkt OpenLigaDB für alle drei Ligen (Lieblingsverein-Picker)
     teams: list[dict[str, Any]] = []
     for code in sorted(_ALLOWED_CODES):
         teams.extend(_oldb_get_teams(code))
@@ -85,10 +84,20 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
     from app.services.transfermarkt_service import TransfermarktService
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
-    players = TransfermarktService().get_club_players_enriched(team_name.strip())
+    players = TransfermarktService().get_club_players(team_name.strip())
     if players is None:
         raise HTTPException(404, "Verein nicht auf Transfermarkt gefunden")
-    return {"players": players}
+    return {"players": players or []}
+
+
+@router.get("/liga/tm/player/{player_id}")
+def get_tm_player_profile(player_id: str) -> dict[str, Any]:
+    """Einzelnes Spieler-Profil — 30-Tage-Disk-Cache, lazy auf Profilaufruf."""
+    from app.services.transfermarkt_service import TransfermarktService
+    profile = TransfermarktService().get_player_profile(player_id)
+    if not profile:
+        raise HTTPException(404, "Spielerprofil nicht verfügbar")
+    return profile
 
 
 @router.get("/liga/team-detail")
@@ -102,16 +111,34 @@ def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
 
 @router.get("/liga/tm/img")
 def proxy_tm_image(url: str = Query(...)) -> Response:
-    """Proxied TM-Bild — setzt richtigen Referer/User-Agent, umgeht Browser-Hotlink-Sperren."""
+    """TM-Bild-Proxy mit Disk-Cache — überlebt Container-Neustarts."""
     parsed = urllib.parse.urlparse(url)
     if not (parsed.scheme == "https" and parsed.hostname and
             (parsed.hostname == "img.transfermarkt.com" or
              parsed.hostname.endswith(".transfermarkt.com"))):
         raise HTTPException(403, "Nur Transfermarkt-Bilder erlaubt")
-    cached = _img_cache.get(url)
-    if cached and time.time() - cached["ts"] < _IMG_TTL:
-        return Response(content=cached["data"], media_type=cached["ct"],
-                        headers={"Cache-Control": "public, max-age=86400"})
+
+    try:
+        _IMG_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    img_key   = hashlib.sha256(url.encode()).hexdigest()
+    img_path  = _IMG_CACHE_DIR / img_key
+    meta_path = _IMG_CACHE_DIR / f"{img_key}.meta"
+
+    # Aus Disk-Cache servieren wenn vorhanden
+    if img_path.exists() and meta_path.exists():
+        try:
+            ct = json.loads(meta_path.read_text()).get("ct", "image/jpeg")
+            return Response(
+                content=img_path.read_bytes(),
+                media_type=ct,
+                headers={"Cache-Control": "public, max-age=2592000"},  # 30 Tage
+            )
+        except Exception:
+            pass
+
     try:
         req = urllib.request.Request(url, headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -121,9 +148,16 @@ def proxy_tm_image(url: str = Query(...)) -> Response:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = resp.read()
             ct = resp.headers.get("Content-Type", "image/jpeg")
-        _img_cache[url] = {"data": data, "ct": ct, "ts": time.time()}
-        return Response(content=data, media_type=ct,
-                        headers={"Cache-Control": "public, max-age=86400"})
+        try:
+            img_path.write_bytes(data)
+            meta_path.write_text(json.dumps({"ct": ct}))
+        except Exception:
+            pass
+        return Response(
+            content=data,
+            media_type=ct,
+            headers={"Cache-Control": "public, max-age=2592000"},
+        )
     except Exception:
         raise HTTPException(502, "Bild konnte nicht geladen werden")
 

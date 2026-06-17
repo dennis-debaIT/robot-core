@@ -1,25 +1,28 @@
 """Transfermarkt-Vereinsdaten via community API (transfermarkt-api.fly.dev).
 
-Scraping-basiert — externe Abhängigkeit. Aggressive In-Memory-Caches
-(7 Tage / 24 h / 6 h) halten die Anzahl externer Anfragen minimal.
+Scraping-basiert — externe Abhängigkeit.
+Disk-Cache unter /data/tm_cache/ überlebt Container-Neustarts; Spieler-Profile
+werden 30 Tage gecacht, Vereins-Profile 24 h.
 """
 from __future__ import annotations
 
 import json
+import pathlib
 import time
 import urllib.parse
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 _TM_BASE = "https://transfermarkt-api.fly.dev"
 
-_SEARCH_TTL   = 7 * 86_400   # TM-IDs ändern sich nie
-_PROFILE_TTL  = 24 * 3_600   # Profildaten (Stadium, Gründung, …)
-_PLAYERS_TTL  = 6 * 3_600    # Marktwerte aktualisieren sich öfter
-_ENRICHED_TTL = 6 * 3_600    # angereicherter Kader (Bild + Rückennummer)
+_SEARCH_TTL      = 7 * 86_400   # TM-IDs ändern sich kaum
+_CLUB_TTL        = 24 * 3_600   # Vereinsprofil (Stadium, Gründung, …)
+_PLAYERS_TTL     = 6 * 3_600    # Kaderliste (Marktwerte)
+_PLAYER_DISK_TTL = 30 * 86_400  # Spieler-Einzel-Profil: 30 Tage Disk-Cache
 
 _cache: dict[str, dict[str, Any]] = {}
+
+_PLAYER_CACHE_DIR = pathlib.Path("/data/tm_cache/players")
 
 
 def _cached(key: str, ttl: float) -> Any | None:
@@ -31,26 +34,6 @@ def _cached(key: str, ttl: float) -> Any | None:
 
 def _store(key: str, data: Any) -> None:
     _cache[key] = {"data": data, "ts": time.time()}
-
-
-def _fetch_player_enriched(player_id: str) -> tuple[str, dict]:
-    """Profilbild, Rückennummer und Profildetails eines Spielers per /players/{id}/profile."""
-    data = _get(f"/players/{player_id}/profile")
-    if not data:
-        return player_id, {}
-    result: dict = {}
-    image = data.get("imageURL") or data.get("image") or data.get("profileImage")
-    if image:
-        result["image"] = image
-    shirt = data.get("shirtNumber") if data.get("shirtNumber") is not None else data.get("jerseyNumber")
-    if shirt is not None:
-        result["shirtNumber"] = shirt
-    for field in ("dateOfBirth", "placeOfBirth", "height", "weight",
-                  "joinedOn", "contractUntil", "lastUpdate", "club"):
-        val = data.get(field)
-        if val is not None:
-            result[field] = val
-    return player_id, result
 
 
 def _get(path: str) -> dict | None:
@@ -92,7 +75,7 @@ class TransfermarktService:
         if not tm_id:
             return None
         key = f"tm_profile:{tm_id}"
-        cached = _cached(key, _PROFILE_TTL)
+        cached = _cached(key, _CLUB_TTL)
         if cached is not None:
             return cached
         data = _get(f"/clubs/{tm_id}/profile")
@@ -114,31 +97,40 @@ class TransfermarktService:
             _store(key, players)
         return players or None
 
-    def get_club_players_enriched(self, team_name: str) -> list[dict] | None:
-        """Kader-Liste angereichert mit Profilbild und Rückennummer via paralleler Einzel-Abfragen."""
-        tm_id = self.search_club_id(team_name)
-        if not tm_id:
-            return None
-        key = f"tm_players_enriched:{tm_id}"
-        cached = _cached(key, _ENRICHED_TTL)
+    def get_player_profile(self, player_id: str) -> dict | None:
+        """Einzelnes Spieler-Profil mit 30-Tage-Disk-Cache.
+
+        Reihenfolge: In-Memory → Disk → API. Schreibt beim Abruf sofort
+        auf Disk, sodass der Cache Container-Neustarts überlebt.
+        """
+        key = f"tm_player:{player_id}"
+        # 1. In-Memory-Cache
+        cached = _cached(key, _PLAYER_DISK_TTL)
         if cached is not None:
             return cached
-        players = self.get_club_players(team_name)
-        if not players:
-            return players
-        enrichment: dict[str, dict] = {}
-        with ThreadPoolExecutor(max_workers=8) as ex:
-            futs = {
-                ex.submit(_fetch_player_enriched, str(p["id"])): str(p["id"])
-                for p in players if p.get("id")
-            }
-            for f in as_completed(futs, timeout=30):
-                pid = futs[f]
-                try:
-                    pid, info = f.result(timeout=8)
-                    enrichment[pid] = info
-                except Exception:
-                    enrichment[pid] = {}
-        enriched = [dict(p, **enrichment.get(str(p.get("id")), {})) for p in players]
-        _store(key, enriched)
-        return enriched
+        # 2. Disk-Cache
+        try:
+            _PLAYER_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+        cache_path = _PLAYER_CACHE_DIR / f"{player_id}.json"
+        if cache_path.exists():
+            try:
+                age = time.time() - cache_path.stat().st_mtime
+                if age < _PLAYER_DISK_TTL:
+                    data = json.loads(cache_path.read_text(encoding="utf-8"))
+                    _store(key, data)
+                    return data
+            except Exception:
+                pass
+        # 3. API-Abfrage
+        data = _get(f"/players/{player_id}/profile")
+        if data:
+            _store(key, data)
+            try:
+                cache_path.write_text(
+                    json.dumps(data, ensure_ascii=False), encoding="utf-8"
+                )
+            except Exception:
+                pass
+        return data

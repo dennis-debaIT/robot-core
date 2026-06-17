@@ -129,8 +129,14 @@
 
   function _contractYear(contract) {
     if (!contract) return '–';
-    const m = String(contract).match(/\d{4}/);
+    const src = typeof contract === 'object' ? (contract.until || '') : String(contract);
+    const m = src.match(/\d{4}/);
     return m ? `'${m[0].slice(2)}` : '–';
+  }
+
+  function _contractOptionDe(opt) {
+    if (!opt) return '';
+    return ({ 'Club option': 'Vereinsoption', 'Player option': 'Spieleroption', 'Mutual option': 'Beiderseitige Option', 'Buy option': 'Kaufoption' })[opt] || opt;
   }
 
   function _mvParse(v) {
@@ -289,27 +295,19 @@
 
   // ── Spieler-Profil ─────────────────────────────────────────────
 
-  function _showPlayerProfile(idx) {
-    const p = _kaderPlayers[idx];
-    if (!p) return;
-    const overlay = document.getElementById('cal-overlay');
-    if (!overlay) return;
-
-    // Initialen als Fallback wenn kein Bild geladen werden kann
-    const initials = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+  function _drawPlayerCard(p, overlay) {
+    const initials    = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
     const rawPortrait = p.imageURL || p.image || '';
     const portraitSrc = rawPortrait ? `/liga/tm/img?url=${encodeURIComponent(rawPortrait)}` : '';
-    const portrait = portraitSrc
+    const portrait    = portraitSrc
       ? `<img src="${_esc(portraitSrc)}" class="liga-player-portrait"
            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy">
          <div class="liga-player-portrait liga-player-portrait-ph" style="display:none">${_esc(initials)}</div>`
       : `<div class="liga-player-portrait liga-player-portrait-ph">${_esc(initials)}</div>`;
 
-    // Trikotnummer: TM liefert z.T. "#16" als String → # entfernen, dann selbst ergänzen
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
-    const shirt = shirtRaw ? `#${shirtRaw}` : '';
+    const shirt    = shirtRaw ? `#${shirtRaw}` : '';
 
-    // Vereinslogo: erst Team-Detail-Crest, dann Lieblingsverein-Crest, dann TM-Daten
     const crest    = _getTeamCrest(_teamDetailId) || _favCrest() || p.club?.imageURL || p.club?.image || '';
     const clubName = p.club?.name || _kaderTeamName || _ligaData?.favorite_team_name || '';
     const clubHtml = clubName ? `<div class="liga-player-club">
@@ -327,6 +325,13 @@
     const upd    = _fmtDateISO(p.lastUpdate);
     const mv     = _fmtMv(p.marketValue);
 
+    // Vertragsdaten: nach Profil-Load stehen contractUntil/contractOption/signedFrom direkt am Player
+    const rawContract     = typeof p.contract === 'object' ? p.contract : null;
+    const contractUntilRaw = p.contractUntil || rawContract?.until || (typeof p.contract === 'string' ? p.contract : null);
+    const contractUntilStr = contractUntilRaw ? _fmtDateISO(contractUntilRaw) : '';
+    const contractOptDe   = _contractOptionDe(p.contractOption || rawContract?.option || '');
+    const signedFrom      = p.signedFrom || '';
+
     const detailRows = [
       ['Nationalität',    nats],
       ['Marktwert',       mv !== '–' ? `<span style="color:var(--success);font-weight:700;">${_esc(mv)}</span>` : ''],
@@ -335,12 +340,16 @@
       ['Größe',           ht !== '–' ? ht : ''],
       ['Gewicht',         wt],
       ['Im Verein seit',  joined !== '–' ? joined : ''],
+      ['Kommt von',       signedFrom],
+      ['Vertrag bis',     contractUntilStr && contractUntilStr !== '–' ? contractUntilStr : ''],
+      ['Vertragsoption',  contractOptDe],
       ['Datenstand',      upd !== '–' ? upd : ''],
     ].filter(([, v]) => v)
      .map(([l, v]) => `<span class="liga-player-detail-label">${l}</span><span class="liga-player-detail-value">${v.includes('<') ? v : _esc(v)}</span>`)
      .join('');
 
-    const backLabel = _kaderBackAction === 'team' ? '← Verein' : '← Spieltag';
+    const backLabel    = _kaderBackAction === 'team' ? '← Verein' : '← Spieltag';
+    const loadingHint  = p._profileLoaded ? '' : '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade Profil…</div>';
 
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
@@ -358,9 +367,50 @@
             <div class="liga-player-pos-badge">${_esc(_posLabel(p.position))}</div>
             ${clubHtml}
             <div class="liga-player-detail-grid">${detailRows}</div>
+            ${loadingHint}
           </div>
         </div>
       </div>`;
+  }
+
+  async function _showPlayerProfile(idx) {
+    const p = _kaderPlayers[idx];
+    if (!p) return;
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+
+    _drawPlayerCard(p, overlay);
+
+    if (!p._profileLoaded && p.id) {
+      try {
+        const r = await fetch(`/liga/tm/player/${encodeURIComponent(String(p.id))}`, { cache: 'no-store' });
+        if (r.ok) {
+          const prof = await r.json();
+          Object.assign(p, {
+            _profileLoaded: true,
+            imageURL:       prof.imageURL       || prof.image || prof.profileImage || p.imageURL || null,
+            dateOfBirth:    prof.dateOfBirth    || p.dateOfBirth,
+            age:            prof.age            ?? p.age,
+            nationality:    prof.nationality    || p.nationality,
+            height:         prof.height         || p.height,
+            weight:         prof.weight         || p.weight,
+            placeOfBirth:   prof.placeOfBirth   || p.placeOfBirth,
+            joinedOn:       prof.joinedOn       || p.joinedOn,
+            signedFrom:     prof.signedFrom     || null,
+            contractUntil:  prof.contractUntil  || null,
+            contractOption: prof.contractOption || null,
+            lastUpdate:     prof.lastUpdate     || p.lastUpdate,
+            marketValue:    prof.marketValue    || p.marketValue,
+            shirtNumber:    prof.shirtNumber    || p.shirtNumber,
+            position:       prof.position       || p.position,
+            club:           prof.club           || p.club,
+          });
+          if (_kaderPlayers[idx] === p && document.querySelector('.liga-player-card')) {
+            _drawPlayerCard(p, overlay);
+          }
+        }
+      } catch {}
+    }
   }
 
   function _backToKaderList() {
