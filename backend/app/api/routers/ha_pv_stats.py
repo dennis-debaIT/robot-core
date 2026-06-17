@@ -57,21 +57,31 @@ def _calc_autarkie(pv_kwh: float, feed_in_kwh: float, import_kwh: float) -> dict
     }
 
 
-def _calc_savings(pv_kwh: float, feed_in_kwh: float, tariffs: dict) -> dict:
+def _calc_savings(
+    pv_kwh: float,
+    feed_in_kwh: float,
+    tariffs: dict,
+    battery_charge_kwh: float = 0.0,
+) -> dict:
     feed_in_ct = _safe_float(tariffs.get("feed_in_ct")) or 0.0
     grid_price_ct = _safe_float(tariffs.get("grid_price_ct")) or 0.0
-    self_consumption_kwh = max(0.0, pv_kwh - feed_in_kwh)
+    # Eigenverbrauch = nur Haus (ohne Batterie-Ladung und Netz-Einspeisung)
+    self_consumption_kwh = max(0.0, pv_kwh - feed_in_kwh - battery_charge_kwh)
+    # Ersparnis: Haus + Batterie ersparen Netzkauf, Einspeisung bringt Vergütung
     savings_eur = (
-        self_consumption_kwh * grid_price_ct / 100.0
+        (self_consumption_kwh + battery_charge_kwh) * grid_price_ct / 100.0
         + feed_in_kwh * feed_in_ct / 100.0
     )
-    return {
+    result: dict = {
         "feed_in_kwh": round(feed_in_kwh, 2),
         "self_consumption_kwh": round(self_consumption_kwh, 2),
         "savings_eur": round(savings_eur, 2),
         "feed_in_ct": feed_in_ct,
         "grid_price_ct": grid_price_ct,
     }
+    if battery_charge_kwh > 0:
+        result["battery_charge_kwh"] = round(battery_charge_kwh, 2)
+    return result
 
 
 def _safe_float(v: Any) -> float | None:
@@ -368,9 +378,10 @@ async def _integrate_signed_power_to_daily_kwh(
 async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
     config = IntegrationConfigService().get_config()
     sensors = _pv_sensors(config)
-    power_id = sensors.get("power", "")
-    daily_id = sensors.get("daily", "")
-    grid_id  = sensors.get("grid", "")
+    power_id    = sensors.get("power", "")
+    daily_id    = sensors.get("daily", "")
+    grid_id     = sensors.get("grid", "")
+    batt_pwr_id = sensors.get("battery_power", "")
     tariff_cfg = _tariffs(config)
     _energy_cfg = config.get("energy") or {}
     _savings_enabled = bool(
@@ -422,8 +433,12 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             imp_d, exp_d = _integrate_signed_power_to_daily_kwh_from_history(grid_id, start_utc, now_utc, ha)
             feed_in_kwh = exp_d.get(today_str, 0.0)
             import_kwh  = imp_d.get(today_str, 0.0)
+            batt_charge_kwh = 0.0
+            if batt_pwr_id:
+                batt_d = _integrate_power_to_daily_kwh_from_history(batt_pwr_id, start_utc, now_utc, ha)
+                batt_charge_kwh = batt_d.get(today_str, 0.0)
             if _savings_enabled:
-                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg, batt_charge_kwh)
             if _autarkie_enabled:
                 autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
@@ -466,8 +481,12 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             imp_d, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, s7_utc, now_utc, ha)
             feed_in_kwh = round(sum(exp_d.values()), 2)
             import_kwh  = round(sum(imp_d.values()), 2)
+            batt_charge_kwh = 0.0
+            if batt_pwr_id:
+                batt_d = await _integrate_power_to_daily_kwh(batt_pwr_id, s7_utc, now_utc, ha)
+                batt_charge_kwh = round(sum(batt_d.values()), 2)
             if _savings_enabled:
-                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg, batt_charge_kwh)
             if _autarkie_enabled:
                 autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
@@ -509,8 +528,12 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             imp_d, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sm_utc, now_utc, ha)
             feed_in_kwh = round(sum(exp_d.values()), 2)
             import_kwh  = round(sum(imp_d.values()), 2)
+            batt_charge_kwh = 0.0
+            if batt_pwr_id:
+                batt_d = await _integrate_power_to_daily_kwh(batt_pwr_id, sm_utc, now_utc, ha)
+                batt_charge_kwh = round(sum(batt_d.values()), 2)
             if _savings_enabled:
-                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg, batt_charge_kwh)
             if _autarkie_enabled:
                 autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 
@@ -576,8 +599,12 @@ async def get_pv_history(view: str = Query("today")) -> dict[str, Any]:
             imp_d, exp_d = await _integrate_signed_power_to_daily_kwh(grid_id, sy_utc, now_utc, ha)
             feed_in_kwh = round(sum(exp_d.values()), 2)
             import_kwh  = round(sum(imp_d.values()), 2)
+            batt_charge_kwh = 0.0
+            if batt_pwr_id:
+                batt_d = await _integrate_power_to_daily_kwh(batt_pwr_id, sy_utc, now_utc, ha)
+                batt_charge_kwh = round(sum(batt_d.values()), 2)
             if _savings_enabled:
-                savings = _calc_savings(total, feed_in_kwh, tariff_cfg)
+                savings = _calc_savings(total, feed_in_kwh, tariff_cfg, batt_charge_kwh)
             if _autarkie_enabled:
                 autarkie = _calc_autarkie(total, feed_in_kwh, import_kwh)
 

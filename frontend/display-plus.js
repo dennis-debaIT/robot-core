@@ -260,6 +260,12 @@
         const fmtKwh = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 1}) + ' kWh' : '–';
         const fmtEur = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' €' : '–';
         const fmtCt  = v => typeof v === 'number' ? v.toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 2}) + ' ct/kWh' : '–';
+        const battCol = s.battery_charge_kwh > 0 ? `
+              <div style="flex:1;text-align:center;">
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Batterie geladen</div>
+                <div style="font-size:1rem;font-weight:800;color:#10b981;">${fmtKwh(s.battery_charge_kwh)}</div>
+                <div style="font-size:0.6rem;color:var(--muted);">&agrave; ${fmtCt(s.grid_price_ct)}</div>
+              </div>` : '';
         savingsHtml = `
           <div style="margin-top:16px;padding:14px 16px;background:rgba(0,200,100,0.08);border:1px solid rgba(0,200,100,0.22);border-radius:10px;">
             <div style="font-size:0.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">&#9889; Durch PV eingespart</div>
@@ -269,8 +275,9 @@
                 <div style="font-size:1rem;font-weight:800;color:var(--success);">${fmtKwh(s.self_consumption_kwh)}</div>
                 <div style="font-size:0.6rem;color:var(--muted);">&agrave; ${fmtCt(s.grid_price_ct)}</div>
               </div>
+              ${battCol}
               <div style="flex:1;text-align:center;">
-                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Einspeisung</div>
+                <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3px;">Netz-Einspeisung</div>
                 <div style="font-size:1rem;font-weight:800;color:var(--accent);">${fmtKwh(s.feed_in_kwh)}</div>
                 <div style="font-size:0.6rem;color:var(--muted);">&agrave; ${fmtCt(s.feed_in_ct)}</div>
               </div>
