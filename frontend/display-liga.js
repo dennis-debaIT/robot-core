@@ -12,6 +12,7 @@
   // ── State ──────────────────────────────────────────────────────
   let _interval       = null;
   let _fullViewOpen   = false;
+  let _kaderOpen      = false;   // Kader-Overlay aktiv → Poll überspringt Left+Center
   let _selectedCode   = null;
   let _ligaData       = null;
   let _standingsCache = {};
@@ -170,6 +171,7 @@
     if (!overlay) return;
     const favName = _ligaData?.favorite_team_name;
     if (!favName) return;
+    _kaderOpen = true;
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
     overlay.classList.add('active');
     let players = [];
@@ -520,8 +522,10 @@
 
       _renderOverlay(_ligaData);
       if (_fullViewOpen) {
-        _renderLeft();
-        _renderCenter();
+        if (!_kaderOpen) {
+          _renderLeft();
+          _renderCenter();
+        }
         _renderRight();
       }
     } catch {}
@@ -561,11 +565,13 @@
   }
 
   function _backToMatchday() {
+    _kaderOpen = false;
     _renderCenter();
   }
 
   function closeFullView() {
     _fullViewOpen = false;
+    _kaderOpen   = false;
     _tmProfile   = null;
     _tmLoadedFor = null;
     const overlay = document.getElementById('cal-overlay');
