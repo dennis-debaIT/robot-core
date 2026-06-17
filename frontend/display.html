@@ -3970,6 +3970,7 @@
     let _trnPrevScores = {};
     let _goalFlashTimer = null;
     let _trnView = 'matches';
+    let _trnKaderOpen = false;
 
     function _fmtTime(utcDate) {
       if (!utcDate) return '–';
@@ -4146,6 +4147,13 @@
       return `${flag}${escapeHTML(displayName)}`;
     }
 
+    function _trnTeamBtn(team) {
+      const display = _trnTeamName(team);
+      const name = team?.name || team?.shortName || '';
+      if (!name) return display;
+      return `<span class="trn-team-link" data-trn-team="${escapeHTML(name)}" onclick="window._tournament.openKader(this.dataset.trnTeam)">${display}</span>`;
+    }
+
     function _renderMatchday(data) {
       const matches = data.matchday || [];
       const liveIds = new Set((data.live || []).map(m => m.id));
@@ -4215,9 +4223,9 @@
           const badge = isLive ? `<span class="trn-live-badge">${min || 'LIVE'}</span>` : '';
           html += `
             <div class="trn-match${isLive ? ' live' : ''}${isNext ? ' next' : ''}">
-              <span class="trn-team">${_trnTeamName(m.homeTeam)}</span>
+              <span class="trn-team">${_trnTeamBtn(m.homeTeam)}</span>
               <span class="trn-score${isLive ? ' live' : ''}">${isLive ? score : timeStr}</span>
-              <span class="trn-team away">${_trnTeamName(m.awayTeam)}</span>
+              <span class="trn-team away">${_trnTeamBtn(m.awayTeam)}</span>
               ${badge}
             </div>`;
         });
@@ -4296,9 +4304,9 @@
         const eventsHtml = window._renderMatchEvents ? window._renderMatchEvents(m.goals, m.bookings) : '';
         html += `
           <div class="trn-match live">
-            <span class="trn-team">${_trnTeamName(m.homeTeam)}</span>
+            <span class="trn-team">${_trnTeamBtn(m.homeTeam)}</span>
             <span class="trn-score live">${score}</span>
-            <span class="trn-team away">${_trnTeamName(m.awayTeam)}</span>
+            <span class="trn-team away">${_trnTeamBtn(m.awayTeam)}</span>
             <span class="trn-live-badge">${statusLabel}</span>
           </div>
           ${ht ? `<div style="font-size:0.6rem;color:var(--muted);text-align:center;margin:-3px 0 4px;">${ht}</div>` : ''}
@@ -4359,6 +4367,7 @@
 
     async function _pollTournament() {
       if (!_enabledModules.tournament) return;
+      if (_trnKaderOpen) return;
       try {
         const d = await fetch('/tournament/state', { cache: 'no-store' }).then(r => r.json());
         if (!d.enabled) { _hideTournamentOverlay(); return; }
@@ -4407,6 +4416,12 @@
       start: startTournamentOverlay,
       stop: stopTournamentOverlay,
       _setView: (v) => { _trnView = v; _pollTournament(); },
+      _refresh: () => { _trnKaderOpen = false; _pollTournament(); },
+      openKader: (teamName) => {
+        if (!teamName || !window._liga) return;
+        _trnKaderOpen = true;
+        window._liga._showKader(teamName, 'tournament');
+      },
     };
   })();
 

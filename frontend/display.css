@@ -1782,6 +1782,8 @@
       overflow: hidden; text-overflow: ellipsis;
     }
     .trn-team.away { text-align: right; }
+    .trn-team-link { cursor: pointer; }
+    .trn-team-link:hover { color: var(--accent); }
     .trn-score {
       font-size: 1.1rem; font-weight: 900; font-family: monospace;
       color: var(--accent); min-width: 56px; text-align: center; flex-shrink: 0;

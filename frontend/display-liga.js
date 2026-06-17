@@ -204,7 +204,7 @@
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     const displayName = _kaderTeamName || _ligaData?.favorite_team_name || '';
-    const backLabel   = _kaderBackAction === 'team' ? '← Verein' : '← Spieltag';
+    const backLabel   = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
     const players = _kaderPlayers;
     let rows = '';
     let lastGroup = -1;
@@ -248,12 +248,12 @@
       </div>`;
   }
 
-  async function _showKader(teamNameOverride) {
+  async function _showKader(teamNameOverride, backAction) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
-    _kaderBackAction = teamNameOverride ? 'team' : 'matchday';
+    _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
@@ -546,6 +546,11 @@
     if (_kaderBackAction === 'team' && _teamViewOpen && _teamDetailId) {
       const crest = _getTeamCrest(_teamDetailId);
       _showTeamDetail(_teamDetailId, _teamDetailName, crest);
+    } else if (_kaderBackAction === 'tournament') {
+      _teamViewOpen = false;
+      const calOverlay = document.getElementById('cal-overlay');
+      if (calOverlay) { calOverlay.classList.remove('active'); calOverlay.innerHTML = ''; }
+      window._tournament?._refresh();
     } else {
       _teamViewOpen = false;
       _renderCenter();
