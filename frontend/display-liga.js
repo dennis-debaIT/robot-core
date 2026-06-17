@@ -219,6 +219,11 @@
     const displayName = _kaderTeamName || _ligaData?.favorite_team_name || '';
     const backLabel   = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
     const players = _kaderPlayers;
+
+    // Gesamtmarktwert aus geladenen Spielern
+    const totalMv    = players.reduce((s, p) => s + _mvParse(p.marketValue ?? 0), 0);
+    const totalMvStr = totalMv > 0 ? _fmtMv(totalMv) : '';
+
     let rows = '';
     let lastGroup = -1;
     players.forEach((p, idx) => {
@@ -233,10 +238,14 @@
       const bis = _contractYear(p.contract);
       const age = p.age ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
+      const avatarUrl = p.imageURL ? `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}` : '';
+      const avatar = avatarUrl
+        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
+        : `<span class="liga-kader-img-ph"></span>`;
       rows += `<div class="liga-kader-row" onclick="window._liga._showPlayerProfile(${idx})">
         <span class="liga-kader-pos">${_esc(pos)}</span>
         <span class="liga-kader-num">${num}</span>
-        <span class="liga-kader-namecell"><span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
+        <span class="liga-kader-namecell">${avatar}<span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
         <span style="color:var(--muted);">${age}</span>
         <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(nat)}</span>
         <span style="color:var(--muted);">${_esc(bis)}</span>
@@ -248,7 +257,7 @@
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div>
-            <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader</div>
+            <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader · ${players.length} Spieler${totalMvStr ? ` · <span style="color:var(--success);font-weight:700;">${_esc(totalMvStr)}</span>` : ''}</div>
             <div style="font-size:1.05rem;font-weight:800;">${_esc(displayName)}</div>
           </div>
           <button class="liga-kader-back" onclick="window._liga._backFromKader()">${backLabel}</button>
@@ -399,8 +408,16 @@
           }
           if (tmId) {
             const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
-            if (r.ok) _mergePlayerProfile(p, await r.json());
-            else      p._profileLoaded = true;
+            if (r.ok) {
+              _mergePlayerProfile(p, await r.json());
+              // Bild im Hintergrund vorladen → Proxy cached es 30 Tage auf Disk
+              if (p.imageURL && _kaderOpen) {
+                const img = new Image();
+                img.src = `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}`;
+              }
+            } else {
+              p._profileLoaded = true;
+            }
           } else {
             p._profileLoaded = true;  // kein TM-Match → nicht nochmal versuchen
           }
