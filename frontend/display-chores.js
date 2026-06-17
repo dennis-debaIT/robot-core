@@ -16,6 +16,7 @@
     selectedPersonId: null,
     period: 'week',
     overallWinnerEnabled: true,
+    showingOverall: false,
   };
 
   const PERIOD_LABEL = { week: 'Woche', month: 'Monat', year: 'Jahr' };
@@ -252,17 +253,60 @@
     const lc = document.getElementById('left-content');
     lc.style.overflowY = 'auto';
     lc.innerHTML = _renderTaskList();
+    const lf = document.getElementById('left-footer');
+    if (lf) {
+      lf.innerHTML = `<button class="chore-overview-btn" onclick="window._choresPlus.showOverall()">📊 Wochenübersicht</button>`;
+    }
     setPanel('right', 'Personen', _renderPersonList());
     await _renderCenter();
   }
 
   async function selectTask(taskId) {
     state.selectedTaskId = taskId;
+    state.showingOverall = false;
     state.period = 'week';
     state.selectedPersonId = null;
     document.getElementById('left-content').innerHTML = _renderTaskList();
     setPanel('right', 'Personen', _renderPersonList());
     await _renderCenter();
+  }
+
+  async function showOverall() {
+    state.showingOverall = true;
+    state.selectedTaskId = null;
+    state.selectedPersonId = null;
+    document.getElementById('left-content').innerHTML = _renderTaskList();
+    setPanel('right', '', '');
+
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
+    overlay.classList.add('active');
+
+    const overall = await _fetchOverallStats();
+    const persons = overall?.persons || [];
+
+    let rankHtml = '';
+    if (!persons.length) {
+      rankHtml = '<div class="cal-placeholder">Noch keine Erledigungen diese Woche.</div>';
+    } else {
+      const sorted = [...persons].sort((a, b) => b.count - a.count);
+      const medals = ['🥇', '🥈', '🥉'];
+      rankHtml = sorted.map((p, i) => {
+        const medal = medals[i] || `${i + 1}.`;
+        const isLeader = overall?.leader?.person_id === p.person_id;
+        return `<div class="chore-rank-row${isLeader ? ' chore-rank-leader' : ''}">
+          <span class="chore-rank-pos">${medal}</span>
+          <span class="chore-color-dot" style="background:${_personColor(p.person_id)}"></span>
+          <span class="chore-rank-name">${escapeHTML(p.name)}</span>
+          <span class="chore-rank-count">${p.count} ${p.count === 1 ? 'Aufgabe' : 'Aufgaben'}</span>
+        </div>`;
+      }).join('');
+    }
+
+    overlay.innerHTML = `
+      <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;margin-bottom:14px;">📊 Wochenübersicht</div>
+      <div class="chore-rank-list">${rankHtml}</div>`;
   }
 
   async function showStatsTab(period) {
@@ -307,11 +351,14 @@
   function close() {
     state.selectedTaskId = null;
     state.selectedPersonId = null;
+    state.showingOverall = false;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     const lc = document.getElementById('left-content');
-    if (lc) lc.style.overflowY = '';
+    if (lc) { lc.style.overflowY = ''; lc.innerHTML = ''; }
+    const lf = document.getElementById('left-footer');
+    if (lf) lf.innerHTML = '';
   }
 
-  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion };
+  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion, showOverall };
 })();
