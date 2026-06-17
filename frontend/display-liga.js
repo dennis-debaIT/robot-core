@@ -352,7 +352,8 @@
         };
       });
     } else if (fdoPlayers.length) {
-      players = fdoPlayers.map(p => ({ ...p, _source: 'fdo', _profileLoaded: true }));
+      // _profileLoaded: false → Prefetch holt TM-Daten (Marktwert, Bild usw.) per Namenssuche
+      players = fdoPlayers.map(p => ({ ...p, _source: 'fdo', _profileLoaded: false }));
     } else {
       players = tmPlayers;
     }
@@ -371,23 +372,42 @@
   }
 
   async function _prefetchKaderProfiles() {
-    const BATCH_SIZE = 6;
-    const DELAY_MS   = 80;
-    // Lädt TM-Profile für Spieler mit TM-ID (fdo+tm) oder reine TM-Spieler
-    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && (p._tmId || (p.id && !p._source?.startsWith('fdo'))));
+    const BATCH_SIZE = 4;
+    const DELAY_MS   = 120;
+    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && p.id);
     if (!toLoad.length) return;
     for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
       if (!_kaderOpen) return;
       const batch = toLoad.slice(i, i + BATCH_SIZE);
       await Promise.allSettled(batch.map(async p => {
         try {
-          const tmId = p._tmId || String(p.id);
-          const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
-          if (!r.ok) return;
-          _mergePlayerProfile(p, await r.json());
-        } catch {}
+          // TM-ID ermitteln: direkt (_tmId gesetzt), via p.id (reine TM-Spieler) oder per Namenssuche (fdo)
+          let tmId = p._tmId || (!p._source?.startsWith('fdo') && p.id ? String(p.id) : null);
+          if (!tmId && p._source?.startsWith('fdo') && p.name) {
+            const sr = await fetch(`/liga/tm/player-search?name=${encodeURIComponent(p.name)}`, { cache: 'no-store' });
+            if (sr.ok) {
+              const sd = await sr.json();
+              if (sd.tm_id) {
+                tmId          = sd.tm_id;
+                p._tmId       = tmId;
+                p.marketValue = sd.marketValue ?? p.marketValue;
+                if (sd.club)          p.club        = { name: sd.club.name };
+                if (sd.age)           p.age         = sd.age;
+                if (sd.nationalities) p.nationality  = sd.nationalities;
+              }
+            }
+          }
+          if (tmId) {
+            const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
+            if (r.ok) _mergePlayerProfile(p, await r.json());
+            else      p._profileLoaded = true;
+          } else {
+            p._profileLoaded = true;  // kein TM-Match → nicht nochmal versuchen
+          }
+        } catch {
+          p._profileLoaded = true;
+        }
       }));
-      // Liste neu rendern wenn kein Spieler-Karte offen
       if (_kaderOpen && !document.querySelector('.liga-player-card')) {
         _renderKaderContent();
       }
@@ -552,16 +572,34 @@
       }
     };
 
-    // TM-Profil laden (für TM-Spieler direkt per id, für fdo+tm per _tmId)
-    if (!p._profileLoaded && (p._tmId || (p.id && !p._source?.startsWith('fdo')))) {
-      try {
-        const tmId = p._tmId || String(p.id);
-        const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
-        if (r.ok) {
-          _mergePlayerProfile(p, await r.json());
-          _rerender();
-        }
-      } catch {}
+    // TM-Profil laden: fdo+tm per _tmId, reine TM per p.id, reine fdo per Namenssuche
+    if (!p._profileLoaded) {
+      let tmId = p._tmId || (!p._source?.startsWith('fdo') && p.id ? String(p.id) : null);
+      if (!tmId && p._source?.startsWith('fdo') && p.name) {
+        try {
+          const sr = await fetch(`/liga/tm/player-search?name=${encodeURIComponent(p.name)}`, { cache: 'no-store' });
+          if (sr.ok) {
+            const sd = await sr.json();
+            if (sd.tm_id) {
+              tmId          = sd.tm_id;
+              p._tmId       = tmId;
+              p.marketValue = sd.marketValue ?? p.marketValue;
+              if (sd.club)          p.club        = { name: sd.club.name };
+              if (sd.age)           p.age         = sd.age;
+              if (sd.nationalities) p.nationality  = sd.nationalities;
+              _rerender();  // Marktwert + Verein sofort sichtbar
+            }
+          }
+        } catch {}
+      }
+      if (tmId) {
+        try {
+          const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
+          if (r.ok) { _mergePlayerProfile(p, await r.json()); _rerender(); }
+        } catch {}
+      } else {
+        p._profileLoaded = true;
+      }
     }
 
     // fd.o Personenprofil: Vertragsdaten + Trikotnummer vom aktuellen Verein

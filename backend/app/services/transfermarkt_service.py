@@ -117,6 +117,32 @@ class TransfermarktService:
             _store(key, players)
         return players or None
 
+    def search_player(self, name: str) -> dict | None:
+        """Spieler per Name auf TM suchen — liefert id, marketValue, club, position, age, nationalities.
+
+        7 Tage gecacht (TTL analog club-Suche).
+        """
+        key = f"tm_player_search:{name.lower().strip()}"
+        cached = _cached(key, _SEARCH_TTL)
+        if cached is not None:
+            return cached
+        data = _get(f"/players/search/{urllib.parse.quote(name)}")
+        results: list[dict] = (data or {}).get("results") or []
+        if not results:
+            return None
+        r = results[0]
+        result = {
+            "tm_id":         str(r["id"]),
+            "name":          r.get("name"),
+            "position":      r.get("position"),
+            "club":          r.get("club"),
+            "age":           r.get("age"),
+            "nationalities": r.get("nationalities"),
+            "marketValue":   r.get("marketValue"),
+        }
+        _store(key, result)
+        return result
+
     def get_player_profile(self, player_id: str) -> dict | None:
         """Einzelnes Spieler-Profil mit 30-Tage-Disk-Cache.
 
