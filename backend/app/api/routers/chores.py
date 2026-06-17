@@ -32,7 +32,11 @@ def create_chore_task(payload: dict[str, Any]) -> dict[str, Any]:
     if not name:
         raise HTTPException(status_code=400, detail="Name fehlt")
     icon = str(payload.get("icon") or "").strip() or None
-    return ChoreService().create_task(name, icon)
+    try:
+        points = max(1, int(payload.get("points") or 1))
+    except (TypeError, ValueError):
+        points = 1
+    return ChoreService().create_task(name, icon, points=points)
 
 
 @router.patch("/chores/tasks/{task_id}")
@@ -47,10 +51,16 @@ def update_chore_task(task_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         icon = str(icon).strip() or None
     sort_order = payload.get("sort_order")
     active = payload.get("active")
+    points_raw = payload.get("points")
+    try:
+        points = max(1, int(points_raw)) if points_raw is not None else None
+    except (TypeError, ValueError):
+        points = None
     result = ChoreService().update_task(
         task_id,
         name=name,
         icon=icon,
+        points=points,
         sort_order=sort_order,
         active=active,
     )

@@ -324,6 +324,7 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 icon TEXT,
+                points INTEGER NOT NULL DEFAULT 1,
                 sort_order INTEGER NOT NULL DEFAULT 0,
                 active INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
@@ -415,6 +416,10 @@ def init_db() -> None:
         person_columns = {row["name"] for row in conn.execute("PRAGMA table_info(persons)").fetchall()}
         if "gender" not in person_columns:
             conn.execute("ALTER TABLE persons ADD COLUMN gender TEXT")
+
+        chore_task_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chore_tasks)").fetchall()}
+        if "points" not in chore_task_columns:
+            conn.execute("ALTER TABLE chore_tasks ADD COLUMN points INTEGER NOT NULL DEFAULT 1")
 
         rows = conn.execute(
             """

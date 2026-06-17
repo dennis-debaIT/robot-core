@@ -113,8 +113,10 @@
     if (!overall || !overall.leader) {
       return '<div class="chore-banner">🏆 Wochensieger: noch keine Erledigungen diese Woche.</div>';
     }
-    const unit = overall.leader.count === 1 ? 'Aufgabe' : 'Aufgaben';
-    return `<div class="chore-banner">🏆 Wochensieger: ${escapeHTML(overall.leader.name)} (${overall.leader.count} ${unit})</div>`;
+    const l = overall.leader;
+    const pts = l.total_points ?? l.count ?? 0;
+    const unit = pts === 1 ? 'Punkt' : 'Punkte';
+    return `<div class="chore-banner">🏆 Wochensieger: ${escapeHTML(l.name)} (${pts} ${unit})</div>`;
   }
 
   // Eigenes Balkendiagramm statt window._svgEnergyBar: Erledigungen sind
@@ -190,15 +192,20 @@
   function _renderTaskStats(stats, completions) {
     if (!stats) return '<div class="cal-placeholder">Aufgabe nicht gefunden.</div>';
     const persons = stats.persons || [];
+    const taskPts = stats.task_points ?? 1;
+    const ptsLabel = taskPts === 1 ? '1 Punkt' : `${taskPts} Punkte`;
+    const ptsBadge = `<span style="font-size:0.65rem;background:rgba(0,200,80,0.12);color:#00c832;border:1px solid rgba(0,200,80,0.3);border-radius:999px;padding:1px 8px;margin-left:8px;">${ptsLabel} pro Erledigung</span>`;
     const leaderHtml = stats.leader
-      ? `<div class="chore-leader">🏆 Wochensieger dieser Aufgabe: ${escapeHTML(stats.leader.name)} (${stats.leader.count})</div>`
+      ? `<div class="chore-leader">🏆 ${PERIOD_LABEL[stats.period]}: ${escapeHTML(stats.leader.name)} (${stats.leader.points_total ?? stats.leader.count} ${(stats.leader.points_total ?? stats.leader.count) === 1 ? 'Punkt' : 'Punkte'})</div>`
       : '<div class="chore-leader" style="color:var(--muted);">Noch keine Erledigungen in diesem Zeitraum.</div>';
     const totalsHtml = persons.length
       ? persons.map(p => {
           const selected = state.selectedPersonId === p.person_id;
+          const pts = p.points_total ?? p.count;
+          const countLabel = p.count !== pts ? ` <span style="color:var(--muted);font-size:0.72rem;">(${p.count}×)</span>` : '';
           return `<div class="chore-total-row${selected ? ' selected' : ''}" onclick="window._choresPlus.selectPerson(${p.person_id})">
             <span><span class="chore-color-dot" style="background:${_personColor(p.person_id)}"></span>${escapeHTML(p.name)}</span>
-            <span>${p.count}</span>
+            <span>${pts} ${pts === 1 ? 'Pkt' : 'Pkt'}${countLabel}</span>
           </div>`;
         }).join('')
       : '';
@@ -216,7 +223,7 @@
         <div class="vehicle-detail-header">
           <div>
             <div class="vehicle-detail-kicker">Hausaufgaben · Verlauf</div>
-            <div class="vehicle-detail-title">${escapeHTML(stats.task_name)}</div>
+            <div class="vehicle-detail-title">${escapeHTML(stats.task_name)}${ptsBadge}</div>
           </div>
         </div>
         ${leaderHtml}
@@ -295,11 +302,15 @@
       rankHtml = sorted.map((p, i) => {
         const medal = medals[i] || `${i + 1}.`;
         const isLeader = overall?.leader?.person_id === p.person_id;
+        const pts = p.total_points ?? p.count ?? 0;
+        const compl = p.total_completions ?? p.count ?? 0;
+        const ptLabel = pts === 1 ? 'Punkt' : 'Punkte';
+        const sub = pts !== compl ? `<span style="font-size:0.68rem;color:var(--muted);"> · ${compl} ${compl === 1 ? 'Aufgabe' : 'Aufgaben'}</span>` : '';
         return `<div class="chore-rank-row${isLeader ? ' chore-rank-leader' : ''}" style="cursor:pointer;" onclick="window._choresPlus.showPersonDetail(${p.person_id})">
           <span class="chore-rank-pos">${medal}</span>
           <span class="chore-color-dot" style="background:${_personColor(p.person_id)}"></span>
           <span class="chore-rank-name">${escapeHTML(p.name)}</span>
-          <span class="chore-rank-count">${p.count} ${p.count === 1 ? 'Aufgabe' : 'Aufgaben'}</span>
+          <span class="chore-rank-count">${pts} ${ptLabel}${sub}</span>
         </div>`;
       }).join('');
     }
@@ -323,11 +334,14 @@
       if (!completions.length) {
         rowsHtml = '<div class="cal-placeholder">Keine Erledigungen diese Woche.</div>';
       } else {
-        rowsHtml = `<div class="chore-recent-list">${completions.map(c => `
-          <div class="chore-recent-row">
-            <span style="flex:1;min-width:0;font-weight:600;">${escapeHTML(c.task_name)}</span>
+        rowsHtml = `<div class="chore-recent-list">${completions.map(c => {
+          const pts = c.task_points ?? 1;
+          const ptsBadge = pts > 1 ? `<span style="font-size:0.65rem;background:rgba(0,200,80,0.12);color:#00c832;border:1px solid rgba(0,200,80,0.3);border-radius:999px;padding:1px 6px;margin-left:6px;">${pts} Pkt</span>` : '';
+          return `<div class="chore-recent-row">
+            <span style="flex:1;min-width:0;font-weight:600;">${escapeHTML(c.task_name)}${ptsBadge}</span>
             <span style="color:var(--muted);font-size:0.78rem;flex-shrink:0;">${escapeHTML(c.completed_at_local)}</span>
-          </div>`).join('')}</div>`;
+          </div>`;
+        }).join('')}</div>`;
       }
       overlay.innerHTML = `
         <div class="vehicle-detail-wrap">

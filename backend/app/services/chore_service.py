@@ -43,6 +43,7 @@ class ChoreService:
             "id": row["id"],
             "name": row["name"],
             "icon": row["icon"],
+            "points": row["points"] if row["points"] is not None else 1,
             "sort_order": row["sort_order"],
             "active": bool(row["active"]),
         }
@@ -56,18 +57,19 @@ class ChoreService:
             rows = conn.execute(query).fetchall()
         return [self._task_row_to_dict(row) for row in rows]
 
-    def create_task(self, name: str, icon: str | None = None) -> dict[str, Any]:
+    def create_task(self, name: str, icon: str | None = None, points: int = 1) -> dict[str, Any]:
         now = datetime.now(timezone.utc).isoformat()
+        points = max(1, int(points))
         with get_connection() as conn:
             next_sort = conn.execute(
                 "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM chore_tasks"
             ).fetchone()["n"]
             cur = conn.execute(
                 """
-                INSERT INTO chore_tasks(name, icon, sort_order, active, created_at, updated_at)
-                VALUES (?, ?, ?, 1, ?, ?)
+                INSERT INTO chore_tasks(name, icon, points, sort_order, active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, ?, ?)
                 """,
-                (name, icon, next_sort, now, now),
+                (name, icon, points, next_sort, now, now),
             )
             row = conn.execute("SELECT * FROM chore_tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
         return self._task_row_to_dict(row)
@@ -77,6 +79,7 @@ class ChoreService:
         task_id: int,
         name: str | None = None,
         icon: str | None = None,
+        points: int | None = None,
         sort_order: int | None = None,
         active: bool | None = None,
     ) -> dict[str, Any] | None:
@@ -87,11 +90,12 @@ class ChoreService:
                 return None
             new_name = name if name is not None else row["name"]
             new_icon = icon if icon is not None else row["icon"]
+            new_points = max(1, int(points)) if points is not None else (row["points"] if row["points"] is not None else 1)
             new_sort = sort_order if sort_order is not None else row["sort_order"]
             new_active = int(active) if active is not None else row["active"]
             conn.execute(
-                "UPDATE chore_tasks SET name=?, icon=?, sort_order=?, active=?, updated_at=? WHERE id=?",
-                (new_name, new_icon, new_sort, new_active, now, task_id),
+                "UPDATE chore_tasks SET name=?, icon=?, points=?, sort_order=?, active=?, updated_at=? WHERE id=?",
+                (new_name, new_icon, new_points, new_sort, new_active, now, task_id),
             )
             row = conn.execute("SELECT * FROM chore_tasks WHERE id = ?", (task_id,)).fetchone()
         return self._task_row_to_dict(row)
@@ -163,9 +167,10 @@ class ChoreService:
         now_local = datetime.now(tz)
         start_utc = self._period_start_utc(period, now_local)
         with get_connection() as conn:
-            task_row = conn.execute("SELECT name FROM chore_tasks WHERE id = ?", (task_id,)).fetchone()
+            task_row = conn.execute("SELECT name, points FROM chore_tasks WHERE id = ?", (task_id,)).fetchone()
             if not task_row:
                 return None
+            task_points = task_row["points"] if task_row["points"] is not None else 1
             rows = conn.execute(
                 """
                 SELECT p.id AS person_id, p.name AS name, COUNT(*) AS count
@@ -177,10 +182,19 @@ class ChoreService:
                 """,
                 (task_id, start_utc.isoformat()),
             ).fetchall()
-        persons = [{"person_id": r["person_id"], "name": r["name"], "count": r["count"]} for r in rows]
+        persons = [
+            {
+                "person_id": r["person_id"],
+                "name": r["name"],
+                "count": r["count"],
+                "points_total": r["count"] * task_points,
+            }
+            for r in rows
+        ]
         return {
             "task_id": task_id,
             "task_name": task_row["name"],
+            "task_points": task_points,
             "period": period,
             "persons": persons,
             "leader": persons[0] if persons else None,
@@ -193,17 +207,27 @@ class ChoreService:
         with get_connection() as conn:
             rows = conn.execute(
                 """
-                SELECT p.id AS person_id, p.name AS name, COUNT(*) AS count
+                SELECT p.id AS person_id, p.name AS name,
+                       COUNT(*) AS total_completions,
+                       SUM(COALESCE(t.points, 1)) AS total_points
                 FROM chore_completions c
                 JOIN persons p ON p.id = c.person_id
                 JOIN chore_tasks t ON t.id = c.task_id
                 WHERE t.active = 1 AND c.completed_at >= ?
                 GROUP BY p.id, p.name
-                ORDER BY count DESC, p.name ASC
+                ORDER BY total_points DESC, total_completions DESC, p.name ASC
                 """,
                 (start_utc.isoformat(),),
             ).fetchall()
-        persons = [{"person_id": r["person_id"], "name": r["name"], "count": r["count"]} for r in rows]
+        persons = [
+            {
+                "person_id": r["person_id"],
+                "name": r["name"],
+                "total_completions": r["total_completions"],
+                "total_points": r["total_points"],
+            }
+            for r in rows
+        ]
         return {
             "period": "week",
             "persons": persons,
@@ -222,7 +246,8 @@ class ChoreService:
                 return {"person_id": person_id, "person_name": "", "period": period, "completions": []}
             rows = conn.execute(
                 """
-                SELECT c.id, t.id AS task_id, t.name AS task_name, c.completed_at
+                SELECT c.id, t.id AS task_id, t.name AS task_name,
+                       COALESCE(t.points, 1) AS task_points, c.completed_at
                 FROM chore_completions c
                 JOIN chore_tasks t ON t.id = c.task_id
                 WHERE c.person_id = ? AND c.completed_at >= ?
@@ -240,6 +265,7 @@ class ChoreService:
                 "id": r["id"],
                 "task_id": r["task_id"],
                 "task_name": r["task_name"],
+                "task_points": r["task_points"],
                 "completed_at_local": local_dt.strftime("%d.%m. %H:%M"),
             })
         return {
