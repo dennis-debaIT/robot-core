@@ -49,8 +49,11 @@ class LigaService:
         except (URLError, OSError, json.JSONDecodeError, Exception):
             return None
 
-    def _enrich_with_details(self, live_matches: list[dict[str, Any]], now: float) -> None:
-        """Holt goals + bookings via /matches/{id} für die ersten Live-Spiele."""
+    def _enrich_with_details(self, live_matches: list[dict[str, Any]], now: float, code: str = "") -> None:
+        """Holt goals + bookings via /matches/{id} für die ersten Live-Spiele.
+        Fallback auf OpenLigaDB wenn football-data.org keine Tore liefert.
+        """
+        from app.services.openligadb_service import enrich_goals as _oldb_enrich
         fetches = 0
         for m in live_matches:
             if fetches >= MAX_LIVE_DETAILS:
@@ -68,6 +71,8 @@ class LigaService:
             if detail:
                 m["goals"]    = detail.get("goals")    or m.get("goals")    or []
                 m["bookings"] = detail.get("bookings") or m.get("bookings") or []
+            # Fallback: OpenLigaDB wenn football-data.org keine Tore liefert
+            _oldb_enrich(m, code)
 
     # ── State (Spieltag + Live) ───────────────────────────────────
     def get_state(self, codes: list[str]) -> list[dict[str, Any]]:
@@ -101,7 +106,7 @@ class LigaService:
 
             # Spieldetails (goals/bookings) für Live-Spiele separat nachladen
             if live:
-                self._enrich_with_details(live, now)
+                self._enrich_with_details(live, now, code)
 
             league_data: dict[str, Any] = {
                 "code": code,
