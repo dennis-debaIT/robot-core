@@ -9,13 +9,15 @@ import json
 import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 _TM_BASE = "https://transfermarkt-api.fly.dev"
 
-_SEARCH_TTL  = 7 * 86_400   # TM-IDs ändern sich nie
-_PROFILE_TTL = 24 * 3_600   # Profildaten (Stadium, Gründung, …)
-_PLAYERS_TTL = 6 * 3_600    # Marktwerte aktualisieren sich öfter
+_SEARCH_TTL   = 7 * 86_400   # TM-IDs ändern sich nie
+_PROFILE_TTL  = 24 * 3_600   # Profildaten (Stadium, Gründung, …)
+_PLAYERS_TTL  = 6 * 3_600    # Marktwerte aktualisieren sich öfter
+_ENRICHED_TTL = 6 * 3_600    # angereicherter Kader (Bild + Rückennummer)
 
 _cache: dict[str, dict[str, Any]] = {}
 
@@ -29,6 +31,21 @@ def _cached(key: str, ttl: float) -> Any | None:
 
 def _store(key: str, data: Any) -> None:
     _cache[key] = {"data": data, "ts": time.time()}
+
+
+def _fetch_player_enriched(player_id: str) -> tuple[str, dict]:
+    """Profilbild und Rückennummer eines Spielers per /players/{id}/profile."""
+    data = _get(f"/players/{player_id}/profile")
+    if not data:
+        return player_id, {}
+    result: dict = {}
+    image = data.get("imageURL") or data.get("image") or data.get("profileImage")
+    if image:
+        result["image"] = image
+    shirt = data.get("shirtNumber") if data.get("shirtNumber") is not None else data.get("jerseyNumber")
+    if shirt is not None:
+        result["shirtNumber"] = shirt
+    return player_id, result
 
 
 def _get(path: str) -> dict | None:
@@ -91,3 +108,32 @@ class TransfermarktService:
         if players:
             _store(key, players)
         return players or None
+
+    def get_club_players_enriched(self, team_name: str) -> list[dict] | None:
+        """Kader-Liste angereichert mit Profilbild und Rückennummer via paralleler Einzel-Abfragen."""
+        tm_id = self.search_club_id(team_name)
+        if not tm_id:
+            return None
+        key = f"tm_players_enriched:{tm_id}"
+        cached = _cached(key, _ENRICHED_TTL)
+        if cached is not None:
+            return cached
+        players = self.get_club_players(team_name)
+        if not players:
+            return players
+        enrichment: dict[str, dict] = {}
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            futs = {
+                ex.submit(_fetch_player_enriched, str(p["id"])): str(p["id"])
+                for p in players if p.get("id")
+            }
+            for f in as_completed(futs, timeout=30):
+                pid = futs[f]
+                try:
+                    pid, info = f.result(timeout=8)
+                    enrichment[pid] = info
+                except Exception:
+                    enrichment[pid] = {}
+        enriched = [dict(p, **enrichment.get(str(p.get("id")), {})) for p in players]
+        _store(key, enriched)
+        return enriched

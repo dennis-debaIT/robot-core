@@ -77,7 +77,7 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
     from app.services.transfermarkt_service import TransfermarktService
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
-    players = TransfermarktService().get_club_players(team_name.strip())
+    players = TransfermarktService().get_club_players_enriched(team_name.strip())
     if players is None:
         raise HTTPException(404, "Verein nicht auf Transfermarkt gefunden")
     return {"players": players}

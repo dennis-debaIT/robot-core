@@ -83,24 +83,51 @@
     'Linksaußen': 'LA', 'Rechtsaußen': 'RA', 'Hängende Spitze': 'HS', 'Mittelstürmer': 'ST',
   };
 
+  const _POS_GROUP = {
+    'Torwart': 0, 'Torhüter': 0,
+    'Innenverteidiger': 1, 'Linker Verteidiger': 1, 'Rechter Verteidiger': 1,
+    'Defensives Mittelfeld': 2, 'Zentrales Mittelfeld': 2,
+    'Offensives Mittelfeld': 2, 'Linkes Mittelfeld': 2, 'Rechtes Mittelfeld': 2,
+    'Linksaußen': 3, 'Rechtsaußen': 3, 'Hängende Spitze': 3, 'Mittelstürmer': 3,
+  };
+  const _POS_GROUP_LABEL = ['Tor', 'Abwehr', 'Mittelfeld', 'Sturm'];
+
   function _posShort(pos) {
     if (!pos) return '–';
-    const main = pos.main || pos;
-    return _POS_SHORT[main] || main.slice(0, 3);
+    const main = (typeof pos === 'object' ? pos.main : pos) || '';
+    return _POS_SHORT[main] || main.slice(0, 3) || '–';
+  }
+
+  function _posGroup(pos) {
+    if (!pos) return 99;
+    const key = (typeof pos === 'object' ? pos.main : pos) || '';
+    return _POS_GROUP[key] ?? 2;
   }
 
   function _contractYear(contract) {
-    if (!contract?.date) return '–';
-    const m = String(contract.date).match(/\d{4}/);
+    if (!contract) return '–';
+    const m = String(contract).match(/\d{4}/);
     return m ? `'${m[0].slice(2)}` : '–';
   }
 
-  function _mvParse(str) {
-    if (!str) return 0;
-    const m = String(str).match(/([\d,.]+)\s*(Mio\.|Tsd\.)/);
+  function _mvParse(v) {
+    if (typeof v === 'number') return v;
+    if (!v) return 0;
+    const m = String(v).match(/([\d,.]+)\s*(Mio\.|Tsd\.)/);
     if (!m) return 0;
     const n = parseFloat(m[1].replace(',', '.'));
     return m[2].includes('Mio') ? n * 1_000_000 : n * 1_000;
+  }
+
+  function _fmtMv(v) {
+    const n = typeof v === 'number' ? v : _mvParse(v);
+    if (!n) return '–';
+    if (n >= 1_000_000) {
+      const s = (n / 1_000_000).toFixed(1).replace('.', ',');
+      return `${s.endsWith(',0') ? s.slice(0, -2) : s} Mio. €`;
+    }
+    if (n >= 1_000) return `${Math.round(n / 1_000)} Tsd. €`;
+    return `${n} €`;
   }
 
   async function _loadTmProfile(teamName) {
@@ -124,7 +151,7 @@
       return;
     }
     const p = _tmProfile;
-    const mv    = p.currentMarketValue || '';
+    const mv    = _fmtMv(p.currentMarketValue);
     const stad  = [p.stadiumName, p.stadiumSeats ? `${Number(p.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
     const found = p.foundedOn ? `📅 ${p.foundedOn}` : '';
     const web   = p.website   ? `🌐 ${_esc(p.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
@@ -133,7 +160,7 @@
     const favName = _ligaData?.favorite_team_name || '';
     el.innerHTML = `
       <div class="liga-tm-label">Vereinsinfo · Transfermarkt</div>
-      ${mv ? `<div class="liga-tm-mv">💶 Kaderwert: ${_esc(mv)}</div>` : ''}
+      ${mv && mv !== '–' ? `<div class="liga-tm-mv">💶 Kaderwert: ${_esc(mv)}</div>` : ''}
       ${rows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}
       <button class="liga-kader-btn" onclick="window._liga._showKader()">👥 Kader anzeigen</button>`;
   }
@@ -150,23 +177,42 @@
       const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(favName)}`, { cache: 'no-store' });
       if (r.ok) players = (await r.json()).players || [];
     } catch {}
-    players.sort((a, b) => _mvParse(b.marketValue) - _mvParse(a.marketValue));
-    const rows = players.map(p => {
-      const nat = (p.nationality || [])[0] || '–';
+
+    // Primär: Positionsgruppe (Tor→Abwehr→Mittelfeld→Sturm), sekundär: Marktwert
+    players.sort((a, b) => {
+      const ga = _posGroup(a.position), gb = _posGroup(b.position);
+      if (ga !== gb) return ga - gb;
+      return _mvParse(b.marketValue) - _mvParse(a.marketValue);
+    });
+
+    let rows = '';
+    let lastGroup = -1;
+    for (const p of players) {
+      const grp = _posGroup(p.position);
+      if (grp !== lastGroup) {
+        lastGroup = grp;
+        rows += `<div class="liga-kader-section">${_POS_GROUP_LABEL[grp] ?? 'Sonstige'}</div>`;
+      }
+      const nat = Array.isArray(p.nationality) ? (p.nationality[0] || '–') : (p.nationality || '–');
       const pos = _posShort(p.position);
-      const mv  = p.marketValue || '–';
+      const mv  = _fmtMv(p.marketValue);
       const bis = _contractYear(p.contract);
       const age = p.age ?? '–';
-      const ht  = p.height ? p.height.replace(' m','m') : '–';
-      return `<div class="liga-kader-row">
-        <span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span>
+      const num = p.shirtNumber ?? '–';
+      const img = p.image
+        ? `<img src="${_esc(p.image)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
+        : '<span class="liga-kader-img-ph"></span>';
+      rows += `<div class="liga-kader-row">
         <span class="liga-kader-pos">${_esc(pos)}</span>
+        <span class="liga-kader-num">${num}</span>
+        <span class="liga-kader-namecell">${img}<span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
         <span style="color:var(--muted);">${age}</span>
         <span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(nat)}</span>
         <span style="color:var(--muted);">${_esc(bis)}</span>
         <span class="liga-kader-mv">${_esc(mv)}</span>
       </div>`;
-    }).join('');
+    }
+
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
@@ -178,7 +224,7 @@
         </div>
         ${players.length ? `
         <div class="liga-kader-hdr">
-          <span>Name</span><span>Pos</span><span>Alt</span><span>Nation</span><span>bis</span><span>Marktwert</span>
+          <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>Marktwert</span>
         </div>
         <div class="liga-kader-grid">${rows}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
       </div>`;
