@@ -25,6 +25,7 @@
   let _kaderTeamName   = null;   // null = Lieblingsverein, sonst überschriebener Name
   let _kaderTeamId     = null;   // football-data.org team_id für squad-Endpoint (Turnierteams)
   let _kaderTeamCrest  = null;   // Wappen des aktuellen Kader-Teams (fdo-Quelle)
+  let _kaderFdoNames   = [];    // Alternative Teamnamen aus fd.o für TM-Fallback-Suche
   let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' — wohin zurück aus Kader
 
   const POLL_MS = 10_000;
@@ -254,6 +255,23 @@
       </div>`;
   }
 
+  // Erzeugt Suchvarianten für TM: "Congo DR" → "DR Congo", "Korea Republic" → "Korea" usw.
+  function _buildTmCandidates(primary, extras) {
+    const seen = new Set(), out = [];
+    const push = n => { if (n && !seen.has(n)) { seen.add(n); out.push(n); } };
+    const variants = n => {
+      push(n);
+      // "Congo DR" / "Korea DPR" → "DR Congo" / "DPR Korea"
+      const rev = n.replace(/^(.+?)\s+(DR|DPR|Republic|FC|SC|CF|BK)$/i, '$2 $1').trim();
+      if (rev !== n) push(rev);
+      // "DR Congo" / "Republic of Ireland" → "Congo" / "Ireland"
+      const stripped = n.replace(/^(DR|DPR|Republic of|Democratic Republic of|North |South |FK |FC |SC )/i, '').trim();
+      if (stripped !== n) push(stripped);
+    };
+    [primary, ...extras].forEach(n => n && variants(n));
+    return out;
+  }
+
   async function _showKader(teamNameOverride, backAction, teamId) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
@@ -268,22 +286,30 @@
     let players = [];
     // Für Teams mit bekannter football-data.org ID: Kader inkl. Trikotnummer direkt laden
     // (funktioniert für Nationalmannschaften + Vereinsmannschaften aus Turnieren)
+    _kaderFdoNames = [];
     if (teamId) {
       try {
         const r = await fetch(`/liga/team-squad?team_id=${encodeURIComponent(teamId)}`, { cache: 'no-store' });
         if (r.ok) {
           const data = await r.json();
           _kaderTeamCrest = data.crest || null;
+          // Alternative Namen für TM-Fallback (fd.o name/shortName können abweichen)
+          _kaderFdoNames = [data.name, data.shortName].filter(n => n && n !== teamName);
           players = (data.squad || []).map(p => ({ ...p, _profileLoaded: true, _source: 'fdo' }));
         }
       } catch {}
     }
-    // Fallback auf Transfermarkt (Bundesliga-Kader, oder wenn fd.org keinen Kader hat)
+    // Fallback auf Transfermarkt — probiert Namensvarianten ("Congo DR" → "DR Congo" usw.)
     if (!players.length) {
-      try {
-        const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' });
-        if (r.ok) players = (await r.json()).players || [];
-      } catch {}
+      const tmCandidates = _buildTmCandidates(teamName, _kaderFdoNames);
+      for (const cand of tmCandidates) {
+        try {
+          const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(cand)}`, { cache: 'no-store' });
+          if (!r.ok) continue;
+          const d = await r.json();
+          if ((d.players || []).length) { players = d.players; break; }
+        } catch {}
+      }
     }
     players.sort((a, b) => {
       const ga = _posGroup(a.position), gb = _posGroup(b.position);
@@ -401,8 +427,8 @@
      .join('');
 
     const backLabel    = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : '← Spieltag';
-    const loadingHint  = (!p._profileLoaded || (p._source === 'fdo' && !p._tmProfileLoaded))
-      ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade TM-Profil…</div>'
+    const loadingHint  = (!p._profileLoaded && p._source !== 'fdo')
+      ? '<div style="font-size:0.65rem;color:var(--muted);margin-top:8px;opacity:.7;">Lade Profil…</div>'
       : '';
 
     overlay.innerHTML = `
@@ -995,6 +1021,7 @@
     _kaderTeamName   = null;
     _kaderTeamId     = null;
     _kaderTeamCrest  = null;
+    _kaderFdoNames   = [];
     _kaderBackAction = 'matchday';
     _tmProfile       = null;
     _tmLoadedFor     = null;
