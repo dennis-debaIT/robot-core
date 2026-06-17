@@ -149,10 +149,16 @@
   function _mvParse(v) {
     if (typeof v === 'number') return v;
     if (!v) return 0;
-    const m = String(v).match(/([\d,.]+)\s*(Mio\.|Tsd\.)/);
-    if (!m) return 0;
-    const n = parseFloat(m[1].replace(',', '.'));
-    return m[2].includes('Mio') ? n * 1_000_000 : n * 1_000;
+    const s = String(v).replace(/[€\s]/g, '');
+    // Deutsch: "5,00 Mio." / "500 Tsd."
+    const de = s.match(/([\d,.]+)(Mio\.|Tsd\.)/);
+    if (de) { const n = parseFloat(de[1].replace(',', '.')); return de[2].includes('Mio') ? n * 1_000_000 : n * 1_000; }
+    // Englisch: "5.00m" / "500k" / "1.5M" / "300K"
+    const en = s.match(/([\d,.]+)([mkMK])/);
+    if (en) { const n = parseFloat(en[1].replace(',', '.')); return en[2].toLowerCase() === 'm' ? n * 1_000_000 : n * 1_000; }
+    // Reiner Zahlenwert (in Euro)
+    const num = parseFloat(s.replace(',', '.'));
+    return isNaN(num) ? 0 : num;
   }
 
   function _fmtMv(v) {
