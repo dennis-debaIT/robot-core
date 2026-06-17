@@ -246,7 +246,7 @@
       box = document.createElement('div');
       box.id = 'liga-fullview';
       box.className = 'liga-fullview';
-      cp.parentElement.appendChild(box);
+      cp.appendChild(box);
     }
     _renderFullView(box);
     box.classList.add('active');

@@ -47,12 +47,18 @@ def get_liga_standings(code: str = Query(...)) -> dict[str, Any]:
 
 @router.get("/liga/teams")
 def get_liga_teams() -> dict[str, Any]:
+    from app.services.openligadb_liga import get_teams as _oldb_get_teams
     cfg = _get_cfg()
-    if not cfg.get("api_key"):
-        return {"teams": []}
-    # Immer alle drei Ligen — der Lieblingsverein-Picker soll unabhängig von
-    # den aktivierten Anzeigeligen alle Teams zeigen.
-    return {"teams": LigaService(cfg["api_key"]).get_teams(sorted(_ALLOWED_CODES))}
+    api_key = cfg.get("api_key")
+    if api_key:
+        # football-data.org als Primärquelle (BL1), OpenLigaDB-Fallback für BL2/BL3
+        return {"teams": LigaService(api_key).get_teams(sorted(_ALLOWED_CODES))}
+    # Kein API-Key: direkt OpenLigaDB für alle drei Ligen (Lieblingsverein-Picker)
+    teams: list[dict[str, Any]] = []
+    for code in sorted(_ALLOWED_CODES):
+        teams.extend(_oldb_get_teams(code))
+    teams.sort(key=lambda t: (t.get("league_code", ""), t.get("name", "")))
+    return {"teams": teams}
 
 
 @router.patch("/liga/config")

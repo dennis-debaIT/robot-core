@@ -76,6 +76,7 @@ class LigaService:
 
     # ── State (Spieltag + Live) ───────────────────────────────────
     def get_state(self, codes: list[str]) -> list[dict[str, Any]]:
+        from app.services.openligadb_liga import get_state as _oldb_get_state
         now = time.time()
         result: list[dict[str, Any]] = []
         for code in codes:
@@ -86,7 +87,12 @@ class LigaService:
 
             data = self._fetch(f"/competitions/{code}/matches")
             if not data:
-                if cached:
+                # BL2/BL3 liefern 403 auf Free-Tier → OpenLigaDB als Fallback
+                oldb = _oldb_get_state(code)
+                if oldb:
+                    LigaService._state_cache[code] = {"data": oldb, "ts": now}
+                    result.append(oldb)
+                elif cached:
                     result.append(cached["data"])
                 continue
 
@@ -122,6 +128,7 @@ class LigaService:
 
     # ── Tabelle ───────────────────────────────────────────────────
     def get_standings(self, code: str) -> dict[str, Any]:
+        from app.services.openligadb_liga import get_standings as _oldb_get_standings
         now = time.time()
         cached = LigaService._standings_cache.get(code)
         if cached and (now - cached["ts"]) < STANDINGS_TTL:
@@ -129,6 +136,10 @@ class LigaService:
 
         data = self._fetch(f"/competitions/{code}/standings")
         if not data:
+            oldb = _oldb_get_standings(code)
+            if oldb:
+                LigaService._standings_cache[code] = {"data": oldb, "ts": now}
+                return oldb
             return cached["data"] if cached else {"code": code, "table": [], "error": True}
 
         standings = data.get("standings", [])
@@ -146,6 +157,7 @@ class LigaService:
 
     # ── Teams (für Admin-Dropdown) ────────────────────────────────
     def get_teams(self, codes: list[str]) -> list[dict[str, Any]]:
+        from app.services.openligadb_liga import get_teams as _oldb_get_teams
         now = time.time()
         all_teams: list[dict[str, Any]] = []
         for code in codes:
@@ -156,7 +168,11 @@ class LigaService:
 
             data = self._fetch(f"/competitions/{code}/teams")
             if not data:
-                if cached:
+                oldb_teams = _oldb_get_teams(code)
+                if oldb_teams:
+                    LigaService._teams_cache[code] = {"data": oldb_teams, "ts": now}
+                    all_teams.extend(oldb_teams)
+                elif cached:
                     all_teams.extend(cached["data"])
                 continue
 
