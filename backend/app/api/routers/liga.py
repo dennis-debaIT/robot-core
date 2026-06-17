@@ -124,6 +124,21 @@ def get_tm_player_profile(player_id: str) -> dict[str, Any]:
     return profile
 
 
+@router.get("/liga/kader-full")
+def get_full_kader(team_id: int = Query(0), team_name: str = Query("")) -> dict[str, Any]:
+    """Vollständig angereicherter Kader (fd.o + TM) mit 24h Disk-Cache.
+
+    Erster Aufruf kann 20–60s dauern (parallele TM-Profilanfragen).
+    Folgeaufrufe innerhalb 24h kommen direkt aus dem Disk-Cache.
+    """
+    cfg = _get_cfg()
+    svc = LigaService(cfg.get("api_key", ""))
+    result = svc.get_full_kader(team_id or None, team_name.strip())
+    if not result:
+        raise HTTPException(404, "Kader nicht gefunden")
+    return result
+
+
 @router.get("/liga/team-detail")
 def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
     """Team-Fokus (letzte 5 Spiele + nächstes Spiel) für beliebigen Verein."""

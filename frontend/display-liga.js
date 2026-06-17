@@ -305,14 +305,16 @@
   async function _showKader(teamNameOverride, backAction, teamId) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
+    // Für Lieblingsverein team_id aus _ligaData nutzen wenn nicht explizit übergeben
+    const resolvedTeamId = teamId || (!teamNameOverride ? (_ligaData?.favorite_team_id || null) : null);
 
-    // Kader-Profil-Cache: sofortige Anzeige ohne erneuten Fetch/Prefetch
-    const _cacheKey = `${teamId || ''}_${teamName}`;
+    // Kader-Profil-Cache: sofortige Anzeige ohne erneuten Netzwerkaufruf (1h Session-Cache)
+    const _cacheKey = `${resolvedTeamId || ''}_${teamName}`;
     const _cached   = _kaderProfileCache.get(_cacheKey);
     if (_cached && (Date.now() - _cached.ts) < KADER_PROFILE_CACHE_MS) {
       _kaderOpen       = true;
       _kaderTeamName   = teamName;
-      _kaderTeamId     = teamId || null;
+      _kaderTeamId     = resolvedTeamId || null;
       _kaderTeamCrest  = _cached.crest;
       _kaderFdoNames   = _cached.fdoNames;
       _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
@@ -325,8 +327,8 @@
 
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
-    _kaderTeamId     = teamId || null;
-    _kaderTeamCrest  = null;   // Reset sofort — wird nach fdoData-Load gesetzt
+    _kaderTeamId     = resolvedTeamId || null;
+    _kaderTeamCrest  = null;
     _kaderFdoNames   = [];
     _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
     const overlay = document.getElementById('cal-overlay');
@@ -334,64 +336,23 @@
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
     overlay.classList.add('active');
 
-    // fd.o squad (Trikotnummern) + TM kader (Marktwerte) parallel laden
-    const tmCandidates = _buildTmCandidates(teamName, []);
-    const [fdoRes, tmRes] = await Promise.allSettled([
-      teamId
-        ? fetch(`/liga/team-squad?team_id=${encodeURIComponent(teamId)}`, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : null).catch(() => null)
-        : Promise.resolve(null),
-      tmCandidates.length
-        ? fetch(`/liga/tm/players?team_name=${encodeURIComponent(tmCandidates[0])}`, { cache: 'no-store' })
-            .then(r => r.ok ? r.json() : null).catch(() => null)
-        : Promise.resolve(null),
-    ]);
+    // Backend-assemblierten Kader laden (fd.o + TM-Profile, 24h Disk-Cache)
+    const params = new URLSearchParams({ team_name: teamName });
+    if (resolvedTeamId) params.set('team_id', String(resolvedTeamId));
+    let fullData = null;
+    try {
+      const r = await fetch(`/liga/kader-full?${params}`, { cache: 'no-store' });
+      if (r.ok) fullData = await r.json();
+    } catch {}
 
-    const fdoData = fdoRes.status === 'fulfilled' ? fdoRes.value : null;
-    let   tmData  = tmRes.status  === 'fulfilled' ? tmRes.value  : null;
+    if (!_kaderOpen) return;
 
-    let fdoPlayers = [];
-    if (fdoData) {
-      _kaderTeamCrest = fdoData.crest || null;
-      _kaderFdoNames  = [fdoData.name, fdoData.shortName].filter(n => n && n !== teamName);
-      fdoPlayers = fdoData.squad || [];
+    if (fullData) {
+      _kaderTeamCrest = fullData.crest || null;
+      _kaderFdoNames  = [fullData.name, fullData.shortName].filter(n => n && n !== teamName);
     }
 
-    // Weitere TM-Kandidaten falls erster leer oder fehlgeschlagen
-    if (!(tmData?.players?.length)) {
-      const moreCands = _buildTmCandidates(teamName, _kaderFdoNames);
-      for (const cand of moreCands.slice(1)) {
-        try {
-          const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(cand)}`, { cache: 'no-store' });
-          if (!r.ok) continue;
-          const d = await r.json();
-          if ((d.players || []).length) { tmData = d; break; }
-        } catch {}
-      }
-    }
-    const tmPlayers = tmData?.players || [];
-
-    // Merge: Trikotnummern (fd.o) + Marktwerte (TM) per Namensabgleich zusammenführen
-    let players = [];
-    if (fdoPlayers.length && tmPlayers.length) {
-      const tmByName = new Map(tmPlayers.map(p => [_normName(p.name), p]));
-      players = fdoPlayers.map(p => {
-        const tm = tmByName.get(_normName(p.name));
-        return {
-          ...p,
-          _tmId:          tm ? String(tm.id) : null,
-          marketValue:    tm?.marketValue    ?? null,
-          _source:        tm ? 'fdo+tm'      : 'fdo',
-          _profileLoaded: !tm,   // fdo+tm: TM-Profil noch ausstehend; pure fdo: kein TM-Profil
-        };
-      });
-    } else if (fdoPlayers.length) {
-      // _profileLoaded: false → Prefetch holt TM-Daten (Marktwert, Bild usw.) per Namenssuche
-      players = fdoPlayers.map(p => ({ ...p, _source: 'fdo', _profileLoaded: false }));
-    } else {
-      players = tmPlayers;
-    }
-
+    const players = (fullData?.squad || []).slice();
     players.sort((a, b) => {
       const ga = _posGroup(a.position), gb = _posGroup(b.position);
       if (ga !== gb) return ga - gb;
@@ -402,71 +363,12 @@
     });
     _kaderPlayers = players;
     _renderKaderContent();
-    _prefetchKaderProfiles();
-  }
 
-  async function _prefetchKaderProfiles() {
-    const BATCH_SIZE = 4;
-    const DELAY_MS   = 120;
-    // Auch fdo-Spieler ohne p.id (z.B. WC-Kader ohne Player-IDs im Endpoint) per Namenssuche laden
-    const toLoad = _kaderPlayers.filter(p => !p._profileLoaded && (p.id || (p._source?.startsWith('fdo') && p.name)));
-    if (!toLoad.length) return;
-    for (let i = 0; i < toLoad.length; i += BATCH_SIZE) {
-      if (!_kaderOpen) return;
-      const batch = toLoad.slice(i, i + BATCH_SIZE);
-      await Promise.allSettled(batch.map(async p => {
-        try {
-          // TM-ID ermitteln: direkt (_tmId gesetzt), via p.id (reine TM-Spieler) oder per Namenssuche (fdo)
-          let tmId = p._tmId || (!p._source?.startsWith('fdo') && p.id ? String(p.id) : null);
-          if (!tmId && p._source?.startsWith('fdo') && p.name) {
-            const sr = await fetch(`/liga/tm/player-search?name=${encodeURIComponent(p.name)}`, { cache: 'no-store' });
-            if (sr.ok) {
-              const sd = await sr.json();
-              if (sd.tm_id) {
-                tmId          = sd.tm_id;
-                p._tmId       = tmId;
-                p.marketValue = sd.marketValue ?? p.marketValue;
-                // sd.club kann String oder Objekt sein — beides abfangen
-                const sdClubName = sd.club ? (typeof sd.club === 'string' ? sd.club : sd.club.name) : null;
-                if (sdClubName) p.club = { ...(p.club || {}), name: sdClubName };
-                if (sd.age)           p.age         = sd.age;
-                if (sd.nationalities) p.nationality  = sd.nationalities;
-              }
-            }
-          }
-          if (tmId) {
-            const r = await fetch(`/liga/tm/player/${encodeURIComponent(tmId)}`, { cache: 'no-store' });
-            if (r.ok) {
-              _mergePlayerProfile(p, await r.json());
-              // Bild im Hintergrund vorladen → Proxy cached es 30 Tage auf Disk
-              if (p.imageURL && _kaderOpen) {
-                const img = new Image();
-                img.src = `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}`;
-              }
-            } else {
-              p._profileLoaded = true;
-            }
-          } else {
-            p._profileLoaded = true;  // kein TM-Match → nicht nochmal versuchen
-          }
-        } catch {
-          p._profileLoaded = true;
-        }
-      }));
-      if (_kaderOpen && !document.querySelector('.liga-player-card')) {
-        _renderKaderContent();
-      }
-      if (i + BATCH_SIZE < toLoad.length) {
-        await new Promise(res => setTimeout(res, DELAY_MS));
-      }
-    }
-    // Profil-Cache füllen: nächster Besuch dieses Kaders ist sofort (kein Prefetch nötig)
-    if (_kaderOpen) {
-      _kaderProfileCache.set(`${_kaderTeamId || ''}_${_kaderTeamName}`, {
-        players: _kaderPlayers, crest: _kaderTeamCrest,
-        fdoNames: _kaderFdoNames, ts: Date.now(),
-      });
-    }
+    // Session-Cache füllen: nächster Besuch in dieser Sitzung ist sofort
+    _kaderProfileCache.set(_cacheKey, {
+      players: _kaderPlayers, crest: _kaderTeamCrest,
+      fdoNames: _kaderFdoNames, ts: Date.now(),
+    });
   }
 
   // ── Crest-Helfer ───────────────────────────────────────────────
@@ -825,7 +727,7 @@
 
   function _showKaderForTeam() {
     if (!_teamDetailName) return;
-    _showKader(_teamDetailName);
+    _showKader(_teamDetailName, 'team', _teamDetailId || null);
   }
 
   // ── Kader-Rücknavigation ───────────────────────────────────────
