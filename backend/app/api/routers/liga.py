@@ -91,6 +91,15 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
     return {"players": players}
 
 
+@router.get("/liga/team-detail")
+def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
+    """Team-Fokus (letzte 5 Spiele + nächstes Spiel) für beliebigen Verein."""
+    cfg = _get_cfg()
+    if not cfg.get("api_key"):
+        raise HTTPException(400, "Liga nicht konfiguriert")
+    return LigaService(cfg["api_key"]).get_team_focus(team_id)
+
+
 @router.get("/liga/tm/img")
 def proxy_tm_image(url: str = Query(...)) -> Response:
     """Proxied TM-Bild — setzt richtigen Referer/User-Agent, umgeht Browser-Hotlink-Sperren."""

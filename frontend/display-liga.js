@@ -10,15 +10,20 @@
   'use strict';
 
   // ── State ──────────────────────────────────────────────────────
-  let _interval       = null;
-  let _fullViewOpen   = false;
-  let _kaderOpen      = false;   // Kader-Overlay aktiv → Poll überspringt Left+Center
-  let _kaderPlayers   = [];      // geladener + sortierter Kader für Back-Navigation
-  let _selectedCode   = null;
-  let _ligaData       = null;
-  let _standingsCache = {};
-  let _tmProfile      = null;   // gecachtes TM-Vereinsprofil
-  let _tmLoadedFor    = null;   // team_name für den _tmProfile geladen wurde
+  let _interval        = null;
+  let _fullViewOpen    = false;
+  let _kaderOpen       = false;   // Kader-Overlay aktiv → Poll überspringt Left+Center
+  let _kaderPlayers    = [];      // geladener + sortierter Kader für Back-Navigation
+  let _selectedCode    = null;
+  let _ligaData        = null;
+  let _standingsCache  = {};
+  let _tmProfile       = null;   // gecachtes TM-Vereinsprofil (Lieblingsverein links)
+  let _tmLoadedFor     = null;   // team_name für den _tmProfile geladen wurde
+  let _teamViewOpen    = false;  // Team-Detail-Overlay aktiv → Poll überspringt Center
+  let _teamDetailId    = null;   // team_id der aktuell angezeigten Vereinsdetails
+  let _teamDetailName  = null;   // Vereinsname für Team-Detail
+  let _kaderTeamName   = null;   // null = Lieblingsverein, sonst überschriebener Name
+  let _kaderBackAction = 'matchday'; // 'matchday' | 'team' — wohin zurück aus Kader
 
   const POLL_MS = 10_000;
 
@@ -148,8 +153,13 @@
     return `${n} €`;
   }
 
+  // ── TM-Vereinsprofil (Lieblingsverein, linkes Panel) ───────────
+
   async function _loadTmProfile(teamName) {
-    if (_tmLoadedFor === teamName && _tmProfile) return;
+    if (_tmLoadedFor === teamName && _tmProfile) {
+      _renderTmCard(); // Profil bereits gecacht — in frisch gerenderten DOM-Container eintragen
+      return;
+    }
     _tmLoadedFor = teamName;
     _tmProfile = null;
     const el = document.getElementById('liga-tm-card');
@@ -175,7 +185,6 @@
     const web   = p.website   ? `🌐 ${_esc(p.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
     const tel   = p.tel       ? `📞 ${_esc(p.tel)}` : '';
     const rows  = [stad ? `🏟 ${_esc(stad)}` : '', found, web, tel].filter(Boolean);
-    const favName = _ligaData?.favorite_team_name || '';
     el.innerHTML = `
       <div class="liga-tm-label">Vereinsinfo · Transfermarkt</div>
       ${mv && mv !== '–' ? `<div class="liga-tm-mv">💶 Kaderwert: ${_esc(mv)}</div>` : ''}
@@ -183,10 +192,13 @@
       <button class="liga-kader-btn" onclick="window._liga._showKader()">👥 Kader anzeigen</button>`;
   }
 
+  // ── Kader-Ansicht ──────────────────────────────────────────────
+
   function _renderKaderContent() {
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
-    const favName = _ligaData?.favorite_team_name || '';
+    const displayName = _kaderTeamName || _ligaData?.favorite_team_name || '';
+    const backLabel   = _kaderBackAction === 'team' ? '← Verein' : '← Spieltag';
     const players = _kaderPlayers;
     let rows = '';
     let lastGroup = -1;
@@ -222,9 +234,9 @@
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div>
             <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader</div>
-            <div style="font-size:1.05rem;font-weight:800;">${_esc(favName)}</div>
+            <div style="font-size:1.05rem;font-weight:800;">${_esc(displayName)}</div>
           </div>
-          <button class="liga-kader-back" onclick="window._liga._backToMatchday()">← Spieltag</button>
+          <button class="liga-kader-back" onclick="window._liga._backFromKader()">${backLabel}</button>
         </div>
         ${players.length ? `
         <div class="liga-kader-hdr">
@@ -234,17 +246,19 @@
       </div>`;
   }
 
-  async function _showKader() {
+  async function _showKader(teamNameOverride) {
+    const teamName = teamNameOverride || _ligaData?.favorite_team_name;
+    if (!teamName) return;
+    _kaderOpen       = true;
+    _kaderTeamName   = teamName;
+    _kaderBackAction = teamNameOverride ? 'team' : 'matchday';
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
-    const favName = _ligaData?.favorite_team_name;
-    if (!favName) return;
-    _kaderOpen = true;
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
     overlay.classList.add('active');
     let players = [];
     try {
-      const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(favName)}`, { cache: 'no-store' });
+      const r = await fetch(`/liga/tm/players?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' });
       if (r.ok) players = (await r.json()).players || [];
     } catch {}
     players.sort((a, b) => {
@@ -256,6 +270,8 @@
     _renderKaderContent();
   }
 
+  // ── Crest-Helfer ───────────────────────────────────────────────
+
   function _favCrest() {
     const favId = _favId();
     if (!favId) return '';
@@ -265,6 +281,17 @@
     }
     return '';
   }
+
+  function _getTeamCrest(teamId) {
+    if (!teamId) return '';
+    for (const s of Object.values(_standingsCache)) {
+      const row = (s?.table || []).find(r => r.team?.id === teamId);
+      if (row?.team?.crest) return row.team.crest;
+    }
+    return '';
+  }
+
+  // ── Spieler-Profil ─────────────────────────────────────────────
 
   function _showPlayerProfile(idx) {
     const p = _kaderPlayers[idx];
@@ -286,8 +313,8 @@
     const shirt = shirtRaw ? `#${shirtRaw}` : '';
 
     // Vereinslogo: bevorzugt aus den Tabellendaten (football-data.org), Fallback TM
-    const crest   = _favCrest() || p.club?.imageURL || p.club?.image || '';
-    const clubName = p.club?.name || _ligaData?.favorite_team_name || '';
+    const crest    = _favCrest() || _getTeamCrest(_teamDetailId) || p.club?.imageURL || p.club?.image || '';
+    const clubName = p.club?.name || _kaderTeamName || _ligaData?.favorite_team_name || '';
     const clubHtml = clubName ? `<div class="liga-player-club">
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
       <span>${_esc(clubName)}</span></div>` : '';
@@ -316,11 +343,13 @@
      .map(([l, v]) => `<span class="liga-player-detail-label">${l}</span><span class="liga-player-detail-value">${v.includes('<') ? v : _esc(v)}</span>`)
      .join('');
 
+    const backLabel = _kaderBackAction === 'team' ? '← Verein' : '← Spieltag';
+
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <button class="liga-kader-back" onclick="window._liga._backToKaderList()">← Kader</button>
-          <button class="liga-kader-back" onclick="window._liga._backToMatchday()">← Spieltag</button>
+          <button class="liga-kader-back" onclick="window._liga._backFromKader()">${backLabel}</button>
         </div>
         <div class="liga-player-card">
           <div class="liga-player-portrait-wrap">
@@ -339,6 +368,135 @@
 
   function _backToKaderList() {
     _renderKaderContent();
+  }
+
+  // ── Team-Detail-Ansicht ────────────────────────────────────────
+
+  function _showTeamById(teamId) {
+    let teamName = '', crest = '';
+    for (const s of Object.values(_standingsCache)) {
+      const row = (s?.table || []).find(r => r.team?.id === teamId);
+      if (row) { teamName = row.team?.name || ''; crest = row.team?.crest || ''; break; }
+    }
+    if (!teamName) return;
+    _showTeamDetail(teamId, teamName, crest);
+  }
+
+  async function _showTeamDetail(teamId, teamName, crest) {
+    _teamViewOpen   = true;
+    _teamDetailId   = teamId;
+    _teamDetailName = teamName;
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.classList.add('active');
+    overlay.innerHTML = '<div class="cal-placeholder">Lade Vereinsinfos…</div>';
+
+    const [focusRes, tmRes] = await Promise.allSettled([
+      fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+      fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+    ]);
+    const focus     = focusRes.status === 'fulfilled' ? focusRes.value : null;
+    const tmProfile = tmRes.status   === 'fulfilled' ? tmRes.value   : null;
+
+    _renderTeamDetail(teamId, teamName, crest, focus, tmProfile);
+  }
+
+  function _renderTeamDetail(teamId, teamName, crest, focus, tmProfile) {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay || !_teamViewOpen) return;
+
+    let standRow = null;
+    for (const s of Object.values(_standingsCache)) {
+      const row = (s?.table || []).find(r => r.team?.id === teamId);
+      if (row) { standRow = row; break; }
+    }
+
+    const crestHtml = crest
+      ? `<img src="${_esc(crest)}" class="liga-td-crest" onerror="this.style.display='none'">`
+      : '';
+
+    const statsHtml = standRow ? `<div class="liga-td-stats">
+      <span>Pl. <strong>${standRow.position}</strong></span>
+      <span>${standRow.playedGames} Sp</span>
+      <span>${standRow.points} Pkt</span>
+      <span>${standRow.goalsFor}:${standRow.goalsAgainst} Tore</span>
+      <span>${standRow.goalDifference >= 0 ? '+' : ''}${standRow.goalDifference} TD</span>
+    </div>` : '';
+
+    const last5Html = (focus?.last5 || []).map(r => {
+      const cls = r.result === 'S' ? 'form-w' : r.result === 'N' ? 'form-l' : 'form-d';
+      return `<div class="liga-td-past-match">
+        <span class="liga-form ${cls}">${r.result}</span>
+        <span class="liga-td-pm-teams">${_esc(r.home)} – ${_esc(r.away)}</span>
+        <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
+        <span class="liga-td-pm-date">${r.utcDate ? _fmtDate(r.utcDate) : ''}</span>
+      </div>`;
+    }).join('');
+
+    const next = focus?.next_match;
+    const nextHtml = next ? `<div class="liga-td-next">
+      <div class="liga-td-section-label">Nächstes Spiel</div>
+      <div style="font-weight:600;">${_esc(next.home)} – ${_esc(next.away)}</div>
+      <div style="color:var(--muted);font-size:0.72rem;">${_fmtDate(next.utcDate)} · ${_fmtTime(next.utcDate)}${next.competition ? ' · ' + _esc(next.competition) : ''}</div>
+    </div>` : '';
+
+    let tmHtml = '';
+    if (tmProfile) {
+      const mv   = _fmtMv(tmProfile.currentMarketValue);
+      const stad = [tmProfile.stadiumName, tmProfile.stadiumSeats ? `${Number(tmProfile.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
+      const found = tmProfile.foundedOn ? `📅 ${_fmtDateISO(tmProfile.foundedOn)}` : '';
+      const tmRows = [
+        mv && mv !== '–' ? `💶 Kaderwert: ${_esc(mv)}` : '',
+        stad ? `🏟 ${_esc(stad)}` : '',
+        found,
+      ].filter(Boolean);
+      if (tmRows.length) tmHtml = `<div class="liga-td-divider"></div>${tmRows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`;
+    }
+
+    overlay.classList.add('active');
+    overlay.innerHTML = `
+      <div class="liga-kader-wrap">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+          <button class="liga-kader-back" onclick="window._liga._backFromTeamDetail()">← Spieltag</button>
+        </div>
+        <div class="liga-td-header">
+          ${crestHtml}
+          <div style="flex:1;min-width:0;">
+            <div class="liga-td-name">${_esc(teamName)}</div>
+            ${statsHtml}
+          </div>
+        </div>
+        ${last5Html ? `<div class="liga-td-section-label" style="margin:14px 0 6px;">Letzte Spiele</div><div>${last5Html}</div>` : ''}
+        ${nextHtml}
+        ${tmHtml}
+        <div class="liga-td-divider"></div>
+        <button class="liga-kader-btn" onclick="window._liga._showKaderForTeam()">👥 Kader anzeigen</button>
+      </div>`;
+  }
+
+  function _backFromTeamDetail() {
+    _teamViewOpen   = false;
+    _teamDetailId   = null;
+    _teamDetailName = null;
+    _renderCenter();
+  }
+
+  function _showKaderForTeam() {
+    if (!_teamDetailName) return;
+    _showKader(_teamDetailName);
+  }
+
+  // ── Kader-Rücknavigation ───────────────────────────────────────
+
+  function _backFromKader() {
+    _kaderOpen = false;
+    if (_kaderBackAction === 'team' && _teamViewOpen && _teamDetailId) {
+      const crest = _getTeamCrest(_teamDetailId);
+      _showTeamDetail(_teamDetailId, _teamDetailName, crest);
+    } else {
+      _teamViewOpen = false;
+      _renderCenter();
+    }
   }
 
   // ── Event-Ticker ───────────────────────────────────────────────
@@ -371,6 +529,18 @@
     return `<img src="${_esc(team.crest)}" class="${cls}" onerror="this.style.display='none'" loading="lazy">`;
   }
 
+  function _scoreHtml(hg, ag, suffix, isDone, isLive, compact) {
+    if (isLive || isDone) {
+      if (isDone && hg != null && ag != null && hg !== ag) {
+        const hCol = hg > ag ? ' style="color:var(--success)"' : '';
+        const aCol = ag > hg ? ' style="color:var(--success)"' : '';
+        return `<span${hCol}>${hg}</span>${suffix}:<span${aCol}>${ag}</span>`;
+      }
+      return hg != null ? `${hg}${suffix}:${ag}` : '–:–';
+    }
+    return compact ? '–' : 'vs';
+  }
+
   function _matchCard(m, compact) {
     const status   = m.status || '';
     const score    = m.score  || {};
@@ -385,7 +555,8 @@
     const aCrest   = _crestImg(m.awayTeam, compact ? 'lcc-crest' : 'liga-match-crest');
     const hg       = ft.home ?? (isDone ? 0 : null);
     const ag       = ft.away ?? (isDone ? 0 : null);
-    const scoreStr = hg != null ? `${hg}${_suffix(score)}:${ag}` : '–:–';
+    const suffix   = _suffix(score);
+    const sc       = _scoreHtml(hg, ag, suffix, isDone, isLive, compact);
     const min      = _minute(score);
     const time     = _fmtTime(m.utcDate);
     const cd       = _isToday(m.utcDate) && !isLive && !isDone ? _countdown(m.utcDate) : '';
@@ -395,13 +566,18 @@
       return `<div class="liga-card liga-card-compact${favCls}${isLive ? ' liga-card-live' : ''}">
         <span class="lcc-time">${isLive ? (min || 'LIVE') : (isDone ? 'FT' : time)}</span>
         <span class="lcc-home">${hCrest}${home}</span>
-        <span class="lcc-score${isLive ? ' lcc-live' : ''}">${isLive || isDone ? scoreStr : '–'}</span>
+        <span class="lcc-score${isLive ? ' lcc-live' : ''}">${sc}</span>
         <span class="lcc-away">${aCrest}${away}</span>
         ${isFav ? '<span class="lcc-fav">★</span>' : ''}
       </div>`;
     }
 
-    const htStr = ht.home != null && isLive ? `<span class="liga-ht">(${ht.home}:${ht.away} HZ)</span>` : '';
+    // Nur in der Vollansicht: Klick auf Vereinsname öffnet Team-Detail
+    const homeId    = m.homeTeam?.id;
+    const awayId    = m.awayTeam?.id;
+    const homeClick = homeId ? ` onclick="window._liga._showTeamById(${homeId})" style="cursor:pointer"` : '';
+    const awayClick = awayId ? ` onclick="window._liga._showTeamById(${awayId})" style="cursor:pointer"` : '';
+    const htStr     = ht.home != null && isLive ? `<span class="liga-ht">(${ht.home}:${ht.away} HZ)</span>` : '';
     return `<div class="liga-card${favCls}${isLive ? ' liga-card-live' : ''}${isDone ? ' liga-card-done' : ''}">
       <div class="liga-card-header">
         ${isLive
@@ -411,9 +587,9 @@
             : `<span class="liga-badge-time">${cd ? `${cd} · ` : ''}${time}</span>`}
       </div>
       <div class="liga-card-teams">
-        <span class="liga-team${hg != null && ag != null && hg > ag ? ' liga-team-winner' : ''}">${hCrest}${home}</span>
-        <span class="liga-score${isLive ? ' liga-score-live' : ''}">${isLive || isDone ? scoreStr : 'vs'}</span>
-        <span class="liga-team${hg != null && ag != null && ag > hg ? ' liga-team-winner' : ''}">${aCrest}${away}</span>
+        <span class="liga-team${hg != null && ag != null && hg > ag ? ' liga-team-winner' : ''}"${homeClick}>${hCrest}${home}</span>
+        <span class="liga-score${isLive ? ' liga-score-live' : ''}">${sc}</span>
+        <span class="liga-team${hg != null && ag != null && ag > hg ? ' liga-team-winner' : ''}"${awayClick}>${aCrest}${away}</span>
       </div>
       ${htStr}
       ${isLive ? _renderMatchEvents(m.goals, m.bookings) : ''}
@@ -568,9 +744,9 @@
 
   function _renderRight() {
     if (typeof setPanel !== 'function') return;
-    const cur      = _curLeague();
+    const cur       = _curLeague();
     const standings = _standingsCache[cur?.code];
-    const title    = cur ? `Tabelle ${cur.name}` : 'Tabelle';
+    const title     = cur ? `Tabelle ${cur.name}` : 'Tabelle';
 
     let html = '';
     if (standings?.table?.length) {
@@ -584,11 +760,12 @@
           <span class="lt-pts">Pkt</span>
         </div>`;
       for (const row of standings.table) {
-        const isFavRow = row.team?.id === Number(_ligaData?.favorite_team_id);
-        const crest    = row.team?.crest
+        const isFavRow    = row.team?.id === Number(_ligaData?.favorite_team_id);
+        const teamClick   = row.team?.id ? ` onclick="window._liga._showTeamById(${row.team.id})" style="cursor:pointer"` : '';
+        const crest       = row.team?.crest
           ? `<img src="${_esc(row.team.crest)}" class="lt-crest-img" onerror="this.style.display='none'">`
           : '<span class="lt-crest"></span>';
-        html += `<div class="liga-table-row${isFavRow ? ' liga-table-fav' : ''}">
+        html += `<div class="liga-table-row${isFavRow ? ' liga-table-fav' : ''}"${teamClick}>
           <span class="lt-pos">${row.position}</span>
           ${crest}
           <span class="lt-team">${_esc(row.team?.shortName || row.team?.name || '')}</span>
@@ -631,7 +808,7 @@
 
       _renderOverlay(_ligaData);
       if (_fullViewOpen) {
-        if (!_kaderOpen) {
+        if (!_kaderOpen && !_teamViewOpen) {
           _renderLeft();
           _renderCenter();
         }
@@ -667,22 +844,21 @@
     _renderLeft();
     _renderCenter();
     _renderRight();
-    // Standings für gewählte Liga nachladen und rechtes Panel neu rendern
     if (_selectedCode) {
       _fetchStandings(_selectedCode).then(_renderRight);
     }
   }
 
-  function _backToMatchday() {
-    _kaderOpen = false;
-    _renderCenter();
-  }
-
   function closeFullView() {
-    _fullViewOpen = false;
-    _kaderOpen   = false;
-    _tmProfile   = null;
-    _tmLoadedFor = null;
+    _fullViewOpen    = false;
+    _kaderOpen       = false;
+    _teamViewOpen    = false;
+    _teamDetailId    = null;
+    _teamDetailName  = null;
+    _kaderTeamName   = null;
+    _kaderBackAction = 'matchday';
+    _tmProfile       = null;
+    _tmLoadedFor     = null;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     const lc = document.getElementById('left-content');
@@ -712,5 +888,13 @@
     }
   });
 
-  window._liga = { start, stop, openFullView, closeFullView, _selectLeague, _showKader, _backToMatchday, _showPlayerProfile, _backToKaderList };
+  window._liga = {
+    start, stop, openFullView, closeFullView,
+    _selectLeague,
+    _showKader,
+    _backFromKader,
+    _backToMatchday: _backFromKader, // Alias für alte onclick-Referenzen
+    _showPlayerProfile, _backToKaderList,
+    _showTeamById, _backFromTeamDetail, _showKaderForTeam,
+  };
 })();
