@@ -126,17 +126,17 @@ def get_tm_player_profile(player_id: str) -> dict[str, Any]:
 
 @router.get("/liga/kader-full")
 def get_full_kader(team_id: int = Query(0), team_name: str = Query("")) -> dict[str, Any]:
-    """Vollständig angereicherter Kader (fd.o + TM) mit 24h Disk-Cache.
+    """Sofortige Kader-Rückgabe (Disk-Cache oder schnelle fd.o+TM-Liste).
 
-    Erster Aufruf kann 20–60s dauern (parallele TM-Profilanfragen).
-    Folgeaufrufe innerhalb 24h kommen direkt aus dem Disk-Cache.
+    Stale-while-revalidate: vorhandener Cache wird immer sofort serviert.
+    Vollständige TM-Profil-Anreicherung läuft im Daemon-Thread im Hintergrund
+    und schreibt das Ergebnis persistent auf Disk (7-Tage-Stale-Schwelle).
     """
+    if not team_name.strip():
+        raise HTTPException(400, "team_name fehlt")
     cfg = _get_cfg()
     svc = LigaService(cfg.get("api_key", ""))
-    result = svc.get_full_kader(team_id or None, team_name.strip())
-    if not result:
-        raise HTTPException(404, "Kader nicht gefunden")
-    return result
+    return svc.get_full_kader(team_id or None, team_name.strip())
 
 
 @router.get("/liga/team-detail")

@@ -4,6 +4,7 @@ import concurrent.futures
 import json
 import pathlib
 import re
+import threading
 import time
 import unicodedata
 from typing import Any
@@ -32,8 +33,8 @@ COMPETITION_NAMES: dict[str, str] = {
 _LIVE = {"IN_PLAY", "PAUSED"}
 
 
-COMP_TEAMS_TTL = 3600   # WC/EC-Teamlisten: 1h
-KADER_DISK_TTL = 86_400 # Vollständig angereicherter Kader: 24h Disk-Cache
+COMP_TEAMS_TTL = 3600      # WC/EC-Teamlisten: 1h
+KADER_DISK_TTL = 7 * 86_400  # Stale-Schwelle: 7 Tage (Hintergrund-Refresh)
 
 class LigaService:
     _state_cache:      dict[str, dict[str, Any]] = {}  # code → {data, ts}
@@ -371,28 +372,46 @@ class LigaService:
         LigaService._squad_cache[key] = {"data": result, "ts": now}
         return result
 
-    # ── Vollständig angereicherter Kader (fd.o + TM, 24h Disk-Cache) ──────────
+    # ── Vollständig angereicherter Kader (fd.o + TM, Disk-Cache) ──────────────
 
-    def get_full_kader(self, team_id: int | None, team_name: str) -> dict[str, Any] | None:
-        """fd.o-Kader + TM-Profile parallel geladen und 24h auf Disk gecacht.
+    @staticmethod
+    def _kader_cache_path(team_name: str) -> pathlib.Path:
+        """Cache-Pfad nur nach team_name (team_id im Schlüssel würde bei
+        inkonsistenter Übergabe zu Cache-Misses führen)."""
+        slug = re.sub(r"[^a-z0-9]", "_", team_name.strip().lower())[:80]
+        return pathlib.Path("/data/tm_cache/kader") / f"{slug}.json"
 
-        Erster Aufruf: 20–60s (parallele TM-API-Calls für alle Spieler).
-        Folgeaufrufe innerhalb 24h: sofort aus /data/tm_cache/kader/.
+    def get_full_kader(self, team_id: int | None, team_name: str) -> dict[str, Any]:
+        """Kader sofort zurückgeben (Disk-Cache oder schnelle fd.o+TM-Liste).
+
+        Stale-while-revalidate: Disk-Cache wird immer sofort serviert.
+        Ist er älter als KADER_DISK_TTL (7 Tage), startet im Hintergrund
+        ein vollständiger Rebuild (TM-Profil-Anreicherung) — die Antwort
+        bleibt dabei nicht blockiert.
+        Kein Cache: fd.o + TM-Liste schnell assembliert (1–3s), Anreicherung
+        im Daemon-Thread.
         """
         from app.services.transfermarkt_service import TransfermarktService
 
-        slug = re.sub(r"[^a-z0-9]", "_", f"{team_id or ''}_{team_name}".lower())[:80]
         cache_dir  = pathlib.Path("/data/tm_cache/kader")
-        cache_path = cache_dir / f"{slug}.json"
+        cache_path = self._kader_cache_path(team_name)
         try:
             cache_dir.mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
 
+        # Stale-while-revalidate: vorhandenen Cache sofort zurückgeben
         if cache_path.exists():
             try:
-                if time.time() - cache_path.stat().st_mtime < KADER_DISK_TTL:
-                    return json.loads(cache_path.read_text(encoding="utf-8"))
+                cached = json.loads(cache_path.read_text(encoding="utf-8"))
+                age = time.time() - cache_path.stat().st_mtime
+                if age > KADER_DISK_TTL:
+                    threading.Thread(
+                        target=self._enrich_and_cache_kader,
+                        args=(team_id, team_name, cache_path),
+                        daemon=True,
+                    ).start()
+                return cached
             except Exception:
                 pass
 
@@ -400,11 +419,10 @@ class LigaService:
             n = unicodedata.normalize("NFKD", n or "").encode("ascii", "ignore").decode().lower()
             return re.sub(r"[^a-z]", "", n)
 
-        tm_svc = TransfermarktService()
-
-        fdo_data: dict | None      = self.get_team_squad(team_id) if team_id else None
-        fdo_squad: list[dict]      = (fdo_data or {}).get("squad") or []
-        tm_raw:    list[dict]      = tm_svc.get_club_players(team_name) or []
+        tm_svc    = TransfermarktService()
+        fdo_data  = self.get_team_squad(team_id) if team_id else None
+        fdo_squad = (fdo_data or {}).get("squad") or []
+        tm_raw    = tm_svc.get_club_players(team_name) or []
 
         tm_by_name = {_norm(p.get("name", "")): p for p in tm_raw}
         players: list[dict[str, Any]]
@@ -413,9 +431,9 @@ class LigaService:
             for fp in fdo_squad:
                 tp = tm_by_name.get(_norm(fp.get("name", "")))
                 p: dict[str, Any] = dict(fp)
-                p["_tmId"]       = str(tp["id"]) if tp else None
-                p["marketValue"] = (tp or {}).get("marketValue")
-                p["_source"]     = "fdo+tm" if tp else "fdo"
+                p["_tmId"]          = str(tp["id"]) if tp else None
+                p["marketValue"]    = (tp or {}).get("marketValue")
+                p["_source"]        = "fdo+tm" if tp else "fdo"
                 p["_profileLoaded"] = False
                 players.append(p)
         elif fdo_squad:
@@ -426,74 +444,129 @@ class LigaService:
                 for p in tm_raw
             ]
 
-        def _enrich(p: dict) -> dict:
-            try:
-                tm_id: str | None = p.get("_tmId")
-                if not tm_id and not p.get("_source", "").startswith("fdo"):
-                    raw_id = p.get("id") or ""
-                    if raw_id:
-                        tm_id = str(raw_id)
-                if not tm_id and p.get("_source", "").startswith("fdo") and p.get("name"):
-                    sr = tm_svc.search_player(p["name"])
-                    if sr and sr.get("tm_id"):
-                        tm_id        = sr["tm_id"]
-                        p["_tmId"]   = tm_id
-                        p["marketValue"] = sr.get("marketValue") or p.get("marketValue")
-                        c = sr.get("club")
-                        if c:
-                            cn = c if isinstance(c, str) else (c or {}).get("name", "")
-                            if cn:
-                                p["club"] = {**(p.get("club") or {}), "name": cn}
-                        if sr.get("age"):
-                            p["age"] = sr["age"]
-                        if sr.get("nationalities"):
-                            p["nationality"] = sr["nationalities"]
-                if tm_id:
-                    prof = tm_svc.get_player_profile(str(tm_id))
-                    if prof:
-                        club = prof.get("club") or {}
-                        merged_club = {**(p.get("club") or {}), **{k: v for k, v in club.items() if v}}
-                        updates: dict[str, Any] = {
-                            "imageURL":       prof.get("imageUrl") or prof.get("imageURL") or prof.get("image"),
-                            "dateOfBirth":    prof.get("dateOfBirth") or p.get("dateOfBirth"),
-                            "nationality":    prof.get("citizenship") or prof.get("nationality") or p.get("nationality"),
-                            "height":         prof.get("height") or p.get("height"),
-                            "weight":         prof.get("weight") or p.get("weight"),
-                            "foot":           prof.get("foot") or p.get("foot"),
-                            "placeOfBirth":   prof.get("placeOfBirth") or p.get("placeOfBirth"),
-                            "joinedOn":       prof.get("joinedOn") or club.get("joined") or p.get("joinedOn"),
-                            "signedFrom":     prof.get("signedFrom") or club.get("lastClubName") or p.get("signedFrom"),
-                            "contractUntil":  prof.get("contractUntil") or club.get("contractExpires") or p.get("contractUntil"),
-                            "contractOption": prof.get("contractOption") or club.get("contractOption") or p.get("contractOption"),
-                            "marketValue":    prof.get("marketValue") or p.get("marketValue"),
-                            "club":           merged_club if merged_club else p.get("club"),
-                        }
-                        if prof.get("age") is not None:
-                            updates["age"] = prof["age"]
-                        if prof.get("shirtNumber") is not None:
-                            updates["shirtNumber"] = prof["shirtNumber"]
-                        p.update({k: v for k, v in updates.items() if v is not None})
-            except Exception:
-                pass
-            p["_profileLoaded"] = True
-            return p
+        # Vollständige Anreicherung im Hintergrund — blockiert die Antwort nicht
+        threading.Thread(
+            target=self._enrich_and_cache_kader,
+            args=(team_id, team_name, cache_path),
+            daemon=True,
+        ).start()
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-            enriched = list(ex.map(_enrich, players))
-
-        result: dict[str, Any] = {
+        return {
             "id":        (fdo_data or {}).get("id"),
             "name":      (fdo_data or {}).get("name") or team_name,
             "shortName": (fdo_data or {}).get("shortName"),
             "tla":       (fdo_data or {}).get("tla"),
             "crest":     (fdo_data or {}).get("crest"),
-            "squad":     enriched,
+            "squad":     players,
         }
+
+    def _enrich_and_cache_kader(
+        self,
+        team_id: int | None,
+        team_name: str,
+        cache_path: pathlib.Path,
+    ) -> None:
+        """Vollständiger Kader-Rebuild mit TM-Profil-Anreicherung + Disk-Write.
+        Läuft im Daemon-Thread, blockiert keine HTTP-Antwort.
+        """
+        from app.services.transfermarkt_service import TransfermarktService
+
+        def _norm(n: str) -> str:
+            n = unicodedata.normalize("NFKD", n or "").encode("ascii", "ignore").decode().lower()
+            return re.sub(r"[^a-z]", "", n)
+
         try:
+            tm_svc    = TransfermarktService()
+            fdo_data  = self.get_team_squad(team_id) if team_id else None
+            fdo_squad = (fdo_data or {}).get("squad") or []
+            tm_raw    = tm_svc.get_club_players(team_name) or []
+
+            tm_by_name = {_norm(p.get("name", "")): p for p in tm_raw}
+            players: list[dict[str, Any]]
+            if fdo_squad and tm_raw:
+                players = []
+                for fp in fdo_squad:
+                    tp = tm_by_name.get(_norm(fp.get("name", "")))
+                    p: dict[str, Any] = dict(fp)
+                    p["_tmId"]          = str(tp["id"]) if tp else None
+                    p["marketValue"]    = (tp or {}).get("marketValue")
+                    p["_source"]        = "fdo+tm" if tp else "fdo"
+                    p["_profileLoaded"] = False
+                    players.append(p)
+            elif fdo_squad:
+                players = [dict(p, _source="fdo", _tmId=None, _profileLoaded=False) for p in fdo_squad]
+            else:
+                players = [
+                    dict(p, _source="tm", _tmId=str(p.get("id", "") or ""), _profileLoaded=False)
+                    for p in tm_raw
+                ]
+
+            def _enrich(p: dict) -> dict:
+                try:
+                    tm_id: str | None = p.get("_tmId")
+                    if not tm_id and not p.get("_source", "").startswith("fdo"):
+                        raw_id = p.get("id") or ""
+                        if raw_id:
+                            tm_id = str(raw_id)
+                    if not tm_id and p.get("_source", "").startswith("fdo") and p.get("name"):
+                        sr = tm_svc.search_player(p["name"])
+                        if sr and sr.get("tm_id"):
+                            tm_id            = sr["tm_id"]
+                            p["_tmId"]       = tm_id
+                            p["marketValue"] = sr.get("marketValue") or p.get("marketValue")
+                            c = sr.get("club")
+                            if c:
+                                cn = c if isinstance(c, str) else (c or {}).get("name", "")
+                                if cn:
+                                    p["club"] = {**(p.get("club") or {}), "name": cn}
+                            if sr.get("age"):
+                                p["age"] = sr["age"]
+                            if sr.get("nationalities"):
+                                p["nationality"] = sr["nationalities"]
+                    if tm_id:
+                        prof = tm_svc.get_player_profile(str(tm_id))
+                        if prof:
+                            club = prof.get("club") or {}
+                            merged_club = {**(p.get("club") or {}), **{k: v for k, v in club.items() if v}}
+                            updates: dict[str, Any] = {
+                                "imageURL":       prof.get("imageUrl") or prof.get("imageURL") or prof.get("image"),
+                                "dateOfBirth":    prof.get("dateOfBirth") or p.get("dateOfBirth"),
+                                "nationality":    prof.get("citizenship") or prof.get("nationality") or p.get("nationality"),
+                                "height":         prof.get("height") or p.get("height"),
+                                "weight":         prof.get("weight") or p.get("weight"),
+                                "foot":           prof.get("foot") or p.get("foot"),
+                                "placeOfBirth":   prof.get("placeOfBirth") or p.get("placeOfBirth"),
+                                "joinedOn":       prof.get("joinedOn") or club.get("joined") or p.get("joinedOn"),
+                                "signedFrom":     prof.get("signedFrom") or club.get("lastClubName") or p.get("signedFrom"),
+                                "contractUntil":  prof.get("contractUntil") or club.get("contractExpires") or p.get("contractUntil"),
+                                "contractOption": prof.get("contractOption") or club.get("contractOption") or p.get("contractOption"),
+                                "marketValue":    prof.get("marketValue") or p.get("marketValue"),
+                                "club":           merged_club if merged_club else p.get("club"),
+                            }
+                            if prof.get("age") is not None:
+                                updates["age"] = prof["age"]
+                            if prof.get("shirtNumber") is not None:
+                                updates["shirtNumber"] = prof["shirtNumber"]
+                            p.update({k: v for k, v in updates.items() if v is not None})
+                except Exception:
+                    pass
+                p["_profileLoaded"] = True
+                return p
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+                enriched = list(ex.map(_enrich, players))
+
+            result: dict[str, Any] = {
+                "id":        (fdo_data or {}).get("id"),
+                "name":      (fdo_data or {}).get("name") or team_name,
+                "shortName": (fdo_data or {}).get("shortName"),
+                "tla":       (fdo_data or {}).get("tla"),
+                "crest":     (fdo_data or {}).get("crest"),
+                "squad":     enriched,
+            }
             cache_path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
         except Exception:
             pass
-        return result
 
     # ── Cache invalidieren ────────────────────────────────────────
     @classmethod
