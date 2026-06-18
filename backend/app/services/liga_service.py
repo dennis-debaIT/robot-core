@@ -550,7 +550,7 @@ class LigaService:
                             p.update({k: v for k, v in updates.items() if v is not None})
                 except Exception:
                     pass
-                p["_profileLoaded"] = True
+                p["_profileLoaded"] = p.get("_tmId") is not None
                 return p
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:

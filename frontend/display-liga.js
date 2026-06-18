@@ -242,11 +242,11 @@
       const pos = _posShort(p.position);
       const mv  = _fmtMv(p.marketValue);
       const bis = _contractYear(p.contract);
-      const age = p.age ?? '–';
+      const age = p.age ?? _calcAge(p.dateOfBirth) ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
       const avatarUrl = p.imageURL ? `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}` : '';
       const avatar = avatarUrl
-        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="this.style.display='none'" loading="lazy">`
+        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="this.style.display='none'">`
         : `<span class="liga-kader-img-ph"></span>`;
       rows += `<div class="liga-kader-row" onclick="window._liga._showPlayerProfile(${idx})">
         <span class="liga-kader-pos">${_esc(pos)}</span>
@@ -492,6 +492,16 @@
       </div>`;
   }
 
+  function _calcAge(dob) {
+    if (!dob) return null;
+    try {
+      const d = new Date(dob), now = new Date();
+      let a = now.getFullYear() - d.getFullYear();
+      if (now.getMonth() < d.getMonth() || (now.getMonth() === d.getMonth() && now.getDate() < d.getDate())) a--;
+      return a > 0 && a < 100 ? a : null;
+    } catch { return null; }
+  }
+
   // TM liefert Datum manchmal als "Jan 5, 1990" — für _fmtDateISO in ISO wandeln
   function _normDate(s) {
     if (!s) return null;
@@ -521,8 +531,8 @@
       marketValue:    prof.marketValue    || p.marketValue,
       shirtNumber:    prof.shirtNumber    ?? p.shirtNumber   ?? null,
       position:       prof.position       || p.position,
-      // Spread-Merge: TM-Daten (id, joined) + vorhandenes imageURL/tla (aus fd.o) erhalten
-      club:           prof.club ? { ...(p.club || {}), ...prof.club } : p.club,
+      // TM club.image → imageURL; fd.o imageURL (Vereins-Crest) nur erhalten wenn TM keins hat
+      club:           prof.club ? { ...(p.club || {}), ...prof.club, imageURL: prof.club.image || (p.club || {}).imageURL || null } : p.club,
       currentTeamId:     p.currentTeamId     || null,
       currentTeamLeague: p.currentTeamLeague || null,
     });
@@ -586,6 +596,9 @@
         if (r.ok) {
           const person = await r.json();
           const ct = person.currentTeam;
+          // fd.o liefert bei Nationalspielern manchmal die Nationalmannschaft als currentTeam.
+          // Erkennungsmerkmal: kein LEAGUE-Wettbewerb in runningCompetitions.
+          const ctIsClub = (ct?.runningCompetitions || []).some(c => c.type === 'LEAGUE');
           Object.assign(p, {
             dateOfBirth:   person.dateOfBirth  || p.dateOfBirth,
             nationality:   person.nationality  || p.nationality,
@@ -593,10 +606,10 @@
             shirtNumber:   person.shirtNumber  ?? p.shirtNumber,
             lastUpdate:    person.lastUpdated  || p.lastUpdate,
             contractUntil: ct?.contractUntil   || p.contractUntil || null,
-            currentTeamId:     ct?.id           || p.currentTeamId     || null,
+            currentTeamId:     ctIsClub ? (ct?.id || p.currentTeamId || null) : (p.currentTeamId || null),
             currentTeamLeague: ((ct?.runningCompetitions || []).find(c => c.type === 'LEAGUE')?.name) || p.currentTeamLeague || null,
-            // Spread: fd.o liefert imageURL + tla, TM-Daten (id, joined) bleiben erhalten
-            club: ct ? { ...(p.club || {}), name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
+            // Nur echte Vereinsdaten übernehmen — Nationalteam-Crest nicht als Club-Logo verwenden
+            club: ctIsClub ? { ...(p.club || {}), name: ct.name, imageURL: ct.crest, tla: ct.tla } : p.club,
           });
           _rerender();
         }
