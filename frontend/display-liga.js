@@ -67,10 +67,17 @@
     return h > 0 ? `in ${h}h ${m}min` : `in ${m}min`;
   }
 
-  function _minute(score) {
-    const min = score?.minute;
-    if (min == null) return '';
-    return score?.injuryTime ? `${min}+${score.injuryTime}'` : `${min}'`;
+  function _liveMinute(utcDate) {
+    if (!utcDate) return '';
+    const elapsed = Math.floor((Date.now() - new Date(utcDate)) / 60_000);
+    if (elapsed < 0) return '';
+    // Erste Halbzeit: 0–52 min elapsed → Spielminute 1–45(+)
+    if (elapsed <= 52) return `${Math.max(1, Math.min(elapsed, 45))}'`;
+    // Halbzeitpause: 53–62 min elapsed → HZ
+    if (elapsed <= 62) return 'HZ';
+    // Zweite Halbzeit: ab 63 min elapsed, abzgl. ~17 min Pause → Spielminute 46–90(+)
+    const minH2 = elapsed - 17;
+    return `${Math.min(minH2, 90)}'`;
   }
 
   function _suffix(score) {
@@ -936,7 +943,7 @@
     const ag       = ft.away ?? (isDone ? 0 : null);
     const suffix   = _suffix(score);
     const sc       = _scoreHtml(hg, ag, suffix, isDone, isLive, compact);
-    const min      = _minute(score);
+    const min      = isLive ? _liveMinute(m.utcDate) : '';
     const time     = _fmtTime(m.utcDate);
     const cd       = _isToday(m.utcDate) && !isLive && !isDone ? _countdown(m.utcDate) : '';
     const favCls   = isFav ? ' liga-card-fav' : '';
