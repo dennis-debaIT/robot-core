@@ -2205,11 +2205,15 @@
       </div>`;
     document.body.appendChild(ov);
 
+    const _iframeBtn = () =>
+      `<button class="nio-iframe-btn" onclick="_openNewsInIframe('${url.replace(/'/g,'%27')}')">🌐 Im Browser öffnen</button>`;
+
     fetch('/news/article?' + new URLSearchParams({ url }))
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
-        const body = document.getElementById('nio-body');
-        const hint = document.getElementById('nio-load-hint');
+        const hint   = document.getElementById('nio-load-hint');
+        const body   = document.getElementById('nio-body');
+        const titleEl = document.getElementById('nio-title-text');
         if (hint) hint.remove();
         const content = document.getElementById('nio-art-content');
         if (content && d.html) {
@@ -2222,13 +2226,25 @@
             <div class="nio-art-content">${d.html}</div>
           </div>`;
         }
-        const titleEl = document.getElementById('nio-title-text');
         if (titleEl && d.title) titleEl.textContent = d.title;
       })
       .catch(() => {
         const hint = document.getElementById('nio-load-hint');
-        if (hint) hint.textContent = hasFeedContent ? '' : 'Vollständiger Artikel nicht verfügbar (DSGVO-Sperre).';
+        const body = document.getElementById('nio-body');
+        if (hint) {
+          hint.innerHTML = _iframeBtn();
+        } else if (body && !hasFeedContent) {
+          body.innerHTML = `<div class="nio-error">Artikel nicht verfügbar (DSGVO-Sperre oder Ladefehler).</div>${_iframeBtn()}`;
+        }
       });
+  }
+
+  function _openNewsInIframe(url) {
+    const body = document.getElementById('nio-body');
+    if (!body) return;
+    body.style.padding = '0';
+    body.innerHTML = `<iframe class="nio-frame" src="${url}"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-top-navigation"></iframe>`;
   }
 
   function closeNewsOverlay() {
