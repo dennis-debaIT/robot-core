@@ -10,7 +10,9 @@ sodass das Frontend keine Änderungen braucht.
 from __future__ import annotations
 
 import json
+import re
 import time
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 from urllib.error import URLError
@@ -34,10 +36,26 @@ COMPETITION_NAMES: dict[str, str] = {
 STATE_TTL    = 55    # Live-Daten
 TABLE_TTL    = 300   # Tabelle 5 Min
 TEAMS_TTL    = 21600 # Teams 6h
+LAST5_TTL    = 300   # Letzte 5 Spiele: 5 Min
 
 _state_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _table_cache: dict[str, tuple[float, list[dict]]]     = {}
 _teams_cache: dict[str, tuple[float, list[dict]]]     = {}
+_last5_cache: dict[str, tuple[float, list[dict]]]     = {}
+
+
+def _norm_team(name: str) -> str:
+    n = unicodedata.normalize("NFKD", (name or "")).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]", "", n)
+
+
+def _team_matches(a: str, b: str) -> bool:
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    s, l = (a, b) if len(a) <= len(b) else (b, a)
+    return len(s) >= 5 and s in l
 
 
 def _fetch(url: str) -> Any:
@@ -270,6 +288,82 @@ def get_standings(fdorg_code: str) -> dict[str, Any] | None:
         "name":  COMPETITION_NAMES.get(fdorg_code, fdorg_code),
         "table": table,
     }
+
+
+def get_team_last5(fdorg_code: str, team_name: str, current_matchday: int | None = None) -> list[dict[str, Any]]:
+    """Letzte 5 abgeschlossene Spiele eines Teams — Spieltag für Spieltag rückwärts.
+
+    Gibt Liste im get_team_focus-Format zurück (ältestes zuerst), ergänzt um matchday_nr.
+    """
+    oldb_code = _FDORG_TO_OLDB.get(fdorg_code)
+    if not oldb_code:
+        return []
+
+    key = f"{fdorg_code}:{team_name.lower().strip()}"
+    now = time.time()
+    cached = _last5_cache.get(key)
+    if cached and (now - cached[0]) < LAST5_TTL:
+        return cached[1]
+
+    season = _season_year()
+    name_norm = _norm_team(team_name)
+    results: list[dict[str, Any]] = []
+
+    start_md = int(current_matchday) if current_matchday else None
+    if not start_md:
+        group = _fetch(f"{BASE}/getcurrentgroup/{oldb_code}")
+        if isinstance(group, dict):
+            start_md = int(group.get("groupOrderID") or group.get("groupOrderId") or 34)
+        else:
+            start_md = 34
+
+    for md in range(start_md, max(0, start_md - 7), -1):
+        if len(results) >= 5:
+            break
+        data = _fetch(f"{BASE}/getmatchdata/{oldb_code}/{season}/{md}")
+        if not isinstance(data, list):
+            continue
+        for m in data:
+            if not m.get("matchIsFinished"):
+                continue
+            t1 = m.get("team1") or {}
+            t2 = m.get("team2") or {}
+            t1n = _norm_team(t1.get("teamName") or t1.get("shortName") or "")
+            t2n = _norm_team(t2.get("teamName") or t2.get("shortName") or "")
+            if not (_team_matches(name_norm, t1n) or _team_matches(name_norm, t2n)):
+                continue
+            ft: dict[str, Any] | None = None
+            for r in m.get("matchResults") or []:
+                if r.get("resultTypeID") == 2:
+                    ft = {"home": r.get("pointsTeam1"), "away": r.get("pointsTeam2")}
+                    break
+            hg = (ft or {}).get("home")
+            ag = (ft or {}).get("away")
+            is_home = _team_matches(name_norm, t1n)
+            if hg is not None and ag is not None:
+                if is_home:
+                    res = "S" if hg > ag else ("U" if hg == ag else "N")
+                else:
+                    res = "S" if ag > hg else ("U" if ag == hg else "N")
+            else:
+                res = "?"
+            utc_date = m.get("matchDateTimeUTC") or ""
+            if utc_date and not utc_date.endswith("Z") and "+" not in utc_date:
+                utc_date += "Z"
+            results.append({
+                "result":      res,
+                "home":        t1.get("shortName") or t1.get("teamName") or "",
+                "away":        t2.get("shortName") or t2.get("teamName") or "",
+                "score":       f"{hg}:{ag}" if hg is not None else "–",
+                "utcDate":     utc_date,
+                "matchday_nr": md,
+            })
+            break  # Pro Spieltag max. ein Spiel dieses Teams
+
+    results.reverse()  # Chronologisch: ältestes zuerst
+    result_final = results[:5]
+    _last5_cache[key] = (now, result_final)
+    return result_final
 
 
 def get_teams(fdorg_code: str) -> list[dict[str, Any]]:

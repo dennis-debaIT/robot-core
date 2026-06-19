@@ -1943,12 +1943,17 @@
 .liga-kader-section:first-child { border-top: none; padding-top: 2px; margin-top: 0; }
 .liga-kader-namecell { display: flex; align-items: center; overflow: hidden; }
 .liga-kader-img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; margin-right: 5px; flex-shrink: 0; }
-.liga-kader-img-ph { width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.08); display: inline-block; margin-right: 5px; flex-shrink: 0; }
+.liga-kader-img-ph { width: 24px; height: 24px; border-radius: 50%; background: rgba(255,255,255,0.08); display: inline-flex; align-items: center; justify-content: center; margin-right: 5px; flex-shrink: 0; font-size: 0.52rem; font-weight: 800; color: rgba(0,200,255,0.6); }
 .liga-kader-num { color: var(--muted); font-size: 0.72rem; text-align: center; }
 .liga-kader-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .liga-kader-pos { color: var(--accent); font-size: 0.7rem; font-weight: 700; }
 .liga-kader-mv { color: var(--success); font-weight: 700; text-align: right; font-size: 0.74rem; }
 .liga-kader-row { cursor: pointer; }
+.liga-kader-row-pending { opacity: 0.5; }
+.liga-kader-search { width: 100%; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.8rem; margin-bottom: 8px; box-sizing: border-box; outline: none; }
+.liga-kader-search:focus { border-color: var(--accent); background: rgba(0,200,255,0.05); }
+.liga-mini-table-current { background: rgba(0,200,255,0.09) !important; }
+.liga-mini-table-current .lt-pts { color: var(--accent); font-weight: 800; }
 .liga-player-card { display: flex; gap: 20px; align-items: flex-start; }
 .liga-player-portrait-wrap { position: relative; flex-shrink: 0; }
 .liga-player-portrait { width: 115px; border-radius: 10px; object-fit: cover; border: 2px solid var(--border); display: block; }
@@ -1969,7 +1974,8 @@
 .liga-td-stats strong { color: var(--text); }
 .liga-td-section-label { font-size: 0.58rem; font-weight: 800; letter-spacing: 0.12em; color: var(--accent); text-transform: uppercase; }
 .liga-td-past-match { display: grid; grid-template-columns: 26px 1fr 42px 52px; gap: 6px; align-items: center; padding: 4px 0; font-size: 0.76rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
-.liga-td-pm-teams { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.liga-td-pm-teams { overflow: hidden; display: flex; flex-direction: column; gap: 1px; }
+.liga-td-pm-md { font-size: 0.58rem; font-weight: 700; color: var(--accent); letter-spacing: 0.06em; white-space: nowrap; }
 .liga-td-pm-score { font-weight: 700; text-align: center; }
 .liga-td-pm-date { color: var(--muted); font-size: 0.7rem; text-align: right; }
 .liga-td-next { margin-top: 12px; padding: 10px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border); }

@@ -28,6 +28,7 @@
   let _kaderFdoNames   = [];    // Alternative Teamnamen aus fd.o für TM-Fallback-Suche
   let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' | 'kader-back' — wohin zurück aus Kader
   let _kaderStack      = [];         // Stapel vorheriger Kader-Zustände für Club-Navigation
+  let _kaderSearch     = '';         // aktueller Suchbegriff in der Kaderliste
 
   // Kader-Profil-Cache: Team-Key → {players, crest, fdoNames, ts}
   // Überleben Navigation weg + zurück ohne erneuten Prefetch (1h TTL)
@@ -224,13 +225,19 @@
     const backLabel   = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : _kaderBackAction === 'kader-back' ? '← Kader' : '← Spieltag';
     const players = _kaderPlayers;
 
-    // Gesamtmarktwert aus geladenen Spielern
+    // Gesamtmarktwert aus allen Spielern (nicht gefiltert)
     const totalMv    = players.reduce((s, p) => s + _mvParse(p.marketValue ?? 0), 0);
     const totalMvStr = totalMv > 0 ? _fmtMv(totalMv) : '';
 
+    // Suchfilter anwenden
+    const filtered = _kaderSearch
+      ? players.filter(p => _normName(p.name || '').includes(_normName(_kaderSearch)))
+      : players;
+
     let rows = '';
     let lastGroup = -1;
-    players.forEach((p, idx) => {
+    filtered.forEach(p => {
+      const playerIdx = players.indexOf(p);
       const grp = _posGroup(p.position);
       if (grp !== lastGroup) {
         lastGroup = grp;
@@ -242,11 +249,13 @@
       const bis = _contractYear(p.contract);
       const age = p.age ?? _calcAge(p.dateOfBirth) ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
-      const avatarUrl = p.imageURL ? `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}` : '';
+      const avatarUrl  = p.imageURL ? `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}` : '';
+      const initials   = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
       const avatar = avatarUrl
-        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="this.style.display='none'">`
-        : `<span class="liga-kader-img-ph"></span>`;
-      rows += `<div class="liga-kader-row" onclick="window._liga._showPlayerProfile(${idx})">
+        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="liga-kader-img-ph" style="display:none">${_esc(initials)}</span>`
+        : `<span class="liga-kader-img-ph">${_esc(initials)}</span>`;
+      const pendingCls = !p._profileLoaded ? ' liga-kader-row-pending' : '';
+      rows += `<div class="liga-kader-row${pendingCls}" onclick="window._liga._showPlayerProfile(${playerIdx})">
         <span class="liga-kader-pos">${_esc(pos)}</span>
         <span class="liga-kader-num">${num}</span>
         <span class="liga-kader-namecell">${avatar}<span class="liga-kader-name" title="${_esc(p.name || '')}">${_esc(p.name || '–')}</span></span>
@@ -256,10 +265,11 @@
         <span class="liga-kader-mv">${_esc(mv)}</span>
       </div>`;
     });
+
     overlay.classList.add('active');
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div>
             <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader · ${players.length} Spieler${totalMvStr ? ` · <span style="color:var(--success);font-weight:700;">${_esc(totalMvStr)}</span>` : ''}</div>
             <div style="font-size:1.05rem;font-weight:800;">${_esc(displayName)}</div>
@@ -267,11 +277,18 @@
           <button class="liga-kader-back" onclick="window._liga._backFromKader()">${backLabel}</button>
         </div>
         ${players.length ? `
+        <input class="liga-kader-search" type="search" placeholder="Spieler suchen…" value="${_esc(_kaderSearch)}" oninput="window._liga._kaderSearchUpdate(this.value)" autocomplete="off">
         <div class="liga-kader-hdr">
           <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>Marktwert</span>
         </div>
-        <div class="liga-kader-grid">${rows}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
+        <div class="liga-kader-grid">${rows || '<div class="cal-placeholder" style="padding:20px 0;">Kein Spieler gefunden.</div>'}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
       </div>`;
+
+    // Suchfeld-Fokus nach Re-Render wiederherstellen
+    if (_kaderSearch) {
+      const si = overlay.querySelector('.liga-kader-search');
+      if (si) requestAnimationFrame(() => { si.focus(); si.setSelectionRange(si.value.length, si.value.length); });
+    }
   }
 
   // Erzeugt Suchvarianten für TM: "Congo DR" → "DR Congo", "Korea Republic" → "Korea" usw.
@@ -315,7 +332,7 @@
   async function _pollKaderEnrichment(teamName, teamId) {
     // Pollt /liga/kader-full solange der Kader offen und nicht vollständig angereichert ist.
     // Backend schreibt angereicherte Daten asynchron auf Disk — wir holen sie sobald fertig.
-    const delays = [2000, 3000, 5000, 10000, 20000];
+    const delays = [1000, 2000, 4000, 8000, 20000];
     for (const delay of delays) {
       if (!_kaderOpen || _kaderTeamName !== teamName) return;
       if (_kaderPlayers.length > 0 && _kaderPlayers.every(p => p._profileLoaded)) return;
@@ -353,6 +370,7 @@
     _kaderTeamId     = resolvedTeamId || null;
     _kaderTeamCrest  = null;
     _kaderFdoNames   = [];
+    _kaderSearch     = '';
     _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
@@ -694,9 +712,10 @@
 
     const last5Html = (focus?.last5 || []).map(r => {
       const cls = r.result === 'S' ? 'form-w' : r.result === 'N' ? 'form-l' : 'form-d';
+      const mdLabel = r.matchday_nr ? `<span class="liga-td-pm-md">${r.matchday_nr}. ST</span>` : '';
       return `<div class="liga-td-past-match">
         <span class="liga-form ${cls}">${r.result}</span>
-        <span class="liga-td-pm-teams">${_esc(r.home)} – ${_esc(r.away)}</span>
+        <span class="liga-td-pm-teams">${mdLabel}${_esc(r.home)} – ${_esc(r.away)}</span>
         <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
         <span class="liga-td-pm-date">${r.utcDate ? _fmtDate(r.utcDate) : ''}</span>
       </div>`;
@@ -726,6 +745,40 @@
       if (tmRows.length) tmHtml = `<div class="liga-td-divider"></div>${tmRows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`;
     }
 
+    // Mini-Tabelle: 5 Einträge rund ums Team (nur wenn in gecachter Tabelle vorhanden)
+    let miniTableHtml = '';
+    {
+      let tableEntries = [];
+      for (const s of Object.values(_standingsCache)) {
+        const t = (s?.table || []);
+        if (t.some(r => r.team?.id === teamId)) { tableEntries = t; break; }
+      }
+      if (tableEntries.length > 1) {
+        const pos   = tableEntries.findIndex(r => r.team?.id === teamId);
+        const start = Math.max(0, pos - 2);
+        const end   = Math.min(tableEntries.length, start + 5);
+        const miniRows = tableEntries.slice(start, end).map(r => {
+          const isCurrent = r.team?.id === teamId;
+          const isFavRow  = r.team?.id === Number(_ligaData?.favorite_team_id);
+          const cls = isCurrent ? ' liga-mini-table-current' : (isFavRow ? ' liga-table-fav' : '');
+          const crestImg = r.team?.crest
+            ? `<img src="${_esc(r.team.crest)}" class="lt-crest-img" onerror="this.style.display='none'">`
+            : '<span class="lt-crest"></span>';
+          return `<div class="liga-table-row${cls}">
+            <span class="lt-pos">${r.position}</span>
+            ${crestImg}
+            <span class="lt-team">${_esc(r.team?.shortName || r.team?.name || '')}</span>
+            <span class="lt-num">${r.playedGames ?? ''}</span>
+            <span class="lt-num">${r.goalDifference ?? ''}</span>
+            <span class="lt-pts">${r.points ?? ''}</span>
+          </div>`;
+        }).join('');
+        miniTableHtml = `<div class="liga-td-divider"></div>
+          <div class="liga-td-section-label" style="margin-bottom:6px;">Tabelle</div>
+          <div class="liga-table">${miniRows}</div>`;
+      }
+    }
+
     overlay.classList.add('active');
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
@@ -741,6 +794,7 @@
         </div>
         ${last5Html ? `<div class="liga-td-section-label" style="margin:14px 0 6px;">Letzte Spiele</div><div>${last5Html}</div>` : ''}
         ${nextHtml}
+        ${miniTableHtml}
         ${tmHtml}
         <div class="liga-td-divider"></div>
         <button class="liga-kader-btn" onclick="window._liga._showKaderForTeam()">👥 Kader anzeigen</button>
@@ -784,6 +838,7 @@
       _kaderBackAction = prev.backAction;
       _kaderTeamCrest  = prev.teamCrest;
       _kaderFdoNames   = prev.fdoNames;
+      _kaderSearch     = '';
       _renderKaderContent();
       return;
     }
@@ -1159,6 +1214,7 @@
     _fullViewOpen    = false;
     _kaderOpen       = false;
     _kaderStack      = [];
+    _kaderSearch     = '';
     _teamViewOpen    = false;
     _teamDetailId    = null;
     _teamDetailName  = null;
@@ -1207,5 +1263,6 @@
     _showPlayerProfile, _backToKaderList,
     _showTeamById, _backFromTeamDetail, _showKaderForTeam,
     _cardClubClick: null, // wird von _drawPlayerCard bei jedem Karten-Render überschrieben
+    _kaderSearchUpdate: v => { _kaderSearch = v; _renderKaderContent(); },
   };
 })();

@@ -241,7 +241,25 @@ class LigaService:
                     "away": away.get("shortName") or away.get("name"),
                     "score": f"{hg}:{ag}" if hg is not None else "–",
                     "utcDate": m.get("utcDate"),
+                    "matchday_nr": m.get("matchday"),
                 })
+
+        # Fallback: OpenLigaDB für BL2/BL3-Teams (fd.o Free Tier gibt keinen Zugriff)
+        if not last5:
+            from app.services.openligadb_liga import get_team_last5 as _oldb_last5
+            team_name_fb, fdorg_fb = "", ""
+            for code, entry in LigaService._standings_cache.items():
+                for row in ((entry.get("data") or {}).get("table") or []):
+                    if (row.get("team") or {}).get("id") == team_id:
+                        team_name_fb = (row["team"].get("name") or row["team"].get("shortName") or "")
+                        fdorg_fb = code
+                        break
+                if team_name_fb:
+                    break
+            if team_name_fb and fdorg_fb:
+                state_entry = LigaService._state_cache.get(fdorg_fb) or {}
+                current_md = (state_entry.get("data") or {}).get("matchday_nr")
+                last5 = _oldb_last5(fdorg_fb, team_name_fb, current_md)
 
         # Nächstes geplantes Spiel
         next_raw = self._fetch(
