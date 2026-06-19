@@ -418,26 +418,29 @@
     const shirtRaw = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '';
     const shirt    = shirtRaw ? `#${shirtRaw}` : '';
 
-    // Vereinslogo: fd.o-Spieler haben eigenes Club-Wappen (nach Personenprofil-Load),
-    // reine TM-Spieler nutzen _kaderTeamCrest als Fallback (sind im Vereinskader des Kader-Teams)
-    const crest = p.club?.imageURL || p.club?.image
+    // Vereinslogo: TM-URLs (img.transfermarkt.com) müssen durch /liga/tm/img-Proxy,
+    // fd.o-Crest-URLs (crests.football-data.org) sind direkt abrufbar.
+    const rawCrest = p.club?.imageURL || p.club?.image
       || (p._source?.startsWith('fdo')
           ? ''
           : (_kaderTeamCrest || _getTeamCrest(_teamDetailId) || _favCrest())) || '';
+    const crest = rawCrest && rawCrest.includes('transfermarkt')
+      ? `/liga/tm/img?url=${encodeURIComponent(rawCrest)}`
+      : rawCrest;
     // fdo-Spieler spielen für einen anderen Verein als das Kader-Team → kein Fallback auf _kaderTeamName
     const clubName = p.club?.name
       || (p._source?.startsWith('fdo') ? '' : (_kaderStack.length ? '' : _kaderTeamName))
       || _ligaData?.favorite_team_name || '';
-    // Verein anklickbar wenn fd.o team_id bekannt (ermöglicht Navigation zum Vereinskader)
+    // Verein anklickbar wenn Name bekannt — _showClubKader funktioniert auch ohne fd.o-ID (lädt per Name)
     const clubFdoId  = p.currentTeamId || null;
-    const clubOnClick = clubFdoId
-      ? `onclick="window._liga._showClubKader(${JSON.stringify(clubName)},${clubFdoId})" style="cursor:pointer;" title="Zum Vereinskader"`
+    const clubOnClick = clubName
+      ? `onclick="window._liga._showClubKader(${JSON.stringify(clubName)},${clubFdoId ?? 'null'})" style="cursor:pointer;" title="Zum Vereinskader"`
       : '';
     const clubLeague = p.currentTeamLeague || '';
     const clubHtml = clubName ? `<div class="liga-player-club" ${clubOnClick}>
       ${crest ? `<img src="${_esc(crest)}" onerror="this.style.display='none'">` : ''}
       <div style="display:flex;flex-direction:column;gap:1px;">
-        <span style="${clubFdoId ? 'text-decoration:underline;opacity:0.85;' : ''}">${_esc(clubName)}</span>
+        <span style="${clubName ? 'text-decoration:underline;opacity:0.85;' : ''}">${_esc(clubName)}</span>
         ${clubLeague ? `<span style="font-size:0.62rem;color:var(--muted);font-weight:500;">${_esc(clubLeague)}</span>` : ''}
       </div></div>` : '';
 
