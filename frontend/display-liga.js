@@ -284,7 +284,7 @@
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
           <div>
-            <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader · ${players.length} Spieler${totalMvStr ? ` · <span style="color:var(--success);font-weight:700;">${_esc(totalMvStr)}</span>` : ''}</div>
+            <div style="font-size:0.6rem;font-weight:800;letter-spacing:0.12em;color:var(--accent);text-transform:uppercase;margin-bottom:2px;">Kader · ${players.length} Spieler${totalMvStr ? ` · <span style="color:var(--success);font-weight:700;">${_esc(totalMvStr)}</span>` : ''}${players.some(p => !p._profileLoaded) ? ' · <span style="color:var(--muted);font-weight:500;">⌛ lädt Profile…</span>' : ''}</div>
             <div style="font-size:1.05rem;font-weight:800;">${_esc(displayName)}</div>
           </div>
           <button class="liga-kader-back" onclick="window._liga._backFromKader()">${backLabel}</button>
@@ -345,7 +345,8 @@
   async function _pollKaderEnrichment(teamName, teamId) {
     // Pollt /liga/kader-full solange der Kader offen und nicht vollständig angereichert ist.
     // Backend schreibt angereicherte Daten asynchron auf Disk — wir holen sie sobald fertig.
-    const delays = [1000, 2000, 4000, 8000, 20000];
+    // Delays reichen bis ~2 Min um auch große Kader (z.B. 26 Nationalspieler) abzudecken.
+    const delays = [1000, 2000, 4000, 8000, 15000, 30000, 60000];
     for (const delay of delays) {
       if (!_kaderOpen || _kaderTeamName !== teamName) return;
       if (_kaderPlayers.length > 0 && _kaderPlayers.every(p => p._profileLoaded)) return;
@@ -363,7 +364,8 @@
         const freshSquad = fresh.squad || [];
         const prevEnriched = _kaderPlayers.filter(p => p._profileLoaded).length;
         const newEnriched  = freshSquad.filter(p => p._profileLoaded).length;
-        if (newEnriched > prevEnriched) {
+        // Neu rendern wenn mehr Spieler angereichert ODER Kadergröße sich geändert hat
+        if (newEnriched > prevEnriched || freshSquad.length !== _kaderPlayers.length) {
           _kaderPlayers   = _sortKaderPlayers(freshSquad.slice());
           _kaderTeamCrest = fresh.crest || _kaderTeamCrest;
           _renderKaderContent();
