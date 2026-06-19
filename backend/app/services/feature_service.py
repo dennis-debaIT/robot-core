@@ -33,6 +33,7 @@ FEATURES: dict[str, str] = {
     "theme_schedule":  "plus",   # Zeitabhängiges Design (Tag/Nacht-Theme-Wechsel)
     "energy_costs":    "plus",   # Stromkosten-Berechnung (Verbrauch je Sensor bleibt frei)
     "chores":          "plus",   # Hausaufgaben-Modul (Aufgabenverwaltung + Statistik)
+    "liga_plus":       "plus",   # Liga-Modul Plus: Marktwerte, Spielerprofile, letzte Spiele, Mini-Tabelle
 }
 
 _TIER_RANK = {"community": 0, "plus": 1, "family": 2}

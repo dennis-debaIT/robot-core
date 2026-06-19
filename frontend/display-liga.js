@@ -237,9 +237,10 @@
     const backLabel   = _kaderBackAction === 'team' ? '← Verein' : _kaderBackAction === 'tournament' ? '← Turnier' : _kaderBackAction === 'kader-back' ? '← Kader' : '← Spieltag';
     const players = _kaderPlayers;
 
+    const _hasPlus = typeof _hasFeature === 'function' && _hasFeature('liga_plus');
     // Gesamtmarktwert aus allen Spielern (nicht gefiltert)
-    const totalMv    = players.reduce((s, p) => s + _mvParse(p.marketValue ?? 0), 0);
-    const totalMvStr = totalMv > 0 ? _fmtMv(totalMv) : '';
+    const totalMv    = _hasPlus ? players.reduce((s, p) => s + _mvParse(p.marketValue ?? 0), 0) : 0;
+    const totalMvStr = _hasPlus && totalMv > 0 ? _fmtMv(totalMv) : '';
 
     // Suchfilter anwenden
     const filtered = _kaderSearch
@@ -257,7 +258,7 @@
       }
       const nat = Array.isArray(p.nationality) ? (p.nationality[0] || '–') : (p.nationality || '–');
       const pos = _posShort(p.position);
-      const mv  = _fmtMv(p.marketValue);
+      const mv  = _hasPlus ? _fmtMv(p.marketValue) : '';
       const bis = _contractYear(p.contract);
       const age = p.age ?? _calcAge(p.dateOfBirth) ?? '–';
       const num = p.shirtNumber != null ? String(p.shirtNumber).replace(/^#/, '') : '–';
@@ -291,7 +292,7 @@
         ${players.length ? `
         <input class="liga-kader-search" type="search" placeholder="Spieler suchen…" value="${_esc(_kaderSearch)}" oninput="window._liga._kaderSearchUpdate(this.value)" autocomplete="off">
         <div class="liga-kader-hdr">
-          <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>Marktwert</span>
+          <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>${_hasPlus ? 'Marktwert' : ''}</span>
         </div>
         <div class="liga-kader-grid">${rows || '<div class="cal-placeholder" style="padding:20px 0;">Kein Spieler gefunden.</div>'}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
       </div>`;
@@ -585,6 +586,10 @@
   }
 
   async function _showPlayerProfile(idx) {
+    if (typeof _hasFeature === 'function' && !_hasFeature('liga_plus')) {
+      _showUpgradePrompt({ title: 'Spielerprofile', text: 'Detaillierte Spielerprofile und Marktwerte sind in Erika Plus verfügbar. Kader-Übersicht und Liga-Spielplan bleiben kostenlos.', cta: 'Erika Plus' });
+      return;
+    }
     const p = _kaderPlayers[idx];
     if (!p) return;
     const overlay = document.getElementById('cal-overlay');
@@ -722,7 +727,8 @@
       <span>${standRow.goalDifference >= 0 ? '+' : ''}${standRow.goalDifference} TD</span>
     </div>` : '';
 
-    const last5Html = (focus?.last5 || []).map(r => {
+    const _hasPlus = typeof _hasFeature === 'function' && _hasFeature('liga_plus');
+    const last5Html = _hasPlus ? (focus?.last5 || []).map(r => {
       const cls = r.result === 'S' ? 'form-w' : r.result === 'N' ? 'form-l' : 'form-d';
       return `<div class="liga-td-past-match">
         <span class="liga-td-pm-md">${r.matchday_nr ? `${r.matchday_nr}. ST` : ''}</span>
@@ -731,7 +737,7 @@
         <span class="liga-td-pm-teams">${_esc(r.home)} – ${_esc(r.away)}</span>
         <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
       </div>`;
-    }).join('');
+    }).join('') : '';
 
     const next = focus?.next_match;
     const nextHtml = next ? `<div class="liga-td-next">
@@ -741,7 +747,7 @@
     </div>` : '';
 
     let tmHtml = '';
-    if (tmProfile) {
+    if (_hasPlus && tmProfile) {
       const mv    = _fmtMv(tmProfile.currentMarketValue);
       const stad  = [tmProfile.stadiumName, tmProfile.stadiumSeats ? `${Number(tmProfile.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
       const found = tmProfile.foundedOn ? `📅 ${_fmtDateISO(tmProfile.foundedOn)}` : '';
@@ -757,9 +763,9 @@
       if (tmRows.length) tmHtml = `<div class="liga-td-divider"></div>${tmRows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`;
     }
 
-    // Mini-Tabelle: 5 Einträge rund ums Team (nur wenn in gecachter Tabelle vorhanden)
+    // Mini-Tabelle: 5 Einträge rund ums Team (nur wenn in gecachter Tabelle vorhanden, nur Plus)
     let miniTableHtml = '';
-    {
+    if (_hasPlus) {
       let tableEntries = [];
       for (const s of Object.values(_standingsCache)) {
         const t = (s?.table || []);
@@ -1073,11 +1079,12 @@
       </div>`;
     }
 
-    const tmHtml = (focus && favName)
+    const _hasPlus = typeof _hasFeature === 'function' && _hasFeature('liga_plus');
+    const tmHtml = (focus && favName && _hasPlus)
       ? `<div id="liga-tm-card" class="liga-tm-card"></div>`
       : '';
     lc.innerHTML = `<div class="liga-sel">${leagueBtns}</div>${focusHtml}${tmHtml}`;
-    if (focus && favName) _loadTmProfile(favName);
+    if (focus && favName && _hasPlus) _loadTmProfile(favName);
   }
 
   function _renderCenter() {
