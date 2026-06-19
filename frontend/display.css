@@ -290,6 +290,58 @@
       background: rgba(0,200,255,0.12);
     }
     #news-more-wrap { flex-shrink: 0; }
+    .news-item-clickable:hover { background: rgba(0,200,255,0.06); border-radius: 6px; }
+    .news-item-clickable:hover .news-title { color: var(--accent); }
+
+    /* ── NEWS IFRAME OVERLAY ─────────────────────────────────────── */
+    #news-iframe-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      display: flex;
+      flex-direction: column;
+      background: #080a12;
+    }
+    .nio-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 16px;
+      height: 48px;
+      flex-shrink: 0;
+      background: rgba(10,12,24,0.96);
+      border-bottom: 1px solid var(--border);
+    }
+    .nio-title {
+      flex: 1;
+      font-size: 0.72rem;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .nio-close {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .nio-close:hover { background: rgba(255,60,60,0.2); border-color: #f55; color: #f55; }
+    .nio-frame {
+      flex: 1;
+      width: 100%;
+      border: none;
+      background: #fff;
+    }
 
     /* â”€â”€ WEATHER WIDGET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
     .weather-main {

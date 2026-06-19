@@ -2085,7 +2085,9 @@
       const logoHtml = logo
         ? `<img src="${logo}" class="news-source-logo" alt="${item.source}" onerror="this.style.opacity='0'">`
         : '';
-      return `<div class="news-item">
+      const hasLink = item.link && item.link.startsWith('http');
+      const clickAttr = hasLink ? ` onclick="openNewsUrl('${item.link.replace(/'/g,"\\'")}')` + ` style="cursor:pointer"` : '';
+      return `<div class="news-item${hasLink ? ' news-item-clickable' : ''}"${clickAttr}>
         <div class="news-logo-cell">${logoHtml}</div>
         <div class="news-title">${item.title}</div>
         <div class="news-time">${item.pub_date ? _relTime(item.pub_date) : ''}</div>
@@ -2162,6 +2164,30 @@
     cp.classList.remove('news-mode', 'news-collapsed', 'news-expanded');
     const nc = document.getElementById('news-center');
     if (nc) nc.remove();
+  }
+
+  function openNewsUrl(url) {
+    if (!url) return;
+    let ov = document.getElementById('news-iframe-overlay');
+    if (ov) ov.remove();
+    ov = document.createElement('div');
+    ov.id = 'news-iframe-overlay';
+    ov.innerHTML = `
+      <div class="nio-bar">
+        <span class="nio-title" id="nio-title-text">Artikel lädt…</span>
+        <button class="nio-close" onclick="closeNewsOverlay()" title="Schließen">✕</button>
+      </div>
+      <iframe class="nio-frame" src="${url}"
+        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        onload="document.getElementById('nio-title-text').textContent=''"
+        onerror="document.getElementById('nio-title-text').textContent='Seite konnte nicht geladen werden'">
+      </iframe>`;
+    document.body.appendChild(ov);
+  }
+
+  function closeNewsOverlay() {
+    const ov = document.getElementById('news-iframe-overlay');
+    if (ov) ov.remove();
   }
 
   // ── CALENDAR SOURCE COLORS ────────────────────────────────

@@ -56,6 +56,7 @@ def _fetch_feed(feed: dict[str, Any]) -> list[dict[str, str]]:
                 {
                     "title": title,
                     "pub_date": pub_iso,
+                    "link": (item.findtext("link") or "").strip(),
                     "source": feed["label"],
                     "source_key": feed["id"],
                     "icon_url": feed.get("icon_url"),
@@ -78,10 +79,13 @@ def _fetch_feed(feed: dict[str, Any]) -> list[dict[str, str]]:
                 pub_iso = datetime.fromisoformat(pub_raw.replace("Z", "+00:00")).isoformat()
             except Exception:
                 pub_iso = ""
+            link_el = entry.find("a:link", ns)
+            link_url = (link_el.get("href") if link_el is not None else "") or ""
             items.append(
                 {
                     "title": title,
                     "pub_date": pub_iso,
+                    "link": link_url,
                     "source": feed["label"],
                     "source_key": feed["id"],
                     "icon_url": feed.get("icon_url"),
