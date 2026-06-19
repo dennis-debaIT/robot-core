@@ -420,10 +420,9 @@
 
     // Vereinslogo: TM-URLs (img.transfermarkt.com) müssen durch /liga/tm/img-Proxy,
     // fd.o-Crest-URLs (crests.football-data.org) sind direkt abrufbar.
+    // _favCrest() NICHT als Fallback — SVD98-Logo darf nie für andere Vereins-Spieler erscheinen.
     const rawCrest = p.club?.imageURL || p.club?.image
-      || (p._source?.startsWith('fdo')
-          ? ''
-          : (_kaderTeamCrest || _getTeamCrest(_teamDetailId) || _favCrest())) || '';
+      || _kaderTeamCrest || _getTeamCrest(_teamDetailId) || '';
     const crest = rawCrest && rawCrest.includes('transfermarkt')
       ? `/liga/tm/img?url=${encodeURIComponent(rawCrest)}`
       : rawCrest;
