@@ -944,7 +944,7 @@
     const ag       = ft.away ?? (isDone ? 0 : null);
     const suffix   = _suffix(score);
     const sc       = _scoreHtml(hg, ag, suffix, isDone, isLive, compact);
-    const min      = isLive ? _liveMinute(m.utcDate) : '';
+    const min      = isLive ? (status === 'PAUSED' ? 'HZ' : _liveMinute(m.utcDate)) : '';
     const time     = _fmtTime(m.utcDate);
     const cd       = _isToday(m.utcDate) && !isLive && !isDone ? _countdown(m.utcDate) : '';
     const favCls   = isFav ? ' liga-card-fav' : '';
