@@ -423,7 +423,7 @@
     // _favCrest() NICHT als Fallback — SVD98-Logo darf nie für andere Vereins-Spieler erscheinen.
     const rawCrest = p.club?.imageURL || p.club?.image
       || _kaderTeamCrest || _getTeamCrest(_teamDetailId) || '';
-    const crest = rawCrest && rawCrest.includes('transfermarkt')
+    const crest = rawCrest && (rawCrest.includes('transfermarkt') || rawCrest.includes('akamaized.net'))
       ? `/liga/tm/img?url=${encodeURIComponent(rawCrest)}`
       : rawCrest;
     // fdo-Spieler spielen für einen anderen Verein als das Kader-Team → kein Fallback auf _kaderTeamName

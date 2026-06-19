@@ -167,7 +167,8 @@ def proxy_tm_image(url: str = Query(...)) -> Response:
     if not (parsed.scheme == "https" and parsed.hostname and
             (parsed.hostname.endswith(".transfermarkt.com") or
              parsed.hostname.endswith(".transfermarkt.technology") or
-             parsed.hostname == "img.transfermarkt.com")):
+             parsed.hostname == "img.transfermarkt.com" or
+             parsed.hostname == "tmssl.akamaized.net")):
         raise HTTPException(403, "Nur Transfermarkt-Bilder erlaubt")
 
     try:
