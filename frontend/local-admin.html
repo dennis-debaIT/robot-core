@@ -903,9 +903,17 @@
               <button type="button" class="secondary" onclick="_loadLigaTeams()">Teams neu laden</button>
             </div>
           </section>
-          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 12px;">
             <button type="button" class="primary" onclick="saveLigaConfig()">Speichern</button>
             <span id="liga-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
+          <div style="border-top:1px solid var(--border);margin:0 18px;padding:14px 0 18px;">
+            <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Cache</div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <button type="button" class="secondary" onclick="clearLigaCache()">🗑 Fußballdaten-Cache löschen</button>
+              <span id="liga-cache-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+            <p style="font-size:0.75rem;color:var(--muted);margin:6px 0 0;">Löscht gecachte Kader, Spieler-Profile und Suchergebnisse von Transfermarkt. Bilder bleiben erhalten. Die Daten werden beim nächsten Kader-Aufruf neu geladen.</p>
           </div>
         </article>
 
@@ -3747,6 +3755,19 @@
         _ligaFavoriteTeamId   = teamId;
         _ligaFavoriteTeamName = teamName;
         if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function clearLigaCache() {
+      const statusEl = document.getElementById('liga-cache-status');
+      if (statusEl) statusEl.textContent = 'Lösche…';
+      try {
+        const r = await fetch('/liga/cache', { method: 'DELETE' });
+        const d = await r.json();
+        const cleared = (d.cleared || []).join(', ') || '–';
+        if (statusEl) { statusEl.textContent = `Gelöscht: ${cleared} ✓`; setTimeout(() => statusEl.textContent = '', 3000); }
       } catch (e) {
         if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
       }

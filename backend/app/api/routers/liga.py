@@ -215,6 +215,23 @@ def proxy_tm_image(url: str = Query(...)) -> Response:
         raise HTTPException(502, "Bild konnte nicht geladen werden")
 
 
+@router.delete("/liga/cache")
+def clear_liga_cache() -> dict[str, Any]:
+    """Löscht alle TM-Disk-Caches (Kader, Spieler-Profile, Suchen) + In-Memory-Caches."""
+    import shutil
+    removed: list[str] = []
+    for sub in ("kader", "players", "searches"):
+        d = pathlib.Path(f"/data/tm_cache/{sub}")
+        if d.exists():
+            try:
+                shutil.rmtree(d)
+                removed.append(sub)
+            except Exception:
+                pass
+    LigaService.invalidate_cache()
+    return {"cleared": removed}
+
+
 @router.patch("/liga/config")
 def update_liga_config(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
     allowed = {"enabled", "api_key", "leagues", "favorite_team_id", "favorite_team_name"}
