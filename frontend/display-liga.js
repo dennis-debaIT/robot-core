@@ -31,8 +31,6 @@
 
   // Kader-Profil-Cache: Team-Key → {players, crest, fdoNames, ts}
   // Überleben Navigation weg + zurück ohne erneuten Prefetch (1h TTL)
-  const _kaderProfileCache = new Map();
-  const KADER_PROFILE_CACHE_MS = 3_600_000; // 1h
 
   const POLL_MS = 10_000;
 
@@ -308,23 +306,6 @@
     // Für Lieblingsverein team_id aus _ligaData nutzen wenn nicht explizit übergeben
     const resolvedTeamId = teamId || (!teamNameOverride ? (_ligaData?.favorite_team_id || null) : null);
 
-    // Kader-Profil-Cache: sofortige Anzeige ohne erneuten Netzwerkaufruf (1h Session-Cache)
-    const _cacheKey = `${resolvedTeamId || ''}_${teamName}`;
-    const _cached   = _kaderProfileCache.get(_cacheKey);
-    if (_cached && (Date.now() - _cached.ts) < KADER_PROFILE_CACHE_MS) {
-      _kaderOpen       = true;
-      _kaderTeamName   = teamName;
-      _kaderTeamId     = resolvedTeamId || null;
-      _kaderTeamCrest  = _cached.crest;
-      _kaderFdoNames   = _cached.fdoNames;
-      _kaderBackAction = backAction || (teamNameOverride ? 'team' : 'matchday');
-      _kaderPlayers    = _cached.players;
-      const ov = document.getElementById('cal-overlay');
-      if (ov) { ov.innerHTML = ''; ov.classList.add('active'); }
-      _renderKaderContent();
-      return;
-    }
-
     _kaderOpen       = true;
     _kaderTeamName   = teamName;
     _kaderTeamId     = resolvedTeamId || null;
@@ -364,11 +345,6 @@
     _kaderPlayers = players;
     _renderKaderContent();
 
-    // Session-Cache füllen: nächster Besuch in dieser Sitzung ist sofort
-    _kaderProfileCache.set(_cacheKey, {
-      players: _kaderPlayers, crest: _kaderTeamCrest,
-      fdoNames: _kaderFdoNames, ts: Date.now(),
-    });
   }
 
   // ── Crest-Helfer ───────────────────────────────────────────────
