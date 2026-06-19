@@ -429,7 +429,7 @@
     // fdo-Spieler spielen für einen anderen Verein als das Kader-Team → kein Fallback auf _kaderTeamName
     const clubName = p.club?.name
       || (p._source?.startsWith('fdo') ? '' : (_kaderStack.length ? '' : _kaderTeamName))
-      || _ligaData?.favorite_team_name || '';
+      || '';
     // Vereinsklick: Closure auf window._liga._cardClubClick verhindert jegliche String-Quoting-Probleme im onclick
     const clubFdoId  = p.currentTeamId || null;
     window._liga._cardClubClick = clubName
