@@ -527,6 +527,11 @@ class LigaService:
                         prof = tm_svc.get_player_profile(str(tm_id))
                         if prof:
                             club = prof.get("club") or {}
+                            # TM player profile enthält kein club.image → per club.id nachladen
+                            if club.get("id") and not club.get("image"):
+                                img = tm_svc.get_club_image_by_id(str(club["id"]))
+                                if img:
+                                    club = {**club, "image": img}
                             merged_club = {**(p.get("club") or {}), **{k: v for k, v in club.items() if v}}
                             updates: dict[str, Any] = {
                                 "imageURL":       prof.get("imageUrl") or prof.get("imageURL") or prof.get("image"),

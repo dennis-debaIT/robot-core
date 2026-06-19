@@ -91,6 +91,23 @@ class TransfermarktService:
             _store(key, tm_id)
         return tm_id
 
+    def get_club_image_by_id(self, tm_club_id: str) -> str | None:
+        """Club-Wappen-URL direkt per TM-Club-ID — 24h gecacht.
+
+        TM player profile enthält kein club.image, daher separater Lookup
+        via /clubs/{id}/profile. Ergebnis wird im gleichen Cache wie
+        get_club_profile gespeichert.
+        """
+        key = f"tm_profile:{tm_club_id}"
+        cached = _cached(key, _CLUB_TTL)
+        if cached is not None:
+            return (cached or {}).get("image")
+        data = _get(f"/clubs/{tm_club_id}/profile")
+        if data:
+            _store(key, data)
+            return data.get("image")
+        return None
+
     def get_club_profile(self, team_name: str) -> dict | None:
         tm_id = self.search_club_id(team_name)
         if not tm_id:
