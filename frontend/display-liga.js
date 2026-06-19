@@ -889,19 +889,20 @@
 
   function _renderMatchEvents(goals, bookings) {
     const evs = [];
+    const _evMin = (m, inj) => m != null ? (inj ? `${m}+${inj}'` : `${m}'`) : '';
     for (const g of goals || []) {
-      const min  = g.minute ? `${g.minute}'` : '';
+      const min  = _evMin(g.minute, g.injuryTime);
       const name = _esc(g.scorer?.name || '');
       const team = _esc(g.team?.shortName || g.team?.name || '');
       const extra = g.type === 'OWN_GOAL' ? ' (ET)' : g.type === 'PENALTY' ? ' (FE)' : '';
-      evs.push({ sort: g.minute || 0, html: `<span class="liga-ev liga-ev-goal">⚽ ${min} ${name}${extra} <span class="liga-ev-team">${team}</span></span>` });
+      evs.push({ sort: g.minute ?? 0, html: `<span class="liga-ev liga-ev-goal">⚽ ${min} ${name}${extra} <span class="liga-ev-team">${team}</span></span>` });
     }
     for (const b of bookings || []) {
-      const min  = b.minute ? `${b.minute}'` : '';
+      const min  = _evMin(b.minute, b.injuryTime);
       const name = _esc(b.player?.name || '');
       const team = _esc(b.team?.shortName || b.team?.name || '');
       const icon = b.card === 'RED_CARD' ? '🟥' : b.card === 'YELLOW_RED_CARD' ? '🟨🟥' : '🟨';
-      evs.push({ sort: b.minute || 0, html: `<span class="liga-ev liga-ev-card">${icon} ${min} ${name} <span class="liga-ev-team">${team}</span></span>` });
+      evs.push({ sort: b.minute ?? 0, html: `<span class="liga-ev liga-ev-card">${icon} ${min} ${name} <span class="liga-ev-team">${team}</span></span>` });
     }
     evs.sort((a, b) => b.sort - a.sort);
     return evs.length ? `<div class="liga-events">${evs.map(e => e.html).join('')}</div>` : '';
