@@ -300,6 +300,48 @@
       .replace(/[^a-z]/g, '');
   }
 
+  function _sortKaderPlayers(players) {
+    players.sort((a, b) => {
+      const ga = _posGroup(a.position), gb = _posGroup(b.position);
+      if (ga !== gb) return ga - gb;
+      const aFdo = a._source?.startsWith('fdo');
+      const bFdo = b._source?.startsWith('fdo');
+      if (aFdo && bFdo) return (a.shirtNumber ?? 99) - (b.shirtNumber ?? 99);
+      return _mvParse(b.marketValue) - _mvParse(a.marketValue);
+    });
+    return players;
+  }
+
+  async function _pollKaderEnrichment(teamName, teamId) {
+    // Pollt /liga/kader-full solange der Kader offen und nicht vollständig angereichert ist.
+    // Backend schreibt angereicherte Daten asynchron auf Disk — wir holen sie sobald fertig.
+    const delays = [8000, 10000, 12000, 15000, 20000];
+    for (const delay of delays) {
+      if (!_kaderOpen || _kaderTeamName !== teamName) return;
+      if (_kaderPlayers.length > 0 && _kaderPlayers.every(p => p._profileLoaded)) return;
+      await new Promise(r => setTimeout(r, delay));
+      if (!_kaderOpen || _kaderTeamName !== teamName) return;
+
+      const params = new URLSearchParams({ team_name: teamName });
+      if (teamId) params.set('team_id', String(teamId));
+      try {
+        const resp = await fetch(`/liga/kader-full?${params}`, { cache: 'no-store' });
+        if (!resp.ok) continue;
+        const fresh = await resp.json();
+        if (!_kaderOpen || _kaderTeamName !== teamName) return;
+
+        const freshSquad = fresh.squad || [];
+        const prevEnriched = _kaderPlayers.filter(p => p._profileLoaded).length;
+        const newEnriched  = freshSquad.filter(p => p._profileLoaded).length;
+        if (newEnriched > prevEnriched) {
+          _kaderPlayers   = _sortKaderPlayers(freshSquad.slice());
+          _kaderTeamCrest = fresh.crest || _kaderTeamCrest;
+          _renderKaderContent();
+        }
+      } catch {}
+    }
+  }
+
   async function _showKader(teamNameOverride, backAction, teamId) {
     const teamName = teamNameOverride || _ligaData?.favorite_team_name;
     if (!teamName) return;
@@ -317,7 +359,7 @@
     overlay.innerHTML = '<div class="cal-placeholder">Lade Kader…</div>';
     overlay.classList.add('active');
 
-    // Backend-assemblierten Kader laden (fd.o + TM-Profile, 24h Disk-Cache)
+    // Backend-assemblierten Kader laden (fd.o + TM-Profile, Disk-Cache)
     const params = new URLSearchParams({ team_name: teamName });
     if (resolvedTeamId) params.set('team_id', String(resolvedTeamId));
     let fullData = null;
@@ -333,18 +375,11 @@
       _kaderFdoNames  = [fullData.name, fullData.shortName].filter(n => n && n !== teamName);
     }
 
-    const players = (fullData?.squad || []).slice();
-    players.sort((a, b) => {
-      const ga = _posGroup(a.position), gb = _posGroup(b.position);
-      if (ga !== gb) return ga - gb;
-      const aFdo = a._source?.startsWith('fdo');
-      const bFdo = b._source?.startsWith('fdo');
-      if (aFdo && bFdo) return (a.shirtNumber ?? 99) - (b.shirtNumber ?? 99);
-      return _mvParse(b.marketValue) - _mvParse(a.marketValue);
-    });
-    _kaderPlayers = players;
+    _kaderPlayers = _sortKaderPlayers((fullData?.squad || []).slice());
     _renderKaderContent();
 
+    // Nachladen: solange nicht alle Spieler angereichert, periodisch aktualisieren
+    _pollKaderEnrichment(teamName, resolvedTeamId);
   }
 
   // ── Crest-Helfer ───────────────────────────────────────────────
