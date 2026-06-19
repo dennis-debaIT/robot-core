@@ -6,7 +6,8 @@ from pathlib import Path
 
 from app.database.db import get_connection, read_state, write_state
 
-_STATE_KEY = "edition"
+_STATE_KEY    = "edition"
+_PREVIEW_KEY  = "preview_edition"   # Überschreibt Lizenz für Test-Zwecke (kein Rebuild)
 
 # Gemountete Host-Datei (docker-compose: ./edition:/app/edition).
 # update.sh liest sie, um Community-Geräte ohne Paid-Module zu bauen.
@@ -81,16 +82,42 @@ class FeatureService:
         except OSError:
             pass
 
+    def get_preview_edition(self) -> str | None:
+        """Liefert den gesetzten Preview-Override oder None wenn kein Override aktiv."""
+        with get_connection() as conn:
+            val = read_state(conn, _PREVIEW_KEY)
+        return val if val in _TIER_RANK else None
+
+    def set_preview_edition(self, edition: str | None) -> None:
+        """Setzt oder löscht den Preview-Override (kein Rebuild, kein Lizenz-Einfluss)."""
+        with get_connection() as conn:
+            if edition and edition in _TIER_RANK:
+                write_state(conn, _PREVIEW_KEY, edition)
+            else:
+                write_state(conn, _PREVIEW_KEY, None)
+
+    def _effective_edition(self) -> tuple[str, bool]:
+        """(edition, is_preview) — Preview überschreibt die Lizenz für Display-Zwecke."""
+        preview = self.get_preview_edition()
+        if preview:
+            return preview, True
+        return self.get_edition(), False
+
     def enabled_features(self) -> dict:
-        rank = _TIER_RANK[self.get_edition()]
+        edition, is_preview = self._effective_edition()
+        rank = _TIER_RANK[edition]
         features = {
             feat: rank >= _TIER_RANK[tier]
             for feat, tier in FEATURES.items()
         }
-        return {"edition": self.get_edition(), "features": features}
+        result = {"edition": edition, "features": features}
+        if is_preview:
+            result["preview"] = True
+        return result
 
     def has_feature(self, feature_id: str) -> bool:
         required = FEATURES.get(feature_id)
         if required is None:
             return True  # nicht gelistet = community = immer frei
-        return _TIER_RANK[self.get_edition()] >= _TIER_RANK[required]
+        edition, _ = self._effective_edition()
+        return _TIER_RANK[edition] >= _TIER_RANK[required]

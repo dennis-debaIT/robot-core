@@ -6008,16 +6008,18 @@
 
   loadSetupChecklist();
 
-  function _updateEditionPreviewHint() {
+  async function _updateEditionPreviewHint() {
     const hint = document.getElementById('edition-preview-hint');
     if (!hint) return;
-    const preview = localStorage.getItem('erika_preview_edition');
-    if (preview) {
-      hint.style.display = 'block';
-      hint.textContent = `⚠ Browser-Preview aktiv: ${preview.toUpperCase()} — das Display zeigt diese Edition unabhängig von der Lizenz. "Preview zurücksetzen" entfernt den Override.`;
-    } else {
-      hint.style.display = 'none';
-    }
+    try {
+      const d = await fetch('/features').then(r => r.json());
+      if (d.preview) {
+        hint.style.display = 'block';
+        hint.textContent = `⚠ Server-Preview aktiv: ${(d.edition || '').toUpperCase()} — das Display aller Geräte zeigt diese Edition, unabhängig von der Lizenz. "Preview zurücksetzen" stellt den normalen Betrieb wieder her.`;
+      } else {
+        hint.style.display = 'none';
+      }
+    } catch { hint.style.display = 'none'; }
   }
 
   async function loadEdition() {
@@ -6035,26 +6037,35 @@
     if (!sel) return;
     if (statusEl) statusEl.textContent = 'Speichern…';
     try {
+      // Backend-Edition speichern (wirkt wenn keine Lizenz installiert)
       const r = await fetch('/features/edition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ edition: sel.value }),
       });
       if (!r.ok) throw new Error(await r.text());
-      // Immer auch localStorage setzen — greift auch wenn Lizenz installiert ist
-      localStorage.setItem('erika_preview_edition', sel.value);
-      _updateEditionPreviewHint();
-      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Browser-Preview aktiv'; setTimeout(() => { statusEl.textContent = ''; }, 5000); }
+      // Server-seitigen Preview setzen — überschreibt Lizenz auf ALLEN Geräten
+      await fetch('/features/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ edition: sel.value }),
+      });
+      await _updateEditionPreviewHint();
+      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Preview aktiv auf allen Geräten'; setTimeout(() => { statusEl.textContent = ''; }, 5000); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
     }
   }
 
-  function clearEditionPreview() {
-    localStorage.removeItem('erika_preview_edition');
-    _updateEditionPreviewHint();
+  async function clearEditionPreview() {
+    await fetch('/features/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ edition: null }),
+    });
+    await _updateEditionPreviewHint();
     const statusEl = document.getElementById('edition-status');
-    if (statusEl) { statusEl.textContent = 'Browser-Preview entfernt ✓'; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
+    if (statusEl) { statusEl.textContent = 'Preview zurückgesetzt ✓'; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
   }
 
   // ── LIZENZ ───────────────────────────────────────────────
