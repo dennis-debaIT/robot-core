@@ -6812,14 +6812,42 @@
   // ── FEATURES / EDITION ────────────────────────────────────
   let _features = {};
   let _edition = 'plus';
+  // Feature-IDs die ab Plus freigeschaltet sind (für den Browser-Preview-Override)
+  const _PLUS_FEATURES = ['pv_stats','camera_events','vehicle_history','waste','theme_schedule','energy_costs','chores','liga_plus'];
+
+  function _hasFeature(id) {
+    const preview = localStorage.getItem('erika_preview_edition');
+    if (preview) {
+      if (preview === 'community') return false;
+      if (preview === 'plus' || preview === 'family') return _PLUS_FEATURES.includes(id);
+    }
+    return _features[id] === true;
+  }
+
+  function _updateEditionBadge() {
+    const badge = document.getElementById('sb-edition-badge');
+    if (!badge) return;
+    const preview = localStorage.getItem('erika_preview_edition');
+    if (preview) {
+      badge.textContent = `PREVIEW: ${preview.toUpperCase()}`;
+      badge.style.display = 'inline-block';
+      badge.style.color = 'var(--warning, #f59e0b)';
+      badge.style.borderColor = 'var(--warning, #f59e0b)';
+    } else {
+      badge.textContent = 'Community Edition';
+      badge.style.color = '';
+      badge.style.borderColor = '';
+      badge.style.display = _edition === 'community' ? 'inline-block' : 'none';
+    }
+  }
+
   fetch('/features').then(r => r.ok ? r.json() : null).then(d => {
     if (!d) return;
     _features = d.features || {};
     _edition = d.edition || 'plus';
-    const badge = document.getElementById('sb-edition-badge');
-    if (badge) badge.style.display = _edition === 'community' ? 'inline-block' : 'none';
+    _updateEditionBadge();
   }).catch(() => {});
-  function _hasFeature(id) { return _features[id] === true; }
+  _updateEditionBadge(); // sofort anzeigen falls Preview-Override aktiv
 
   // Wiederverwendbare Upgrade-Box für kostenpflichtige Funktionen
   function _showUpgradePrompt({ title, text, cta } = {}) {

@@ -1502,16 +1502,18 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Edition (Test)</div>
-              <p>Vorschau-Schalter zum Testen, wie das Display in der jeweiligen Edition aussieht. Greift nur solange keine Lizenz installiert ist — sonst hat die Lizenz Vorrang.</p>
+              <p>Vorschau-Schalter zum Testen, wie das Display in der jeweiligen Edition aussieht. Der Backend-Wert greift nur ohne Lizenz — der <strong>Browser-Preview</strong> funktioniert immer (auch mit aktiver Lizenz) und überschreibt die Anzeige lokal.</p>
             </div>
-            <div style="display:flex;gap:10px;align-items:center;margin-top:8px;">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
               <select id="edition-select" class="field-input" style="max-width:220px;" onchange="setEdition()">
                 <option value="community">Community</option>
                 <option value="plus">Plus</option>
                 <option value="family">Family</option>
               </select>
+              <button onclick="clearEditionPreview()" style="padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--muted);font-size:0.8rem;cursor:pointer;">Preview zurücksetzen</button>
               <span id="edition-status" style="font-size:0.8rem;color:var(--muted);"></span>
             </div>
+            <div id="edition-preview-hint" style="display:none;margin-top:6px;font-size:0.76rem;color:var(--warning,#f59e0b);"></div>
           </section>
 
           <section class="module-card">
@@ -6006,12 +6008,25 @@
 
   loadSetupChecklist();
 
+  function _updateEditionPreviewHint() {
+    const hint = document.getElementById('edition-preview-hint');
+    if (!hint) return;
+    const preview = localStorage.getItem('erika_preview_edition');
+    if (preview) {
+      hint.style.display = 'block';
+      hint.textContent = `⚠ Browser-Preview aktiv: ${preview.toUpperCase()} — das Display zeigt diese Edition unabhängig von der Lizenz. "Preview zurücksetzen" entfernt den Override.`;
+    } else {
+      hint.style.display = 'none';
+    }
+  }
+
   async function loadEdition() {
     try {
       const d = await fetch('/features').then(r => r.json());
       const sel = document.getElementById('edition-select');
       if (sel && d.edition) sel.value = d.edition;
     } catch {}
+    _updateEditionPreviewHint();
   }
 
   async function setEdition() {
@@ -6026,10 +6041,20 @@
         body: JSON.stringify({ edition: sel.value }),
       });
       if (!r.ok) throw new Error(await r.text());
-      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Gerät baut bei Editions-Wechsel automatisch neu (~2–5 Min)'; setTimeout(() => { statusEl.textContent = ''; }, 7000); }
+      // Immer auch localStorage setzen — greift auch wenn Lizenz installiert ist
+      localStorage.setItem('erika_preview_edition', sel.value);
+      _updateEditionPreviewHint();
+      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Browser-Preview aktiv'; setTimeout(() => { statusEl.textContent = ''; }, 5000); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
     }
+  }
+
+  function clearEditionPreview() {
+    localStorage.removeItem('erika_preview_edition');
+    _updateEditionPreviewHint();
+    const statusEl = document.getElementById('edition-status');
+    if (statusEl) { statusEl.textContent = 'Browser-Preview entfernt ✓'; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
   }
 
   // ── LIZENZ ───────────────────────────────────────────────
