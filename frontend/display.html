@@ -2227,6 +2227,9 @@
           </div>`;
         }
         if (titleEl && d.title) titleEl.textContent = d.title;
+        // Button immer anzeigen — Originalseite hat ggf. Bilder die im Reader fehlen
+        const article = (body || document.getElementById('nio-body'))?.querySelector('.nio-article');
+        if (article) { const wrap = document.createElement('div'); wrap.innerHTML = _iframeBtn(); article.appendChild(wrap); }
       })
       .catch(() => {
         const hint = document.getElementById('nio-load-hint');
