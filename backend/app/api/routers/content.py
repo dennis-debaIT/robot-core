@@ -163,7 +163,16 @@ def get_news_article(url: str) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Ungültige URL")
     try:
         import trafilatura
-        downloaded = trafilatura.fetch_url(url)
+        _HEADERS = {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/124.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "de-DE,de;q=0.9",
+        }
+        downloaded = trafilatura.fetch_url(url, headers=_HEADERS)
         if not downloaded:
             raise HTTPException(status_code=502, detail="Seite konnte nicht geladen werden")
         result = trafilatura.extract(

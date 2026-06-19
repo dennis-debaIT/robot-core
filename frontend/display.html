@@ -2200,11 +2200,14 @@
             <div class="nio-art-content">${d.html}</div>
           </div>`;
       })
-      .catch(() => {
+      .catch(status => {
         const body = document.getElementById('nio-body');
-        if (body) body.innerHTML = `<div class="nio-error">Artikel konnte nicht geladen werden.<br><small>${url}</small></div>`;
+        const hint = status === 422
+          ? 'Diese Seite erfordert Cookie-Zustimmung (DSGVO) und kann serverseitig nicht geladen werden.'
+          : 'Artikel konnte nicht geladen werden.';
+        if (body) body.innerHTML = `<div class="nio-error">${hint}<br><small style="opacity:0.5">${url}</small></div>`;
         const titleEl = document.getElementById('nio-title-text');
-        if (titleEl) titleEl.textContent = 'Fehler';
+        if (titleEl) titleEl.textContent = 'Nicht verfügbar';
       });
   }
 
