@@ -44,6 +44,8 @@ class IntegrationConfigService:
                 "selected_sources": [],
                 "default_collapsed": False,
                 "collapsed_count": 3,
+                "highlight_keywords": [],
+                "hide_keywords": [],
             },
             "fuel_prices": {
                 "enabled": True,
@@ -183,6 +185,8 @@ class IntegrationConfigService:
         news["default_collapsed"] = bool(news.get("default_collapsed", False))
         news["collapsed_count"] = self._sanitize_news_collapsed_count(news.get("collapsed_count", 3))
         news["custom_feeds"] = self._sanitize_news_custom_feeds(news.get("custom_feeds"))
+        news["highlight_keywords"] = self._sanitize_string_list(news.get("highlight_keywords"))
+        news["hide_keywords"]      = self._sanitize_string_list(news.get("hide_keywords"))
         lights_config = merged.setdefault("lights", {})
         lights_config["enabled"] = bool(lights_config.get("enabled", True))
         lights_config["selected_entities"] = self._sanitize_string_list(lights_config.get("selected_entities"))
@@ -333,6 +337,8 @@ class IntegrationConfigService:
         news["default_collapsed"] = bool(news.get("default_collapsed", False))
         news["collapsed_count"] = self._sanitize_news_collapsed_count(news.get("collapsed_count", 3))
         news["custom_feeds"] = self._sanitize_news_custom_feeds(news.get("custom_feeds"))
+        news["highlight_keywords"] = self._sanitize_string_list(news.get("highlight_keywords"))
+        news["hide_keywords"]      = self._sanitize_string_list(news.get("hide_keywords"))
         lights_config = updated.setdefault("lights", {})
         lights_config["enabled"] = bool(lights_config.get("enabled", True))
         lights_config["selected_entities"] = self._sanitize_string_list(lights_config.get("selected_entities"))
@@ -434,6 +440,13 @@ class IntegrationConfigService:
 
     def get_news_custom_feeds(self) -> list[dict]:
         return self._sanitize_news_custom_feeds(self.get_config().get("news", {}).get("custom_feeds"))
+
+    def get_news_keywords(self) -> dict[str, list[str]]:
+        news = self.get_config().get("news", {})
+        return {
+            "highlight": self._sanitize_string_list(news.get("highlight_keywords")),
+            "hide":      self._sanitize_string_list(news.get("hide_keywords")),
+        }
 
     def get_news_display_settings(self) -> dict[str, Any]:
         news = self.get_config().get("news", {})

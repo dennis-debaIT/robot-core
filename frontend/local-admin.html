@@ -230,6 +230,36 @@
             <button type="button" id="add-custom-feed-btn" class="btn-secondary" style="margin-top:12px;">+ Feed hinzufügen</button>
           </section>
 
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Stichwort-Filter</div>
+              <p>Artikel deren Titel eines der eingetragenen Wörter enthält werden auf dem Display farblich <strong>hervorgehoben</strong> oder komplett <strong>ausgeblendet</strong>. Groß- und Kleinschreibung wird nicht unterschieden.</p>
+            </div>
+
+            <div class="field-grid" style="gap:20px;">
+              <div>
+                <div class="control-label" style="margin-bottom:6px;">✨ Hervorheben</div>
+                <div class="control-hint" style="margin-bottom:10px;">Artikel mit diesen Begriffen werden farblich markiert — z. B. dein Lieblingsverein oder ein wichtiges Thema.</div>
+                <div id="highlight-chips" class="keyword-chips"></div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <input id="highlight-input" class="field-input" type="text" placeholder="Begriff eingeben…" style="flex:1;">
+                  <button type="button" class="btn-secondary" onclick="addKeyword('highlight')">+</button>
+                </div>
+              </div>
+              <div>
+                <div class="control-label" style="margin-bottom:6px;">🚫 Ausblenden</div>
+                <div class="control-hint" style="margin-bottom:10px;">Artikel mit diesen Begriffen werden gar nicht angezeigt — z. B. Themen die dich nicht interessieren.</div>
+                <div id="hide-chips" class="keyword-chips"></div>
+                <div style="display:flex;gap:8px;margin-top:8px;">
+                  <input id="hide-input" class="field-input" type="text" placeholder="Begriff eingeben…" style="flex:1;">
+                  <button type="button" class="btn-secondary" onclick="addKeyword('hide')">+</button>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn-primary" onclick="saveKeywords()" style="margin-top:16px;">Stichwörter speichern</button>
+            <div id="keywords-status" class="save-status" style="margin-top:8px;display:none;"></div>
+          </section>
+
         </article>
 
         <article id="tab-weather" class="panel-card tab-panel">
@@ -1925,6 +1955,59 @@
 
     addCustomFeedBtn.addEventListener('click', () => { addCustomFeedRow({}); });
 
+    // ── Keyword filter ──────────────────────────────────────────────────────
+    let _highlightKeywords = [];
+    let _hideKeywords = [];
+
+    function renderKeywordChips(type) {
+      const arr = type === 'highlight' ? _highlightKeywords : _hideKeywords;
+      const container = document.getElementById(`${type}-chips`);
+      if (!container) return;
+      container.innerHTML = arr.map((kw, i) =>
+        `<span class="keyword-chip">${escapeHtml(kw)}<button type="button" onclick="removeKeyword('${type}',${i})" title="Entfernen">✕</button></span>`
+      ).join('');
+    }
+
+    function addKeyword(type) {
+      const input = document.getElementById(`${type}-input`);
+      const val = (input?.value || '').trim();
+      if (!val) return;
+      const arr = type === 'highlight' ? _highlightKeywords : _hideKeywords;
+      if (!arr.includes(val)) arr.push(val);
+      input.value = '';
+      renderKeywordChips(type);
+    }
+
+    function removeKeyword(type, idx) {
+      if (type === 'highlight') _highlightKeywords.splice(idx, 1);
+      else _hideKeywords.splice(idx, 1);
+      renderKeywordChips(type);
+    }
+
+    async function saveKeywords() {
+      const statusEl = document.getElementById('keywords-status');
+      if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Speichere…'; statusEl.style.color = ''; }
+      try {
+        const r = await fetch('/news/keywords', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ highlight: _highlightKeywords, hide: _hideKeywords })
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (statusEl) { statusEl.textContent = '✓ Gespeichert'; statusEl.style.color = 'var(--color-success, #4caf50)'; }
+      } catch (e) {
+        if (statusEl) { statusEl.textContent = 'Fehler beim Speichern'; statusEl.style.color = 'var(--color-danger, #f44)'; }
+      }
+      if (statusEl) setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    }
+
+    // Enter key submits keyword inputs
+    ['highlight', 'hide'].forEach(type => {
+      document.getElementById(`${type}-input`)?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); addKeyword(type); }
+      });
+    });
+
     function getSelectedFuelTypeIds() {
       return Array.from(document.querySelectorAll('input[name="fuel-type"]:checked')).map((input) => input.value);
     }
@@ -3039,6 +3122,10 @@
       newsDefaultCollapsedEl.checked = Boolean(newsConfig.default_collapsed);
       newsCollapsedCountEl.value = newsConfig.collapsed_count ?? 3;
       renderCustomFeeds(newsConfig.custom_feeds || []);
+      _highlightKeywords = Array.isArray(newsConfig.highlight_keywords) ? [...newsConfig.highlight_keywords] : [];
+      _hideKeywords      = Array.isArray(newsConfig.hide_keywords)      ? [...newsConfig.hide_keywords]      : [];
+      renderKeywordChips('highlight');
+      renderKeywordChips('hide');
       fuelEnabledEl.checked = Boolean(fuelConfig.enabled);
       fuelAssignments = fuelConfig.fuel_assignments || {};
       evEnabledEl.checked = vehicleConfig.enabled !== false;

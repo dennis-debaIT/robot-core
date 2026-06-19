@@ -292,6 +292,8 @@
     #news-more-wrap { flex-shrink: 0; }
     .news-item-clickable:hover { background: rgba(0,200,255,0.06); border-radius: 6px; }
     .news-item-clickable:hover .news-title { color: var(--accent); }
+    .news-item-highlight { border-left: 3px solid var(--accent); padding-left: 6px; margin-left: -9px; background: rgba(0,200,255,0.05); border-radius: 0 6px 6px 0; }
+    .news-item-highlight .news-title { color: var(--accent); }
 
     /* ── NEWS IFRAME OVERLAY ─────────────────────────────────────── */
     #news-iframe-overlay {

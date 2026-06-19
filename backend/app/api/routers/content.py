@@ -132,6 +132,7 @@ def _news_response(items: list[dict[str, Any]], cached: bool) -> dict[str, Any]:
         "lookback_hours": lookback_hours,
         "display": display_settings,
         "sources": NewsFeedService(custom_feeds).active_sources_payload(selected_sources),
+        "keywords": settings.get_news_keywords(),
     }
 
 
@@ -218,6 +219,17 @@ def get_news_article(url: str) -> dict[str, Any]:
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/news/keywords")
+def set_news_keywords(payload: dict) -> dict[str, Any]:
+    """Speichert Hervorheben- und Ausblenden-Keywords für den News-Feed."""
+    highlight = [str(k).strip() for k in (payload.get("highlight") or []) if str(k).strip()]
+    hide      = [str(k).strip() for k in (payload.get("hide")      or []) if str(k).strip()]
+    IntegrationConfigService().update_config({
+        "news": {"highlight_keywords": highlight, "hide_keywords": hide}
+    })
+    return {"highlight": highlight, "hide": hide}
 
 
 @router.get("/weather")

@@ -2078,13 +2078,20 @@
 
   function _renderNewsList(data) {
     _newsClickItems = [];
-    const items = _newsFilter === 'all'
+    const highlightKw = (data.keywords?.highlight || []).map(k => k.toLowerCase());
+    const hideKw      = (data.keywords?.hide      || []).map(k => k.toLowerCase());
+    let items = _newsFilter === 'all'
       ? (data.items || [])
       : (data.items || []).filter(i => i.source_key === _newsFilter);
+    if (hideKw.length) {
+      items = items.filter(i => !hideKw.some(kw => i.title?.toLowerCase().includes(kw)));
+    }
     if (!items.length) return '<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">Keine Nachrichten</div>';
     const settings = _newsDisplaySettings(data);
     const visibleItems = _newsCollapsed ? items.slice(0, settings.collapsedCount) : items;
     return visibleItems.map(item => {
+      const titleLc = item.title?.toLowerCase() || '';
+      const isHighlighted = highlightKw.length && highlightKw.some(kw => titleLc.includes(kw));
       const logo = item.icon_url;
       const logoHtml = logo
         ? `<img src="${logo}" class="news-source-logo" alt="${item.source}" onerror="this.style.opacity='0'">`
@@ -2092,7 +2099,8 @@
       const hasLink = item.link && item.link.startsWith('http');
       const idx = _newsClickItems.push(item) - 1;
       const clickAttr = hasLink ? ` onclick="_openNewsItem(${idx})" style="cursor:pointer"` : '';
-      return `<div class="news-item${hasLink ? ' news-item-clickable' : ''}"${clickAttr}>
+      const extraClass = (hasLink ? ' news-item-clickable' : '') + (isHighlighted ? ' news-item-highlight' : '');
+      return `<div class="news-item${extraClass}"${clickAttr}>
         <div class="news-logo-cell">${logoHtml}</div>
         <div class="news-title">${item.title}</div>
         <div class="news-time">${item.pub_date ? _relTime(item.pub_date) : ''}</div>
@@ -2102,9 +2110,11 @@
 
   function _renderNewsMoreBtn(data) {
     if (!_newsCollapsed || !data) return '';
-    const items = _newsFilter === 'all'
+    const hideKw = (data.keywords?.hide || []).map(k => k.toLowerCase());
+    let items = _newsFilter === 'all'
       ? (data.items || [])
       : (data.items || []).filter(i => i.source_key === _newsFilter);
+    if (hideKw.length) items = items.filter(i => !hideKw.some(kw => i.title?.toLowerCase().includes(kw)));
     const settings = _newsDisplaySettings(data);
     const hiddenCount = Math.max(0, items.length - settings.collapsedCount);
     return hiddenCount
