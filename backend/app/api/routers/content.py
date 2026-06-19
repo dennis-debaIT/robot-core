@@ -156,6 +156,41 @@ def get_news() -> dict[str, Any]:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@router.get("/news/article")
+def get_news_article(url: str) -> dict[str, Any]:
+    """Lädt einen Artikel-URL und extrahiert den Lesetext via trafilatura."""
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(status_code=400, detail="Ungültige URL")
+    try:
+        import trafilatura
+        downloaded = trafilatura.fetch_url(url)
+        if not downloaded:
+            raise HTTPException(status_code=502, detail="Seite konnte nicht geladen werden")
+        result = trafilatura.extract(
+            downloaded,
+            include_comments=False,
+            include_tables=True,
+            output_format="html",
+            with_metadata=True,
+            favor_precision=True,
+        )
+        if not result:
+            raise HTTPException(status_code=422, detail="Kein Artikeltext gefunden")
+        meta = trafilatura.extract_metadata(downloaded)
+        return {
+            "url": url,
+            "title": meta.title if meta else "",
+            "author": meta.author if meta else "",
+            "date": meta.date if meta else "",
+            "sitename": meta.sitename if meta else "",
+            "html": result,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/weather")
 def get_weather_display(location: str | None = None) -> dict[str, Any]:
     from app.search.providers.weather import get_weather_display_data

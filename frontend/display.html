@@ -2086,7 +2086,8 @@
         ? `<img src="${logo}" class="news-source-logo" alt="${item.source}" onerror="this.style.opacity='0'">`
         : '';
       const hasLink = item.link && item.link.startsWith('http');
-      const clickAttr = hasLink ? ` onclick="openNewsUrl('${item.link.replace(/'/g,"\\'")}')` + ` style="cursor:pointer"` : '';
+      const safeUrl = hasLink ? item.link.replace(/'/g, '%27') : '';
+      const clickAttr = hasLink ? ` onclick="openNewsUrl('${safeUrl}')" style="cursor:pointer"` : '';
       return `<div class="news-item${hasLink ? ' news-item-clickable' : ''}"${clickAttr}>
         <div class="news-logo-cell">${logoHtml}</div>
         <div class="news-title">${item.title}</div>
@@ -2174,15 +2175,37 @@
     ov.id = 'news-iframe-overlay';
     ov.innerHTML = `
       <div class="nio-bar">
-        <span class="nio-title" id="nio-title-text">Artikel lädt…</span>
+        <span class="nio-title" id="nio-title-text">Artikel wird geladen…</span>
         <button class="nio-close" onclick="closeNewsOverlay()" title="Schließen">✕</button>
       </div>
-      <iframe class="nio-frame" src="${url}"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        onload="document.getElementById('nio-title-text').textContent=''"
-        onerror="document.getElementById('nio-title-text').textContent='Seite konnte nicht geladen werden'">
-      </iframe>`;
+      <div class="nio-body" id="nio-body">
+        <div class="nio-loading">
+          <div class="nio-spinner"></div>
+          <span>Artikel wird geladen…</span>
+        </div>
+      </div>`;
     document.body.appendChild(ov);
+    fetch('/news/article?' + new URLSearchParams({ url }))
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => {
+        const titleEl = document.getElementById('nio-title-text');
+        const body    = document.getElementById('nio-body');
+        if (!body) return;
+        if (titleEl) titleEl.textContent = d.title || '';
+        const meta = [d.sitename, d.author, d.date].filter(Boolean).join(' · ');
+        body.innerHTML = `
+          <div class="nio-article">
+            ${d.title ? `<h1 class="nio-art-title">${d.title}</h1>` : ''}
+            ${meta    ? `<div class="nio-art-meta">${meta}</div>` : ''}
+            <div class="nio-art-content">${d.html}</div>
+          </div>`;
+      })
+      .catch(() => {
+        const body = document.getElementById('nio-body');
+        if (body) body.innerHTML = `<div class="nio-error">Artikel konnte nicht geladen werden.<br><small>${url}</small></div>`;
+        const titleEl = document.getElementById('nio-title-text');
+        if (titleEl) titleEl.textContent = 'Fehler';
+      });
   }
 
   function closeNewsOverlay() {
