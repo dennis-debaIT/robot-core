@@ -432,9 +432,10 @@
       || (p._source?.startsWith('fdo') ? '' : (_kaderStack.length ? '' : _kaderTeamName))
       || _ligaData?.favorite_team_name || '';
     // Verein anklickbar wenn Name bekannt — _showClubKader funktioniert auch ohne fd.o-ID (lädt per Name)
+    // data-cname statt JSON.stringify im onclick verhindert Quoting-Konflikte mit HTML-Attribut-Anführungszeichen
     const clubFdoId  = p.currentTeamId || null;
     const clubOnClick = clubName
-      ? `onclick="window._liga._showClubKader(${JSON.stringify(clubName)},${clubFdoId ?? 'null'})" style="cursor:pointer;" title="Zum Vereinskader"`
+      ? `data-cname="${_esc(clubName)}" onclick="window._liga._showClubKader(this.dataset.cname,${clubFdoId ?? 'null'})" style="cursor:pointer;" title="Zum Vereinskader"`
       : '';
     const clubLeague = p.currentTeamLeague || '';
     const clubHtml = clubName ? `<div class="liga-player-club" ${clubOnClick}>
