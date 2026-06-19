@@ -2019,6 +2019,9 @@
 
   let _newsFilter = 'all';
   let _lastNewsData = null;
+  let _newsClickItems = [];
+  function _openNewsItem(idx) { const it = _newsClickItems[idx]; if (it) openNewsUrl(it.link, it); }
+  function _escNews(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   let _newsCollapsed = false;
   let _newsCollapseInitialized = false;
 
@@ -2074,6 +2077,7 @@
   }
 
   function _renderNewsList(data) {
+    _newsClickItems = [];
     const items = _newsFilter === 'all'
       ? (data.items || [])
       : (data.items || []).filter(i => i.source_key === _newsFilter);
@@ -2086,8 +2090,8 @@
         ? `<img src="${logo}" class="news-source-logo" alt="${item.source}" onerror="this.style.opacity='0'">`
         : '';
       const hasLink = item.link && item.link.startsWith('http');
-      const safeUrl = hasLink ? item.link.replace(/'/g, '%27') : '';
-      const clickAttr = hasLink ? ` onclick="openNewsUrl('${safeUrl}')" style="cursor:pointer"` : '';
+      const idx = _newsClickItems.push(item) - 1;
+      const clickAttr = hasLink ? ` onclick="_openNewsItem(${idx})" style="cursor:pointer"` : '';
       return `<div class="news-item${hasLink ? ' news-item-clickable' : ''}"${clickAttr}>
         <div class="news-logo-cell">${logoHtml}</div>
         <div class="news-title">${item.title}</div>
@@ -2167,47 +2171,63 @@
     if (nc) nc.remove();
   }
 
-  function openNewsUrl(url) {
+  function openNewsUrl(url, item) {
     if (!url) return;
     let ov = document.getElementById('news-iframe-overlay');
     if (ov) ov.remove();
     ov = document.createElement('div');
     ov.id = 'news-iframe-overlay';
+
+    const title = item?.title || '';
+    const source = item?.source || '';
+    const date = item?.pub_date ? _relTime(item.pub_date) : '';
+    const meta = [source, date].filter(Boolean).join(' · ');
+
+    // Sofort-Inhalt aus Feed (description oder content:encoded)
+    const feedContent = item?.content || '';
+    const feedDesc    = item?.description || '';
+    const hasFeedContent = feedContent || feedDesc;
+
     ov.innerHTML = `
       <div class="nio-bar">
-        <span class="nio-title" id="nio-title-text">Artikel wird geladen…</span>
+        <span class="nio-title" id="nio-title-text">${title ? _escNews(title) : 'Artikel wird geladen…'}</span>
         <button class="nio-close" onclick="closeNewsOverlay()" title="Schließen">✕</button>
       </div>
       <div class="nio-body" id="nio-body">
-        <div class="nio-loading">
-          <div class="nio-spinner"></div>
-          <span>Artikel wird geladen…</span>
-        </div>
+        ${hasFeedContent
+          ? `<div class="nio-article">
+              ${title ? `<h1 class="nio-art-title">${_escNews(title)}</h1>` : ''}
+              ${meta  ? `<div class="nio-art-meta">${_escNews(meta)}</div>` : ''}
+              <div class="nio-art-content" id="nio-art-content">${feedContent || `<p>${_escNews(feedDesc)}</p>`}</div>
+              <div id="nio-load-hint" class="nio-load-hint"><div class="nio-spinner-sm"></div> Volltext wird geladen…</div>
+            </div>`
+          : `<div class="nio-loading"><div class="nio-spinner"></div><span>Artikel wird geladen…</span></div>`}
       </div>`;
     document.body.appendChild(ov);
+
     fetch('/news/article?' + new URLSearchParams({ url }))
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(d => {
-        const titleEl = document.getElementById('nio-title-text');
-        const body    = document.getElementById('nio-body');
-        if (!body) return;
-        if (titleEl) titleEl.textContent = d.title || '';
-        const meta = [d.sitename, d.author, d.date].filter(Boolean).join(' · ');
-        body.innerHTML = `
-          <div class="nio-article">
-            ${d.title ? `<h1 class="nio-art-title">${d.title}</h1>` : ''}
-            ${meta    ? `<div class="nio-art-meta">${meta}</div>` : ''}
+        const body = document.getElementById('nio-body');
+        const hint = document.getElementById('nio-load-hint');
+        if (hint) hint.remove();
+        const content = document.getElementById('nio-art-content');
+        if (content && d.html) {
+          content.innerHTML = d.html;
+        } else if (body && !hasFeedContent) {
+          const artMeta = [d.sitename, d.author, d.date].filter(Boolean).join(' · ');
+          body.innerHTML = `<div class="nio-article">
+            ${d.title ? `<h1 class="nio-art-title">${_escNews(d.title)}</h1>` : ''}
+            ${artMeta ? `<div class="nio-art-meta">${_escNews(artMeta)}</div>` : ''}
             <div class="nio-art-content">${d.html}</div>
           </div>`;
-      })
-      .catch(status => {
-        const body = document.getElementById('nio-body');
-        const hint = status === 422
-          ? 'Diese Seite erfordert Cookie-Zustimmung (DSGVO) und kann serverseitig nicht geladen werden.'
-          : 'Artikel konnte nicht geladen werden.';
-        if (body) body.innerHTML = `<div class="nio-error">${hint}<br><small style="opacity:0.5">${url}</small></div>`;
+        }
         const titleEl = document.getElementById('nio-title-text');
-        if (titleEl) titleEl.textContent = 'Nicht verfügbar';
+        if (titleEl && d.title) titleEl.textContent = d.title;
+      })
+      .catch(() => {
+        const hint = document.getElementById('nio-load-hint');
+        if (hint) hint.textContent = hasFeedContent ? '' : 'Vollständiger Artikel nicht verfügbar (DSGVO-Sperre).';
       });
   }
 

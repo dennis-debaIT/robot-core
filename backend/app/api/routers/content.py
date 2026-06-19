@@ -32,6 +32,13 @@ def _fetch_feed(feed: dict[str, Any]) -> list[dict[str, str]]:
     except Exception:
         return []
 
+    _CONTENT_NS = {"content": "http://purl.org/rss/1.0/modules/content/"}
+
+    def _clean(html: str) -> str:
+        """Entfernt HTML-Tags für die Beschreibung."""
+        import re
+        return re.sub(r"<[^>]+>", "", html).strip()
+
     items: list[dict[str, str]] = []
     if feed["fmt"] == "rss":
         channel = root.find("channel")
@@ -52,11 +59,16 @@ def _fetch_feed(feed: dict[str, Any]) -> list[dict[str, str]]:
                     pub_iso = datetime.fromisoformat(pub_raw.replace("Z", "+00:00")).isoformat()
                 except Exception:
                     pass
+            # content:encoded = voller Artikeltext; description = Teaser
+            full = (item.findtext("content:encoded", namespaces=_CONTENT_NS) or "").strip()
+            desc = _clean(item.findtext("description") or "")
             items.append(
                 {
                     "title": title,
                     "pub_date": pub_iso,
                     "link": (item.findtext("link") or "").strip(),
+                    "description": desc,
+                    "content": full,
                     "source": feed["label"],
                     "source_key": feed["id"],
                     "icon_url": feed.get("icon_url"),
@@ -81,11 +93,15 @@ def _fetch_feed(feed: dict[str, Any]) -> list[dict[str, str]]:
                 pub_iso = ""
             link_el = entry.find("a:link", ns)
             link_url = (link_el.get("href") if link_el is not None else "") or ""
+            full = (entry.findtext("a:content", namespaces=ns) or "").strip()
+            desc = _clean(entry.findtext("a:summary", namespaces=ns) or "")
             items.append(
                 {
                     "title": title,
                     "pub_date": pub_iso,
                     "link": link_url,
+                    "description": desc,
+                    "content": full,
                     "source": feed["label"],
                     "source_key": feed["id"],
                     "icon_url": feed.get("icon_url"),
