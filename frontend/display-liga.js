@@ -431,11 +431,13 @@
     const clubName = p.club?.name
       || (p._source?.startsWith('fdo') ? '' : (_kaderStack.length ? '' : _kaderTeamName))
       || _ligaData?.favorite_team_name || '';
-    // Verein anklickbar wenn Name bekannt — _showClubKader funktioniert auch ohne fd.o-ID (lädt per Name)
-    // data-cname statt JSON.stringify im onclick verhindert Quoting-Konflikte mit HTML-Attribut-Anführungszeichen
+    // Vereinsklick: Closure auf window._liga._cardClubClick verhindert jegliche String-Quoting-Probleme im onclick
     const clubFdoId  = p.currentTeamId || null;
+    window._liga._cardClubClick = clubName
+      ? () => window._liga._showClubKader(clubName, clubFdoId)
+      : null;
     const clubOnClick = clubName
-      ? `data-cname="${_esc(clubName)}" onclick="window._liga._showClubKader(this.dataset.cname,${clubFdoId ?? 'null'})" style="cursor:pointer;" title="Zum Vereinskader"`
+      ? `onclick="window._liga._cardClubClick&&window._liga._cardClubClick()" style="cursor:pointer;" title="Zum Vereinskader"`
       : '';
     const clubLeague = p.currentTeamLeague || '';
     const clubHtml = clubName ? `<div class="liga-player-club" ${clubOnClick}>
@@ -1205,5 +1207,6 @@
     _backToMatchday: _backFromKader, // Alias für alte onclick-Referenzen
     _showPlayerProfile, _backToKaderList,
     _showTeamById, _backFromTeamDetail, _showKaderForTeam,
+    _cardClubClick: null, // wird von _drawPlayerCard bei jedem Karten-Render überschrieben
   };
 })();
