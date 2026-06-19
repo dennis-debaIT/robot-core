@@ -198,21 +198,33 @@
   function _renderTmCard() {
     const el = document.getElementById('liga-tm-card');
     if (!el) return;
-    if (!_tmProfile) {
-      el.innerHTML = '';
-      return;
-    }
+    if (!_tmProfile) { el.innerHTML = ''; return; }
     const p = _tmProfile;
+
+    // Vereinswappen: TM-Bild (via Proxy) bevorzugt, Fallback aus Tabellen-Cache
+    const rawCrest = p.image || '';
+    const crest = rawCrest && (rawCrest.includes('transfermarkt') || rawCrest.includes('akamaized.net'))
+      ? `/liga/tm/img?url=${encodeURIComponent(rawCrest)}`
+      : (rawCrest || _favCrest());
+    const favName = _ligaData?.favorite_team_name || '';
+    const favId   = _favId();
+
     const mv    = _fmtMv(p.currentMarketValue);
     const stad  = [p.stadiumName, p.stadiumSeats ? `${Number(p.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
     const found = p.foundedOn ? `📅 ${_fmtDateISO(p.foundedOn)}` : '';
     const web   = p.website   ? `🌐 ${_esc(p.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
     const tel   = p.tel       ? `📞 ${_esc(p.tel)}` : '';
     const rows  = [stad ? `🏟 ${_esc(stad)}` : '', found, web, tel].filter(Boolean);
+
     el.innerHTML = `
+      <div class="liga-tm-club-header">
+        ${crest ? `<img src="${_esc(crest)}" class="liga-tm-club-crest" onerror="this.style.display='none'">` : ''}
+        ${favName ? `<div class="liga-tm-club-name">${_esc(favName)}</div>` : ''}
+      </div>
       <div class="liga-tm-label">Vereinsinfo · Transfermarkt</div>
       ${mv && mv !== '–' ? `<div class="liga-tm-mv">💶 Kaderwert: ${_esc(mv)}</div>` : ''}
       ${rows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}
+      ${favId ? `<button class="liga-kader-btn" style="margin-bottom:5px;" onclick="window._liga._showTeamById(${favId})">🏟 Vereinsseite</button>` : ''}
       <button class="liga-kader-btn" onclick="window._liga._showKader()">👥 Kader anzeigen</button>`;
   }
 
@@ -774,7 +786,7 @@
           </div>`;
         }).join('');
         miniTableHtml = `<div class="liga-td-divider"></div>
-          <div class="liga-td-section-label" style="margin-bottom:6px;">Tabelle</div>
+          <div class="liga-td-section-label" style="margin-bottom:3px;">Tabelle</div>
           <div class="liga-table">${miniRows}</div>`;
       }
     }
@@ -782,7 +794,7 @@
     overlay.classList.add('active');
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <button class="liga-kader-back" onclick="window._liga._backFromTeamDetail()">← Spieltag</button>
         </div>
         <div class="liga-td-header">
@@ -792,7 +804,7 @@
             ${statsHtml}
           </div>
         </div>
-        ${last5Html ? `<div class="liga-td-section-label" style="margin:14px 0 6px;">Letzte Spiele</div><div>${last5Html}</div>` : ''}
+        ${last5Html ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">Letzte Spiele</div><div>${last5Html}</div>` : ''}
         ${nextHtml}
         ${miniTableHtml}
         ${tmHtml}
