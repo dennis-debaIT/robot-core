@@ -128,6 +128,20 @@ Ziel: Nutzer können das Display optisch und strukturell an ihre Wünsche anpass
 
 ---
 
+## ✅ Phase 4.5 — Liga Plus & News-Reader (abgeschlossen)
+
+Ziel: Liga-Modul mit bezahlten Premiumfunktionen, News-Artikel direkt lesbar im Display.
+
+- [x] **Liga-Modul Plus-Split**: `liga_plus`-Feature-Flag trennt kostenlose Inhalte (Kader-Übersicht, Spielplan) von Plus-Inhalten (Marktwerte, Spielerprofile, letzte 5 Spiele, Mini-Tabelle, TM-Vereinsinfos)
+- [x] **Edition-Preview (server-seitig)**: Test-Override für Editionen ohne Lizenz zu entfernen; Cross-Device via DB statt localStorage
+- [x] **Liga Live-Spielminute**: Berechnung aus Anstoßzeit; Halbzeit exakt via `status: PAUSED`
+- [x] **Liga Event-Ticker**: Live-Tore mit Minute und Nachspielzeit (z. B. `45+2'`), Eigentor/Elfmeter-Kennzeichnung
+- [x] **News Reader-Modus**: trafilatura extrahiert Artikeltext serverseitig; Anzeige im Display-Theme ohne Werbung/Cookie-Banner
+- [x] **News RSS-Fallback**: `description` und `content:encoded` aus dem Feed werden sofort angezeigt während der Volltext lädt
+- [x] **News Iframe-Fallback**: Button „Im Browser öffnen" als letzter Ausweg wenn trafilatura und RSS-Inhalt nicht ausreichen (DSGVO-Consent-Walls)
+
+---
+
 ## 🛠️ Phase 5 — Hardware-Abstraktion (mittelfristig)
 
 Ziel: Die Fake-Adapter aus Phase 0 werden durch echte Hardware ersetzt — ohne den Core zu ändern.
