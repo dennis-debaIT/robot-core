@@ -712,12 +712,12 @@
 
     const last5Html = (focus?.last5 || []).map(r => {
       const cls = r.result === 'S' ? 'form-w' : r.result === 'N' ? 'form-l' : 'form-d';
-      const mdLabel = r.matchday_nr ? `<span class="liga-td-pm-md">${r.matchday_nr}. ST</span>` : '';
       return `<div class="liga-td-past-match">
-        <span class="liga-form ${cls}">${r.result}</span>
-        <span class="liga-td-pm-teams">${mdLabel}${_esc(r.home)} – ${_esc(r.away)}</span>
-        <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
+        <span class="liga-td-pm-md">${r.matchday_nr ? `${r.matchday_nr}. ST` : ''}</span>
         <span class="liga-td-pm-date">${r.utcDate ? _fmtDate(r.utcDate) : ''}</span>
+        <span class="liga-form ${cls}">${r.result}</span>
+        <span class="liga-td-pm-teams">${_esc(r.home)} – ${_esc(r.away)}</span>
+        <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
       </div>`;
     }).join('');
 
