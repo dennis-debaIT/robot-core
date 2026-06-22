@@ -289,14 +289,22 @@ def push_notes() -> int:
     now = _now()
     count = 0
     for r in rows:
+        sync_id = str(r["id"])
         result = _sync_request("POST", "/notes", {
-            "id":         str(r["id"]),
+            "id":         sync_id,
             "title":      r["title"],
             "content":    r["content"],
             "person_id":  str(r["person_id"]) if r["person_id"] else None,
             "created_at": r["created_at"],
         })
         if result and not result.get("error"):
+            # sync_server_id lokal setzen damit pull_notes das Original erkennt
+            if not r["sync_server_id"]:
+                with get_connection() as conn2:
+                    conn2.execute(
+                        "UPDATE person_notes SET sync_server_id=? WHERE id=?",
+                        (sync_id, r["id"]),
+                    )
             count += 1
     if count > 0:
         _set_notes_last_sync(now)
@@ -388,19 +396,25 @@ def push_reminders() -> int:
     now = _now()
     count = 0
     for r in rows:
+        sync_id = str(r["id"])
         result = _sync_request("POST", "/reminders", {
-            "id":          str(r["id"]),
+            "id":          sync_id,
             "text":        r["text"],
             "fire_at":     r["fire_at"],
             "person_name": r.get("person_name"),
             "created_at":  r["created_at"],
         })
         if result and not result.get("error"):
-            # Dismissed-Status nachziehen
             if r["dismissed"]:
-                _sync_request("PATCH", f"/reminders/{r['id']}", {"dismissed": True})
+                _sync_request("PATCH", f"/reminders/{sync_id}", {"dismissed": True})
             if r["notified"]:
-                _sync_request("PATCH", f"/reminders/{r['id']}", {"notified": True})
+                _sync_request("PATCH", f"/reminders/{sync_id}", {"notified": True})
+            if not r["sync_server_id"]:
+                with get_connection() as conn2:
+                    conn2.execute(
+                        "UPDATE reminders SET sync_server_id=? WHERE id=?",
+                        (sync_id, r["id"]),
+                    )
             count += 1
     if count > 0:
         _set_reminders_last_sync(now)
