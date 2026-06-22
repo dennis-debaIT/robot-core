@@ -852,7 +852,41 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Sync mit Android-App</div>
-              <p>Mit einer aktiven Plus-Lizenz wird die Einkaufsliste automatisch mit dem Sync-Server synchronisiert. Zugangsdaten kommen direkt aus der Lizenz — keine manuelle Konfiguration nötig.</p>
+              <p>Mit einer aktiven Plus-Lizenz werden die gewählten Module automatisch mit dem Sync-Server synchronisiert. Zugangsdaten kommen direkt aus der Lizenz — keine manuelle Konfiguration nötig.</p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-shopping" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">🛒 Einkaufsliste</span>
+                  <span class="switch-text">Einkaufsliste in der App synchronisieren</span>
+                </span>
+              </label>
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-notes" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">📝 Notizen</span>
+                  <span class="switch-text">Notizen in der App synchronisieren</span>
+                </span>
+              </label>
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-reminders" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">🔔 Erinnerungen</span>
+                  <span class="switch-text">Erinnerungen in der App synchronisieren</span>
+                </span>
+              </label>
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-chores" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">🧹 Hausaufgaben</span>
+                  <span class="switch-text">Hausaufgaben &amp; Personen in der App synchronisieren</span>
+                </span>
+              </label>
             </div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <button type="button" class="btn btn-secondary" onclick="_triggerSync()">Jetzt synchronisieren</button>
@@ -3768,17 +3802,40 @@
         const sh = cfg.sync || {};
         const el = document.getElementById('sync-enabled');
         if (el) el.checked = sh.enabled === true;
+        const mods = sh.modules || {};
+        const ms = document.getElementById('sync-module-shopping');
+        const mn = document.getElementById('sync-module-notes');
+        const mr = document.getElementById('sync-module-reminders');
+        const mc = document.getElementById('sync-module-chores');
+        if (ms) ms.checked = mods.shopping !== false;
+        if (mn) mn.checked = mods.notes === true;
+        if (mr) mr.checked = mods.reminders === true;
+        if (mc) mc.checked = mods.chores === true;
       } catch {}
     }
 
     async function saveSyncConfig() {
-      const el = document.getElementById('sync-enabled');
+      const el  = document.getElementById('sync-enabled');
+      const ms  = document.getElementById('sync-module-shopping');
+      const mn  = document.getElementById('sync-module-notes');
+      const mr  = document.getElementById('sync-module-reminders');
+      const mc  = document.getElementById('sync-module-chores');
       const res = document.getElementById('sync-result');
       try {
         await fetch('/local-admin/integrations/config', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sync: { enabled: el?.checked || false } }),
+          body: JSON.stringify({
+            sync: {
+              enabled: el?.checked || false,
+              modules: {
+                shopping:  ms?.checked !== false,
+                notes:     mn?.checked || false,
+                reminders: mr?.checked || false,
+                chores:    mc?.checked || false,
+              },
+            },
+          }),
         });
         if (res) { res.textContent = 'Gespeichert ✓'; setTimeout(() => res.textContent = '', 2500); }
       } catch (e) {
@@ -4023,6 +4080,10 @@
     document.querySelector('[data-tab-target="tab-chores"]')?.addEventListener('click', _loadChoresConfig);
     document.querySelector('[data-tab-target="tab-sync"]')?.addEventListener('click', _loadSyncConfig);
     document.getElementById('sync-enabled')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-shopping')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-notes')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-reminders')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-chores')?.addEventListener('change', saveSyncConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);
