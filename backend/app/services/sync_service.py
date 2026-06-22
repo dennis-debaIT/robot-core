@@ -1,15 +1,16 @@
 """Sync-Service — allgemeiner Relay-Sync mit dem erika-sync-server.
 
 Lokale SQLite-Tabelle als primäre Quelle (funktioniert auch offline).
-Änderungen werden mit dem Sync-Server unter SYNC_SERVER_URL via Delta-
-Sync abgeglichen: Robot pusht eigene Änderungen, pullt neue Einträge der
-Android-App.
+Sync-Credentials werden automatisch aus der Lizenz-Datei geladen sobald
+eine Plus/Family-Lizenz installiert ist — kein manuelles .env nötig.
 
-Sync-Protokoll (identisch mit erika-sync-server):
-  GET  /items?since=<ISO>  →  alle Einträge mit updated_at > since
-  POST /items              →  Eintrag anlegen (idempotent via INSERT OR REPLACE)
-  PATCH /items/{id}        →  Text / checked / sort_order ändern
-  DELETE /items/{id}       →  Soft-Delete
+Fallback: SYNC_SERVER_URL + SYNC_SERVER_TOKEN als Env-Vars für Self-Hosted.
+
+Sync-Protokoll:
+  GET  /items?since=<ISO>  → Delta-Sync (inkl. deleted=1)
+  POST /items              → Eintrag anlegen (idempotent)
+  PATCH /items/{id}        → Text / checked / sort_order
+  DELETE /items/{id}       → Soft-Delete
 """
 from __future__ import annotations
 
@@ -18,21 +19,43 @@ import os
 import ssl
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib import request as _req
 
 from app.database.db import get_connection
 
-SYNC_URL: str   = os.getenv("SYNC_SERVER_URL", "").rstrip("/")
-SYNC_TOKEN: str = os.getenv("SYNC_SERVER_TOKEN", "")
+_LICENSE_FILE = Path("/data/license.json")
 
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
-_SSL_CTX.verify_mode    = ssl.CERT_NONE   # self-signed wie beim Lizenzserver
+_SSL_CTX.verify_mode    = ssl.CERT_NONE
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def get_credentials() -> tuple[str, str]:
+    """Sync-URL und Token aus Lizenz-Datei laden (hat Vorrang vor .env).
+
+    Gibt (sync_url, sync_jwt) zurück. Beide leer → kein Sync konfiguriert.
+    Die Lizenz-Datei wird bei jedem Aufruf neu gelesen, damit ein frisches
+    JWT nach Lizenz-Renewal sofort aktiv wird ohne Neustart.
+    """
+    try:
+        lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
+        url = str(lic.get("sync_url") or "").rstrip("/")
+        tok = str(lic.get("sync_jwt") or "")
+        if url and tok:
+            return url, tok
+    except Exception:
+        pass
+    # Fallback: manuelle Env-Vars (Self-Hosted ohne Lizenzserver)
+    return (
+        os.getenv("SYNC_SERVER_URL", "").rstrip("/"),
+        os.getenv("SYNC_SERVER_TOKEN", ""),
+    )
 
 
 def _row(r) -> dict[str, Any]:
@@ -68,10 +91,7 @@ def create_item(text: str) -> dict[str, Any]:
             "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM sync_items WHERE deleted = 0"
         ).fetchone()[0])
         conn.execute(
-            """
-            INSERT INTO sync_items(id, text, checked, sort_order, created_at, updated_at, deleted)
-            VALUES (?, ?, 0, ?, ?, ?, 0)
-            """,
+            "INSERT INTO sync_items(id, text, checked, sort_order, created_at, updated_at, deleted) VALUES (?,?,0,?,?,?,0)",
             (item_id, text, next_order, now, now),
         )
         row = conn.execute("SELECT * FROM sync_items WHERE id = ?", (item_id,)).fetchone()
@@ -89,10 +109,10 @@ def update_item(item_id: str, text: str | None = None, checked: bool | None = No
         new_text    = text.strip() if text    is not None else row["text"]
         new_checked = int(checked) if checked is not None else row["checked"]
         conn.execute(
-            "UPDATE sync_items SET text = ?, checked = ?, updated_at = ? WHERE id = ?",
+            "UPDATE sync_items SET text=?, checked=?, updated_at=? WHERE id=?",
             (new_text, new_checked, now, item_id),
         )
-        row = conn.execute("SELECT * FROM sync_items WHERE id = ?", (item_id,)).fetchone()
+        row = conn.execute("SELECT * FROM sync_items WHERE id=?", (item_id,)).fetchone()
     return _row(row)
 
 
@@ -100,7 +120,7 @@ def delete_item(item_id: str) -> bool:
     now = _now()
     with get_connection() as conn:
         cur = conn.execute(
-            "UPDATE sync_items SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0",
+            "UPDATE sync_items SET deleted=1, updated_at=? WHERE id=? AND deleted=0",
             (now, item_id),
         )
     return cur.rowcount > 0
@@ -110,7 +130,7 @@ def clear_checked() -> int:
     now = _now()
     with get_connection() as conn:
         cur = conn.execute(
-            "UPDATE sync_items SET deleted = 1, updated_at = ? WHERE checked = 1 AND deleted = 0",
+            "UPDATE sync_items SET deleted=1, updated_at=? WHERE checked=1 AND deleted=0",
             (now,),
         )
     return cur.rowcount
@@ -119,12 +139,13 @@ def clear_checked() -> int:
 # ── Sync-Hilfsfunktionen ───────────────────────────────────────────────────
 
 def _sync_request(method: str, path: str, body: dict | None = None) -> dict | None:
-    if not SYNC_URL or not SYNC_TOKEN:
+    url_base, token = get_credentials()
+    if not url_base or not token:
         return None
-    url  = f"{SYNC_URL}{path}"
+    url  = f"{url_base}{path}"
     data = json.dumps(body).encode() if body else None
     req  = _req.Request(url, data=data, method=method)
-    req.add_header("Authorization", f"Bearer {SYNC_TOKEN}")
+    req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Content-Type", "application/json")
     try:
         with _req.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
@@ -134,7 +155,6 @@ def _sync_request(method: str, path: str, body: dict | None = None) -> dict | No
 
 
 def push_item(item: dict[str, Any]) -> None:
-    """Lokalen Eintrag zum Sync-Server pushen (idempotent)."""
     if item.get("deleted"):
         _sync_request("DELETE", f"/items/{item['id']}")
     else:
@@ -150,7 +170,6 @@ def push_item(item: dict[str, Any]) -> None:
 
 
 def pull_and_merge(since: str | None = None) -> int:
-    """Neue/geänderte Einträge vom Sync-Server holen und lokal mergen."""
     path   = "/items" + (f"?since={since}" if since else "")
     result = _sync_request("GET", path)
     if not result:
@@ -169,11 +188,10 @@ def pull_and_merge(since: str | None = None) -> int:
                 """
                 INSERT OR REPLACE INTO sync_items
                     (id, text, checked, sort_order, created_at, updated_at, deleted, synced_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?,?,?,?,?,?,?,?)
                 """,
                 (
-                    item["id"],
-                    item.get("text", ""),
+                    item["id"], item.get("text", ""),
                     int(bool(item.get("checked"))),
                     item.get("sort_order", 0),
                     item.get("created_at", now),
@@ -188,22 +206,17 @@ def pull_and_merge(since: str | None = None) -> int:
 
 def get_last_sync_time() -> str | None:
     with get_connection() as conn:
-        row = conn.execute(
-            "SELECT MAX(synced_at) AS t FROM sync_items"
-        ).fetchone()
+        row = conn.execute("SELECT MAX(synced_at) AS t FROM sync_items").fetchone()
     return row["t"] if row else None
 
 
 def _mark_synced(item_id: str) -> None:
     now = _now()
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE sync_items SET synced_at = ? WHERE id = ?", (now, item_id)
-        )
+        conn.execute("UPDATE sync_items SET synced_at=? WHERE id=?", (now, item_id))
 
 
 def push_unsynced() -> int:
-    """Alle noch nicht synchronisierten lokalen Einträge pushen."""
     with get_connection() as conn:
         rows = conn.execute(
             "SELECT * FROM sync_items WHERE synced_at IS NULL OR updated_at > synced_at"

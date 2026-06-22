@@ -210,12 +210,13 @@ async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
 
 async def _sync_loop(interval_seconds: int = 60) -> None:
     """Synchronisiert alle 60 Sekunden mit dem erika-sync-server.
-    Läuft still wenn kein SYNC_SERVER_URL konfiguriert ist."""
+    Läuft still wenn keine Sync-Credentials verfügbar sind."""
     from app.services import sync_service as _sync
     await asyncio.sleep(30)
     while True:
         try:
-            if _sync.SYNC_URL and _sync.SYNC_TOKEN:
+            url, tok = _sync.get_credentials()
+            if url and tok:
                 _sync.push_unsynced()
                 since = _sync.get_last_sync_time()
                 _sync.pull_and_merge(since)
