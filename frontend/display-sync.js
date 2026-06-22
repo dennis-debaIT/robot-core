@@ -2,6 +2,7 @@
  *
  * Nutzt GET/POST/PATCH/DELETE /sync/items
  * Pollt alle 15 Sekunden wenn geöffnet (Änderungen vom Handy sichtbar).
+ * Offene Einträge per Drag & Drop sortierbar (Maus + Touch).
  */
 (function () {
   'use strict';
@@ -10,9 +11,38 @@
   let _pollTimer = null;
   let _isOpen    = false;
 
+  // ── Drag-State ──────────────────────────────────────────────────────────────
+  let _dragId      = null;
+  let _dragGhost   = null;
+  let _dragOverId  = null;
+  let _dragStartY  = 0;
+
+  function _injectStyles() {
+    if (document.getElementById('sync-drag-styles')) return;
+    const s = document.createElement('style');
+    s.id = 'sync-drag-styles';
+    s.textContent = `
+      .shopping-drag-handle {
+        cursor: grab; padding: 0 8px 0 0; color: var(--color-muted, #666);
+        font-size: 1.1rem; user-select: none; touch-action: none;
+        flex-shrink: 0;
+      }
+      .shopping-item.drag-over { outline: 2px solid #00C8FF; border-radius: 6px; }
+      .shopping-drag-ghost {
+        position: fixed; pointer-events: none; z-index: 9999;
+        opacity: 0.75; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+        background: var(--color-surface, #15151F);
+        border-radius: 8px; padding: 10px 14px;
+        color: var(--color-fg, #fff); font-size: .95rem;
+        display: flex; align-items: center; gap: 8px; max-width: 340px;
+      }
+    `;
+    document.head.appendChild(s);
+  }
+
   function _overlay() { return document.getElementById('cal-overlay'); }
 
-  // ── API ─────────────────────────────────────────────────────────────────
+  // ── API ─────────────────────────────────────────────────────────────────────
 
   async function _load() {
     try {
@@ -73,7 +103,86 @@
     } catch {}
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
+  // ── Drag & Drop ─────────────────────────────────────────────────────────────
+
+  function _dragDown(e, id) {
+    e.preventDefault();
+    e.stopPropagation();
+    _dragId = id;
+    const pt = e.touches ? e.touches[0] : e;
+    _dragStartY = pt.clientY;
+
+    // Ghost anlegen
+    const txt = (_items.find(i => i.id === id) || {}).text || '';
+    _dragGhost = document.createElement('div');
+    _dragGhost.className = 'shopping-drag-ghost';
+    _dragGhost.textContent = '⠿ ' + txt;
+    _dragGhost.style.left = pt.clientX + 'px';
+    _dragGhost.style.top  = pt.clientY + 'px';
+    document.body.appendChild(_dragGhost);
+
+    document.addEventListener('mousemove',  _dragMove);
+    document.addEventListener('touchmove',  _dragMove, { passive: false });
+    document.addEventListener('mouseup',    _dragEnd);
+    document.addEventListener('touchend',   _dragEnd);
+  }
+
+  function _dragMove(e) {
+    if (!_dragId) return;
+    e.preventDefault();
+    const pt = e.touches ? e.touches[0] : e;
+    _dragGhost.style.left = (pt.clientX + 12) + 'px';
+    _dragGhost.style.top  = (pt.clientY - 20) + 'px';
+
+    // Ziel-Element ermitteln
+    _dragGhost.style.display = 'none';
+    const el = document.elementFromPoint(pt.clientX, pt.clientY);
+    _dragGhost.style.display = '';
+    const li = el ? el.closest('.shopping-item[data-id]') : null;
+    const newOverId = li ? li.dataset.id : null;
+    if (newOverId !== _dragOverId) {
+      document.querySelectorAll('.shopping-item.drag-over').forEach(e => e.classList.remove('drag-over'));
+      if (li && newOverId !== _dragId) li.classList.add('drag-over');
+      _dragOverId = newOverId;
+    }
+  }
+
+  function _dragEnd() {
+    document.removeEventListener('mousemove',  _dragMove);
+    document.removeEventListener('touchmove',  _dragMove);
+    document.removeEventListener('mouseup',    _dragEnd);
+    document.removeEventListener('touchend',   _dragEnd);
+    if (_dragGhost) { _dragGhost.remove(); _dragGhost = null; }
+    document.querySelectorAll('.shopping-item.drag-over').forEach(e => e.classList.remove('drag-over'));
+
+    if (_dragId && _dragOverId && _dragId !== _dragOverId) {
+      const open     = _items.filter(i => !i.checked);
+      const fromIdx  = open.findIndex(i => i.id === _dragId);
+      const toIdx    = open.findIndex(i => i.id === _dragOverId);
+      if (fromIdx !== -1 && toIdx !== -1) {
+        const [moved] = open.splice(fromIdx, 1);
+        open.splice(toIdx, 0, moved);
+        // sort_order neu setzen und in _items spiegeln
+        open.forEach((item, idx) => { item.sort_order = idx; });
+        _items = [...open, ..._items.filter(i => i.checked)];
+        _saveOrder(open);
+        _render();
+      }
+    }
+    _dragId = _dragOverId = null;
+  }
+
+  function _saveOrder(orderedOpen) {
+    orderedOpen.forEach((item, idx) => {
+      fetch(`/sync/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sort_order: idx }),
+      }).catch(() => {});
+    });
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   function _render() {
     const overlay = _overlay();
@@ -97,8 +206,8 @@
           <button class="shopping-add-btn" onclick="window._sync._submitInput()">+</button>
         </div>
         <ul class="shopping-list">
-          ${open.map(i => _itemHtml(i)).join('')}
-          ${hasDone ? '<li class="shopping-divider">Erledigt</li>' + done.map(i => _itemHtml(i)).join('') : ''}
+          ${open.map(i => _itemHtml(i, false)).join('')}
+          ${hasDone ? '<li class="shopping-divider">Erledigt</li>' + done.map(i => _itemHtml(i, true)).join('') : ''}
         </ul>
         ${_items.length === 0 ? '<p class="shopping-empty">Liste ist leer</p>' : ''}
       </div>
@@ -106,14 +215,20 @@
     overlay.classList.add('active');
   }
 
-  function _itemHtml(item) {
-    const cls = item.checked ? 'shopping-item checked' : 'shopping-item';
+  function _itemHtml(item, isDone) {
+    const cls = isDone ? 'shopping-item checked' : 'shopping-item';
     const txt = item.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const handle = isDone ? '' :
+      `<span class="shopping-drag-handle"
+         onmousedown="event.stopPropagation();window._sync._dragDown(event,'${item.id}')"
+         ontouchstart="event.stopPropagation();window._sync._dragDown(event,'${item.id}')">⠿</span>`;
     return `
-      <li class="${cls}" onclick="window._sync._toggleItem('${item.id}')">
-        <span class="shopping-check">${item.checked ? '✓' : ''}</span>
+      <li class="${cls}" data-id="${item.id}" onclick="window._sync._toggleItem('${item.id}')">
+        ${handle}
+        <span class="shopping-check">${isDone ? '✓' : ''}</span>
         <span class="shopping-text">${txt}</span>
-        <button class="shopping-delete-btn" onclick="event.stopPropagation();window._sync._deleteItem('${item.id}')">✕</button>
+        <button class="shopping-delete-btn"
+          onclick="event.stopPropagation();window._sync._deleteItem('${item.id}')">✕</button>
       </li>`;
   }
 
@@ -126,9 +241,10 @@
     _addItem(text);
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   function open() {
+    _injectStyles();
     _isOpen = true;
     _render();
     _load();
@@ -143,5 +259,5 @@
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }
 
-  window._sync = { open, close, _toggleItem, _deleteItem, _clearChecked, _submitInput };
+  window._sync = { open, close, _toggleItem, _deleteItem, _clearChecked, _submitInput, _dragDown };
 })();

@@ -424,6 +424,12 @@ def init_db() -> None:
         reminder_columns = {row["name"] for row in conn.execute("PRAGMA table_info(reminders)").fetchall()}
         if "light_command" not in reminder_columns:
             conn.execute("ALTER TABLE reminders ADD COLUMN light_command TEXT")
+        if "sync_server_id" not in reminder_columns:
+            conn.execute("ALTER TABLE reminders ADD COLUMN sync_server_id TEXT")
+
+        note_columns = {row["name"] for row in conn.execute("PRAGMA table_info(person_notes)").fetchall()}
+        if "sync_server_id" not in note_columns:
+            conn.execute("ALTER TABLE person_notes ADD COLUMN sync_server_id TEXT")
 
         person_columns = {row["name"] for row in conn.execute("PRAGMA table_info(persons)").fetchall()}
         if "gender" not in person_columns:

@@ -98,7 +98,7 @@ def create_item(text: str) -> dict[str, Any]:
     return _row(row)
 
 
-def update_item(item_id: str, text: str | None = None, checked: bool | None = None) -> dict[str, Any] | None:
+def update_item(item_id: str, text: str | None = None, checked: bool | None = None, sort_order: int | None = None) -> dict[str, Any] | None:
     now = _now()
     with get_connection() as conn:
         row = conn.execute(
@@ -106,11 +106,12 @@ def update_item(item_id: str, text: str | None = None, checked: bool | None = No
         ).fetchone()
         if not row:
             return None
-        new_text    = text.strip() if text    is not None else row["text"]
-        new_checked = int(checked) if checked is not None else row["checked"]
+        new_text       = text.strip()    if text       is not None else row["text"]
+        new_checked    = int(checked)    if checked    is not None else row["checked"]
+        new_sort_order = int(sort_order) if sort_order is not None else row["sort_order"]
         conn.execute(
-            "UPDATE sync_items SET text=?, checked=?, updated_at=? WHERE id=?",
-            (new_text, new_checked, now, item_id),
+            "UPDATE sync_items SET text=?, checked=?, sort_order=?, updated_at=? WHERE id=?",
+            (new_text, new_checked, new_sort_order, now, item_id),
         )
         row = conn.execute("SELECT * FROM sync_items WHERE id=?", (item_id,)).fetchone()
     return _row(row)
@@ -311,41 +312,36 @@ def pull_notes() -> int:
     merged = 0
     with get_connection() as conn:
         for note in result.get("notes", []):
+            sync_id = str(note["id"])
+            remote_ts = note.get("updated_at", "")
             if note.get("deleted"):
-                # aus dem Sync-Server gelöschte Notizen auch lokal entfernen
-                try:
-                    conn.execute(
-                        "DELETE FROM person_notes WHERE id = ?", (int(note["id"]),)
-                    )
-                except Exception:
-                    pass
+                conn.execute(
+                    "DELETE FROM person_notes WHERE sync_server_id = ?", (sync_id,)
+                )
                 merged += 1
                 continue
             existing = conn.execute(
-                "SELECT updated_at FROM person_notes WHERE id = ?", (int(note["id"]),)
+                "SELECT id, updated_at FROM person_notes WHERE sync_server_id = ?", (sync_id,)
             ).fetchone()
-            remote_ts = note.get("updated_at", "")
             if existing and existing["updated_at"] >= remote_ts:
                 continue
             person_id = int(note["person_id"]) if note.get("person_id") else None
             if existing:
                 conn.execute(
                     "UPDATE person_notes SET title=?, content=?, person_id=?, updated_at=? WHERE id=?",
-                    (note["title"], note.get("content", ""), person_id, remote_ts, int(note["id"])),
+                    (note["title"], note.get("content", ""), person_id, remote_ts, existing["id"]),
                 )
             else:
-                try:
-                    conn.execute(
-                        "INSERT INTO person_notes(id, title, content, person_id, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-                        (
-                            int(note["id"]), note["title"], note.get("content", ""),
-                            person_id,
-                            note.get("created_at", remote_ts),
-                            remote_ts,
-                        ),
-                    )
-                except Exception:
-                    pass
+                conn.execute(
+                    "INSERT INTO person_notes(title, content, person_id, created_at, updated_at, sync_server_id) VALUES (?,?,?,?,?,?)",
+                    (
+                        note["title"], note.get("content", ""),
+                        person_id,
+                        note.get("created_at", remote_ts),
+                        remote_ts,
+                        sync_id,
+                    ),
+                )
             merged += 1
     return merged
 
@@ -420,38 +416,30 @@ def pull_reminders() -> int:
     merged = 0
     with get_connection() as conn:
         for rem in result.get("reminders", []):
+            sync_id = str(rem["id"])
             if rem.get("deleted"):
-                try:
-                    conn.execute("DELETE FROM reminders WHERE id = ?", (int(rem["id"]),))
-                except Exception:
-                    pass
+                conn.execute("DELETE FROM reminders WHERE sync_server_id = ?", (sync_id,))
                 merged += 1
                 continue
             existing = conn.execute(
-                "SELECT id, dismissed FROM reminders WHERE id = ?", (int(rem["id"]),)
+                "SELECT id, dismissed FROM reminders WHERE sync_server_id = ?", (sync_id,)
             ).fetchone()
             if existing:
-                # Nur dismissed-Status vom App-Pull übernehmen (notified bleibt lokal)
                 if rem.get("dismissed") and not existing["dismissed"]:
-                    conn.execute(
-                        "UPDATE reminders SET dismissed=1 WHERE id=?", (int(rem["id"]),)
-                    )
+                    conn.execute("UPDATE reminders SET dismissed=1 WHERE id=?", (existing["id"],))
                 merged += 1
             else:
-                try:
-                    conn.execute(
-                        "INSERT INTO reminders(id, text, fire_at, person_name, notified, dismissed, created_at) VALUES (?,?,?,?,0,0,?)",
-                        (
-                            int(rem["id"]),
-                            rem["text"],
-                            rem["fire_at"],
-                            rem.get("person_name"),
-                            rem.get("created_at", _now()),
-                        ),
-                    )
-                    merged += 1
-                except Exception:
-                    pass
+                conn.execute(
+                    "INSERT INTO reminders(text, fire_at, person_name, notified, dismissed, created_at, sync_server_id) VALUES (?,?,?,0,0,?,?)",
+                    (
+                        rem["text"],
+                        rem["fire_at"],
+                        rem.get("person_name"),
+                        rem.get("created_at", _now()),
+                        sync_id,
+                    ),
+                )
+                merged += 1
     return merged
 
 

@@ -27,7 +27,12 @@ def add_item(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.patch("/sync/items/{item_id}")
 def patch_item(item_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    item = svc.update_item(item_id, text=payload.get("text"), checked=payload.get("checked"))
+    item = svc.update_item(
+        item_id,
+        text=payload.get("text"),
+        checked=payload.get("checked"),
+        sort_order=payload.get("sort_order"),
+    )
     if item is None:
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
     svc.push_item(item)
