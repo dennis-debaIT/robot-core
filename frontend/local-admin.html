@@ -3799,7 +3799,7 @@
     async function _loadSyncConfig() {
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
-        const sh = cfg.sync || {};
+        const sh = (cfg.config || cfg).sync || {};
         const el = document.getElementById('sync-enabled');
         if (el) el.checked = sh.enabled === true;
         const mods = sh.modules || {};
