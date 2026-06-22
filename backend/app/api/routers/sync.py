@@ -50,29 +50,49 @@ def clear_checked() -> dict[str, Any]:
 @router.post("/sync/trigger")
 def trigger_sync() -> dict[str, Any]:
     """Manuellen Sync anstoßen — alle aktivierten Module."""
+    import traceback as _tb
     from app.services.integration_config_service import IntegrationConfigService
-    modules = (IntegrationConfigService().get_config().get("sync") or {}).get("modules", {})
+    try:
+        modules = (IntegrationConfigService().get_config().get("sync") or {}).get("modules", {})
+    except Exception as exc:
+        return {"pushed": 0, "pulled": 0, "error": f"config: {exc}"}
 
     pushed = pulled = 0
+    errors: list[str] = []
 
     if modules.get("shopping", True):
-        pushed += svc.push_unsynced()
-        since   = svc.get_last_sync_time()
-        pulled += svc.pull_and_merge(since)
+        try:
+            pushed += svc.push_unsynced()
+            since   = svc.get_last_sync_time()
+            pulled += svc.pull_and_merge(since)
+        except Exception as exc:
+            errors.append(f"shopping: {exc}")
 
     if modules.get("notes", False):
-        svc.push_persons()
-        pushed += svc.push_notes()
-        pulled += svc.pull_notes()
+        try:
+            svc.push_persons()
+            pushed += svc.push_notes()
+            pulled += svc.pull_notes()
+        except Exception as exc:
+            errors.append(f"notes: {exc}")
 
     if modules.get("reminders", False):
-        pushed += svc.push_reminders()
-        pulled += svc.pull_reminders()
+        try:
+            pushed += svc.push_reminders()
+            pulled += svc.pull_reminders()
+        except Exception as exc:
+            errors.append(f"reminders: {exc}")
 
     if modules.get("chores", False):
-        svc.push_persons()
-        pushed += svc.push_chore_tasks()
-        pushed += svc.push_chore_completions()
-        pulled += svc.pull_chore_completions()
+        try:
+            svc.push_persons()
+            pushed += svc.push_chore_tasks()
+            pushed += svc.push_chore_completions()
+            pulled += svc.pull_chore_completions()
+        except Exception as exc:
+            errors.append(f"chores: {_tb.format_exc()}")
 
-    return {"pushed": pushed, "pulled": pulled}
+    result: dict[str, Any] = {"pushed": pushed, "pulled": pulled}
+    if errors:
+        result["errors"] = errors
+    return result
