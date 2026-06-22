@@ -295,6 +295,8 @@ class IntegrationConfigService:
         chores = merged.setdefault("chores", {})
         chores["enabled"] = bool(chores.get("enabled", False))
         chores["overall_winner_enabled"] = bool(chores.get("overall_winner_enabled", True))
+        shopping = merged.setdefault("shopping", {})
+        shopping["enabled"] = bool(shopping.get("enabled", False))
         tournament = merged.setdefault("tournament", {})
         tournament["enabled"] = bool(tournament.get("enabled", False))
         tournament["api_key"] = str(tournament.get("api_key") or "").strip()

@@ -295,6 +295,29 @@
     .news-item-highlight { border-left: 3px solid var(--accent); padding-left: 6px; margin-left: -9px; background: rgba(0,200,255,0.05); border-radius: 0 6px 6px 0; }
     .news-item-highlight .news-title { color: var(--accent); }
 
+    /* ── EINKAUFSLISTE ──────────────────────────────────────────── */
+    .shopping-panel { display:flex; flex-direction:column; height:100%; padding:16px 12px; box-sizing:border-box; }
+    .shopping-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .shopping-title { font-size:1.2rem; font-weight:700; color:var(--accent); }
+    .shopping-clear-btn { font-size:.75rem; padding:4px 10px; border-radius:999px; border:1px solid var(--accent); background:transparent; color:var(--accent); cursor:pointer; }
+    .shopping-clear-btn:active { background:rgba(0,200,255,.12); }
+    .shopping-input-row { display:flex; gap:8px; margin-bottom:12px; }
+    .shopping-input { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:8px 12px; font-size:.95rem; }
+    .shopping-input:focus { outline:none; border-color:var(--accent); }
+    .shopping-add-btn { width:38px; height:38px; border-radius:8px; border:none; background:var(--accent); color:#000; font-size:1.3rem; line-height:1; cursor:pointer; flex-shrink:0; }
+    .shopping-add-btn:active { opacity:.75; }
+    .shopping-list { list-style:none; margin:0; padding:0; overflow-y:auto; flex:1; }
+    .shopping-item { display:flex; align-items:center; gap:10px; padding:10px 8px; border-radius:8px; cursor:pointer; transition:background .15s; }
+    .shopping-item:hover { background:rgba(255,255,255,.05); }
+    .shopping-item.checked .shopping-text { text-decoration:line-through; opacity:.45; }
+    .shopping-check { width:20px; height:20px; border-radius:50%; border:2px solid var(--accent); display:flex; align-items:center; justify-content:center; font-size:.75rem; color:var(--accent); flex-shrink:0; }
+    .shopping-item.checked .shopping-check { background:var(--accent); color:#000; }
+    .shopping-text { flex:1; font-size:.95rem; word-break:break-word; }
+    .shopping-delete-btn { background:transparent; border:none; color:var(--text-muted,#888); font-size:.85rem; cursor:pointer; padding:4px; opacity:.5; flex-shrink:0; }
+    .shopping-delete-btn:hover { opacity:1; color:var(--danger,#e55); }
+    .shopping-divider { padding:6px 8px; font-size:.75rem; color:var(--text-muted,#888); letter-spacing:.05em; text-transform:uppercase; }
+    .shopping-empty { text-align:center; opacity:.45; margin-top:32px; font-size:.9rem; }
+
     /* ── NEWS IFRAME OVERLAY ─────────────────────────────────────── */
     #news-iframe-overlay {
       position: fixed;

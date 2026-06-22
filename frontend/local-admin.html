@@ -41,6 +41,7 @@
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-chores"><span class="si-icon">🧹</span><span>Hausaufgaben</span></button>
+          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-shopping"><span class="si-icon">🛒</span><span>Einkaufsliste</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">⚽</span><span>Turnier</span></button>
           <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball-Liga</span></button>
         </div>
@@ -829,6 +830,36 @@
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
             <button type="button" class="primary" onclick="saveChoresConfig()">Speichern</button>
             <span id="chores-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
+        </article>
+
+        <!-- ── EINKAUFSLISTE ─────────────────────────────────── -->
+        <article id="tab-shopping" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Einkaufsliste</div>
+              <h2>Einkaufsliste &amp; Sync</h2>
+            </div>
+          </header>
+          <div class="settings-section">
+            <label class="toggle-row">
+              <span>Einkaufsliste im Display anzeigen</span>
+              <input type="checkbox" id="shopping-enabled" />
+            </label>
+          </div>
+          <div class="settings-section">
+            <h3>Sync mit Android-App</h3>
+            <p style="font-size:.85rem;opacity:.65;margin:0 0 12px;">
+              Verbindet die Liste mit dem Sync-Server (<code>erika-sync-server</code>).
+              URL und Token in der <code>.env</code> auf erika setzen:<br>
+              <code>SHOPPING_SYNC_URL=https://erika.wdk-it.de:9000</code><br>
+              <code>SHOPPING_SYNC_TOKEN=&lt;token aus setup.sh&gt;</code>
+            </p>
+            <button type="button" class="btn btn-secondary" onclick="_triggerShoppingSync()">Jetzt synchronisieren</button>
+            <span id="shopping-sync-result" style="margin-left:10px;font-size:.85rem;opacity:.7;"></span>
+          </div>
+          <div class="settings-section">
+            <button type="button" class="btn btn-primary" onclick="saveShoppingConfig()">Speichern</button>
           </div>
         </article>
 
@@ -3733,6 +3764,41 @@
       }
     }
 
+    async function _loadShoppingConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const sh = cfg.shopping || {};
+        const el = document.getElementById('shopping-enabled');
+        if (el) el.checked = sh.enabled === true;
+      } catch {}
+    }
+
+    async function saveShoppingConfig() {
+      const el = document.getElementById('shopping-enabled');
+      const res = document.getElementById('shopping-sync-result');
+      try {
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ shopping: { enabled: el?.checked || false } }),
+        });
+        if (res) { res.textContent = 'Gespeichert ✓'; setTimeout(() => res.textContent = '', 2500); }
+      } catch (e) {
+        if (res) res.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function _triggerShoppingSync() {
+      const res = document.getElementById('shopping-sync-result');
+      if (res) res.textContent = 'Synchronisiere…';
+      try {
+        const d = await fetch('/shopping/sync', { method: 'POST' }).then(r => r.json());
+        if (res) { res.textContent = `Fertig — ${d.pushed} gepusht, ${d.pulled} gezogen`; setTimeout(() => res.textContent = '', 4000); }
+      } catch (e) {
+        if (res) res.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     async function _loadTournamentConfig() {
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
@@ -3957,6 +4023,7 @@
     document.querySelector('[data-tab-target="tab-calendar"]')?.addEventListener('click', _loadDefaultWriteCalendar);
     document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
     document.querySelector('[data-tab-target="tab-chores"]')?.addEventListener('click', _loadChoresConfig);
+    document.querySelector('[data-tab-target="tab-shopping"]')?.addEventListener('click', _loadShoppingConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);

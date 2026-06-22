@@ -141,6 +141,17 @@ Ziel: Liga-Modul mit bezahlten Premiumfunktionen, News-Artikel direkt lesbar im 
 - [x] **News Iframe-Fallback**: Button „Im Browser öffnen" als letzter Ausweg wenn trafilatura und RSS-Inhalt nicht ausreichen (DSGVO-Consent-Walls)
 - [x] **News Stichwort-Filter**: Artikel per Keyword hervorheben (Accent-Rahmen, Titelfarbe) oder ausblenden — Chip-basierte Verwaltung im Admin, Theme-adaptiv, case-insensitive
 - [x] **News Titelbild-Erhaltung**: `include_images=True` in trafilatura + Frontend-Fallback sichert RSS-Headline-Bild vor dem Ersetzen durch Volltext
+- [x] **Einkaufsliste + Sync-Server**: Lokales Einkaufslisten-Modul (Display + Admin), Delta-Sync mit `erika-sync-server` auf `erika.wdk-it.de:9000`, Android-App-ready — Sprachsteuerung noch offen
+
+---
+
+## 📱 Phase 4.6 — Mobile Companion (geplant)
+
+Ziel: Android-App als Ergänzung zum Display — ohne externe Cloud.
+
+- [ ] **Einkaufsliste Android-App**: Bidirektionaler Sync über `erika-sync-server`, Offline-Queue, Push-Benachrichtigung bei neuen Einträgen
+- [ ] **Einkaufsliste Sprachsteuerung**: „Erika, füge Milch zur Einkaufsliste hinzu" — Intent-Erkennung in `shopping`-Handler
+- [ ] **Personenerkennung für Hausaufgaben**: Automatische Zuordnung per Gesichtserkennung oder Profil-Auswahl
 
 ---
 

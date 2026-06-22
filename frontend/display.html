@@ -313,6 +313,10 @@
     <span class="nav-icon">📅</span>
     <span class="nav-label">Kalender</span>
   </button>
+  <button class="nav-btn" id="nav-shopping" onclick="navTo('shopping')">
+    <span class="nav-icon">🛒</span>
+    <span class="nav-label">Einkauf</span>
+  </button>
   </div>
 </div>
 
@@ -3138,7 +3142,7 @@
       const saved = JSON.parse(localStorage.getItem('erika_modules') || 'null');
       if (saved && typeof saved === 'object') return saved;
     } catch {}
-    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false, tournament: false, liga: false };
+    return { news: false, lights: false, vehicles: false, robots: false, cameras: false, calendar: true, pv: false, printer: false, energy: false, chores: false, tournament: false, liga: false, shopping: false };
   })();
   let _calendarOpenTrigger = 'both';
   let _activePersonName = null;
@@ -3323,6 +3327,7 @@
       chores:      modules?.chores      === true,
       tournament:  modules?.tournament  === true,
       liga:        modules?.liga        === true,
+      shopping:    modules?.shopping    === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;
@@ -3337,15 +3342,17 @@
     const energyBtn = document.getElementById('nav-energy');
     const calBtn = document.getElementById('nav-calendar');
     const choresBtn = document.getElementById('nav-chores');
+    const shoppingBtn = document.getElementById('nav-shopping');
     if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
     if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
     if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
     if (camerasBtn) camerasBtn.hidden = !_enabledModules.cameras;
     if (energyBtn) energyBtn.hidden = !_enabledModules.energy;
     if (choresBtn) choresBtn.hidden = !_enabledModules.chores;
+    if (shoppingBtn) shoppingBtn.hidden = !_enabledModules.shopping;
     const ligaBtn = document.getElementById('nav-liga');
     if (ligaBtn) ligaBtn.hidden = !_enabledModules.liga;
-    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras) || (_navMode === 'chores' && !_enabledModules.chores)) {
+    if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras) || (_navMode === 'chores' && !_enabledModules.chores) || (_navMode === 'shopping' && !_enabledModules.shopping)) {
       navTo('home');
     }
     // Kalender Trigger-Konfiguration anwenden
@@ -3394,6 +3401,7 @@
       clearRobotsView();
       clearVehiclesView();
       clearChoresView();
+      clearShoppingView();
       window._liga?.closeFullView();
       currentMode = null;
       applyMode('idle');
@@ -3405,6 +3413,7 @@
       clearRobotsView();
       clearVehiclesView();
       clearChoresView();
+      clearShoppingView();
       showLightsView();
       _startLightsPolling();
     } else if (mode === 'cameras') {
@@ -3415,6 +3424,7 @@
       clearRobotsView();
       clearVehiclesView();
       clearChoresView();
+      clearShoppingView();
       showCamerasView();
       _startCamerasPolling();
     } else if (mode === 'robots') {
@@ -3426,6 +3436,7 @@
       clearCamerasView();
       clearVehiclesView();
       clearChoresView();
+      clearShoppingView();
       showRobotsView();
     } else if (mode === 'vehicles') {
       clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
@@ -3436,6 +3447,7 @@
       clearCamerasView();
       clearRobotsView();
       clearChoresView();
+      clearShoppingView();
       showVehiclesView();
     } else if (mode === 'chores') {
       clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
@@ -3446,6 +3458,7 @@
       clearCamerasView();
       clearRobotsView();
       clearVehiclesView();
+      clearShoppingView();
       window._liga?.closeFullView();
       if (!_hasFeature('chores') || !window._choresPlus) {
         _showUpgradePrompt({
@@ -3466,7 +3479,19 @@
       clearRobotsView();
       clearVehiclesView();
       clearChoresView();
+      clearShoppingView();
       window._liga?.openFullView();
+    } else if (mode === 'shopping') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearRobotsView();
+      clearVehiclesView();
+      clearChoresView();
+      window._shopping?.open();
     }
   }
 
@@ -4072,6 +4097,11 @@
   // Hausaufgaben (Erika Plus) — schweres Modul liegt in display-chores.js
   function clearChoresView() {
     window._choresPlus?.close();
+  }
+
+  // Einkaufsliste — Modul liegt in display-shopping.js
+  function clearShoppingView() {
+    window._shopping?.close();
   }
 
   // ── TURNIER-OVERLAY (WM / EM) ─────────────────────────────────
@@ -7106,5 +7136,6 @@
 <script src="/display-plus.js" defer onerror="console.info('Community Edition: Plus-Module nicht geladen')"></script>
 <script src="/display-chores.js" defer onerror="console.info('Community Edition: Hausaufgaben-Modul nicht geladen')"></script>
 <script src="/display-liga.js" defer onerror="console.info('Liga-Modul nicht geladen')"></script>
+<script src="/display-shopping.js" defer></script>
 </body>
 </html>

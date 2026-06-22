@@ -208,6 +208,22 @@ async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
         await asyncio.sleep(max(10, min(interval_seconds, 300)))
 
 
+async def _shopping_sync_loop(interval_seconds: int = 60) -> None:
+    """Synchronisiert die Einkaufsliste alle 60 Sekunden mit dem Sync-Server.
+    Läuft still wenn kein SHOPPING_SYNC_URL konfiguriert ist."""
+    from app.services import shopping_service as _shop
+    await asyncio.sleep(30)
+    while True:
+        try:
+            if _shop.SYNC_URL and _shop.SYNC_TOKEN:
+                _shop.push_unsynced()
+                since = _shop.get_last_sync_time()
+                _shop.pull_and_merge(since)
+        except Exception:
+            pass
+        await asyncio.sleep(interval_seconds)
+
+
 async def _license_renewal_loop(interval_hours: int = 24) -> None:
     """Erneuert eine installierte Abo-Lizenz täglich beim Lizenzserver.
     Lifetime-Lizenzen und fehlende Lizenzen werden übersprungen (still)."""
@@ -241,6 +257,7 @@ async def lifespan(_: FastAPI) -> Any:
     reminder_task = asyncio.create_task(_reminder_watcher_loop())
     memory_task = asyncio.create_task(_memory_maintenance_loop())
     license_task = asyncio.create_task(_license_renewal_loop())
+    shopping_sync_task = asyncio.create_task(_shopping_sync_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -253,6 +270,7 @@ async def lifespan(_: FastAPI) -> Any:
         reminder_task.cancel()
         memory_task.cancel()
         license_task.cancel()
+        shopping_sync_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
@@ -337,3 +355,6 @@ try:
     app.include_router(chores.router)
 except ImportError:
     pass
+
+from app.api.routers import shopping
+app.include_router(shopping.router)
