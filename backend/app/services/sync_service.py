@@ -1,7 +1,7 @@
-"""Einkaufslisten-Service.
+"""Sync-Service — allgemeiner Relay-Sync mit dem erika-sync-server.
 
 Lokale SQLite-Tabelle als primäre Quelle (funktioniert auch offline).
-Änderungen werden mit dem Sync-Server unter SHOPPING_SYNC_URL via Delta-
+Änderungen werden mit dem Sync-Server unter SYNC_SERVER_URL via Delta-
 Sync abgeglichen: Robot pusht eigene Änderungen, pullt neue Einträge der
 Android-App.
 
@@ -13,18 +13,18 @@ Sync-Protokoll (identisch mit erika-sync-server):
 """
 from __future__ import annotations
 
+import json
 import os
 import ssl
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 from urllib import request as _req
-import json
 
 from app.database.db import get_connection
 
-SYNC_URL: str   = os.getenv("SHOPPING_SYNC_URL", "").rstrip("/")
-SYNC_TOKEN: str = os.getenv("SHOPPING_SYNC_TOKEN", "")
+SYNC_URL: str   = os.getenv("SYNC_SERVER_URL", "").rstrip("/")
+SYNC_TOKEN: str = os.getenv("SYNC_SERVER_TOKEN", "")
 
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
@@ -52,7 +52,7 @@ def _row(r) -> dict[str, Any]:
 def list_items() -> list[dict[str, Any]]:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM shopping_items WHERE deleted = 0 ORDER BY sort_order ASC, created_at ASC"
+            "SELECT * FROM sync_items WHERE deleted = 0 ORDER BY sort_order ASC, created_at ASC"
         ).fetchall()
     return [_row(r) for r in rows]
 
@@ -61,20 +61,20 @@ def create_item(text: str) -> dict[str, Any]:
     text = text.strip()
     if not text:
         raise ValueError("text darf nicht leer sein")
-    now       = _now()
-    item_id   = str(uuid.uuid4())
+    now     = _now()
+    item_id = str(uuid.uuid4())
     with get_connection() as conn:
         next_order = (conn.execute(
-            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM shopping_items WHERE deleted = 0"
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM sync_items WHERE deleted = 0"
         ).fetchone()[0])
         conn.execute(
             """
-            INSERT INTO shopping_items(id, text, checked, sort_order, created_at, updated_at, deleted)
+            INSERT INTO sync_items(id, text, checked, sort_order, created_at, updated_at, deleted)
             VALUES (?, ?, 0, ?, ?, ?, 0)
             """,
             (item_id, text, next_order, now, now),
         )
-        row = conn.execute("SELECT * FROM shopping_items WHERE id = ?", (item_id,)).fetchone()
+        row = conn.execute("SELECT * FROM sync_items WHERE id = ?", (item_id,)).fetchone()
     return _row(row)
 
 
@@ -82,17 +82,17 @@ def update_item(item_id: str, text: str | None = None, checked: bool | None = No
     now = _now()
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT * FROM shopping_items WHERE id = ? AND deleted = 0", (item_id,)
+            "SELECT * FROM sync_items WHERE id = ? AND deleted = 0", (item_id,)
         ).fetchone()
         if not row:
             return None
-        new_text    = text.strip()    if text    is not None else row["text"]
-        new_checked = int(checked)    if checked is not None else row["checked"]
+        new_text    = text.strip() if text    is not None else row["text"]
+        new_checked = int(checked) if checked is not None else row["checked"]
         conn.execute(
-            "UPDATE shopping_items SET text = ?, checked = ?, updated_at = ? WHERE id = ?",
+            "UPDATE sync_items SET text = ?, checked = ?, updated_at = ? WHERE id = ?",
             (new_text, new_checked, now, item_id),
         )
-        row = conn.execute("SELECT * FROM shopping_items WHERE id = ?", (item_id,)).fetchone()
+        row = conn.execute("SELECT * FROM sync_items WHERE id = ?", (item_id,)).fetchone()
     return _row(row)
 
 
@@ -100,7 +100,7 @@ def delete_item(item_id: str) -> bool:
     now = _now()
     with get_connection() as conn:
         cur = conn.execute(
-            "UPDATE shopping_items SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0",
+            "UPDATE sync_items SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0",
             (now, item_id),
         )
     return cur.rowcount > 0
@@ -110,7 +110,7 @@ def clear_checked() -> int:
     now = _now()
     with get_connection() as conn:
         cur = conn.execute(
-            "UPDATE shopping_items SET deleted = 1, updated_at = ? WHERE checked = 1 AND deleted = 0",
+            "UPDATE sync_items SET deleted = 1, updated_at = ? WHERE checked = 1 AND deleted = 0",
             (now,),
         )
     return cur.rowcount
@@ -138,21 +138,20 @@ def push_item(item: dict[str, Any]) -> None:
     if item.get("deleted"):
         _sync_request("DELETE", f"/items/{item['id']}")
     else:
-        result = _sync_request("POST", "/items", {
+        _sync_request("POST", "/items", {
             "id":         item["id"],
             "text":       item["text"],
             "sort_order": item["sort_order"],
             "created_at": item["created_at"],
         })
-        if result and not item.get("checked") is None:
+        if item.get("checked") is not None:
             _sync_request("PATCH", f"/items/{item['id']}", {"checked": item["checked"]})
     _mark_synced(item["id"])
 
 
 def pull_and_merge(since: str | None = None) -> int:
-    """Neue/geänderte Einträge vom Sync-Server holen und lokal mergen.
-    Gibt die Anzahl übernommener Einträge zurück."""
-    path = "/items" + (f"?since={since}" if since else "")
+    """Neue/geänderte Einträge vom Sync-Server holen und lokal mergen."""
+    path   = "/items" + (f"?since={since}" if since else "")
     result = _sync_request("GET", path)
     if not result:
         return 0
@@ -160,15 +159,15 @@ def pull_and_merge(since: str | None = None) -> int:
     now    = _now()
     with get_connection() as conn:
         for item in result.get("items", []):
-            existing = conn.execute(
-                "SELECT updated_at FROM shopping_items WHERE id = ?", (item["id"],)
+            existing  = conn.execute(
+                "SELECT updated_at FROM sync_items WHERE id = ?", (item["id"],)
             ).fetchone()
             remote_ts = item.get("updated_at", "")
             if existing and existing["updated_at"] >= remote_ts:
-                continue   # lokale Version ist neuer oder gleich — nicht überschreiben
+                continue
             conn.execute(
                 """
-                INSERT OR REPLACE INTO shopping_items
+                INSERT OR REPLACE INTO sync_items
                     (id, text, checked, sort_order, created_at, updated_at, deleted, synced_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -190,7 +189,7 @@ def pull_and_merge(since: str | None = None) -> int:
 def get_last_sync_time() -> str | None:
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT MAX(synced_at) AS t FROM shopping_items"
+            "SELECT MAX(synced_at) AS t FROM sync_items"
         ).fetchone()
     return row["t"] if row else None
 
@@ -199,7 +198,7 @@ def _mark_synced(item_id: str) -> None:
     now = _now()
     with get_connection() as conn:
         conn.execute(
-            "UPDATE shopping_items SET synced_at = ? WHERE id = ?", (now, item_id)
+            "UPDATE sync_items SET synced_at = ? WHERE id = ?", (now, item_id)
         )
 
 
@@ -207,7 +206,7 @@ def push_unsynced() -> int:
     """Alle noch nicht synchronisierten lokalen Einträge pushen."""
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM shopping_items WHERE synced_at IS NULL OR updated_at > synced_at"
+            "SELECT * FROM sync_items WHERE synced_at IS NULL OR updated_at > synced_at"
         ).fetchall()
     count = 0
     for r in rows:

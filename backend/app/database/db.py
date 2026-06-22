@@ -341,7 +341,7 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_chore_completions_task
             ON chore_completions(task_id, completed_at);
 
-            CREATE TABLE IF NOT EXISTS shopping_items (
+            CREATE TABLE IF NOT EXISTS sync_items (
                 id          TEXT    PRIMARY KEY,
                 text        TEXT    NOT NULL,
                 checked     INTEGER NOT NULL DEFAULT 0,
@@ -351,7 +351,7 @@ def init_db() -> None:
                 deleted     INTEGER NOT NULL DEFAULT 0,
                 synced_at   TEXT
             );
-            CREATE INDEX IF NOT EXISTS idx_shopping_updated ON shopping_items(updated_at);
+            CREATE INDEX IF NOT EXISTS idx_sync_items_updated ON sync_items(updated_at);
 
             CREATE TABLE IF NOT EXISTS daily_summaries (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

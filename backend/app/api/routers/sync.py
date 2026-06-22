@@ -1,21 +1,21 @@
-"""Einkaufslisten-Endpunkte (lokal + Sync-Trigger)."""
+"""Sync-Endpunkte — Einkaufsliste (lokal + Sync-Trigger)."""
 from __future__ import annotations
 
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.services import shopping_service as svc
+from app.services import sync_service as svc
 
 router = APIRouter()
 
 
-@router.get("/shopping/items")
+@router.get("/sync/items")
 def get_items() -> dict[str, Any]:
     return {"items": svc.list_items()}
 
 
-@router.post("/shopping/items")
+@router.post("/sync/items")
 def add_item(payload: dict[str, Any]) -> dict[str, Any]:
     text = str(payload.get("text") or "").strip()
     if not text:
@@ -25,18 +25,16 @@ def add_item(payload: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
-@router.patch("/shopping/items/{item_id}")
+@router.patch("/sync/items/{item_id}")
 def patch_item(item_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-    text    = payload.get("text")
-    checked = payload.get("checked")
-    item    = svc.update_item(item_id, text=text, checked=checked)
+    item = svc.update_item(item_id, text=payload.get("text"), checked=payload.get("checked"))
     if item is None:
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
     svc.push_item(item)
     return item
 
 
-@router.delete("/shopping/items/{item_id}")
+@router.delete("/sync/items/{item_id}")
 def remove_item(item_id: str) -> dict[str, Any]:
     if not svc.delete_item(item_id):
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
@@ -44,13 +42,12 @@ def remove_item(item_id: str) -> dict[str, Any]:
     return {"ok": True}
 
 
-@router.delete("/shopping/items")
+@router.delete("/sync/items")
 def clear_checked() -> dict[str, Any]:
-    count = svc.clear_checked()
-    return {"deleted": count}
+    return {"deleted": svc.clear_checked()}
 
 
-@router.post("/shopping/sync")
+@router.post("/sync/trigger")
 def trigger_sync() -> dict[str, Any]:
     """Manuellen Sync anstoßen (Push unsynced + Pull neue)."""
     pushed = svc.push_unsynced()

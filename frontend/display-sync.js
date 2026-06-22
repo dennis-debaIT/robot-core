@@ -1,25 +1,22 @@
-/* Einkaufslisten-Modul für display.html
+/* Sync-Modul — Einkaufsliste (display.html)
  *
- * Nutzt GET/POST/PATCH/DELETE /shopping/items
- * Pollt alle 15 Sekunden wenn geöffnet (Änderungen von Handy sichtbar).
+ * Nutzt GET/POST/PATCH/DELETE /sync/items
+ * Pollt alle 15 Sekunden wenn geöffnet (Änderungen vom Handy sichtbar).
  */
 (function () {
   'use strict';
 
-  let _items      = [];
-  let _pollTimer  = null;
-  let _isOpen     = false;
-
-  // ── DOM-Referenzen ──────────────────────────────────────────────────────
+  let _items     = [];
+  let _pollTimer = null;
+  let _isOpen    = false;
 
   function _overlay() { return document.getElementById('cal-overlay'); }
-  function _leftContent() { return document.getElementById('left-content'); }
 
   // ── API ─────────────────────────────────────────────────────────────────
 
   async function _load() {
     try {
-      const r = await fetch('/shopping/items', { cache: 'no-store' });
+      const r = await fetch('/sync/items', { cache: 'no-store' });
       if (!r.ok) return;
       const d = await r.json();
       _items = d.items || [];
@@ -29,7 +26,7 @@
 
   async function _addItem(text) {
     try {
-      const r = await fetch('/shopping/items', {
+      const r = await fetch('/sync/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -45,7 +42,7 @@
     const item = _items.find(i => i.id === id);
     if (!item) return;
     try {
-      const r = await fetch(`/shopping/items/${id}`, {
+      const r = await fetch(`/sync/items/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ checked: !item.checked }),
@@ -60,7 +57,7 @@
 
   async function _deleteItem(id) {
     try {
-      const r = await fetch(`/shopping/items/${id}`, { method: 'DELETE' });
+      const r = await fetch(`/sync/items/${id}`, { method: 'DELETE' });
       if (!r.ok) return;
       _items = _items.filter(i => i.id !== id);
       _render();
@@ -69,7 +66,7 @@
 
   async function _clearChecked() {
     try {
-      const r = await fetch('/shopping/items', { method: 'DELETE' });
+      const r = await fetch('/sync/items', { method: 'DELETE' });
       if (!r.ok) return;
       _items = _items.filter(i => !i.checked);
       _render();
@@ -82,22 +79,22 @@
     const overlay = _overlay();
     if (!overlay || !_isOpen) return;
 
-    const open   = _items.filter(i => !i.checked);
-    const done   = _items.filter(i => i.checked);
+    const open    = _items.filter(i => !i.checked);
+    const done    = _items.filter(i => i.checked);
     const hasDone = done.length > 0;
 
     overlay.innerHTML = `
       <div class="shopping-panel">
         <div class="shopping-header">
           <span class="shopping-title">🛒 Einkaufsliste</span>
-          ${hasDone ? `<button class="shopping-clear-btn" onclick="window._shopping._clearChecked()">Erledigte löschen (${done.length})</button>` : ''}
+          ${hasDone ? `<button class="shopping-clear-btn" onclick="window._sync._clearChecked()">Erledigte löschen (${done.length})</button>` : ''}
         </div>
         <div class="shopping-input-row">
-          <input id="shopping-input" class="shopping-input" type="text"
+          <input id="sync-input" class="shopping-input" type="text"
             placeholder="Artikel hinzufügen …"
-            onkeydown="if(event.key==='Enter')window._shopping._submitInput()"
+            onkeydown="if(event.key==='Enter')window._sync._submitInput()"
           />
-          <button class="shopping-add-btn" onclick="window._shopping._submitInput()">+</button>
+          <button class="shopping-add-btn" onclick="window._sync._submitInput()">+</button>
         </div>
         <ul class="shopping-list">
           ${open.map(i => _itemHtml(i)).join('')}
@@ -113,15 +110,15 @@
     const cls = item.checked ? 'shopping-item checked' : 'shopping-item';
     const txt = item.text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `
-      <li class="${cls}" onclick="window._shopping._toggleItem('${item.id}')">
+      <li class="${cls}" onclick="window._sync._toggleItem('${item.id}')">
         <span class="shopping-check">${item.checked ? '✓' : ''}</span>
         <span class="shopping-text">${txt}</span>
-        <button class="shopping-delete-btn" onclick="event.stopPropagation();window._shopping._deleteItem('${item.id}')">✕</button>
+        <button class="shopping-delete-btn" onclick="event.stopPropagation();window._sync._deleteItem('${item.id}')">✕</button>
       </li>`;
   }
 
   function _submitInput() {
-    const input = document.getElementById('shopping-input');
+    const input = document.getElementById('sync-input');
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
@@ -146,5 +143,5 @@
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }
 
-  window._shopping = { open, close, _toggleItem, _deleteItem, _clearChecked, _submitInput };
+  window._sync = { open, close, _toggleItem, _deleteItem, _clearChecked, _submitInput };
 })();
