@@ -81,6 +81,15 @@ def renew_license() -> str | None:
             except Exception:
                 pass  # offline/gesperrt → unten Edition mit Ablaufstatus abgleichen
 
+    # Lifetime ohne sync_jwt: einmalig erneuern damit Sync-Credentials nachgetragen werden
+    if not lic.get("valid_until") and not lic.get("sync_jwt"):
+        code = str(lic.get("license_key") or "").strip()
+        if code:
+            try:
+                _install_and_apply(_server_activate(code, svc.device_id()))
+            except Exception:
+                pass
+
     # Edition an den effektiven Lizenzstatus angleichen (Live-Ablaufprüfung).
     # Bei Änderung triggert set_edition den Rebuild (Paid-Code rein/raus).
     effective = svc.current_edition()
