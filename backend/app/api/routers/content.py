@@ -200,6 +200,7 @@ def get_news_article(url: str) -> dict[str, Any]:
             downloaded,
             include_comments=False,
             include_tables=True,
+            include_images=True,
             output_format="html",
             with_metadata=True,
             favor_precision=True,

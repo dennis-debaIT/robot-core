@@ -2227,7 +2227,15 @@
         if (hint) hint.remove();
         const content = document.getElementById('nio-art-content');
         if (content && d.html) {
+          // Preserve RSS lead image if trafilatura stripped it
+          const existingImg = content.querySelector('img');
           content.innerHTML = d.html;
+          if (existingImg && !content.querySelector('img')) {
+            const fig = document.createElement('figure');
+            fig.style.cssText = 'margin:0 0 12px 0;';
+            fig.appendChild(existingImg);
+            content.insertBefore(fig, content.firstChild);
+          }
         } else if (body && !hasFeedContent) {
           const artMeta = [d.sitename, d.author, d.date].filter(Boolean).join(' · ');
           body.innerHTML = `<div class="nio-article">
