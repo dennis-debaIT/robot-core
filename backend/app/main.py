@@ -212,14 +212,34 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
     """Synchronisiert alle 60 Sekunden mit dem erika-sync-server.
     Läuft still wenn keine Sync-Credentials verfügbar sind."""
     from app.services import sync_service as _sync
+    from app.services.integration_config_service import IntegrationConfigService as _ICS
     await asyncio.sleep(30)
     while True:
         try:
             url, tok = _sync.get_credentials()
             if url and tok:
-                _sync.push_unsynced()
-                since = _sync.get_last_sync_time()
-                _sync.pull_and_merge(since)
+                cfg     = _ICS().get_config()
+                modules = (cfg.get("sync") or {}).get("modules", {})
+
+                if modules.get("shopping", True):
+                    _sync.push_unsynced()
+                    since = _sync.get_last_sync_time()
+                    _sync.pull_and_merge(since)
+
+                if modules.get("notes", False):
+                    _sync.push_persons()
+                    _sync.push_notes()
+                    _sync.pull_notes()
+
+                if modules.get("reminders", False):
+                    _sync.push_reminders()
+                    _sync.pull_reminders()
+
+                if modules.get("chores", False):
+                    _sync.push_persons()
+                    _sync.push_chore_tasks()
+                    _sync.push_chore_completions()
+                    _sync.pull_chore_completions()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
