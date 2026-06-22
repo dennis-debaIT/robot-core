@@ -16,6 +16,8 @@ Format: neueste Einträge oben.
 - **News: Link-Feld aus RSS/Atom**: Backend extrahiert jetzt `<link>` (RSS) und `<link href=…>` (Atom) sowie `<description>` und `<content:encoded>` (RSS) / `<summary>` und `<content>` (Atom) aus den Feeds und liefert sie im `/news`-Response mit.
 
 ### Verbessert
+- **News: Stichwort-Filter (Hervorheben / Ausblenden)**: Im Admin-Tab „News" können jetzt beliebig viele Schlüsselwörter als Chips eingetragen werden. Artikel, deren Titel eines der Wörter enthält, werden auf dem Display farblich hervorgehoben (Accent-Rahmen links, Titelfarbe) oder ganz ausgeblendet — Theme-adaptiv, case-insensitive. Konfiguration wird gemeinsam mit dem Haupt-Save gespeichert (kein separater Schritt mehr nötig).
+- **News: Titelbild im Reader bleibt erhalten**: `trafilatura` wird jetzt mit `include_images=True` aufgerufen. Liefert die Extraktion trotzdem kein `<img>`, wird das erste Bild aus dem RSS-`content:encoded`-Teaser gesichert und vor dem Volltext eingefügt — das Headline-Bild (z. B. FAZ) verschwindet nicht mehr wenn der Volltext lädt.
 - **WM/Nationalteams Kader-Anreicherung**: Poll-Delays für Kader-Enrichment auf insgesamt 120 Sekunden erweitert (vorher 35 s). Nationalteams wie Schweden oder Deutschland benötigen 26 individuelle TM-Anfragen da `get_club_players(„Sweden")` leer zurückkommt, was das alte Zeitfenster regelmäßig überschritt und die Spieler grau anzeigte.
 
 ### Neu

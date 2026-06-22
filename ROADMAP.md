@@ -139,6 +139,8 @@ Ziel: Liga-Modul mit bezahlten Premiumfunktionen, News-Artikel direkt lesbar im 
 - [x] **News Reader-Modus**: trafilatura extrahiert Artikeltext serverseitig; Anzeige im Display-Theme ohne Werbung/Cookie-Banner
 - [x] **News RSS-Fallback**: `description` und `content:encoded` aus dem Feed werden sofort angezeigt während der Volltext lädt
 - [x] **News Iframe-Fallback**: Button „Im Browser öffnen" als letzter Ausweg wenn trafilatura und RSS-Inhalt nicht ausreichen (DSGVO-Consent-Walls)
+- [x] **News Stichwort-Filter**: Artikel per Keyword hervorheben (Accent-Rahmen, Titelfarbe) oder ausblenden — Chip-basierte Verwaltung im Admin, Theme-adaptiv, case-insensitive
+- [x] **News Titelbild-Erhaltung**: `include_images=True` in trafilatura + Frontend-Fallback sichert RSS-Headline-Bild vor dem Ersetzen durch Volltext
 
 ---
 

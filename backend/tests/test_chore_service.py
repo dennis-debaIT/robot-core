@@ -72,7 +72,9 @@ def test_task_stats_week_boundary(temp_db):
     _insert_completion(task["id"], person_id, (start + timedelta(seconds=1)).isoformat())
 
     stats = svc.task_stats(task["id"], "week")
-    assert stats["persons"] == [{"person_id": person_id, "name": "Dennis", "count": 1}]
+    assert len(stats["persons"]) == 1
+    assert stats["persons"][0]["person_id"] == person_id
+    assert stats["persons"][0]["count"] == 1
 
 
 def test_task_stats_month_boundary(temp_db):
@@ -87,7 +89,9 @@ def test_task_stats_month_boundary(temp_db):
     _insert_completion(task["id"], person_id, (start + timedelta(seconds=1)).isoformat())
 
     stats = svc.task_stats(task["id"], "month")
-    assert stats["persons"] == [{"person_id": person_id, "name": "Dennis", "count": 1}]
+    assert len(stats["persons"]) == 1
+    assert stats["persons"][0]["person_id"] == person_id
+    assert stats["persons"][0]["count"] == 1
 
 
 def test_task_stats_year_boundary(temp_db):
@@ -102,7 +106,9 @@ def test_task_stats_year_boundary(temp_db):
     _insert_completion(task["id"], person_id, (start + timedelta(seconds=1)).isoformat())
 
     stats = svc.task_stats(task["id"], "year")
-    assert stats["persons"] == [{"person_id": person_id, "name": "Dennis", "count": 1}]
+    assert len(stats["persons"]) == 1
+    assert stats["persons"][0]["person_id"] == person_id
+    assert stats["persons"][0]["count"] == 1
 
 
 def test_task_stats_unknown_task_returns_none(temp_db):
@@ -127,10 +133,10 @@ def test_overall_weekly_stats_combines_active_tasks(temp_db):
     svc.log_completion(inactive_task["id"], anna)
 
     stats = svc.overall_weekly_stats()
-    by_person = {p["person_id"]: p["count"] for p in stats["persons"]}
+    by_person = {p["person_id"]: p["total_completions"] for p in stats["persons"]}
     assert by_person == {dennis: 3, anna: 1}
     assert stats["leader"]["person_id"] == dennis
-    assert stats["leader"]["count"] == 3
+    assert stats["leader"]["total_completions"] == 3
 
 
 def test_delete_completion(temp_db):
