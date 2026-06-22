@@ -840,27 +840,25 @@
               <div class="panel-kicker">Einkaufsliste</div>
               <h2>Einkaufsliste &amp; Sync</h2>
             </div>
-          </header>
-          <div class="settings-section">
-            <label class="toggle-row">
-              <span>Einkaufsliste im Display anzeigen</span>
-              <input type="checkbox" id="sync-enabled" />
+            <label class="switch-card">
+              <input id="sync-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Einkaufsliste im Display anzeigen</span>
+              </span>
             </label>
-          </div>
-          <div class="settings-section">
-            <h3>Sync mit Android-App</h3>
-            <p style="font-size:.85rem;opacity:.65;margin:0 0 12px;">
-              Verbindet die Liste mit dem Sync-Server (<code>erika-sync-server</code>).
-              URL und Token in der <code>.env</code> auf erika setzen:<br>
-              <code>SYNC_SERVER_URL=https://erika.wdk-it.de:9000</code><br>
-              <code>SYNC_SERVER_TOKEN=&lt;token aus setup.sh&gt;</code>
-            </p>
-            <button type="button" class="btn btn-secondary" onclick="_triggerSync()">Jetzt synchronisieren</button>
-            <span id="sync-result" style="margin-left:10px;font-size:.85rem;opacity:.7;"></span>
-          </div>
-          <div class="settings-section">
-            <button type="button" class="btn btn-primary" onclick="saveSyncConfig()">Speichern</button>
-          </div>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Sync mit Android-App</div>
+              <p>Mit einer aktiven Plus-Lizenz wird die Einkaufsliste automatisch mit dem Sync-Server synchronisiert. Zugangsdaten kommen direkt aus der Lizenz — keine manuelle Konfiguration nötig.</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary" onclick="_triggerSync()">Jetzt synchronisieren</button>
+              <span id="sync-result" style="font-size:.85rem;opacity:.7;"></span>
+            </div>
+          </section>
         </article>
 
         <!-- ── TURNIER (WM / EM) ──────────────────────────────── -->
@@ -4024,6 +4022,7 @@
     document.querySelector('[data-tab-target="tab-waste"]')?.addEventListener('click', _loadWasteConfig);
     document.querySelector('[data-tab-target="tab-chores"]')?.addEventListener('click', _loadChoresConfig);
     document.querySelector('[data-tab-target="tab-sync"]')?.addEventListener('click', _loadSyncConfig);
+    document.getElementById('sync-enabled')?.addEventListener('change', saveSyncConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);

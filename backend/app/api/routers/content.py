@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 
-from app.api.deps import DISPLAY_CHORES_JS, DISPLAY_CSS, DISPLAY_INDEX, DISPLAY_LIGA_JS, DISPLAY_PLUS_JS
+from app.api.deps import DISPLAY_CHORES_JS, DISPLAY_CSS, DISPLAY_INDEX, DISPLAY_LIGA_JS, DISPLAY_PLUS_JS, DISPLAY_SYNC_JS
 from app.database.db import get_connection, read_state
 from app.services.integration_config_service import IntegrationConfigService
 from app.services.news_feed_service import NewsFeedService
@@ -371,6 +371,21 @@ def display_liga_js() -> FileResponse:
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse(
         DISPLAY_LIGA_JS,
+        media_type="application/javascript",
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
+@router.get("/display-sync.js")
+def display_sync_js() -> FileResponse:
+    if not DISPLAY_SYNC_JS.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(
+        DISPLAY_SYNC_JS,
         media_type="application/javascript",
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
