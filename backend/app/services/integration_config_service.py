@@ -302,6 +302,7 @@ class IntegrationConfigService:
         sync_modules["notes"]      = bool(sync_modules.get("notes",      False))
         sync_modules["reminders"]  = bool(sync_modules.get("reminders",  False))
         sync_modules["chores"]     = bool(sync_modules.get("chores",     False))
+        sync_modules["waste"]      = bool(sync_modules.get("waste",      False))
         tournament = merged.setdefault("tournament", {})
         tournament["enabled"] = bool(tournament.get("enabled", False))
         tournament["api_key"] = str(tournament.get("api_key") or "").strip()
@@ -421,6 +422,7 @@ class IntegrationConfigService:
         sync_modules2["notes"]     = bool(sync_modules2.get("notes",     False))
         sync_modules2["reminders"] = bool(sync_modules2.get("reminders", False))
         sync_modules2["chores"]    = bool(sync_modules2.get("chores",    False))
+        sync_modules2["waste"]     = bool(sync_modules2.get("waste",     False))
         attention = updated.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

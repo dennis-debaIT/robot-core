@@ -571,3 +571,55 @@ def pull_chore_completions() -> int:
             except Exception:
                 pass
     return merged
+
+
+# ── Abfallkalender ─────────────────────────────────────────────────────────
+
+def push_waste() -> bool:
+    from datetime import date
+    try:
+        from app.services.waste_service import WasteService
+        from app.services.integration_config_service import IntegrationConfigService
+        config = IntegrationConfigService().get_config()
+        waste_cfg = config.get("waste") or {}
+        if not waste_cfg.get("enabled"):
+            return False
+        bins_cfg = waste_cfg.get("bins") or []
+        entity   = (waste_cfg.get("calendar_entity") or "calendar.abfallkalender").strip()
+        from app.search.providers.homeassistant import HomeAssistantProvider
+        ha     = HomeAssistantProvider()
+        events = ha.get_events_upcoming(days=42, selected_calendars=[entity])
+        today  = date.today()
+        result_events: list[dict] = []
+        seen: set[tuple] = set()
+        for ev in events:
+            title = (ev.get("summary") or ev.get("title") or "").lower()
+            start = ev.get("start") or {}
+            dstr  = start.get("date") or (start.get("dateTime", "")[:10])
+            if not dstr:
+                continue
+            try:
+                edate = date.fromisoformat(dstr)
+            except ValueError:
+                continue
+            if edate < today:
+                continue
+            days = (edate - today).days
+            for rule in bins_cfg:
+                match = str(rule.get("match") or "").lower().strip()
+                if match and match in title:
+                    key = (dstr, rule.get("label", match))
+                    if key not in seen:
+                        seen.add(key)
+                        result_events.append({
+                            "date":   dstr,
+                            "label":  rule.get("label") or match,
+                            "color":  rule.get("color") or "black",
+                            "days":   days,
+                        })
+                    break
+        result_events.sort(key=lambda e: e["date"])
+        _sync_request("POST", "/waste", {"events": result_events})
+        return True
+    except Exception:
+        return False

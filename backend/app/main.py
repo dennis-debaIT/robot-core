@@ -240,6 +240,9 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
                     _sync.push_chore_tasks()
                     _sync.push_chore_completions()
                     _sync.pull_chore_completions()
+
+                if modules.get("waste", False):
+                    _sync.push_waste()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
