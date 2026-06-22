@@ -49,8 +49,30 @@ def clear_checked() -> dict[str, Any]:
 
 @router.post("/sync/trigger")
 def trigger_sync() -> dict[str, Any]:
-    """Manuellen Sync anstoßen (Push unsynced + Pull neue)."""
-    pushed = svc.push_unsynced()
-    since  = svc.get_last_sync_time()
-    pulled = svc.pull_and_merge(since)
+    """Manuellen Sync anstoßen — alle aktivierten Module."""
+    from app.services.integration_config_service import IntegrationConfigService
+    modules = (IntegrationConfigService().get_config().get("sync") or {}).get("modules", {})
+
+    pushed = pulled = 0
+
+    if modules.get("shopping", True):
+        pushed += svc.push_unsynced()
+        since   = svc.get_last_sync_time()
+        pulled += svc.pull_and_merge(since)
+
+    if modules.get("notes", False):
+        svc.push_persons()
+        pushed += svc.push_notes()
+        pulled += svc.pull_notes()
+
+    if modules.get("reminders", False):
+        pushed += svc.push_reminders()
+        pulled += svc.pull_reminders()
+
+    if modules.get("chores", False):
+        svc.push_persons()
+        pushed += svc.push_chore_tasks()
+        pushed += svc.push_chore_completions()
+        pulled += svc.pull_chore_completions()
+
     return {"pushed": pushed, "pulled": pulled}
