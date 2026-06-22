@@ -2612,7 +2612,7 @@
             if (_navMode === 'lights') navTo('home');
           }, 10000);
         }
-      } else if (_navMode !== 'lights' && _navMode !== 'cameras' && _navMode !== 'robots' && state.mode !== currentMode) {
+      } else if (_navMode !== 'lights' && _navMode !== 'cameras' && _navMode !== 'robots' && _navMode !== 'sync' && _navMode !== 'chores' && state.mode !== currentMode) {
         applyMode(state.mode, state);
       }
     } catch {
