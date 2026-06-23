@@ -249,6 +249,9 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
 
                 if modules.get("pv", False):
                     _sync.push_pv()
+
+                if modules.get("calendar", False):
+                    _sync.push_calendar()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)

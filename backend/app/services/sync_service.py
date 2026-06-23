@@ -817,3 +817,42 @@ def push_pv() -> bool:
         return True
     except Exception:
         return False
+
+
+# ── Kalender ────────────────────────────────────────────────────────────────
+
+def push_calendar() -> bool:
+    try:
+        from app.services.integration_config_service import IntegrationConfigService
+        from app.search.providers.homeassistant import HomeAssistantProvider
+
+        cfg = IntegrationConfigService().get_config()
+        cal_cfg = cfg.get("calendar") or {}
+        selected = cal_cfg.get("selected_calendars") or None
+        excluded = cal_cfg.get("excluded_calendars") or None
+        days = int(cal_cfg.get("sync_days") or 30)
+
+        ha = HomeAssistantProvider()
+        raw_events = ha.get_events_upcoming(
+            days=days,
+            selected_calendars=selected,
+            exclude_calendars=excluded,
+        )
+
+        events = []
+        for ev in raw_events:
+            start = ev.get("start") or {}
+            end   = ev.get("end")   or {}
+            events.append({
+                "summary":     ev.get("summary", ""),
+                "description": ev.get("description") or "",
+                "start":       start.get("dateTime") or start.get("date") or "",
+                "end":         end.get("dateTime")   or end.get("date")   or "",
+                "all_day":     "dateTime" not in start,
+                "calendar":    ev.get("_calendar", ""),
+            })
+
+        _sync_request("POST", "/calendar", {"events": events})
+        return True
+    except Exception:
+        return False
