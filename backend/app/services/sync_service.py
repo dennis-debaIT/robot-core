@@ -247,31 +247,28 @@ def push_persons() -> int:
 
 # ── Notizen ────────────────────────────────────────────────────────────────
 
-def _notes_last_sync_key() -> str:
-    return "__notes_last_sync__"
+def _notes_push_key() -> str:
+    return "__notes_push_sync__"
+
+
+def _notes_pull_key() -> str:
+    return "__notes_pull_sync__"
 
 
 def _get_notes_last_sync() -> str | None:
-    with get_connection() as conn:
-        row = conn.execute(
-            "SELECT value FROM system_state WHERE key = ?", (_notes_last_sync_key(),)
-        ).fetchone()
-    if not row:
-        return None
-    import json as _json
-    try:
-        return _json.loads(row["value"]).get("t")
-    except Exception:
-        return None
+    return _get_state_ts(_notes_push_key())
 
 
 def _set_notes_last_sync(ts: str) -> None:
-    import json as _json
-    with get_connection() as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO system_state(key, value) VALUES (?,?)",
-            (_notes_last_sync_key(), _json.dumps({"t": ts})),
-        )
+    _set_state_ts(_notes_push_key(), ts)
+
+
+def _get_notes_pull_sync() -> str | None:
+    return _get_state_ts(_notes_pull_key())
+
+
+def _set_notes_pull_sync(ts: str) -> None:
+    _set_state_ts(_notes_pull_key(), ts)
 
 
 def push_notes() -> int:
@@ -312,7 +309,8 @@ def push_notes() -> int:
 
 
 def pull_notes() -> int:
-    since = _get_notes_last_sync()
+    since = _get_notes_pull_sync()
+    now   = _now()
     path  = "/notes" + (f"?since={since}" if since else "")
     result = _sync_request("GET", path)
     if not result:
@@ -351,35 +349,56 @@ def pull_notes() -> int:
                     ),
                 )
             merged += 1
+    _set_notes_pull_sync(now)
     return merged
 
 
 # ── Erinnerungen ───────────────────────────────────────────────────────────
 
-def _reminders_last_sync_key() -> str:
-    return "__reminders_last_sync__"
+def _reminders_push_key() -> str:
+    return "__reminders_push_sync__"
+
+
+def _reminders_pull_key() -> str:
+    return "__reminders_pull_sync__"
 
 
 def _get_reminders_last_sync() -> str | None:
+    return _get_state_ts(_reminders_push_key())
+
+
+def _set_reminders_last_sync(ts: str) -> None:
+    _set_state_ts(_reminders_push_key(), ts)
+
+
+def _get_reminders_pull_sync() -> str | None:
+    return _get_state_ts(_reminders_pull_key())
+
+
+def _set_reminders_pull_sync(ts: str) -> None:
+    _set_state_ts(_reminders_pull_key(), ts)
+
+
+def _get_state_ts(key: str) -> str | None:
+    import json as _json
     with get_connection() as conn:
         row = conn.execute(
-            "SELECT value FROM system_state WHERE key = ?", (_reminders_last_sync_key(),)
+            "SELECT value FROM system_state WHERE key = ?", (key,)
         ).fetchone()
     if not row:
         return None
-    import json as _json
     try:
         return _json.loads(row["value"]).get("t")
     except Exception:
         return None
 
 
-def _set_reminders_last_sync(ts: str) -> None:
+def _set_state_ts(key: str, ts: str) -> None:
     import json as _json
     with get_connection() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO system_state(key, value) VALUES (?,?)",
-            (_reminders_last_sync_key(), _json.dumps({"t": ts})),
+            (key, _json.dumps({"t": ts})),
         )
 
 
@@ -422,7 +441,8 @@ def push_reminders() -> int:
 
 
 def pull_reminders() -> int:
-    since = _get_reminders_last_sync()
+    since = _get_reminders_pull_sync()
+    now   = _now()
     path  = "/reminders" + (f"?since={since}" if since else "")
     result = _sync_request("GET", path)
     if not result:
@@ -454,6 +474,7 @@ def pull_reminders() -> int:
                     ),
                 )
                 merged += 1
+    _set_reminders_pull_sync(now)
     return merged
 
 
