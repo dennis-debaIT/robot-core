@@ -420,7 +420,7 @@ def push_reminders() -> int:
             "id":          sync_id,
             "text":        r["text"],
             "fire_at":     r["fire_at"],
-            "person_name": r.get("person_name"),
+            "person_name": r["person_name"],
             "created_at":  r["created_at"],
         })
         if result and not result.get("error"):
