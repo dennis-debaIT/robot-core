@@ -715,15 +715,34 @@ def push_news() -> bool:
 
 # ── PV ──────────────────────────────────────────────────────────────────────
 
+# Tagesdaten (feed-in, grid draw, costs) werden aus der HA-History berechnet —
+# das ist teuer, daher nur alle 60 Sekunden neu abgerufen.
+_pv_daily_cache: dict = {"data": None, "ts": 0.0}
+_PV_DAILY_TTL = 60.0
+
+
 def push_pv() -> bool:
+    import time as _time
     try:
         from app.services.integration_config_service import IntegrationConfigService
         from app.services.pv_service import PvService
+        from app.api.routers.ha_energy_costs import (
+            _energy_sensors,
+            _energy_tariffs,
+            _integrate_power_daily_from_history,
+            _energy_costs,
+            _fixed_costs,
+            _LOCAL_TZ,
+        )
+        from app.search.providers.homeassistant import HomeAssistantProvider
+        from datetime import datetime, timezone
 
         cfg = IntegrationConfigService().get_config()
         pv_cfg = cfg.get("pv") or {}
         if not pv_cfg.get("enabled"):
             return False
+
+        # ── Echtzeitdaten (immer frisch) ──────────────────────────────────
         sensors = pv_cfg.get("sensors") or {}
         state = PvService().get_state(sensors)
 
@@ -739,29 +758,60 @@ def push_pv() -> bool:
             except (TypeError, ValueError):
                 return None
 
-        tariffs = pv_cfg.get("tariffs") or {}
-        feed_in_ct  = float(tariffs.get("feed_in_ct")   or 0)
-        grid_ct     = float(tariffs.get("grid_price_ct") or 0)
+        # ── Tagesdaten aus HA-History (gecacht) ──────────────────────────
+        now_t = _time.time()
+        if now_t - _pv_daily_cache["ts"] >= _PV_DAILY_TTL:
+            sensors_cfg = _energy_sensors(cfg)
+            feed_in_ct, grid_ct, base_eur_year, extra_eur_year = _energy_tariffs(cfg)
+            annual_fixed = base_eur_year + extra_eur_year
 
-        daily_kwh      = _val("daily")
-        daily_cons_kwh = _val("daily_consumption")
-        daily_fi_kwh   = _val("daily_feed_in")
+            now_loc = datetime.now(_LOCAL_TZ)
+            now_utc = now_loc.astimezone(timezone.utc)
+            start_utc = now_loc.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ).astimezone(timezone.utc)
+            today_key = now_loc.strftime("%Y-%m-%d")
 
-        # Tagesertrag (Einspeisevergütung)
-        earnings = round(daily_fi_kwh  * feed_in_ct  / 100, 2) if daily_fi_kwh  is not None else None
-        # Tageskosten (Netzbezug × Strompreis)
-        cost     = round(daily_cons_kwh * grid_ct     / 100, 2) if daily_cons_kwh is not None else None
+            ha = HomeAssistantProvider()
+            daily_feed_in  = 0.0
+            daily_grid_draw = 0.0
+
+            for s in sensors_cfg:
+                eid = s.get("entity_id", "")
+                if not eid:
+                    continue
+                signed = s.get("role") == "grid"
+                daily = _integrate_power_daily_from_history(
+                    eid, start_utc, now_utc, ha, signed
+                )
+                today = daily.get(today_key, {})
+                if signed:
+                    daily_feed_in  += today.get("einspeisung", 0.0)
+                    daily_grid_draw += today.get("netzbezug", 0.0)
+
+            costs = None
+            if feed_in_ct > 0 or grid_ct > 0 or annual_fixed > 0:
+                fixed_today = _fixed_costs(now_loc, now_loc, annual_fixed)
+                costs = _energy_costs(daily_feed_in, daily_grid_draw, feed_in_ct, grid_ct, fixed_today)
+
+            _pv_daily_cache["data"] = {
+                "daily_feed_in_kwh":  round(daily_feed_in, 2)  if sensors_cfg else None,
+                "daily_grid_draw_kwh": round(daily_grid_draw, 2) if sensors_cfg else None,
+                "daily_earnings_eur": costs["einspeisung_value"] if costs else None,
+                "daily_cost_eur":     costs["netzbezug_cost"]    if costs else None,
+                "daily_saldo_eur":    costs["saldo"]             if costs else None,
+            }
+            _pv_daily_cache["ts"] = now_t
+
+        cached = _pv_daily_cache["data"] or {}
 
         data = {
-            "power_w":               _val("power"),
-            "daily_kwh":             daily_kwh,
-            "battery_pct":           _val("battery"),
-            "grid_w":                _val("grid"),
-            "house_w":               _val("house_consumption"),
-            "daily_consumption_kwh": daily_cons_kwh,
-            "daily_feed_in_kwh":     daily_fi_kwh,
-            "daily_earnings_eur":    earnings,
-            "daily_cost_eur":        cost,
+            "power_w":            _val("power"),
+            "daily_kwh":          _val("daily"),
+            "battery_pct":        _val("battery"),
+            "grid_w":             _val("grid"),
+            "house_w":            _val("house_consumption"),
+            **cached,
         }
         _sync_request("POST", "/pv", {"data": data})
         return True
