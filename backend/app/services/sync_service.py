@@ -644,3 +644,94 @@ def push_waste() -> bool:
         return True
     except Exception:
         return False
+
+
+# ── News ────────────────────────────────────────────────────────────────────
+
+_news_push_key = "__news_push_sync__"
+
+
+def push_news() -> bool:
+    try:
+        import time as _time
+        import json as _json
+        # Nur alle 10 Minuten pushen — News ändern sich selten
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT value FROM system_state WHERE key=?", (_news_push_key,)
+            ).fetchone()
+        if row:
+            last = _json.loads(row["value"]).get("t", 0)
+            if _time.time() - float(last) < 600:
+                return True
+
+        from app.api.routers.content import _news_cache
+        from app.services.integration_config_service import IntegrationConfigService
+        from datetime import datetime, timezone, timedelta
+        cfg = IntegrationConfigService()
+        lookback = cfg.get_news_lookback_hours()
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback)
+
+        def _pd(v: str):
+            try:
+                dt = datetime.fromisoformat(v)
+                return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                return datetime.min.replace(tzinfo=timezone.utc)
+
+        items = [
+            {
+                "title":      i["title"],
+                "link":       i.get("link", ""),
+                "pub_date":   i.get("pub_date", ""),
+                "description": (i.get("description") or "")[:200],
+                "source":     i.get("source", ""),
+                "source_key": i.get("source_key", ""),
+            }
+            for i in _news_cache.get("items", [])
+            if _pd(i.get("pub_date", "")) >= cutoff
+        ][:30]
+
+        _sync_request("POST", "/news", {"items": items})
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO system_state(key,value) VALUES(?,?)",
+                (_news_push_key, _json.dumps({"t": str(_time.time())})),
+            )
+        return True
+    except Exception:
+        return False
+
+
+# ── PV ──────────────────────────────────────────────────────────────────────
+
+def push_pv() -> bool:
+    try:
+        from app.services.integration_config_service import IntegrationConfigService
+        from app.services.pv_service import PvService
+
+        cfg = IntegrationConfigService().get_config()
+        pv_cfg = cfg.get("pv") or {}
+        if not pv_cfg.get("enabled"):
+            return False
+        sensors = pv_cfg.get("sensors") or {}
+        state = PvService().get_state(sensors)
+
+        def _val(key: str):
+            entry = state.get(key) or {}
+            try:
+                return float(entry.get("value") or 0)
+            except (TypeError, ValueError):
+                return None
+
+        data = {
+            "power_w":    _val("power"),
+            "daily_kwh":  _val("daily"),
+            "battery_pct": _val("battery"),
+            "grid_w":     _val("grid"),
+            "house_w":    _val("house_consumption"),
+        }
+        _sync_request("POST", "/pv", {"data": data})
+        return True
+    except Exception:
+        return False

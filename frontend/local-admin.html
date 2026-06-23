@@ -895,6 +895,22 @@
                   <span class="switch-text">Mülltonnen-Termine in der App synchronisieren</span>
                 </span>
               </label>
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-news" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">📰 News</span>
+                  <span class="switch-text">Aktuelle Nachrichten in der App synchronisieren</span>
+                </span>
+              </label>
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-pv" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">☀️ Photovoltaik</span>
+                  <span class="switch-text">PV-Leistung &amp; Ertrag in der App synchronisieren</span>
+                </span>
+              </label>
             </div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <button type="button" class="btn btn-secondary" onclick="_triggerSync()">Jetzt synchronisieren</button>
@@ -3814,13 +3830,17 @@
         const ms = document.getElementById('sync-module-shopping');
         const mn = document.getElementById('sync-module-notes');
         const mr = document.getElementById('sync-module-reminders');
-        const mc = document.getElementById('sync-module-chores');
-        const mw = document.getElementById('sync-module-waste');
-        if (ms) ms.checked = mods.shopping !== false;
-        if (mn) mn.checked = mods.notes === true;
-        if (mr) mr.checked = mods.reminders === true;
-        if (mc) mc.checked = mods.chores === true;
-        if (mw) mw.checked = mods.waste === true;
+        const mc  = document.getElementById('sync-module-chores');
+        const mw  = document.getElementById('sync-module-waste');
+        const mne = document.getElementById('sync-module-news');
+        const mp  = document.getElementById('sync-module-pv');
+        if (ms)  ms.checked  = mods.shopping !== false;
+        if (mn)  mn.checked  = mods.notes === true;
+        if (mr)  mr.checked  = mods.reminders === true;
+        if (mc)  mc.checked  = mods.chores === true;
+        if (mw)  mw.checked  = mods.waste === true;
+        if (mne) mne.checked = mods.news === true;
+        if (mp)  mp.checked  = mods.pv === true;
       } catch {}
     }
 
@@ -3831,6 +3851,8 @@
       const mr  = document.getElementById('sync-module-reminders');
       const mc  = document.getElementById('sync-module-chores');
       const mw  = document.getElementById('sync-module-waste');
+      const mne = document.getElementById('sync-module-news');
+      const mp  = document.getElementById('sync-module-pv');
       const res = document.getElementById('sync-result');
       try {
         await fetch('/local-admin/integrations/config', {
@@ -3845,6 +3867,8 @@
                 reminders: mr?.checked || false,
                 chores:    mc?.checked || false,
                 waste:     mw?.checked || false,
+                news:      mne?.checked || false,
+                pv:        mp?.checked || false,
               },
             },
           }),
@@ -4097,6 +4121,8 @@
     document.getElementById('sync-module-reminders')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-chores')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-waste')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-news')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-pv')?.addEventListener('change', saveSyncConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);

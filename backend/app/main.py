@@ -243,6 +243,12 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
 
                 if modules.get("waste", False):
                     _sync.push_waste()
+
+                if modules.get("news", False):
+                    _sync.push_news()
+
+                if modules.get("pv", False):
+                    _sync.push_pv()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
