@@ -16,6 +16,7 @@ DISPLAY_LIGA_JS = BASE_DIR / "frontend" / "display-liga.js"
 DISPLAY_SYNC_JS = BASE_DIR / "frontend" / "display-sync.js"
 LOCAL_ADMIN_INDEX = BASE_DIR / "frontend" / "local-admin.html"
 LOCAL_ADMIN_CSS = BASE_DIR / "frontend" / "local-admin.css"
+FAVICON_PNG = BASE_DIR / "frontend" / "favicon.png"
 
 core: RobotCore | None = None
 settings_service: SettingsService | None = None

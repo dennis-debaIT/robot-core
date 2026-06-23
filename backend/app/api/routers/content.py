@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 
-from app.api.deps import DISPLAY_CHORES_JS, DISPLAY_CSS, DISPLAY_INDEX, DISPLAY_LIGA_JS, DISPLAY_PLUS_JS, DISPLAY_SYNC_JS
+from app.api.deps import DISPLAY_CHORES_JS, DISPLAY_CSS, DISPLAY_INDEX, DISPLAY_LIGA_JS, DISPLAY_PLUS_JS, DISPLAY_SYNC_JS, FAVICON_PNG
 from app.database.db import get_connection, read_state
 from app.services.integration_config_service import IntegrationConfigService
 from app.services.news_feed_service import NewsFeedService
@@ -393,6 +393,13 @@ def display_sync_js() -> FileResponse:
             "Expires": "0",
         },
     )
+
+
+@router.get("/favicon.png")
+def favicon() -> FileResponse:
+    if not FAVICON_PNG.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(FAVICON_PNG, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 
 
 @router.get("/calendar/month")
