@@ -354,20 +354,84 @@ class LigaService:
         return result
 
     # ── Spielerprofil (via /v4/persons/{id}) ─────────────────────
+    _PERSON_CACHE_DIR = pathlib.Path("/data/tm_cache/persons")
+    _PERSON_CHECK_INTERVAL = 24 * 3_600   # 24h bevor lastUpdated im Hintergrund geprüft wird
+    _PERSON_MAX_TTL        = 30 * 86_400  # 30 Tage absolutes Maximum
+
     def get_person_profile(self, person_id: int) -> dict[str, Any] | None:
-        """Erweitertes Spielerprofil inkl. aktuellem Verein + Vertrag."""
+        """Erweitertes Spielerprofil — Disk-Cache, Invalidierung per lastUpdated."""
         now = time.time()
         key = f"person:{person_id}"
-        cached = LigaService._squad_cache.get(key)
-        if cached and (now - cached["ts"]) < SQUAD_TTL:
-            return cached["data"]
-
+        # 1. In-Memory
+        mem = LigaService._squad_cache.get(key)
+        if mem and (now - mem["ts"]) < self._PERSON_CHECK_INTERVAL:
+            return mem["data"]
+        # 2. Disk-Cache
+        cache_path = self._PERSON_CACHE_DIR / f"{person_id}.json"
+        if cache_path.exists():
+            try:
+                entry = json.loads(cache_path.read_text(encoding="utf-8"))
+                age = now - entry.get("ts", 0)
+                result = entry["data"]
+                LigaService._squad_cache[key] = {"data": result, "ts": now}
+                if age < self._PERSON_CHECK_INTERVAL:
+                    return result
+                # CHECK_INTERVAL abgelaufen → Refresh im Hintergrund, sofort returnen
+                def _bg(pid: int, path: pathlib.Path, old_lu: str | None, mem_key: str) -> None:
+                    fresh_raw = self._fetch(f"/persons/{pid}")
+                    if not fresh_raw:
+                        try:
+                            e = json.loads(path.read_text(encoding="utf-8"))
+                            e["ts"] = time.time()
+                            path.write_text(json.dumps(e, ensure_ascii=False), encoding="utf-8")
+                        except Exception:
+                            pass
+                        return
+                    new_lu = fresh_raw.get("lastUpdated")
+                    if new_lu and new_lu == old_lu:
+                        try:
+                            e = json.loads(path.read_text(encoding="utf-8"))
+                            e["ts"] = time.time()
+                            path.write_text(json.dumps(e, ensure_ascii=False), encoding="utf-8")
+                        except Exception:
+                            pass
+                        return
+                    # Daten geändert → neu aufbauen und speichern
+                    ct2 = fresh_raw.get("currentTeam") or {}
+                    new_result: dict[str, Any] = {
+                        "id":           fresh_raw.get("id"),
+                        "name":         fresh_raw.get("name"),
+                        "firstName":    fresh_raw.get("firstName"),
+                        "lastName":     fresh_raw.get("lastName"),
+                        "dateOfBirth":  fresh_raw.get("dateOfBirth"),
+                        "nationality":  fresh_raw.get("nationality"),
+                        "position":     fresh_raw.get("position"),
+                        "shirtNumber":  fresh_raw.get("shirtNumber"),
+                        "lastUpdated":  new_lu,
+                        "currentTeam": {
+                            "id": ct2.get("id"), "name": ct2.get("name"),
+                            "shortName": ct2.get("shortName"), "tla": ct2.get("tla"),
+                            "crest": ct2.get("crest"),
+                            "contractUntil": (ct2.get("contract") or {}).get("until"),
+                            "runningCompetitions": ct2.get("runningCompetitions") or [],
+                        } if ct2 else None,
+                    }
+                    try:
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text(json.dumps({"data": new_result, "ts": time.time()}, ensure_ascii=False), encoding="utf-8")
+                    except Exception:
+                        pass
+                    LigaService._squad_cache[mem_key] = {"data": new_result, "ts": time.time()}
+                threading.Thread(target=_bg, args=(person_id, cache_path, entry.get("data", {}).get("lastUpdated"), key), daemon=True).start()
+                return result
+            except Exception:
+                pass
+        # 3. Kein Cache → synchron laden
         data = self._fetch(f"/persons/{person_id}")
         if not data:
             return None
-
         ct = data.get("currentTeam") or {}
-        result: dict[str, Any] = {
+        result = {
             "id":           data.get("id"),
             "name":         data.get("name"),
             "firstName":    data.get("firstName"),
@@ -387,6 +451,11 @@ class LigaService:
                 "runningCompetitions": ct.get("runningCompetitions") or [],
             } if ct else None,
         }
+        try:
+            self._PERSON_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps({"data": result, "ts": now}, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            pass
         LigaService._squad_cache[key] = {"data": result, "ts": now}
         return result
 

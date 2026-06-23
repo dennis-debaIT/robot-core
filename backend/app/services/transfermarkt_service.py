@@ -1,14 +1,20 @@
 """Transfermarkt-Vereinsdaten via community API (transfermarkt-api.fly.dev).
 
 Scraping-basiert — externe Abhängigkeit.
-Disk-Cache unter /data/tm_cache/ überlebt Container-Neustarts; Spieler-Profile
-werden 30 Tage gecacht, Vereins-Profile 24 h.
+Disk-Cache unter /data/tm_cache/ überlebt Container-Neustarts.
+
+Cache-Strategie:
+- Spieler-Einzel-Profile: 30 Tage Disk-Cache
+- Vereinsprofile + Kaderlisten: Disk-Cache ohne feste TTL — Invalidierung
+  nur wenn sich `lastUpdate` im TM-Response ändert. Stale-while-revalidate:
+  Rückgabe aus Cache, Refresh im Hintergrund nach CHECK_INTERVAL.
 """
 from __future__ import annotations
 
 import json
 import pathlib
 import re
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -16,15 +22,15 @@ from typing import Any
 
 _TM_BASE = "https://transfermarkt-api.fly.dev"
 
-_SEARCH_TTL      = 7 * 86_400   # TM-IDs ändern sich kaum
-_CLUB_TTL        = 24 * 3_600   # Vereinsprofil (Stadium, Gründung, …)
-_PLAYERS_TTL     = 6 * 3_600    # Kaderliste (Marktwerte)
-_PLAYER_DISK_TTL = 30 * 86_400  # Spieler-Einzel-Profil: 30 Tage Disk-Cache
+_SEARCH_TTL      = 7 * 86_400   # TM-IDs: 7 Tage
+_PLAYER_DISK_TTL = 30 * 86_400  # Spieler-Einzel-Profil: 30 Tage
+_CLUB_CHECK_INTERVAL = 24 * 3_600  # Vereinsdaten: nach 24h im Hintergrund prüfen ob lastUpdate neu
 
 _cache: dict[str, dict[str, Any]] = {}
 
 _PLAYER_CACHE_DIR  = pathlib.Path("/data/tm_cache/players")
 _SEARCH_CACHE_DIR  = pathlib.Path("/data/tm_cache/searches")
+_CLUB_CACHE_DIR    = pathlib.Path("/data/tm_cache/clubs")
 
 
 def _cached(key: str, ttl: float) -> Any | None:
@@ -36,6 +42,37 @@ def _cached(key: str, ttl: float) -> Any | None:
 
 def _store(key: str, data: Any) -> None:
     _cache[key] = {"data": data, "ts": time.time()}
+
+
+def _club_disk_read(path: pathlib.Path) -> dict | None:
+    """Liest Club-Cache-Eintrag {data, last_update, ts} von Disk. Gibt None bei Fehler."""
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _club_disk_write(path: pathlib.Path, data: Any, last_update: str | None) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"data": data, "last_update": last_update, "ts": time.time()}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
+def _club_disk_touch(path: pathlib.Path) -> None:
+    """Aktualisiert nur den Zeitstempel — Inhalt bleibt unverändert."""
+    try:
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        entry["ts"] = time.time()
+        path.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def _get(path: str) -> dict | None:
@@ -53,7 +90,7 @@ def _get(path: str) -> dict | None:
 
 class TransfermarktService:
     def search_club_id(self, name: str) -> str | None:
-        """TM-ID per Namenssuche — bevorzugt deutschen Treffer.
+        """TM-ID per Namenssuche — 7 Tage Disk-Cache (überlebt Restarts).
 
         Probiert mehrere Suchbegriffe falls der exakte Name keine Treffer liefert:
         1. Original ("1. FC Heidenheim 1846")
@@ -65,16 +102,28 @@ class TransfermarktService:
         if cached is not None:
             return cached
 
+        # Disk-Cache
+        slug = re.sub(r'[^a-z0-9]', '_', name.lower().strip())
+        cache_path = _SEARCH_CACHE_DIR / f"club_{slug}.json"
+        if cache_path.exists():
+            try:
+                if time.time() - cache_path.stat().st_mtime < _SEARCH_TTL:
+                    tm_id = json.loads(cache_path.read_text(encoding="utf-8"))
+                    _store(key, tm_id)
+                    return tm_id
+            except Exception:
+                pass
+
         base = name.strip()
         candidates: list[str] = [base]
-        c1 = re.sub(r'^\d+\.\s+', '', base)          # "1. FC Köln" → "FC Köln"
+        c1 = re.sub(r'^\d+\.\s+', '', base)
         if c1 != base:
             candidates.append(c1)
-        c2 = re.sub(r'\s+\d{4}$', '', candidates[-1]) # "FC Heidenheim 1846" → "FC Heidenheim"
+        c2 = re.sub(r'\s+\d{4}$', '', candidates[-1])
         if c2 != candidates[-1]:
             candidates.append(c2)
 
-        tm_id: str | None = None
+        tm_id = None
         for candidate in candidates:
             data = _get(f"/clubs/search/{urllib.parse.quote(candidate)}")
             results: list[dict] = (data or {}).get("results") or []
@@ -89,49 +138,105 @@ class TransfermarktService:
 
         if tm_id:
             _store(key, tm_id)
+            try:
+                _SEARCH_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                cache_path.write_text(json.dumps(tm_id, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
         return tm_id
 
     def get_club_image_by_id(self, tm_club_id: str) -> str | None:
-        """Club-Wappen-URL direkt per TM-Club-ID — 24h gecacht.
-
-        TM player profile enthält kein club.image, daher separater Lookup
-        via /clubs/{id}/profile. Ergebnis wird im gleichen Cache wie
-        get_club_profile gespeichert.
-        """
+        """Club-Wappen-URL direkt per TM-Club-ID."""
         key = f"tm_profile:{tm_club_id}"
-        cached = _cached(key, _CLUB_TTL)
-        if cached is not None:
-            return (cached or {}).get("image")
+        mem = _cached(key, _CLUB_CHECK_INTERVAL)
+        if mem is not None:
+            return (mem or {}).get("image")
+        disk = _club_disk_read(_CLUB_CACHE_DIR / f"{tm_club_id}_profile.json")
+        if disk:
+            _store(key, disk["data"])
+            return (disk["data"] or {}).get("image")
         data = _get(f"/clubs/{tm_club_id}/profile")
         if data:
+            _club_disk_write(_CLUB_CACHE_DIR / f"{tm_club_id}_profile.json", data, data.get("lastUpdate"))
             _store(key, data)
             return data.get("image")
         return None
 
     def get_club_profile(self, team_name: str) -> dict | None:
+        """Vereinsprofil — Disk-Cache ohne feste TTL, Invalidierung per lastUpdate."""
         tm_id = self.search_club_id(team_name)
         if not tm_id:
             return None
         key = f"tm_profile:{tm_id}"
-        cached = _cached(key, _CLUB_TTL)
-        if cached is not None:
-            return cached
+        # 1. In-Memory (gültig für CHECK_INTERVAL ohne Disk-Hit)
+        mem = _cached(key, _CLUB_CHECK_INTERVAL)
+        if mem is not None:
+            return mem
+        # 2. Disk-Cache
+        cache_path = _CLUB_CACHE_DIR / f"{tm_id}_profile.json"
+        disk = _club_disk_read(cache_path)
+        if disk:
+            cached_lu = disk.get("last_update")
+            age = time.time() - disk.get("ts", 0)
+            _store(key, disk["data"])
+            if age < _CLUB_CHECK_INTERVAL:
+                return disk["data"]
+            # CHECK_INTERVAL abgelaufen → Refresh im Hintergrund
+            def _bg_refresh_profile(tid: str, path: pathlib.Path, old_lu: str | None, mem_key: str) -> None:
+                fresh = _get(f"/clubs/{tid}/profile")
+                if not fresh:
+                    _club_disk_touch(path)
+                    return
+                new_lu = fresh.get("lastUpdate")
+                if new_lu and new_lu == old_lu:
+                    _club_disk_touch(path)  # Daten unverändert → nur Timestamp aktualisieren
+                else:
+                    _club_disk_write(path, fresh, new_lu)
+                _store(mem_key, fresh if fresh else disk["data"])
+            threading.Thread(target=_bg_refresh_profile, args=(tm_id, cache_path, cached_lu, key), daemon=True).start()
+            return disk["data"]
+        # 3. Kein Cache → synchron laden
         data = _get(f"/clubs/{tm_id}/profile")
         if data:
+            _club_disk_write(cache_path, data, data.get("lastUpdate"))
             _store(key, data)
         return data
 
     def get_club_players(self, team_name: str) -> list[dict] | None:
+        """Kaderliste mit Marktwerten — Disk-Cache, Invalidierung per lastUpdate."""
         tm_id = self.search_club_id(team_name)
         if not tm_id:
             return None
         key = f"tm_players:{tm_id}"
-        cached = _cached(key, _PLAYERS_TTL)
-        if cached is not None:
-            return cached
+        mem = _cached(key, _CLUB_CHECK_INTERVAL)
+        if mem is not None:
+            return mem
+        cache_path = _CLUB_CACHE_DIR / f"{tm_id}_players.json"
+        disk = _club_disk_read(cache_path)
+        if disk:
+            cached_lu = disk.get("last_update")
+            age = time.time() - disk.get("ts", 0)
+            _store(key, disk["data"])
+            if age < _CLUB_CHECK_INTERVAL:
+                return disk["data"]
+            def _bg_refresh_players(tid: str, path: pathlib.Path, old_lu: str | None, mem_key: str) -> None:
+                fresh_raw = _get(f"/clubs/{tid}/players")
+                if not fresh_raw:
+                    _club_disk_touch(path)
+                    return
+                new_lu = fresh_raw.get("lastUpdate")
+                players = fresh_raw.get("players") or []
+                if new_lu and new_lu == old_lu:
+                    _club_disk_touch(path)
+                else:
+                    _club_disk_write(path, players, new_lu)
+                _store(mem_key, players if players else disk["data"])
+            threading.Thread(target=_bg_refresh_players, args=(tm_id, cache_path, cached_lu, key), daemon=True).start()
+            return disk["data"]
         data = _get(f"/clubs/{tm_id}/players")
         players: list[dict] = (data or {}).get("players") or []
         if players:
+            _club_disk_write(cache_path, players, (data or {}).get("lastUpdate"))
             _store(key, players)
         return players or None
 
