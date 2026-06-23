@@ -734,12 +734,29 @@ def push_pv() -> bool:
             except (TypeError, ValueError):
                 return None
 
+        tariffs = pv_cfg.get("tariffs") or {}
+        feed_in_ct  = float(tariffs.get("feed_in_ct")   or 0)
+        grid_ct     = float(tariffs.get("grid_price_ct") or 0)
+
+        daily_kwh      = _val("daily")
+        daily_cons_kwh = _val("daily_consumption")
+        daily_fi_kwh   = _val("daily_feed_in")
+
+        # Tagesertrag (Einspeisevergütung)
+        earnings = round(daily_fi_kwh  * feed_in_ct  / 100, 2) if daily_fi_kwh  is not None else None
+        # Tageskosten (Netzbezug × Strompreis)
+        cost     = round(daily_cons_kwh * grid_ct     / 100, 2) if daily_cons_kwh is not None else None
+
         data = {
-            "power_w":    _val("power"),
-            "daily_kwh":  _val("daily"),
-            "battery_pct": _val("battery"),
-            "grid_w":     _val("grid"),
-            "house_w":    _val("house_consumption"),
+            "power_w":               _val("power"),
+            "daily_kwh":             daily_kwh,
+            "battery_pct":           _val("battery"),
+            "grid_w":                _val("grid"),
+            "house_w":               _val("house_consumption"),
+            "daily_consumption_kwh": daily_cons_kwh,
+            "daily_feed_in_kwh":     daily_fi_kwh,
+            "daily_earnings_eur":    earnings,
+            "daily_cost_eur":        cost,
         }
         _sync_request("POST", "/pv", {"data": data})
         return True

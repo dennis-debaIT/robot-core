@@ -239,7 +239,7 @@ class IntegrationConfigService:
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
         pv_sensors = pv.setdefault("sensors", {})
-        for _k in ("power", "daily", "temperature", "last_update", "grid", "battery_power"):
+        for _k in ("power", "daily", "temperature", "last_update", "grid", "battery_power", "daily_consumption", "daily_feed_in"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
         pv_wf = pv.setdefault("widget_fields", {})
         for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
@@ -397,7 +397,7 @@ class IntegrationConfigService:
         pv["enabled"] = bool(pv.get("enabled", False))
         pv["provider"] = str(pv.get("provider") or "solarman").strip()
         pv_sensors = pv.setdefault("sensors", {})
-        for _k in ("power", "daily", "temperature", "last_update", "grid", "battery_power"):
+        for _k in ("power", "daily", "temperature", "last_update", "grid", "battery_power", "daily_consumption", "daily_feed_in"):
             pv_sensors[_k] = str(pv_sensors.get(_k) or "").strip()
         pv_wf = pv.setdefault("widget_fields", {})
         for _k, _def in (("power", True), ("house_consumption", True), ("grid", True), ("daily", True), ("battery", True), ("temperature", False)):
