@@ -254,6 +254,23 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
         await asyncio.sleep(interval_seconds)
 
 
+async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
+    """Pusht PV-Echtzeitdaten alle 10 Sekunden — unabhängig vom 60s-Sync-Loop."""
+    from app.services import sync_service as _sync
+    from app.services.integration_config_service import IntegrationConfigService as _ICS
+    await asyncio.sleep(35)
+    while True:
+        try:
+            url, tok = _sync.get_credentials()
+            if url and tok:
+                cfg = _ICS().get_config()
+                if (cfg.get("sync") or {}).get("modules", {}).get("pv", False):
+                    _sync.push_pv()
+        except Exception:
+            pass
+        await asyncio.sleep(interval_seconds)
+
+
 async def _license_renewal_loop(interval_hours: int = 24) -> None:
     """Erneuert eine installierte Abo-Lizenz täglich beim Lizenzserver.
     Lifetime-Lizenzen und fehlende Lizenzen werden übersprungen (still)."""
@@ -288,6 +305,7 @@ async def lifespan(_: FastAPI) -> Any:
     memory_task = asyncio.create_task(_memory_maintenance_loop())
     license_task = asyncio.create_task(_license_renewal_loop())
     shopping_sync_task = asyncio.create_task(_sync_loop())
+    pv_fast_sync_task = asyncio.create_task(_pv_fast_sync_loop())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -301,6 +319,7 @@ async def lifespan(_: FastAPI) -> Any:
         memory_task.cancel()
         license_task.cancel()
         shopping_sync_task.cancel()
+        pv_fast_sync_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):

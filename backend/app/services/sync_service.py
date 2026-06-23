@@ -728,9 +728,14 @@ def push_pv() -> bool:
         state = PvService().get_state(sensors)
 
         def _val(key: str):
-            entry = state.get(key) or {}
+            entry = state.get(key)
+            if not entry:
+                return None
+            v = entry.get("value")
+            if v is None or str(v).lower() in ("unavailable", "unknown", ""):
+                return None
             try:
-                return float(entry.get("value") or 0)
+                return float(v)
             except (TypeError, ValueError):
                 return None
 
