@@ -412,6 +412,10 @@ def push_reminders() -> int:
             ).fetchall()
         else:
             rows = conn.execute("SELECT * FROM reminders ORDER BY created_at ASC").fetchall()
+        # Push dismissals for already-synced reminders — created_at might predate since
+        dismissed_rows = conn.execute(
+            "SELECT * FROM reminders WHERE dismissed=1 AND sync_server_id IS NOT NULL"
+        ).fetchall()
     now = _now()
     count = 0
     for r in rows:
@@ -435,6 +439,9 @@ def push_reminders() -> int:
                         (sync_id, r["id"]),
                     )
             count += 1
+    # Push dismissals for reminders that were already synced before last push
+    for r in dismissed_rows:
+        _sync_request("PATCH", f"/reminders/{r['sync_server_id']}", {"dismissed": True})
     if count > 0:
         _set_reminders_last_sync(now)
     return count
@@ -665,9 +672,12 @@ def push_news() -> bool:
             if _time.time() - float(last) < 600:
                 return True
 
-        from app.api.routers.content import _news_cache
+        from app.api.routers.content import get_news, _news_cache
         from app.services.integration_config_service import IntegrationConfigService
         from datetime import datetime, timezone, timedelta
+        # Populate cache if empty
+        if not _news_cache.get("items"):
+            get_news()
         cfg = IntegrationConfigService()
         lookback = cfg.get_news_lookback_hours()
         cutoff = datetime.now(timezone.utc) - timedelta(hours=lookback)
