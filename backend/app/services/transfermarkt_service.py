@@ -604,58 +604,51 @@ class TransfermarktService:
         return {"season": season, "arrivals": arrivals, "departures": departures}
 
     def get_club_transfers(self, team_name: str) -> dict | None:
-        """Zugänge + Abgänge — Community API (fly.io) mit TM.de-Scraping als Fallback.
+        """Zugänge + Abgänge — Reihenfolge optimiert für erika-IP-Beschränkung.
 
-        Community API nutzt fly.io → kein erika-IP-Block.
-        TM.de-Scraping greift nur wenn Community API nichts liefert (24h Disk-Cache).
+        1. TM.de Disk-Cache (tmde/ — überlebt DELETE /liga/cache, schnell)
+        2. Community API fly.io — kein IP-Block, synchron wenn kein TM.de-Cache
+        3. TM.de Scraping live — Fallback, auf erika oft von Cloudflare blockiert
         """
-        def _season_year(s: str) -> int:
-            m = re.match(r"(\d{2})/", str(s))
-            if not m:
-                return 0
-            yy = int(m.group(1))
-            return (2000 + yy) if yy < 50 else (1900 + yy)
-
-        # ── Primär: Community API ──────────────────────────────────────────────
-        tm_id = self.search_club_id(team_name)
-        if tm_id:
-            cache_path = _CLUB_CACHE_DIR / f"transfers_{tm_id}.json"
-            disk = _club_disk_read(cache_path)
+        # ── 1. TM.de Disk-Cache (sofortiger Treffer wenn Daten vom letzten Scrape da) ──
+        slug: str | None = None
+        de_id: str | None = None
+        tmde = self._tmde_search_club(team_name)
+        if tmde:
+            slug, de_id = tmde
+            tmde_cache = _TMDE_CACHE_DIR / f"transfers_{de_id}.json"
+            disk = _club_disk_read(tmde_cache)
             if disk:
                 age = time.time() - disk.get("ts", 0)
                 if age < _CLUB_CHECK_INTERVAL:
                     return disk["data"]
+
+        # ── 2. Community API (fly.io) — synchron laden, in Clubs-Cache speichern ──
+        tm_id = self.search_club_id(team_name)
+        if tm_id:
+            api_cache = _CLUB_CACHE_DIR / f"transfers_{tm_id}.json"
+            api_disk = _club_disk_read(api_cache)
+            if api_disk:
+                age = time.time() - api_disk.get("ts", 0)
+                if age < _CLUB_CHECK_INTERVAL:
+                    return api_disk["data"]
                 def _bg_api(tid: str, p: pathlib.Path) -> None:
                     fresh = self._get_club_transfers_by_id(tid)
                     if fresh:
                         _club_disk_write(p, fresh, None)
-                threading.Thread(target=_bg_api, args=(tm_id, cache_path), daemon=True).start()
-                return disk["data"]
+                threading.Thread(target=_bg_api, args=(tm_id, api_cache), daemon=True).start()
+                return api_disk["data"]
             result = self._get_club_transfers_by_id(tm_id)
             if result:
-                _club_disk_write(cache_path, result, None)
+                _club_disk_write(api_cache, result, None)
                 return result
 
-        # ── Fallback: TM.de Scraping ───────────────────────────────────────────
-        tmde = self._tmde_search_club(team_name)
-        if not tmde:
+        # ── 3. TM.de Scraping live (oft blockiert, aber als letzter Ausweg) ──────
+        if not slug or not de_id:
             return None
-        slug, de_id = tmde
-        cache_path = _TMDE_CACHE_DIR / f"transfers_{de_id}.json"
-        disk = _club_disk_read(cache_path)
-        if disk:
-            age = time.time() - disk.get("ts", 0)
-            if age < _CLUB_CHECK_INTERVAL:
-                return disk["data"]
-            def _bg_tmde(s: str, d: str, tname: str, p: pathlib.Path) -> None:
-                fresh = self._scrape_club_transfers(s, d, tname)
-                if fresh:
-                    _club_disk_write(p, fresh, None)
-            threading.Thread(target=_bg_tmde, args=(slug, de_id, team_name, cache_path), daemon=True).start()
-            return disk["data"]
         result = self._scrape_club_transfers(slug, de_id, team_name)
         if result:
-            _club_disk_write(cache_path, result, None)
+            _club_disk_write(_TMDE_CACHE_DIR / f"transfers_{de_id}.json", result, None)
         return result
 
     def _scrape_club_transfers(self, slug: str, de_id: str, team_name: str) -> dict | None:
