@@ -274,7 +274,7 @@
       const avatarUrl  = p.imageURL ? `/liga/tm/img?url=${encodeURIComponent(p.imageURL)}` : '';
       const initials   = (p.name || '?').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
       const avatar = avatarUrl
-        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'"><span class="liga-kader-img-ph" style="display:none">${_esc(initials)}</span>`
+        ? `<img src="${_esc(avatarUrl)}" class="liga-kader-img" onerror="if(!this.dataset.r){this.dataset.r='1';var el=this;setTimeout(function(){el.src=el.src.split('&_r=')[0]+'&_r='+Date.now()},4000)}else{this.style.display='none';this.nextElementSibling.style.display='inline-flex'}"><span class="liga-kader-img-ph" style="display:none">${_esc(initials)}</span>`
         : `<span class="liga-kader-img-ph">${_esc(initials)}</span>`;
       const pendingCls = !p._profileLoaded ? ' liga-kader-row-pending' : '';
       rows += `<div class="liga-kader-row${pendingCls}" onclick="window._liga._showPlayerProfile(${playerIdx})">
@@ -457,7 +457,7 @@
     const portraitSrc = rawPortrait ? `/liga/tm/img?url=${encodeURIComponent(rawPortrait)}` : '';
     const portrait    = portraitSrc
       ? `<img src="${_esc(portraitSrc)}" class="liga-player-portrait"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" loading="lazy">
+           onerror="if(!this.dataset.r){this.dataset.r='1';var el=this;setTimeout(function(){el.src=el.src.split('&_r=')[0]+'&_r='+Date.now()},4000)}else{this.style.display='none';this.nextElementSibling.style.display='flex'}" loading="lazy">
          <div class="liga-player-portrait liga-player-portrait-ph" style="display:none">${_esc(initials)}</div>`
       : `<div class="liga-player-portrait liga-player-portrait-ph">${_esc(initials)}</div>`;
 

@@ -521,7 +521,10 @@ class LigaService:
                 age = time.time() - cache_path.stat().st_mtime
                 # Re-Enrichment: a) Cache abgelaufen  b) Spieler mit TM-ID aber ohne Bild (API-Ratelimit beim letzten Lauf)
                 squad = cached.get("squad") or []
-                has_unenriched = any(p.get("_tmId") and not p.get("imageURL") for p in squad)
+                has_unenriched = any(
+                    p.get("_tmId") and not p.get("imageURL") and not p.get("_tmProfileMissing")
+                    for p in squad
+                )
                 if age > KADER_DISK_TTL or (has_unenriched and age > 120):
                     self._start_enrichment(team_id, team_name, cache_path)
                 return cached
@@ -671,8 +674,12 @@ class LigaService:
                             orig_name = (p.get("club") or {}).get("name", "")
                             if orig_name and len(orig_name) > len(merged_club.get("name", "")):
                                 merged_club["name"] = orig_name
+                            prof_img = prof.get("imageUrl") or prof.get("imageURL") or prof.get("image")
+                            if not prof_img:
+                                # Profil erfolgreich geladen, aber kein Foto hinterlegt → kein Retry nötig
+                                p["_tmProfileMissing"] = True
                             updates: dict[str, Any] = {
-                                "imageURL":       prof.get("imageUrl") or prof.get("imageURL") or prof.get("image"),
+                                "imageURL":       prof_img,
                                 "dateOfBirth":    prof.get("dateOfBirth") or p.get("dateOfBirth"),
                                 "nationality":    prof.get("citizenship") or prof.get("nationality") or p.get("nationality"),
                                 "height":         prof.get("height") or p.get("height"),
@@ -693,7 +700,11 @@ class LigaService:
                             p.update({k: v for k, v in updates.items() if v is not None})
                 except Exception:
                     pass
-                p["_profileLoaded"] = bool(p.get("_tmId") and p.get("imageURL"))
+                # _profileLoaded = False nur wenn _tmId gesetzt, API-Call fehlgeschlagen und kein _tmProfileMissing
+                # (→ wird beim nächsten Re-Enrichment-Zyklus erneut versucht)
+                p["_profileLoaded"] = not (
+                    p.get("_tmId") and not p.get("imageURL") and not p.get("_tmProfileMissing")
+                )
                 return p
 
             meta: dict[str, Any] = {
