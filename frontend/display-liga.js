@@ -853,14 +853,14 @@
       })
       .catch(() => _setSect('td-tm-sect', ''));
 
-    // ── 3. Transfers (Zugänge + Abgänge) ──────────────────────────────────────
+    // ── 3. Zugänge ────────────────────────────────────────────────
     const _transfersCtrl = new AbortController();
     const _transfersTid  = setTimeout(() => _transfersCtrl.abort(), 45_000);
     fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store', signal: _transfersCtrl.signal })
       .then(r => { clearTimeout(_transfersTid); return r.ok ? r.json() : null; })
       .then(tmTransfers => {
         if (!tmTransfers) {
-          _setSect('td-transfers-sect', '<div style="color:var(--muted);font-size:0.7rem;padding:4px 0;opacity:0.6;">⚠ Transfers nicht verfügbar</div>');
+          _setSect('td-transfers-sect', '');
           return;
         }
         const season = tmTransfers.season || '';
@@ -875,8 +875,7 @@
           const mv    = _fmtMv(p.market_value);
           const fee   = _fmtFee(p.fee, p.fee_text);
           const posDe = _posLabel(p.position);
-          const club  = p.from_club || p.to_club || '';
-          const arrow = p.from_club ? '←' : '→';
+          const club  = p.from_club || '';
           return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
             <div style="display:flex;align-items:baseline;gap:6px;">
               <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.date)}</span>
@@ -886,27 +885,21 @@
             <div style="display:flex;gap:6px;margin-top:1px;">
               <span style="min-width:52px;flex-shrink:0;"></span>
               <span style="color:var(--muted);font-size:0.65rem;flex:1;">
-                ${_esc(posDe)}${club ? ` · ${arrow} ${_esc(club)}` : ''}
+                ${_esc(posDe)}${club ? ` · ← ${_esc(club)}` : ''}
               </span>
               ${fee ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Ablöse">${_esc(fee)}</span>` : ''}
             </div>
           </div>`;
         }).join('');
-        const arrivals   = tmTransfers.arrivals   || [];
-        const departures = tmTransfers.departures || [];
-        const arrHtml = arrivals.length
-          ? _renderTransferRows(arrivals)
-          : '<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Zugänge</div>';
-        const depHtml = departures.length ? _renderTransferRows(departures) : '';
+        const arrivals = tmTransfers.arrivals || [];
+        if (!arrivals.length) { _setSect('td-transfers-sect', ''); return; }
         _setSect('td-transfers-sect', `<div class="liga-td-divider"></div>
           <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
-          <div>${arrHtml}</div>
-          ${depHtml ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">📤 Abgänge ${_esc(season)}</div><div>${depHtml}</div>` : ''}`);
+          <div>${_renderTransferRows(arrivals)}</div>`);
       })
-      .catch(err => {
+      .catch(() => {
         clearTimeout(_transfersTid);
-        const msg = err?.name === 'AbortError' ? '⏱ Timeout – TM.de antwortet nicht' : '⚠ Transfers nicht verfügbar';
-        _setSect('td-transfers-sect', `<div style="color:var(--muted);font-size:0.7rem;padding:4px 0;opacity:0.6;">${msg}</div>`);
+        _setSect('td-transfers-sect', '');
       });
   }
 

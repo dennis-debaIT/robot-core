@@ -46,6 +46,9 @@ class LigaService:
     _comp_teams_cache: dict[str, dict[str, Any]] = {}  # comp_code → {data:{team_id: squad}, ts}
     # Match-Detail-Cache: match_id → (timestamp, detail_dict)
     _detail_cache: dict[int, tuple[float, dict[str, Any]]] = {}
+    # Verhindert parallele Enrichment-Threads für denselben Verein
+    _enriching_teams:  set[str] = set()
+    _enriching_lock:   threading.Lock = threading.Lock()
 
     def __init__(self, api_key: str) -> None:
         self.api_key = api_key
@@ -520,11 +523,7 @@ class LigaService:
                 squad = cached.get("squad") or []
                 has_unenriched = any(p.get("_tmId") and not p.get("imageURL") for p in squad)
                 if age > KADER_DISK_TTL or (has_unenriched and age > 120):
-                    threading.Thread(
-                        target=self._enrich_and_cache_kader,
-                        args=(team_id, team_name, cache_path),
-                        daemon=True,
-                    ).start()
+                    self._start_enrichment(team_id, team_name, cache_path)
                 return cached
             except Exception:
                 pass
@@ -559,11 +558,7 @@ class LigaService:
             ]
 
         # Vollständige Anreicherung im Hintergrund — blockiert die Antwort nicht
-        threading.Thread(
-            target=self._enrich_and_cache_kader,
-            args=(team_id, team_name, cache_path),
-            daemon=True,
-        ).start()
+        self._start_enrichment(team_id, team_name, cache_path)
 
         return {
             "id":        (fdo_data or {}).get("id"),
@@ -573,6 +568,24 @@ class LigaService:
             "crest":     (fdo_data or {}).get("crest"),
             "squad":     players,
         }
+
+    def _start_enrichment(
+        self,
+        team_id: int | None,
+        team_name: str,
+        cache_path: pathlib.Path,
+    ) -> None:
+        """Startet Enrichment-Thread nur wenn noch keiner für diesen Verein läuft."""
+        key = team_name.lower().strip()
+        with LigaService._enriching_lock:
+            if key in LigaService._enriching_teams:
+                return
+            LigaService._enriching_teams.add(key)
+        threading.Thread(
+            target=self._enrich_and_cache_kader,
+            args=(team_id, team_name, cache_path),
+            daemon=True,
+        ).start()
 
     def _enrich_and_cache_kader(
         self,
@@ -686,6 +699,9 @@ class LigaService:
             cache_path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
         except Exception:
             pass
+        finally:
+            with LigaService._enriching_lock:
+                LigaService._enriching_teams.discard(team_name.lower().strip())
 
     # ── Cache invalidieren ────────────────────────────────────────
     @classmethod

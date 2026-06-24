@@ -463,9 +463,8 @@ class TransfermarktService:
                     return data
             except Exception:
                 pass
-        # 3. API-Abfrage — serialisiert + gedrosselt, kein Rate-Limit-Burst
+        # 3. API-Abfrage — serialisiert, kein Burst (Semaphore verhindert Parallelität)
         with _PROFILE_API_SEM:
-            time.sleep(0.35)
             data = _get(f"/players/{player_id}/profile")
         if data:
             _store(key, data)
