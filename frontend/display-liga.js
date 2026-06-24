@@ -704,17 +704,19 @@
     overlay.classList.add('active');
     overlay.innerHTML = '<div class="cal-placeholder">Lade Vereinsinfos…</div>';
 
-    const [focusRes, tmRes] = await Promise.allSettled([
+    const [focusRes, tmRes, playersRes] = await Promise.allSettled([
       fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
       fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+      fetch(`/liga/tm/players?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
     ]);
-    const focus     = focusRes.status === 'fulfilled' ? focusRes.value : null;
-    const tmProfile = tmRes.status   === 'fulfilled' ? tmRes.value   : null;
+    const focus     = focusRes.status   === 'fulfilled' ? focusRes.value   : null;
+    const tmProfile = tmRes.status      === 'fulfilled' ? tmRes.value      : null;
+    const tmPlayers = playersRes.status === 'fulfilled' ? playersRes.value : null;
 
-    _renderTeamDetail(teamId, teamName, crest, focus, tmProfile);
+    _renderTeamDetail(teamId, teamName, crest, focus, tmProfile, tmPlayers);
   }
 
-  function _renderTeamDetail(teamId, teamName, crest, focus, tmProfile) {
+  function _renderTeamDetail(teamId, teamName, crest, focus, tmProfile, tmPlayers) {
     const overlay = document.getElementById('cal-overlay');
     if (!overlay || !_teamViewOpen) return;
 
@@ -772,6 +774,32 @@
       if (tmRows.length) tmHtml = `<div class="liga-td-divider"></div>${tmRows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`;
     }
 
+    // Zugänge: Spieler die in der aktuellen Saison (ab Juli Vorjahr) kamen
+    let transfersHtml = '';
+    if (_hasPlus && tmPlayers?.players?.length) {
+      const now = new Date();
+      const cutoffYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+      const cutoff = `${cutoffYear}-07-01`;
+      const arrivals = (tmPlayers.players)
+        .filter(p => p.joinedOn && p.joinedOn >= cutoff && p.signedFrom)
+        .sort((a, b) => (b.joinedOn || '').localeCompare(a.joinedOn || ''));
+      if (arrivals.length) {
+        const rows = arrivals.map(p => {
+          const mv  = _hasPlus ? _fmtMv(p.marketValue) : '';
+          const pos = p.position ? `<span style="font-size:0.6rem;color:var(--muted);margin-left:4px;">${_esc(p.position)}</span>` : '';
+          return `<div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
+            <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.joinedOn)}</span>
+            <span style="font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.name)}${pos}</span>
+            <span style="color:var(--muted);font-size:0.65rem;flex-shrink:0;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${_esc(p.signedFrom)}">← ${_esc(p.signedFrom)}</span>
+            ${mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(mv)}</span>` : ''}
+          </div>`;
+        }).join('');
+        transfersHtml = `<div class="liga-td-divider"></div>
+          <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${cutoffYear}/${String(cutoffYear + 1).slice(2)}</div>
+          <div>${rows}</div>`;
+      }
+    }
+
     // Mini-Tabelle: 5 Einträge rund ums Team (nur wenn in gecachter Tabelle vorhanden, nur Plus)
     let miniTableHtml = '';
     if (_hasPlus) {
@@ -823,6 +851,7 @@
         ${nextHtml}
         ${miniTableHtml}
         ${tmHtml}
+        ${transfersHtml}
         <div class="liga-td-divider"></div>
         <button class="liga-kader-btn" onclick="window._liga._showKaderForTeam()">👥 Kader anzeigen</button>
       </div>`;
