@@ -533,9 +533,13 @@ class LigaService:
             return re.sub(r"[^a-z]", "", n)
 
         tm_svc    = TransfermarktService()
-        fdo_data  = self.get_team_squad(team_id) if team_id else None
+        # fd.o-Squad + TM-Kaderliste parallel abrufen
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as fx:
+            fdo_fut = fx.submit(self.get_team_squad, team_id) if team_id else None
+            tm_fut  = fx.submit(tm_svc.get_club_players, team_name)
+            fdo_data  = fdo_fut.result() if fdo_fut else None
+            tm_raw    = tm_fut.result() or []
         fdo_squad = (fdo_data or {}).get("squad") or []
-        tm_raw    = tm_svc.get_club_players(team_name) or []
 
         tm_by_name = {_norm(p.get("name", "")): p for p in tm_raw}
         players: list[dict[str, Any]]
@@ -603,10 +607,13 @@ class LigaService:
             return re.sub(r"[^a-z]", "", n)
 
         try:
-            tm_svc    = TransfermarktService()
-            fdo_data  = self.get_team_squad(team_id) if team_id else None
+            tm_svc = TransfermarktService()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as fx:
+                fdo_fut = fx.submit(self.get_team_squad, team_id) if team_id else None
+                tm_fut  = fx.submit(tm_svc.get_club_players, team_name)
+                fdo_data  = fdo_fut.result() if fdo_fut else None
+                tm_raw    = tm_fut.result() or []
             fdo_squad = (fdo_data or {}).get("squad") or []
-            tm_raw    = tm_svc.get_club_players(team_name) or []
 
             tm_by_name = {_norm(p.get("name", "")): p for p in tm_raw}
             players: list[dict[str, Any]]
