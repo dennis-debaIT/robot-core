@@ -21,7 +21,8 @@ STATE_TTL      = 55   # Normal-Zustand
 LIVE_STATE_TTL = 20   # Kürzere TTL wenn Live-Spiele laufen (Score-Updates ~alle 20s)
 STANDINGS_TTL = 300   # Tabelle ändert sich selten
 TEAMS_TTL     = 21600 # Team-Listen: 6h (ändert sich nur im Sommer)
-FOCUS_TTL     = 55    # Team-Fokus: gleich wie Live-Daten
+FOCUS_TTL     = 55    # Team-Fokus In-Memory-TTL
+FOCUS_DISK_TTL = 1800  # Team-Fokus Disk-Cache: 30 min
 SQUAD_TTL     = 3600  # Kader: 1h
 
 COMPETITION_NAMES: dict[str, str] = {
@@ -216,6 +217,19 @@ class LigaService:
         if cached and (now - cached["ts"]) < FOCUS_TTL:
             return cached["data"]
 
+        # Disk-Cache — überlebt Container-Neustarts
+        _focus_dir  = pathlib.Path("/data/tm_cache/focus")
+        _focus_path = _focus_dir / f"{team_id}.json"
+        if _focus_path.exists():
+            try:
+                disk = json.loads(_focus_path.read_text(encoding="utf-8"))
+                age  = now - disk.get("ts", 0)
+                if age < FOCUS_DISK_TTL:
+                    LigaService._focus_cache[key] = {"data": disk["data"], "ts": now}
+                    return disk["data"]
+            except Exception:
+                pass
+
         # Letzte 5 abgeschlossene Spiele (ohne Competition-Filter — Free Tier erlaubt BL2/BL3 nicht)
         last5_raw = self._fetch(
             f"/teams/{team_id}/matches?status=FINISHED&limit=5"
@@ -283,6 +297,14 @@ class LigaService:
             "next_match": next_match,
         }
         LigaService._focus_cache[key] = {"data": result, "ts": now}
+        try:
+            _focus_dir.mkdir(parents=True, exist_ok=True)
+            _focus_path.write_text(
+                json.dumps({"data": result, "ts": now}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        except Exception:
+            pass
         return result
 
     # ── Team-Kader (via /v4/teams/{id}) ──────────────────────────

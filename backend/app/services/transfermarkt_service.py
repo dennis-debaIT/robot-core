@@ -11,6 +11,7 @@ Cache-Strategie:
 """
 from __future__ import annotations
 
+import gzip
 import html.parser
 import json
 import pathlib
@@ -45,9 +46,14 @@ _TM_DE_HEADERS = {
 
 def _tmde_get(url: str, timeout: int = 30) -> str | None:
     try:
-        req = urllib.request.Request(url, headers=_TM_DE_HEADERS)
+        headers = {**_TM_DE_HEADERS, "Accept-Encoding": "gzip, deflate"}
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8", errors="replace")
+            raw = resp.read()
+            enc = resp.headers.get("Content-Encoding", "")
+            if "gzip" in enc:
+                raw = gzip.decompress(raw)
+            return raw.decode("utf-8", errors="replace")
     except Exception:
         return None
 
