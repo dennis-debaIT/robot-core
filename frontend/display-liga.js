@@ -815,12 +815,15 @@
       if (el) el.innerHTML = html;
     };
 
-    // Sofort aus JS-Cache rendern wenn < 5 min alt (erspart Wartezeit bei Rückkehr zum selben Verein)
+    // Stale-while-revalidate: gecachten HTML sofort zeigen — auch wenn abgelaufen.
+    // Fetch läuft immer, überschreibt nur wenn sich Inhalt ändert.
     const _now = Date.now();
-    const _cFocus   = _tdHtmlCache[`${teamId}:focus`];
-    const _cProfile = _tdHtmlCache[`${teamId}:profile`];
-    if (_cFocus   && _now - _cFocus.ts   < _TD_CACHE_TTL) _setSect('td-focus-sect', _cFocus.html);
-    if (_cProfile && _now - _cProfile.ts < _TD_CACHE_TTL) _setSect('td-tm-sect', _cProfile.html);
+    const _cFocus     = _tdHtmlCache[`${teamId}:focus`];
+    const _cProfile   = _tdHtmlCache[`${teamId}:profile`];
+    const _cTransfers = _tdHtmlCache[`${teamId}:transfers`];
+    if (_cFocus)     _setSect('td-focus-sect', _cFocus.html);
+    if (_cProfile)   _setSect('td-tm-sect', _cProfile.html);
+    if (_cTransfers) _setSect('td-transfers-sect', _cTransfers.html);
 
     // ── 1. Letzte Spiele + Nächstes Spiel ─────────────────────────────────────
     fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' })
@@ -910,14 +913,18 @@
           </div>`;
         }).join('');
         const arrivals = tmTransfers.arrivals || [];
-        if (!arrivals.length) { _setSect('td-transfers-sect', ''); return; }
-        _setSect('td-transfers-sect', `<div class="liga-td-divider"></div>
-          <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
-          <div>${_renderTransferRows(arrivals)}</div>`);
+        const transfersHtml = arrivals.length
+          ? `<div class="liga-td-divider"></div>
+             <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
+             <div>${_renderTransferRows(arrivals)}</div>`
+          : '';
+        _tdHtmlCache[`${teamId}:transfers`] = { html: transfersHtml, ts: Date.now() };
+        _setSect('td-transfers-sect', transfersHtml);
       })
       .catch(() => {
         clearTimeout(_transfersTid);
-        _setSect('td-transfers-sect', '');
+        // Bei Fehler: gecachten Stand behalten — nicht löschen
+        if (!_tdHtmlCache[`${teamId}:transfers`]) _setSect('td-transfers-sect', '');
       });
   }
 
