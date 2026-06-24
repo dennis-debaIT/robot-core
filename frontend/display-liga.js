@@ -357,7 +357,7 @@
     // Pollt /liga/kader-full solange der Kader offen und nicht vollständig angereichert ist.
     // Backend schreibt angereicherte Daten asynchron auf Disk — wir holen sie sobald fertig.
     // Delays reichen bis ~2 Min um auch große Kader (z.B. 26 Nationalspieler) abzudecken.
-    const delays = [1000, 2000, 4000, 8000, 15000, 30000, 60000, 120000];
+    const delays = [500, 1000, 2000, 3000, 5000, 8000, 12000, 20000, 30000, 60000, 120000];
     for (const delay of delays) {
       if (!_kaderOpen || _kaderTeamName !== teamName) return;
       if (_kaderPlayers.length > 0 && _kaderPlayers.every(p => p._profileLoaded)) return;

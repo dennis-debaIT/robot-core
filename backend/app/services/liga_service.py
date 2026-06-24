@@ -692,18 +692,36 @@ class LigaService:
                 p["_profileLoaded"] = bool(p.get("_tmId") and p.get("imageURL"))
                 return p
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
-                enriched = list(ex.map(_enrich, players))
-
-            result: dict[str, Any] = {
+            meta: dict[str, Any] = {
                 "id":        (fdo_data or {}).get("id"),
                 "name":      (fdo_data or {}).get("name") or team_name,
                 "shortName": (fdo_data or {}).get("shortName"),
                 "tla":       (fdo_data or {}).get("tla"),
                 "crest":     (fdo_data or {}).get("crest"),
-                "squad":     enriched,
             }
-            cache_path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+            enriched_map: dict[int, dict[str, Any]] = {}
+
+            def _write_partial() -> None:
+                squad = [enriched_map.get(i, players[i]) for i in range(len(players))]
+                try:
+                    cache_path.write_text(
+                        json.dumps({**meta, "squad": squad}, ensure_ascii=False),
+                        encoding="utf-8",
+                    )
+                except Exception:
+                    pass
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+                futures = {ex.submit(_enrich, p): i for i, p in enumerate(players)}
+                for fut in concurrent.futures.as_completed(futures):
+                    idx = futures[fut]
+                    try:
+                        enriched_map[idx] = fut.result()
+                    except Exception:
+                        enriched_map[idx] = players[idx]
+                    # Alle 2 fertigen Spieler progressiv in Cache schreiben
+                    if len(enriched_map) % 2 == 0 or len(enriched_map) == len(players):
+                        _write_partial()
         except Exception:
             pass
         finally:
