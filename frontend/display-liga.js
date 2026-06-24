@@ -22,6 +22,8 @@
   let _teamViewOpen    = false;  // Team-Detail-Overlay aktiv → Poll überspringt Center
   let _teamDetailId    = null;   // team_id der aktuell angezeigten Vereinsdetails
   let _teamDetailName  = null;   // Vereinsname für Team-Detail
+  const _tdHtmlCache   = {};     // `${teamId}:focus|profile` → { html, ts } — repeat visits instant
+  const _TD_CACHE_TTL  = 5 * 60_000; // 5 Minuten
   let _kaderTeamName   = null;   // null = Lieblingsverein, sonst überschriebener Name
   let _kaderTeamId     = null;   // football-data.org team_id für squad-Endpoint (Turnierteams)
   let _kaderTeamCrest  = null;   // Wappen des aktuellen Kader-Teams (fdo-Quelle)
@@ -806,6 +808,13 @@
       if (el) el.innerHTML = html;
     };
 
+    // Sofort aus JS-Cache rendern wenn < 5 min alt (erspart Wartezeit bei Rückkehr zum selben Verein)
+    const _now = Date.now();
+    const _cFocus   = _tdHtmlCache[`${teamId}:focus`];
+    const _cProfile = _tdHtmlCache[`${teamId}:profile`];
+    if (_cFocus   && _now - _cFocus.ts   < _TD_CACHE_TTL) _setSect('td-focus-sect', _cFocus.html);
+    if (_cProfile && _now - _cProfile.ts < _TD_CACHE_TTL) _setSect('td-tm-sect', _cProfile.html);
+
     // ── 1. Letzte Spiele + Nächstes Spiel ─────────────────────────────────────
     fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
@@ -827,9 +836,9 @@
           <div style="font-weight:600;">${_esc(next.home)} – ${_esc(next.away)}</div>
           <div style="color:var(--muted);font-size:0.72rem;">${_fmtDate(next.utcDate)} · ${_fmtTime(next.utcDate)}${next.competition ? ' · ' + _esc(next.competition) : ''}</div>
         </div>` : '';
-        _setSect('td-focus-sect',
-          (last5Html ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">Letzte Spiele</div><div>${last5Html}</div>` : '') +
-          nextHtml);
+        const focusHtml = (last5Html ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">Letzte Spiele</div><div>${last5Html}</div>` : '') + nextHtml;
+        _tdHtmlCache[`${teamId}:focus`] = { html: focusHtml, ts: Date.now() };
+        _setSect('td-focus-sect', focusHtml);
       })
       .catch(() => _setSect('td-focus-sect', ''));
 
@@ -847,9 +856,11 @@
           tmProfile.website   ? `🌐 ${_esc(tmProfile.website).replace(/^https?:\/\//, '').replace(/\/$/, '')}` : '',
           tmProfile.tel       ? `📞 ${_esc(tmProfile.tel)}` : '',
         ].filter(Boolean);
-        _setSect('td-tm-sect', rows.length
+        const profileHtml = rows.length
           ? `<div class="liga-td-divider"></div>${rows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`
-          : '');
+          : '';
+        _tdHtmlCache[`${teamId}:profile`] = { html: profileHtml, ts: Date.now() };
+        _setSect('td-tm-sect', profileHtml);
       })
       .catch(() => _setSect('td-tm-sect', ''));
 

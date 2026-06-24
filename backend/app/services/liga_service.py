@@ -667,6 +667,10 @@ class LigaService:
                                 if img:
                                     club = {**club, "image": img}
                             merged_club = {**(p.get("club") or {}), **{k: v for k, v in club.items() if v}}
+                            # Längeren Clubnamen behalten — TM gibt oft Kurznamen (z.B. "Freiburg" statt "SC Freiburg")
+                            orig_name = (p.get("club") or {}).get("name", "")
+                            if orig_name and len(orig_name) > len(merged_club.get("name", "")):
+                                merged_club["name"] = orig_name
                             updates: dict[str, Any] = {
                                 "imageURL":       prof.get("imageUrl") or prof.get("imageURL") or prof.get("image"),
                                 "dateOfBirth":    prof.get("dateOfBirth") or p.get("dateOfBirth"),
