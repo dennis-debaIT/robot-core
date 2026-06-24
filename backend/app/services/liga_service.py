@@ -491,6 +491,8 @@ class LigaService:
         if cache_path.exists():
             try:
                 cached = json.loads(cache_path.read_text(encoding="utf-8"))
+                if not (cached.get("squad") or []):
+                    raise ValueError("leerer Kader-Cache, Live-Fetch erzwingen")
                 age = time.time() - cache_path.stat().st_mtime
                 if age > KADER_DISK_TTL:
                     threading.Thread(

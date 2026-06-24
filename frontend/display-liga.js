@@ -502,7 +502,7 @@
     const contractUntilRaw = p.contractUntil || rawContract?.until || (typeof p.contract === 'string' ? p.contract : null);
     const contractUntilStr = contractUntilRaw ? _fmtDateISO(contractUntilRaw) : '';
     const contractOptDe   = _contractOptionDe(p.contractOption || rawContract?.option || '');
-    const signedFrom      = p.signedFrom || '';
+    const signedFrom      = _fmtSignedFrom(p.signedFrom);
 
     const footDe = p.foot === 'left' ? 'Links' : p.foot === 'right' ? 'Rechts' : p.foot === 'both' ? 'Beidfüßig' : '';
     const detailRows = [
@@ -558,6 +558,16 @@
     } catch { return null; }
   }
 
+  // Bereinigt TM "signedFrom"-Werte: ": Ablöse free transfer" → "Ablösefrei"
+  function _fmtSignedFrom(s) {
+    if (!s) return '';
+    s = String(s).trim();
+    if (s.startsWith(':')) s = s.slice(1).trim();
+    s = s.replace(/^Ablöse\s+/i, '').trim();
+    s = s.replace(/\bfree\s+transfer\b/gi, 'Ablösefrei').replace(/\bloan\b/gi, 'Leihe');
+    return s.trim();
+  }
+
   // TM liefert Datum manchmal als "Jan 5, 1990" — für _fmtDateISO in ISO wandeln
   function _normDate(s) {
     if (!s) return null;
@@ -587,8 +597,8 @@
       marketValue:    prof.marketValue    || p.marketValue,
       shirtNumber:    prof.shirtNumber    ?? p.shirtNumber   ?? null,
       position:       prof.position       || p.position,
-      // TM club.image → imageURL; fd.o imageURL (Vereins-Crest) nur erhalten wenn TM keins hat
-      club:           prof.club ? { ...(p.club || {}), ...prof.club, imageURL: prof.club.image || (p.club || {}).imageURL || null } : p.club,
+      // fd.o-Crest hat Vorrang wenn fd.o bereits geladen hat (verhindert Überschreiben durch veraltete TM-Vereinsdaten)
+      club:           prof.club ? { ...(p.club || {}), ...prof.club, imageURL: p._fdoPersonLoaded ? ((p.club || {}).imageURL || prof.club.image || null) : (prof.club.image || (p.club || {}).imageURL || null) } : p.club,
       currentTeamId:     p.currentTeamId     || null,
       currentTeamLeague: p.currentTeamLeague || null,
     });
