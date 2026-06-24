@@ -897,19 +897,15 @@
           const fee   = _fmtFee(p.fee, p.fee_text);
           const posDe = _posLabel(p.position);
           const club  = p.from_club || '';
-          return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
-            <div style="display:flex;align-items:baseline;gap:6px;">
-              <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.date)}</span>
-              <span style="font-weight:600;flex:1;">${_esc(p.name)}</span>
-              ${mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Marktwert">${_esc(mv)}</span>` : ''}
-            </div>
-            <div style="display:flex;gap:6px;margin-top:1px;">
-              <span style="min-width:52px;flex-shrink:0;"></span>
-              <span style="color:var(--muted);font-size:0.65rem;flex:1;">
-                ${_esc(posDe)}${club ? ` · ← ${_esc(club)}` : ''}
-              </span>
-              ${fee ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Ablöse">${_esc(fee)}</span>` : ''}
-            </div>
+          const meta  = [posDe, club ? `← ${_esc(club)}` : ''].filter(Boolean).join(' · ');
+          const right = fee ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(fee)}</span>`
+                       : mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(mv)}</span>` : '';
+          return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
+            <span style="color:var(--muted);min-width:50px;flex-shrink:0;">${_fmtDateISO(p.date)}</span>
+            <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              <span style="font-weight:600;">${_esc(p.name)}</span>${meta ? `<span style="color:var(--muted);"> · ${meta}</span>` : ''}
+            </span>
+            ${right}
           </div>`;
         }).join('');
         const arrivals = tmTransfers.arrivals || [];
