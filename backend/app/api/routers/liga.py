@@ -232,7 +232,7 @@ def clear_liga_cache() -> dict[str, Any]:
     """Löscht alle TM-Disk-Caches (Kader, Spieler-Profile, Suchen) + In-Memory-Caches."""
     import shutil
     removed: list[str] = []
-    for sub in ("kader", "players", "searches", "clubs", "persons", "player_transfers", "tmde"):
+    for sub in ("kader", "players", "searches", "clubs", "persons", "player_transfers"):
         d = pathlib.Path(f"/data/tm_cache/{sub}")
         if d.exists():
             try:

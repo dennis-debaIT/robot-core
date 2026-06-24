@@ -43,10 +43,10 @@ _TM_DE_HEADERS = {
 }
 
 
-def _tmde_get(url: str) -> str | None:
+def _tmde_get(url: str, timeout: int = 30) -> str | None:
     try:
         req = urllib.request.Request(url, headers=_TM_DE_HEADERS)
-        with urllib.request.urlopen(req, timeout=14) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.read().decode("utf-8", errors="replace")
     except Exception:
         return None
@@ -565,7 +565,14 @@ class TransfermarktService:
         # Kaderliste als Lookup (name → Spielerdaten) — bereits disk-gecacht
         kader_by_name = {p["name"]: p for p in (self.get_club_players(team_name) or [])}
 
-        for season in sorted(parser.seasons, reverse=True):
+        def _season_year(s: str) -> int:
+            m = re.match(r"(\d{2})/", s)
+            if not m:
+                return 0
+            yy = int(m.group(1))
+            return (2000 + yy) if yy < 50 else (1900 + yy)
+
+        for season in sorted(parser.seasons, key=_season_year, reverse=True):
             data = parser.seasons[season]
             if not (data["arrivals"] or data["departures"]):
                 continue
