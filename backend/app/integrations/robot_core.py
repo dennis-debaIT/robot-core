@@ -74,6 +74,13 @@ class RobotCore:
         r"\b(?:was\s+wei(?:ß|ss)t\s+du\s+über|erzähl(?:e)?\s+mir\s+etwas\s+über)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]*)",
         re.IGNORECASE,
     )
+    SHOPPING_COMMAND_PATTERN = re.compile(
+        r"\b(?:füge?|pack[e]?|schreib[e]?|notier[e]?|setz[e]?|stell[e]?|tue?)\b.{0,50}\b(?:einkaufsliste|einkaufszettel)\b"
+        r"|\b(?:einkaufsliste|einkaufszettel)\b.{0,50}\b(?:hinzu|dazu|ergänz[e]?|hinzufüg[e]?)\b"
+        r"|\b(?:lösch[e]?|entfern[e]?|streiche?|nimm\s+weg|streich\s+durch)\b.{0,50}\b(?:einkaufsliste|einkaufszettel)\b"
+        r"|\b\w.{1,60}\b(?:auf\s+(?:die\s+)?einkaufsliste|zur?\s+(?:die?\s+)?einkaufsliste)\b",
+        re.IGNORECASE | re.DOTALL,
+    )
 
     def __init__(self) -> None:
         self.settings = SettingsService()
@@ -1461,6 +1468,22 @@ class RobotCore:
                 "status": self.get_status(),
             }
 
+        shopping_reply = self._try_shopping_command(captured)
+        if shopping_reply:
+            self._learn_from_interaction(person_name, captured)
+            self._record_direct_chat_input(captured, person_name)
+            reply = self._sanitize_reply_text(shopping_reply)
+            self._finalize_chat(reply, person_name)
+            self._store_reply_text(reply)
+            return {
+                "reply": reply,
+                "llm_provider": "template",
+                "used_fallback": False,
+                "decision": {"should_respond": True, "response_reason": "shopping_command", "candidates": []},
+                "proposed_memories": [],
+                "status": self.get_status(),
+            }
+
         # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
         captured, payload, proposed_memories, decision, search_result = self._prepare_chat(message, person_name)
         template_text, template_search_result = self._try_template_search(captured)
@@ -1588,8 +1611,13 @@ class RobotCore:
             template_text = robot_reply
             reason = "robot_command"
         else:
-            template_text, template_search_result = self._try_template_search(captured)
-            reason = "template" if template_text else "llm"
+            shopping_reply = self._try_shopping_command(captured)
+            if shopping_reply:
+                template_text = shopping_reply
+                reason = "shopping_command"
+            else:
+                template_text, template_search_result = self._try_template_search(captured)
+                reason = "template" if template_text else "llm"
 
         if not template_text:
             # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
@@ -2946,6 +2974,80 @@ class RobotCore:
             with get_connection() as conn:
                 write_state(conn, "display_intent", _json.dumps(
                     {"mode": "notes", "expires_at": expires}
+                ))
+        except Exception:
+            pass
+
+    @staticmethod
+    def _extract_shopping_item(text: str) -> tuple[str, str] | None:
+        """Gibt (action, item) zurück — action = 'add' | 'remove'. None wenn kein Match."""
+        t = text.strip()
+
+        # ── Löschen ──────────────────────────────────────────────────────────
+        for pat in [
+            r"\b(?:lösch[e]?|entfern[e]?|streiche?|nimm\s+weg|streich\s+durch)\s+(.+?)\s+(?:von\s+(?:der\s+)?einkaufsliste|von\s+(?:dem\s+)?einkaufszettel|aus\s+(?:der\s+)?einkaufsliste)\b",
+            r"\b(?:lösch[e]?|entfern[e]?|streiche?)\s+(.+?)\s+(?:von|aus)\s+(?:der\s+)?einkaufs",
+        ]:
+            m = re.search(pat, t, re.IGNORECASE)
+            if m:
+                item = re.sub(r"\s+(?:bitte|noch)\s*$", "", m.group(1), flags=re.IGNORECASE).strip()
+                if item:
+                    return "remove", item
+
+        # ── Hinzufügen ────────────────────────────────────────────────────────
+        for pat in [
+            # "füge ITEM zur Einkaufsliste hinzu"
+            r"\b(?:füge?|pack[e]?|schreib[e]?|notier[e]?|tue?)\s+(.+?)\s+(?:auf\s+(?:den?\s+)?einkaufszettel|zur?\s+(?:die?\s+)?einkaufsliste)\b",
+            # "setze/stelle ITEM auf die Einkaufsliste"
+            r"\b(?:setz[e]?|stell[e]?)\s+(.+?)\s+auf\s+(?:die\s+)?einkaufsliste\b",
+            # "füge zur Einkaufsliste ITEM hinzu"
+            r"\b(?:füge?|pack[e]?)\s+(?:zur?\s+)?(?:die\s+)?einkaufsliste\s+(.+?)\s*(?:hinzu|dazu)?\s*$",
+            # "ITEM auf die Einkaufsliste"
+            r"^(.+?)\s+(?:auf\s+(?:die\s+)?einkaufsliste|zur?\s+(?:die?\s+)?einkaufsliste)\b",
+            # "Einkaufsliste: ITEM" oder trailing nach "Einkaufsliste"
+            r"\beinkaufsliste[:\s]+(.+)",
+        ]:
+            m = re.search(pat, t, re.IGNORECASE)
+            if m:
+                item = re.sub(r"\s+(?:hinzu|dazu|bitte|noch)\s*$", "", m.group(1), flags=re.IGNORECASE).strip()
+                if item and len(item) > 1:
+                    return "add", item
+
+        return None
+
+    def _try_shopping_command(self, text: str) -> str | None:
+        if not self.SHOPPING_COMMAND_PATTERN.search(text):
+            return None
+        result = self._extract_shopping_item(text)
+        if not result:
+            return None
+        action, item = result
+        from app.services.sync_service import create_item, list_items, delete_item
+        if action == "add":
+            create_item(item)
+            self._set_shopping_display_intent()
+            return f'"{item}" wurde zur Einkaufsliste hinzugefügt.'
+        # remove: case-insensitive substring match
+        items = list_items() or []
+        item_lower = item.lower()
+        matches = [i for i in items if item_lower in i["text"].lower()]
+        if not matches:
+            return f'"{item}" habe ich nicht auf der Einkaufsliste gefunden.'
+        for m in matches:
+            delete_item(m["id"])
+        self._set_shopping_display_intent()
+        if len(matches) == 1:
+            return f'"{matches[0]["text"]}" wurde von der Einkaufsliste entfernt.'
+        return f'{len(matches)} Einträge mit "{item}" wurden von der Einkaufsliste entfernt.'
+
+    def _set_shopping_display_intent(self) -> None:
+        from datetime import timedelta
+        import json as _json
+        expires = (datetime.now(timezone.utc) + timedelta(seconds=12)).isoformat()
+        try:
+            with get_connection() as conn:
+                write_state(conn, "display_intent", _json.dumps(
+                    {"mode": "shopping", "expires_at": expires}
                 ))
         except Exception:
             pass

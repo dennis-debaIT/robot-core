@@ -2599,6 +2599,8 @@
       applyConfigVersion(state.config_version);
       if (state.mode === 'notes') {
         if (!document.getElementById('notes-overlay')) toggleNotesOverlay();
+      } else if (state.mode === 'shopping') {
+        if (_navMode !== 'sync' && _enabledModules.sync) navTo('sync');
       } else if (state.mode === 'lights') {
         // Sprachbefehl hat Licht gesteuert → Lichtansicht zeigen
         if (_navMode !== 'lights') {
