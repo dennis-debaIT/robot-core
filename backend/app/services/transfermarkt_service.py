@@ -36,6 +36,9 @@ _CLUB_CACHE_DIR      = pathlib.Path("/data/tm_cache/clubs")
 _TRANSFERS_CACHE_DIR = pathlib.Path("/data/tm_cache/player_transfers")
 _TMDE_CACHE_DIR      = pathlib.Path("/data/tm_cache/tmde")
 
+# Max. 1 gleichzeitiger Profil-API-Call — verhindert Rate-Limiting bei Kader-Anreicherung
+_PROFILE_API_SEM = threading.BoundedSemaphore(1)
+
 _TM_DE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Accept-Language": "de-DE,de;q=0.9",
@@ -460,8 +463,10 @@ class TransfermarktService:
                     return data
             except Exception:
                 pass
-        # 3. API-Abfrage
-        data = _get(f"/players/{player_id}/profile")
+        # 3. API-Abfrage — serialisiert + gedrosselt, kein Rate-Limit-Burst
+        with _PROFILE_API_SEM:
+            time.sleep(0.35)
+            data = _get(f"/players/{player_id}/profile")
         if data:
             _store(key, data)
             try:
