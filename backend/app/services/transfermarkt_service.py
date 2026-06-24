@@ -28,9 +28,10 @@ _CLUB_CHECK_INTERVAL = 24 * 3_600  # Vereinsdaten: nach 24h im Hintergrund prüf
 
 _cache: dict[str, dict[str, Any]] = {}
 
-_PLAYER_CACHE_DIR  = pathlib.Path("/data/tm_cache/players")
-_SEARCH_CACHE_DIR  = pathlib.Path("/data/tm_cache/searches")
-_CLUB_CACHE_DIR    = pathlib.Path("/data/tm_cache/clubs")
+_PLAYER_CACHE_DIR    = pathlib.Path("/data/tm_cache/players")
+_SEARCH_CACHE_DIR    = pathlib.Path("/data/tm_cache/searches")
+_CLUB_CACHE_DIR      = pathlib.Path("/data/tm_cache/clubs")
+_TRANSFERS_CACHE_DIR = pathlib.Path("/data/tm_cache/player_transfers")
 
 
 def _cached(key: str, ttl: float) -> Any | None:
@@ -325,3 +326,103 @@ class TransfermarktService:
             except Exception:
                 pass
         return data
+
+    def get_player_transfers(self, player_id: str) -> list[dict] | None:
+        """Transferhistorie eines Spielers — 7-Tage Disk-Cache."""
+        key = f"tm_ptransfers:{player_id}"
+        cached = _cached(key, 7 * 86_400)
+        if cached is not None:
+            return cached
+        cache_path = _TRANSFERS_CACHE_DIR / f"{player_id}.json"
+        if cache_path.exists():
+            try:
+                if time.time() - cache_path.stat().st_mtime < 7 * 86_400:
+                    data = json.loads(cache_path.read_text(encoding="utf-8"))
+                    _store(key, data)
+                    return data
+            except Exception:
+                pass
+        raw = _get(f"/players/{player_id}/transfers")
+        transfers: list[dict] = (raw or {}).get("transfers") or []
+        if raw is not None:
+            _store(key, transfers)
+            try:
+                _TRANSFERS_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                cache_path.write_text(json.dumps(transfers, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                pass
+        return transfers or None
+
+    def get_club_transfers(self, team_name: str) -> dict | None:
+        """Zugänge + Abgänge der aktuellen Saison mit Ablösesummen.
+
+        Stale-while-revalidate: gecachtes Ergebnis wird sofort serviert,
+        Refresh läuft im Hintergrund. Erste Abfrage ist synchron (~8-15s
+        für einen vollen Kader), danach immer aus Disk-Cache (<100ms).
+        """
+        import datetime as _dt
+        tm_id = self.search_club_id(team_name)
+        if not tm_id:
+            return None
+
+        cache_path = _CLUB_CACHE_DIR / f"{tm_id}_transfers.json"
+        disk = _club_disk_read(cache_path)
+        if disk:
+            age = time.time() - disk.get("ts", 0)
+            result = disk["data"]
+            if age < _CLUB_CHECK_INTERVAL:
+                return result
+            def _bg(tid: str, tname: str, path: pathlib.Path) -> None:
+                fresh = self._build_club_transfers(tid, tname)
+                if fresh:
+                    _club_disk_write(path, fresh, None)
+            threading.Thread(target=_bg, args=(tm_id, team_name, cache_path), daemon=True).start()
+            return result
+
+        result = self._build_club_transfers(tm_id, team_name)
+        if result:
+            _club_disk_write(cache_path, result, None)
+        return result
+
+    def _build_club_transfers(self, tm_id: str, team_name: str) -> dict | None:
+        """Interne Methode: baut Zugänge-Liste mit echten Ablösen auf."""
+        import datetime as _dt
+        now_dt = _dt.datetime.now(_dt.timezone.utc)
+        cutoff_year = now_dt.year if now_dt.month >= 7 else now_dt.year - 1
+        cutoff_date = f"{cutoff_year}-07-01"
+
+        players = self.get_club_players(team_name) or []
+        recent = [p for p in players if (p.get("joinedOn") or "") >= cutoff_date]
+
+        arrivals: list[dict] = []
+        for p in sorted(recent, key=lambda x: x.get("joinedOn") or "", reverse=True):
+            player_id = str(p.get("id") or "")
+            if not player_id:
+                continue
+
+            transfers = self.get_player_transfers(player_id) or []
+
+            fee: int | None = None
+            mv_at_transfer: int | None = None
+            from_club: str | None = None
+
+            for t in transfers:
+                if str((t.get("clubTo") or {}).get("id", "")) == tm_id:
+                    t_date = t.get("date") or ""
+                    if t_date >= cutoff_date:
+                        fee = t.get("fee")
+                        mv_at_transfer = t.get("marketValue")
+                        from_club = (t.get("clubFrom") or {}).get("name")
+                        break
+
+            arrivals.append({
+                "id":              player_id,
+                "name":            p.get("name"),
+                "position":        p.get("position"),
+                "date":            p.get("joinedOn"),
+                "from_club":       from_club or p.get("signedFrom") or None,
+                "market_value":    p.get("marketValue"),
+                "fee":             fee,
+            })
+
+        return {"arrivals": arrivals, "departures": [], "season": f"{cutoff_year}/{str(cutoff_year + 1)[-2:]}"}

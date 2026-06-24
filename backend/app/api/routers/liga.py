@@ -102,6 +102,18 @@ def get_person_profile(person_id: int) -> dict[str, Any]:
     return data
 
 
+@router.get("/liga/tm/club-transfers")
+def get_club_transfers(team_name: str = Query("")) -> dict[str, Any]:
+    """Zugänge + Abgänge der laufenden Saison mit echten Ablösesummen."""
+    from app.services.transfermarkt_service import TransfermarktService
+    if not team_name.strip():
+        raise HTTPException(400, "team_name fehlt")
+    result = TransfermarktService().get_club_transfers(team_name.strip())
+    if result is None:
+        raise HTTPException(404, "Verein nicht gefunden")
+    return result
+
+
 @router.get("/liga/tm/player-search")
 def search_tm_player(name: str = Query("")) -> dict[str, Any]:
     """Spieler per Name auf TM suchen — liefert tm_id, marketValue, club, position, age, nationalities."""
@@ -220,7 +232,7 @@ def clear_liga_cache() -> dict[str, Any]:
     """Löscht alle TM-Disk-Caches (Kader, Spieler-Profile, Suchen) + In-Memory-Caches."""
     import shutil
     removed: list[str] = []
-    for sub in ("kader", "players", "searches", "clubs", "persons"):
+    for sub in ("kader", "players", "searches", "clubs", "persons", "player_transfers"):
         d = pathlib.Path(f"/data/tm_cache/{sub}")
         if d.exists():
             try:
