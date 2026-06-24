@@ -535,30 +535,124 @@ class TransfermarktService:
             pass
         return slug, de_id
 
-    def get_club_transfers(self, team_name: str) -> dict | None:
-        """Zugänge + Abgänge via TM.de /alletransfers/ — stale-while-revalidate.
+    def _get_club_transfers_by_id(self, tm_id: str) -> dict | None:
+        """Transfers via Community API (fly.io) — kein TM.de-Scraping, kein IP-Block."""
+        data = _get(f"/clubs/{tm_id}/transfers")
+        if not data:
+            return None
+        raw_t = data.get("transfers") or {}
+        raw_arr = raw_t.get("arrivals") or []
+        raw_dep = raw_t.get("departures") or []
+        if not (raw_arr or raw_dep):
+            return None
 
-        Erstes Laden: ~3-5s (2× TM.de HTTP). Kein extra API-Call pro Spieler —
-        Marktwert + Position kommen aus der gecachten Kaderliste.
+        def _season_year(s: str) -> int:
+            m = re.match(r"(\d{2})/", str(s))
+            if not m:
+                return 0
+            yy = int(m.group(1))
+            return (2000 + yy) if yy < 50 else (1900 + yy)
+
+        seasons = {p.get("season") for p in raw_arr + raw_dep if p.get("season")}
+        if not seasons:
+            return None
+        season = max(seasons, key=_season_year)
+
+        def _pos(p: dict) -> str | None:
+            pos = p.get("position")
+            if not pos:
+                return None
+            if isinstance(pos, str):
+                return pos
+            return pos.get("main") or pos.get("name") or None
+
+        def _fee(p: dict) -> str | None:
+            fee = p.get("fee") or p.get("transferFee") or ""
+            s = str(fee).strip()
+            return s if s and s not in ("-", "?") else None
+
+        def _club_name(p: dict, key: str) -> str | None:
+            club = p.get(key) or {}
+            return (club.get("clubName") or club.get("name") or None) if isinstance(club, dict) else str(club) or None
+
+        arrivals = [
+            {
+                "name":         p.get("name") or "",
+                "position":     _pos(p),
+                "from_club":    _club_name(p, "from"),
+                "to_club":      None,
+                "market_value": p.get("marketValue"),
+                "fee":          None,
+                "fee_text":     _fee(p),
+            }
+            for p in raw_arr if p.get("season") == season
+        ]
+        departures = [
+            {
+                "name":         p.get("name") or "",
+                "position":     _pos(p),
+                "from_club":    None,
+                "to_club":      _club_name(p, "to"),
+                "market_value": p.get("marketValue"),
+                "fee":          None,
+                "fee_text":     _fee(p),
+            }
+            for p in raw_dep if p.get("season") == season
+        ]
+        if not (arrivals or departures):
+            return None
+        return {"season": season, "arrivals": arrivals, "departures": departures}
+
+    def get_club_transfers(self, team_name: str) -> dict | None:
+        """Zugänge + Abgänge — Community API (fly.io) mit TM.de-Scraping als Fallback.
+
+        Community API nutzt fly.io → kein erika-IP-Block.
+        TM.de-Scraping greift nur wenn Community API nichts liefert (24h Disk-Cache).
         """
+        def _season_year(s: str) -> int:
+            m = re.match(r"(\d{2})/", str(s))
+            if not m:
+                return 0
+            yy = int(m.group(1))
+            return (2000 + yy) if yy < 50 else (1900 + yy)
+
+        # ── Primär: Community API ──────────────────────────────────────────────
+        tm_id = self.search_club_id(team_name)
+        if tm_id:
+            cache_path = _CLUB_CACHE_DIR / f"transfers_{tm_id}.json"
+            disk = _club_disk_read(cache_path)
+            if disk:
+                age = time.time() - disk.get("ts", 0)
+                if age < _CLUB_CHECK_INTERVAL:
+                    return disk["data"]
+                def _bg_api(tid: str, p: pathlib.Path) -> None:
+                    fresh = self._get_club_transfers_by_id(tid)
+                    if fresh:
+                        _club_disk_write(p, fresh, None)
+                threading.Thread(target=_bg_api, args=(tm_id, cache_path), daemon=True).start()
+                return disk["data"]
+            result = self._get_club_transfers_by_id(tm_id)
+            if result:
+                _club_disk_write(cache_path, result, None)
+                return result
+
+        # ── Fallback: TM.de Scraping ───────────────────────────────────────────
         tmde = self._tmde_search_club(team_name)
         if not tmde:
             return None
         slug, de_id = tmde
-
         cache_path = _TMDE_CACHE_DIR / f"transfers_{de_id}.json"
         disk = _club_disk_read(cache_path)
         if disk:
             age = time.time() - disk.get("ts", 0)
             if age < _CLUB_CHECK_INTERVAL:
                 return disk["data"]
-            def _bg(s: str, d: str, tname: str, p: pathlib.Path) -> None:
+            def _bg_tmde(s: str, d: str, tname: str, p: pathlib.Path) -> None:
                 fresh = self._scrape_club_transfers(s, d, tname)
                 if fresh:
                     _club_disk_write(p, fresh, None)
-            threading.Thread(target=_bg, args=(slug, de_id, team_name, cache_path), daemon=True).start()
+            threading.Thread(target=_bg_tmde, args=(slug, de_id, team_name, cache_path), daemon=True).start()
             return disk["data"]
-
         result = self._scrape_club_transfers(slug, de_id, team_name)
         if result:
             _club_disk_write(cache_path, result, None)
