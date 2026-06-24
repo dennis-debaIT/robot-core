@@ -501,7 +501,8 @@ class TransfermarktService:
     def get_club_transfers(self, team_name: str) -> dict | None:
         """Zugänge + Abgänge via TM.de /alletransfers/ — stale-while-revalidate.
 
-        Erstes Laden: ~3-5s (TM.de HTML + Spieler-Profile). Danach aus Cache.
+        Erstes Laden: ~3-5s (2× TM.de HTTP). Kein extra API-Call pro Spieler —
+        Marktwert + Position kommen aus der gecachten Kaderliste.
         """
         tmde = self._tmde_search_club(team_name)
         if not tmde:
@@ -514,20 +515,24 @@ class TransfermarktService:
             age = time.time() - disk.get("ts", 0)
             if age < _CLUB_CHECK_INTERVAL:
                 return disk["data"]
-            def _bg(s: str, d: str, p: pathlib.Path) -> None:
-                fresh = self._scrape_club_transfers(s, d)
+            def _bg(s: str, d: str, tname: str, p: pathlib.Path) -> None:
+                fresh = self._scrape_club_transfers(s, d, tname)
                 if fresh:
                     _club_disk_write(p, fresh, None)
-            threading.Thread(target=_bg, args=(slug, de_id, cache_path), daemon=True).start()
+            threading.Thread(target=_bg, args=(slug, de_id, team_name, cache_path), daemon=True).start()
             return disk["data"]
 
-        result = self._scrape_club_transfers(slug, de_id)
+        result = self._scrape_club_transfers(slug, de_id, team_name)
         if result:
             _club_disk_write(cache_path, result, None)
         return result
 
-    def _scrape_club_transfers(self, slug: str, de_id: str) -> dict | None:
-        """Scrapt TM.de /alletransfers/, gibt aktuelle Saison zurück."""
+    def _scrape_club_transfers(self, slug: str, de_id: str, team_name: str) -> dict | None:
+        """Scrapt TM.de /alletransfers/, gibt aktuelle Saison zurück.
+
+        Enrichment ohne extra API-Calls: Zugänge werden per Name mit der
+        gecachten Kaderliste abgeglichen (Position + Marktwert).
+        """
         page = _tmde_get(f"https://www.transfermarkt.de/{slug}/alletransfers/verein/{de_id}")
         if not page:
             return None
@@ -535,28 +540,39 @@ class TransfermarktService:
         parser.feed(page)
         if not parser.seasons:
             return None
-        # Neueste Saison mit Daten nehmen
+
+        # Kaderliste als Lookup (name → Spielerdaten) — bereits disk-gecacht
+        kader_by_name = {p["name"]: p for p in (self.get_club_players(team_name) or [])}
+
         for season in sorted(parser.seasons, reverse=True):
             data = parser.seasons[season]
-            if data["arrivals"] or data["departures"]:
-                arrivals   = self._enrich_transfers(data["arrivals"],   direction="arrival")
-                departures = self._enrich_transfers(data["departures"], direction="departure")
-                return {"season": season, "arrivals": arrivals, "departures": departures}
-        return None
+            if not (data["arrivals"] or data["departures"]):
+                continue
 
-    def _enrich_transfers(self, players: list[dict], direction: str) -> list[dict]:
-        """Ergänzt market_value + position aus Community-API (Disk-gecacht)."""
-        result = []
-        for p in players:
-            pid = p.get("player_id")
-            profile = self.get_player_profile(pid) if pid else None
-            result.append({
-                "name":         p["name"],
-                "position":     (profile or {}).get("position") or None,
-                "from_club":    p["club"] if direction == "arrival"   else None,
-                "to_club":      p["club"] if direction == "departure" else None,
-                "market_value": (profile or {}).get("marketValue") or None,
-                "fee":          p["fee"],
-                "fee_text":     p["fee_text"],
-            })
-        return result
+            arrivals = []
+            for p in data["arrivals"]:
+                kp = kader_by_name.get(p["name"]) or {}
+                arrivals.append({
+                    "name":         p["name"],
+                    "position":     kp.get("position"),
+                    "from_club":    p["club"],
+                    "to_club":      None,
+                    "market_value": kp.get("marketValue"),
+                    "fee":          p["fee"],
+                    "fee_text":     p["fee_text"],
+                })
+
+            departures = []
+            for p in data["departures"]:
+                departures.append({
+                    "name":         p["name"],
+                    "position":     None,
+                    "from_club":    None,
+                    "to_club":      p["club"],
+                    "market_value": None,
+                    "fee":          p["fee"],
+                    "fee_text":     p["fee_text"],
+                })
+
+            return {"season": season, "arrivals": arrivals, "departures": departures}
+        return None
