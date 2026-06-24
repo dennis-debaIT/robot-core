@@ -494,7 +494,10 @@ class LigaService:
                 if not (cached.get("squad") or []):
                     raise ValueError("leerer Kader-Cache, Live-Fetch erzwingen")
                 age = time.time() - cache_path.stat().st_mtime
-                if age > KADER_DISK_TTL:
+                # Re-Enrichment: a) Cache abgelaufen  b) Spieler mit TM-ID aber ohne Bild (API-Ratelimit beim letzten Lauf)
+                squad = cached.get("squad") or []
+                has_unenriched = any(p.get("_tmId") and not p.get("imageURL") for p in squad)
+                if age > KADER_DISK_TTL or (has_unenriched and age > 120):
                     threading.Thread(
                         target=self._enrich_and_cache_kader,
                         args=(team_id, team_name, cache_path),
@@ -644,10 +647,10 @@ class LigaService:
                             p.update({k: v for k, v in updates.items() if v is not None})
                 except Exception:
                     pass
-                p["_profileLoaded"] = p.get("_tmId") is not None
+                p["_profileLoaded"] = bool(p.get("_tmId") and p.get("imageURL"))
                 return p
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
                 enriched = list(ex.map(_enrich, players))
 
             result: dict[str, Any] = {
