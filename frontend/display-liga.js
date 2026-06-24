@@ -775,23 +775,40 @@
     }
 
     // Zugänge: Spieler die in der aktuellen Saison (ab Juli Vorjahr) kamen
+    const _normClub = n => ({
+      'FC Bayern Munich':            'FC Bayern München',
+      'Borussia M\'gladbach':        'Borussia Mönchengladbach',
+      '1. FC Cologne':               '1. FC Köln',
+      'Eintracht Frankfurt':         'Eintracht Frankfurt',
+      'SC Freiburg':                 'SC Freiburg',
+      'Bayer Leverkusen':            'Bayer 04 Leverkusen',
+      'RB Leipzig':                  'RB Leipzig',
+    })[n] || n;
+
     let transfersHtml = '';
     if (_hasPlus && tmPlayers?.players?.length) {
       const now = new Date();
       const cutoffYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
       const cutoff = `${cutoffYear}-07-01`;
+      const _isValidFrom = s => s && !s.startsWith(':');
       const arrivals = (tmPlayers.players)
-        .filter(p => p.joinedOn && p.joinedOn >= cutoff && p.signedFrom)
+        .filter(p => p.joinedOn && p.joinedOn >= cutoff && _isValidFrom(p.signedFrom))
         .sort((a, b) => (b.joinedOn || '').localeCompare(a.joinedOn || ''));
       if (arrivals.length) {
         const rows = arrivals.map(p => {
-          const mv  = _hasPlus ? _fmtMv(p.marketValue) : '';
-          const pos = p.position ? `<span style="font-size:0.6rem;color:var(--muted);margin-left:4px;">${_esc(p.position)}</span>` : '';
-          return `<div style="display:flex;align-items:baseline;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
-            <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.joinedOn)}</span>
-            <span style="font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(p.name)}${pos}</span>
-            <span style="color:var(--muted);font-size:0.65rem;flex-shrink:0;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${_esc(p.signedFrom)}">← ${_esc(p.signedFrom)}</span>
-            ${mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(mv)}</span>` : ''}
+          const mv      = _fmtMv(p.marketValue);
+          const posDe   = _posLabel(p.position);
+          const clubDe  = _normClub(p.signedFrom || '');
+          return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
+            <div style="display:flex;align-items:baseline;gap:6px;">
+              <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.joinedOn)}</span>
+              <span style="font-weight:600;flex:1;">${_esc(p.name)}</span>
+              ${mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(mv)}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;margin-top:1px;">
+              <span style="min-width:52px;flex-shrink:0;"></span>
+              <span style="color:var(--muted);font-size:0.65rem;">${_esc(posDe)} · ← ${_esc(clubDe)}</span>
+            </div>
           </div>`;
         }).join('');
         transfersHtml = `<div class="liga-td-divider"></div>
