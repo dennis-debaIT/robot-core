@@ -776,29 +776,38 @@
 
     // Zugänge: Spieler die in der aktuellen Saison (ab Juli Vorjahr) kamen
     const _normClub = n => ({
-      'FC Bayern Munich':            'FC Bayern München',
-      'Borussia M\'gladbach':        'Borussia Mönchengladbach',
-      '1. FC Cologne':               '1. FC Köln',
-      'Eintracht Frankfurt':         'Eintracht Frankfurt',
-      'SC Freiburg':                 'SC Freiburg',
-      'Bayer Leverkusen':            'Bayer 04 Leverkusen',
-      'RB Leipzig':                  'RB Leipzig',
+      'FC Bayern Munich':   'FC Bayern München',
+      'Borussia M\'gladbach': 'Borussia Mönchengladbach',
+      '1. FC Cologne':      '1. FC Köln',
+      'Bayer Leverkusen':   'Bayer 04 Leverkusen',
     })[n] || n;
+
+    // signedFrom-Format: "Vereinsname" oder "Vereinsname: Ablöse €X" oder ": Ablöse €X"
+    const _parseSignedFrom = raw => {
+      if (!raw) return { club: null, fee: null };
+      const ci = raw.indexOf(':');
+      if (ci !== -1) {
+        return { club: _normClub(raw.slice(0, ci).trim()) || null, fee: raw.slice(ci + 1).trim() || null };
+      }
+      return { club: _normClub(raw.trim()) || null, fee: null };
+    };
 
     let transfersHtml = '';
     if (_hasPlus && tmPlayers?.players?.length) {
       const now = new Date();
       const cutoffYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
       const cutoff = `${cutoffYear}-07-01`;
-      const _isValidFrom = s => s && !s.startsWith(':');
       const arrivals = (tmPlayers.players)
-        .filter(p => p.joinedOn && p.joinedOn >= cutoff && _isValidFrom(p.signedFrom))
+        .filter(p => p.joinedOn && p.joinedOn >= cutoff && p.signedFrom)
         .sort((a, b) => (b.joinedOn || '').localeCompare(a.joinedOn || ''));
       if (arrivals.length) {
         const rows = arrivals.map(p => {
-          const mv      = _fmtMv(p.marketValue);
-          const posDe   = _posLabel(p.position);
-          const clubDe  = _normClub(p.signedFrom || '');
+          const mv           = _fmtMv(p.marketValue);
+          const posDe        = _posLabel(p.position);
+          const { club, fee} = _parseSignedFrom(p.signedFrom);
+          const clubPart     = club ? `← ${_esc(club)}` : '';
+          const feePart      = fee  ? `<span style="color:var(--warning,#f5a623);font-weight:700;">${_esc(fee)}</span>` : '';
+          const subline      = [posDe, clubPart].filter(Boolean).join(' · ');
           return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
             <div style="display:flex;align-items:baseline;gap:6px;">
               <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.joinedOn)}</span>
@@ -807,7 +816,7 @@
             </div>
             <div style="display:flex;gap:6px;margin-top:1px;">
               <span style="min-width:52px;flex-shrink:0;"></span>
-              <span style="color:var(--muted);font-size:0.65rem;">${_esc(posDe)} · ← ${_esc(clubDe)}</span>
+              <span style="color:var(--muted);font-size:0.65rem;">${subline}${fee ? ' · ' + feePart : ''}</span>
             </div>
           </div>`;
         }).join('');
