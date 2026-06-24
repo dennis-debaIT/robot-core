@@ -604,7 +604,14 @@
       shirtNumber:    prof.shirtNumber    ?? p.shirtNumber   ?? null,
       position:       prof.position       || p.position,
       // fd.o-Crest hat Vorrang wenn fd.o bereits geladen hat (verhindert Überschreiben durch veraltete TM-Vereinsdaten)
-      club:           prof.club ? { ...(p.club || {}), ...prof.club, imageURL: p._fdoPersonLoaded ? ((p.club || {}).imageURL || prof.club.image || null) : (prof.club.image || (p.club || {}).imageURL || null) } : p.club,
+      club:           prof.club ? (() => {
+        const _prev = p.club || {};
+        const _m    = { ..._prev, ...prof.club,
+          imageURL: p._fdoPersonLoaded ? (_prev.imageURL || prof.club.image || null) : (prof.club.image || _prev.imageURL || null) };
+        // TM liefert oft Kurznamen (z.B. "Augsburg" statt "FC Augsburg") — längeren Namen behalten
+        if ((_prev.name || '').length > (_m.name || '').length) _m.name = _prev.name;
+        return _m;
+      })() : p.club,
       currentTeamId:     p.currentTeamId     || null,
       currentTeamLeague: p.currentTeamLeague || null,
     });
