@@ -778,14 +778,16 @@
     let transfersHtml = '';
     if (_hasPlus && tmTransfers) {
       const season = tmTransfers.season || '';
-      const _fmtFee = fee => {
+      const _fmtFee = (fee, feeText) => {
+        if (feeText && (feeText.toLowerCase().includes('leihe') || feeText.toLowerCase().includes('loan'))) return 'Leihe';
         if (fee === null || fee === undefined) return null;
+        if (fee === -1) return 'Leihe';
         if (fee === 0) return 'Ablösefrei';
         return _fmtMv(fee);
       };
       const _renderTransferRows = list => list.map(p => {
         const mv     = _fmtMv(p.market_value);
-        const fee    = _fmtFee(p.fee);
+        const fee    = _fmtFee(p.fee, p.fee_text);
         const posDe  = _posLabel(p.position);
         const club   = p.from_club || p.to_club || '';
         const arrow  = p.from_club ? '←' : '→';

@@ -11,6 +11,7 @@ Cache-Strategie:
 """
 from __future__ import annotations
 
+import html.parser
 import json
 import pathlib
 import re
@@ -32,6 +33,123 @@ _PLAYER_CACHE_DIR    = pathlib.Path("/data/tm_cache/players")
 _SEARCH_CACHE_DIR    = pathlib.Path("/data/tm_cache/searches")
 _CLUB_CACHE_DIR      = pathlib.Path("/data/tm_cache/clubs")
 _TRANSFERS_CACHE_DIR = pathlib.Path("/data/tm_cache/player_transfers")
+_TMDE_CACHE_DIR      = pathlib.Path("/data/tm_cache/tmde")
+
+_TM_DE_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "de-DE,de;q=0.9",
+    "Accept": "text/html,application/xhtml+xml",
+    "Referer": "https://www.transfermarkt.de/",
+}
+
+
+def _tmde_get(url: str) -> str | None:
+    try:
+        req = urllib.request.Request(url, headers=_TM_DE_HEADERS)
+        with urllib.request.urlopen(req, timeout=14) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return None
+
+
+class _TMTransferParser(html.parser.HTMLParser):
+    """Parst TM.de /alletransfers/ Seite in strukturierte Saison-Dicts."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.seasons: dict[str, dict] = {}
+        self._season: str | None = None
+        self._direction: str | None = None  # 'arrivals' | 'departures'
+        self._in_h2 = False
+        self._h2_buf: list[str] = []
+        self._in_tbody = False
+        self._tbody_depth = 0
+        self._in_tr = False
+        self._cells: list[dict] = []
+        self._in_td = False
+        self._td_buf: list[str] = []
+        self._td_links: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        a = dict(attrs)
+        if tag == "h2" and "content-box-headline" in a.get("class", ""):
+            self._in_h2 = True; self._h2_buf = []
+        elif tag == "tbody":
+            self._tbody_depth += 1; self._in_tbody = True
+        elif tag == "tr" and self._in_tbody:
+            self._in_tr = True; self._cells = []
+        elif tag == "td" and self._in_tr:
+            self._in_td = True; self._td_buf = []; self._td_links = []
+        elif tag == "a" and self._in_td:
+            if h := a.get("href", ""):
+                self._td_links.append(h)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "h2" and self._in_h2:
+            self._in_h2 = False
+            text = "".join(self._h2_buf).strip()
+            m = re.match(r"(Zug.nge|Abg.nge)\s+(\d{2}/\d{2})", text)
+            if m:
+                self._direction = "arrivals" if "Zug" in m.group(1) else "departures"
+                self._season = m.group(2)
+                if self._season not in self.seasons:
+                    self.seasons[self._season] = {"arrivals": [], "departures": []}
+        elif tag == "tbody":
+            self._tbody_depth -= 1
+            if self._tbody_depth == 0:
+                self._in_tbody = False
+            self._in_tr = False
+        elif tag == "td" and self._in_td:
+            self._in_td = False
+            self._cells.append({"t": " ".join(self._td_buf).strip(), "l": list(self._td_links)})
+        elif tag == "tr" and self._in_tr:
+            self._in_tr = False
+            self._flush_row()
+
+    def handle_data(self, data: str) -> None:
+        if self._in_h2:
+            self._h2_buf.append(data)
+        elif self._in_td:
+            s = data.strip()
+            if s:
+                self._td_buf.append(s)
+
+    def _flush_row(self) -> None:
+        if not (self._season and self._direction and len(self._cells) >= 4):
+            return
+        player_cell = self._cells[0]
+        club_cell   = self._cells[2]
+        fee_cell    = self._cells[3]
+        name = player_cell["t"]
+        if not name or name == "-":
+            return
+        player_id = next(
+            (m.group(1) for h in player_cell["l"] if (m := re.search(r"/spieler/(\d+)", h))), None
+        )
+        club_name = club_cell["t"] or None
+        fee_raw   = fee_cell["t"] if fee_cell["t"] not in ("", "-") else None
+        self.seasons[self._season][self._direction].append({
+            "player_id": player_id,
+            "name":      name,
+            "club":      club_name,
+            "fee_text":  fee_raw,
+            "fee":       self._parse_fee(fee_raw),
+        })
+
+    @staticmethod
+    def _parse_fee(text: str | None) -> int | None:
+        if not text:
+            return None
+        t = text.lower()
+        if "ablösefrei" in t or "free" in t:
+            return 0
+        if "leihe" in t or "loan" in t:
+            return -1   # Leihe-Marker
+        m = re.search(r"([\d,.]+)\s*(mio|tsd)", t)
+        if m:
+            val = float(m.group(1).replace(".", "").replace(",", "."))
+            return int(val * (1_000_000 if m.group(2) == "mio" else 1_000))
+        return None
 
 
 def _cached(key: str, ttl: float) -> Any | None:
@@ -353,76 +471,92 @@ class TransfermarktService:
                 pass
         return transfers or None
 
-    def get_club_transfers(self, team_name: str) -> dict | None:
-        """Zugänge + Abgänge der aktuellen Saison mit Ablösesummen.
-
-        Stale-while-revalidate: gecachtes Ergebnis wird sofort serviert,
-        Refresh läuft im Hintergrund. Erste Abfrage ist synchron (~8-15s
-        für einen vollen Kader), danach immer aus Disk-Cache (<100ms).
-        """
-        import datetime as _dt
-        tm_id = self.search_club_id(team_name)
-        if not tm_id:
+    def _tmde_search_club(self, name: str) -> tuple[str, str] | None:
+        """TM.de Vereins-Slug + ID via Schnellsuche — 7-Tage Disk-Cache."""
+        slug_key = re.sub(r"[^a-z0-9]", "_", name.lower().strip())
+        cache_path = _TMDE_CACHE_DIR / f"search_{slug_key}.json"
+        if cache_path.exists():
+            try:
+                if time.time() - cache_path.stat().st_mtime < 7 * 86_400:
+                    d = json.loads(cache_path.read_text(encoding="utf-8"))
+                    return d["slug"], d["de_id"]
+            except Exception:
+                pass
+        page = _tmde_get(
+            f"https://www.transfermarkt.de/schnellsuche/ergebnis/schnellsuche?query={urllib.parse.quote(name)}"
+        )
+        if not page:
             return None
+        m = re.search(r"/([a-z0-9-]+)/startseite/verein/(\d+)", page)
+        if not m:
+            return None
+        slug, de_id = m.group(1), m.group(2)
+        try:
+            _TMDE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps({"slug": slug, "de_id": de_id}), encoding="utf-8")
+        except Exception:
+            pass
+        return slug, de_id
 
-        cache_path = _CLUB_CACHE_DIR / f"{tm_id}_transfers.json"
+    def get_club_transfers(self, team_name: str) -> dict | None:
+        """Zugänge + Abgänge via TM.de /alletransfers/ — stale-while-revalidate.
+
+        Erstes Laden: ~3-5s (TM.de HTML + Spieler-Profile). Danach aus Cache.
+        """
+        tmde = self._tmde_search_club(team_name)
+        if not tmde:
+            return None
+        slug, de_id = tmde
+
+        cache_path = _TMDE_CACHE_DIR / f"transfers_{de_id}.json"
         disk = _club_disk_read(cache_path)
         if disk:
             age = time.time() - disk.get("ts", 0)
-            result = disk["data"]
             if age < _CLUB_CHECK_INTERVAL:
-                return result
-            def _bg(tid: str, tname: str, path: pathlib.Path) -> None:
-                fresh = self._build_club_transfers(tid, tname)
+                return disk["data"]
+            def _bg(s: str, d: str, p: pathlib.Path) -> None:
+                fresh = self._scrape_club_transfers(s, d)
                 if fresh:
-                    _club_disk_write(path, fresh, None)
-            threading.Thread(target=_bg, args=(tm_id, team_name, cache_path), daemon=True).start()
-            return result
+                    _club_disk_write(p, fresh, None)
+            threading.Thread(target=_bg, args=(slug, de_id, cache_path), daemon=True).start()
+            return disk["data"]
 
-        result = self._build_club_transfers(tm_id, team_name)
+        result = self._scrape_club_transfers(slug, de_id)
         if result:
             _club_disk_write(cache_path, result, None)
         return result
 
-    def _build_club_transfers(self, tm_id: str, team_name: str) -> dict | None:
-        """Interne Methode: baut Zugänge-Liste mit echten Ablösen auf."""
-        import datetime as _dt
-        now_dt = _dt.datetime.now(_dt.timezone.utc)
-        cutoff_year = now_dt.year if now_dt.month >= 7 else now_dt.year - 1
-        cutoff_date = f"{cutoff_year}-07-01"
+    def _scrape_club_transfers(self, slug: str, de_id: str) -> dict | None:
+        """Scrapt TM.de /alletransfers/, gibt aktuelle Saison zurück."""
+        page = _tmde_get(f"https://www.transfermarkt.de/{slug}/alletransfers/verein/{de_id}")
+        if not page:
+            return None
+        parser = _TMTransferParser()
+        parser.feed(page)
+        if not parser.seasons:
+            return None
+        # Neueste Saison mit Daten nehmen
+        for season in sorted(parser.seasons, reverse=True):
+            data = parser.seasons[season]
+            if data["arrivals"] or data["departures"]:
+                arrivals   = self._enrich_transfers(data["arrivals"],   direction="arrival")
+                departures = self._enrich_transfers(data["departures"], direction="departure")
+                return {"season": season, "arrivals": arrivals, "departures": departures}
+        return None
 
-        players = self.get_club_players(team_name) or []
-        recent = [p for p in players if (p.get("joinedOn") or "") >= cutoff_date]
-
-        arrivals: list[dict] = []
-        for p in sorted(recent, key=lambda x: x.get("joinedOn") or "", reverse=True):
-            player_id = str(p.get("id") or "")
-            if not player_id:
-                continue
-
-            transfers = self.get_player_transfers(player_id) or []
-
-            fee: int | None = None
-            mv_at_transfer: int | None = None
-            from_club: str | None = None
-
-            for t in transfers:
-                if str((t.get("clubTo") or {}).get("id", "")) == tm_id:
-                    t_date = t.get("date") or ""
-                    if t_date >= cutoff_date:
-                        fee = t.get("fee")
-                        mv_at_transfer = t.get("marketValue")
-                        from_club = (t.get("clubFrom") or {}).get("name")
-                        break
-
-            arrivals.append({
-                "id":              player_id,
-                "name":            p.get("name"),
-                "position":        p.get("position"),
-                "date":            p.get("joinedOn"),
-                "from_club":       from_club or p.get("signedFrom") or None,
-                "market_value":    p.get("marketValue"),
-                "fee":             fee,
+    def _enrich_transfers(self, players: list[dict], direction: str) -> list[dict]:
+        """Ergänzt market_value + position aus Community-API (Disk-gecacht)."""
+        result = []
+        for p in players:
+            pid = p.get("player_id")
+            profile = self.get_player_profile(pid) if pid else None
+            result.append({
+                "name":         p["name"],
+                "position":     (profile or {}).get("position") or None,
+                "from_club":    p["club"] if direction == "arrival"   else None,
+                "to_club":      p["club"] if direction == "departure" else None,
+                "market_value": (profile or {}).get("marketValue") or None,
+                "fee":          p["fee"],
+                "fee_text":     p["fee_text"],
             })
-
-        return {"arrivals": arrivals, "departures": [], "season": f"{cutoff_year}/{str(cutoff_year + 1)[-2:]}"}
+        return result
