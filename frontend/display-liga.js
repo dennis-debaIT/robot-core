@@ -705,6 +705,7 @@
     _showTeamDetail(teamId, teamName, crest);
   }
 
+  // Progressives Laden: Sektion-Platzhalter sofort, jede Anfrage füllt ihren Bereich individuell
   async function _showTeamDetail(teamId, teamName, crest) {
     _teamViewOpen   = true;
     _teamDetailId   = teamId;
@@ -712,24 +713,10 @@
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     overlay.classList.add('active');
-    overlay.innerHTML = '<div class="cal-placeholder">Lade Vereinsinfos…</div>';
 
-    const [focusRes, tmRes, transfersRes] = await Promise.allSettled([
-      fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-      fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-      fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
-    ]);
-    const focus       = focusRes.status     === 'fulfilled' ? focusRes.value     : null;
-    const tmProfile   = tmRes.status        === 'fulfilled' ? tmRes.value        : null;
-    const tmTransfers = transfersRes.status === 'fulfilled' ? transfersRes.value : null;
+    const _hasPlus = typeof _hasFeature === 'function' && _hasFeature('liga_plus');
 
-    _renderTeamDetail(teamId, teamName, crest, focus, tmProfile, tmTransfers);
-  }
-
-  function _renderTeamDetail(teamId, teamName, crest, focus, tmProfile, tmTransfers) {
-    const overlay = document.getElementById('cal-overlay');
-    if (!overlay || !_teamViewOpen) return;
-
+    // Standings-Zeile sofort aus Cache
     let standRow = null;
     for (const s of Object.values(_standingsCache)) {
       const row = (s?.table || []).find(r => r.team?.id === teamId);
@@ -748,87 +735,7 @@
       <span>${standRow.goalDifference >= 0 ? '+' : ''}${standRow.goalDifference} TD</span>
     </div>` : '';
 
-    const _hasPlus = typeof _hasFeature === 'function' && _hasFeature('liga_plus');
-    const last5Html = _hasPlus ? (focus?.last5 || []).map(r => {
-      const cls = r.result === 'S' ? 'form-w' : r.result === 'N' ? 'form-l' : 'form-d';
-      return `<div class="liga-td-past-match">
-        <span class="liga-td-pm-md">${r.matchday_nr ? `${r.matchday_nr}. ST` : ''}</span>
-        <span class="liga-td-pm-date">${r.utcDate ? _fmtDate(r.utcDate) : ''}</span>
-        <span class="liga-form ${cls}">${r.result}</span>
-        <span class="liga-td-pm-teams">${_esc(r.home)} – ${_esc(r.away)}</span>
-        <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
-      </div>`;
-    }).join('') : '';
-
-    const next = focus?.next_match;
-    const nextHtml = next ? `<div class="liga-td-next">
-      <div class="liga-td-section-label">Nächstes Spiel</div>
-      <div style="font-weight:600;">${_esc(next.home)} – ${_esc(next.away)}</div>
-      <div style="color:var(--muted);font-size:0.72rem;">${_fmtDate(next.utcDate)} · ${_fmtTime(next.utcDate)}${next.competition ? ' · ' + _esc(next.competition) : ''}</div>
-    </div>` : '';
-
-    let tmHtml = '';
-    if (_hasPlus && tmProfile) {
-      const mv    = _fmtMv(tmProfile.currentMarketValue);
-      const stad  = [tmProfile.stadiumName, tmProfile.stadiumSeats ? `${Number(tmProfile.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
-      const found = tmProfile.foundedOn ? `📅 ${_fmtDateISO(tmProfile.foundedOn)}` : '';
-      const web   = tmProfile.website ? `🌐 ${_esc(tmProfile.website).replace(/^https?:\/\//,'').replace(/\/$/,'')}` : '';
-      const tel   = tmProfile.tel ? `📞 ${_esc(tmProfile.tel)}` : '';
-      const tmRows = [
-        mv && mv !== '–' ? `💶 Kaderwert: ${_esc(mv)}` : '',
-        stad ? `🏟 ${_esc(stad)}` : '',
-        found,
-        web,
-        tel,
-      ].filter(Boolean);
-      if (tmRows.length) tmHtml = `<div class="liga-td-divider"></div>${tmRows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`;
-    }
-
-    // Zugänge & Abgänge aus /liga/tm/club-transfers (echte Ablösen via Spieler-Transfers-API)
-    let transfersHtml = '';
-    if (_hasPlus && tmTransfers) {
-      const season = tmTransfers.season || '';
-      const _fmtFee = (fee, feeText) => {
-        if (feeText && (feeText.toLowerCase().includes('leihe') || feeText.toLowerCase().includes('loan'))) return 'Leihe';
-        if (fee === null || fee === undefined) return null;
-        if (fee === -1) return 'Leihe';
-        if (fee === 0) return 'Ablösefrei';
-        return _fmtMv(fee);
-      };
-      const _renderTransferRows = list => list.map(p => {
-        const mv     = _fmtMv(p.market_value);
-        const fee    = _fmtFee(p.fee, p.fee_text);
-        const posDe  = _posLabel(p.position);
-        const club   = p.from_club || p.to_club || '';
-        const arrow  = p.from_club ? '←' : '→';
-        return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
-          <div style="display:flex;align-items:baseline;gap:6px;">
-            <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.date)}</span>
-            <span style="font-weight:600;flex:1;">${_esc(p.name)}</span>
-            ${mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Marktwert">${_esc(mv)}</span>` : ''}
-          </div>
-          <div style="display:flex;gap:6px;margin-top:1px;">
-            <span style="min-width:52px;flex-shrink:0;"></span>
-            <span style="color:var(--muted);font-size:0.65rem;flex:1;">
-              ${_esc(posDe)}${club ? ` · ${arrow} ${_esc(club)}` : ''}
-            </span>
-            ${fee ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Ablöse">${_esc(fee)}</span>` : ''}
-          </div>
-        </div>`;
-      }).join('');
-
-      const arrivals   = tmTransfers.arrivals   || [];
-      const departures = tmTransfers.departures || [];
-      const arrHtml = arrivals.length   ? _renderTransferRows(arrivals)   : '<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Zugänge</div>';
-      const depHtml = departures.length ? _renderTransferRows(departures) : '';
-
-      transfersHtml = `<div class="liga-td-divider"></div>
-        <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
-        <div>${arrHtml}</div>
-        ${depHtml ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">📤 Abgänge ${_esc(season)}</div><div>${depHtml}</div>` : ''}`;
-    }
-
-    // Mini-Tabelle: 5 Einträge rund ums Team (nur wenn in gecachter Tabelle vorhanden, nur Plus)
+    // Mini-Tabelle: direkt aus Cache (kein Netzwerk nötig)
     let miniTableHtml = '';
     if (_hasPlus) {
       let tableEntries = [];
@@ -862,7 +769,10 @@
       }
     }
 
-    overlay.classList.add('active');
+    const _loadRow = label =>
+      `<div style="color:var(--muted);font-size:0.7rem;padding:5px 0;opacity:0.65;">⌛ ${label}</div>`;
+
+    // Sofortiger Render: Header + Tabelle + Lade-Platzhalter pro Sektion
     overlay.innerHTML = `
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -875,14 +785,116 @@
             ${statsHtml}
           </div>
         </div>
-        ${last5Html ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">Letzte Spiele</div><div>${last5Html}</div>` : ''}
-        ${nextHtml}
+        <div id="td-focus-sect">${_hasPlus ? _loadRow('Letzte Spiele…') : ''}</div>
         ${miniTableHtml}
-        ${tmHtml}
-        ${transfersHtml}
+        <div id="td-tm-sect">${_hasPlus ? _loadRow('Vereinsprofil (TM)…') : ''}</div>
+        <div id="td-transfers-sect">${_hasPlus ? _loadRow('Transfers…') : ''}</div>
         <div class="liga-td-divider"></div>
         <button class="liga-kader-btn" onclick="window._liga._showKaderForTeam()">👥 Kader anzeigen</button>
       </div>`;
+
+    if (!_hasPlus) return;
+
+    // Hilfsfunktion: Sektion im DOM aktualisieren, aber nur wenn die Ansicht noch offen ist
+    const _setSect = (id, html) => {
+      if (!_teamViewOpen || _teamDetailId !== teamId) return;
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    };
+
+    // ── 1. Letzte Spiele + Nächstes Spiel ─────────────────────────────────────
+    fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(focus => {
+        if (!focus) { _setSect('td-focus-sect', ''); return; }
+        const last5Html = (focus.last5 || []).map(r => {
+          const cls = r.result === 'S' ? 'form-w' : r.result === 'N' ? 'form-l' : 'form-d';
+          return `<div class="liga-td-past-match">
+            <span class="liga-td-pm-md">${r.matchday_nr ? `${r.matchday_nr}. ST` : ''}</span>
+            <span class="liga-td-pm-date">${r.utcDate ? _fmtDate(r.utcDate) : ''}</span>
+            <span class="liga-form ${cls}">${r.result}</span>
+            <span class="liga-td-pm-teams">${_esc(r.home)} – ${_esc(r.away)}</span>
+            <span class="liga-td-pm-score">${_esc(r.score || '')}</span>
+          </div>`;
+        }).join('');
+        const next = focus.next_match;
+        const nextHtml = next ? `<div class="liga-td-next">
+          <div class="liga-td-section-label">Nächstes Spiel</div>
+          <div style="font-weight:600;">${_esc(next.home)} – ${_esc(next.away)}</div>
+          <div style="color:var(--muted);font-size:0.72rem;">${_fmtDate(next.utcDate)} · ${_fmtTime(next.utcDate)}${next.competition ? ' · ' + _esc(next.competition) : ''}</div>
+        </div>` : '';
+        _setSect('td-focus-sect',
+          (last5Html ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">Letzte Spiele</div><div>${last5Html}</div>` : '') +
+          nextHtml);
+      })
+      .catch(() => _setSect('td-focus-sect', ''));
+
+    // ── 2. TM-Vereinsprofil ────────────────────────────────────────────────────
+    fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(tmProfile => {
+        if (!tmProfile) { _setSect('td-tm-sect', ''); return; }
+        const mv   = _fmtMv(tmProfile.currentMarketValue);
+        const stad = [tmProfile.stadiumName, tmProfile.stadiumSeats ? `${Number(tmProfile.stadiumSeats).toLocaleString('de-DE')} Plätze` : ''].filter(Boolean).join(' · ');
+        const rows = [
+          mv && mv !== '–' ? `💶 Kaderwert: ${_esc(mv)}` : '',
+          stad ? `🏟 ${_esc(stad)}` : '',
+          tmProfile.foundedOn ? `📅 ${_fmtDateISO(tmProfile.foundedOn)}` : '',
+          tmProfile.website   ? `🌐 ${_esc(tmProfile.website).replace(/^https?:\/\//, '').replace(/\/$/, '')}` : '',
+          tmProfile.tel       ? `📞 ${_esc(tmProfile.tel)}` : '',
+        ].filter(Boolean);
+        _setSect('td-tm-sect', rows.length
+          ? `<div class="liga-td-divider"></div>${rows.map(r => `<div class="liga-tm-row">${r}</div>`).join('')}`
+          : '');
+      })
+      .catch(() => _setSect('td-tm-sect', ''));
+
+    // ── 3. Transfers (Zugänge + Abgänge) ──────────────────────────────────────
+    fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(tmTransfers => {
+        if (!tmTransfers) { _setSect('td-transfers-sect', ''); return; }
+        const season = tmTransfers.season || '';
+        const _fmtFee = (fee, feeText) => {
+          if (feeText && (feeText.toLowerCase().includes('leihe') || feeText.toLowerCase().includes('loan'))) return 'Leihe';
+          if (fee === null || fee === undefined) return null;
+          if (fee === -1) return 'Leihe';
+          if (fee === 0) return 'Ablösefrei';
+          return _fmtMv(fee);
+        };
+        const _renderTransferRows = list => list.map(p => {
+          const mv    = _fmtMv(p.market_value);
+          const fee   = _fmtFee(p.fee, p.fee_text);
+          const posDe = _posLabel(p.position);
+          const club  = p.from_club || p.to_club || '';
+          const arrow = p.from_club ? '←' : '→';
+          return `<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
+            <div style="display:flex;align-items:baseline;gap:6px;">
+              <span style="color:var(--muted);min-width:52px;flex-shrink:0;">${_fmtDateISO(p.date)}</span>
+              <span style="font-weight:600;flex:1;">${_esc(p.name)}</span>
+              ${mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Marktwert">${_esc(mv)}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;margin-top:1px;">
+              <span style="min-width:52px;flex-shrink:0;"></span>
+              <span style="color:var(--muted);font-size:0.65rem;flex:1;">
+                ${_esc(posDe)}${club ? ` · ${arrow} ${_esc(club)}` : ''}
+              </span>
+              ${fee ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Ablöse">${_esc(fee)}</span>` : ''}
+            </div>
+          </div>`;
+        }).join('');
+        const arrivals   = tmTransfers.arrivals   || [];
+        const departures = tmTransfers.departures || [];
+        const arrHtml = arrivals.length
+          ? _renderTransferRows(arrivals)
+          : '<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Zugänge</div>';
+        const depHtml = departures.length ? _renderTransferRows(departures) : '';
+        _setSect('td-transfers-sect', `<div class="liga-td-divider"></div>
+          <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
+          <div>${arrHtml}</div>
+          ${depHtml ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">📤 Abgänge ${_esc(season)}</div><div>${depHtml}</div>` : ''}`);
+      })
+      .catch(() => _setSect('td-transfers-sect', ''));
   }
 
   function _backFromTeamDetail() {
