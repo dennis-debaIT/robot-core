@@ -301,7 +301,11 @@
         <div class="liga-kader-hdr">
           <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>${_hasPlus ? 'Marktwert' : ''}</span>
         </div>
-        <div class="liga-kader-grid">${rows || '<div class="cal-placeholder" style="padding:20px 0;">Kein Spieler gefunden.</div>'}</div>` : '<div class="cal-placeholder">Keine Spieler gefunden.</div>'}
+        <div class="liga-kader-grid">${rows || '<div class="cal-placeholder" style="padding:20px 0;">Kein Spieler gefunden.</div>'}</div>` : `<div class="cal-placeholder" style="padding:24px 0;display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <div>Keine Spieler gefunden.</div>
+          <div style="font-size:0.68rem;opacity:0.6;max-width:240px;text-align:center;">Veralteter TM-Cache kann dazu führen. Bitte den Liga-Cache leeren und dann erneut versuchen:</div>
+          <button onclick="window._liga._clearLigaCache()" style="padding:5px 14px;background:rgba(255,255,255,0.12);color:inherit;border:1px solid rgba(255,255,255,0.25);border-radius:6px;font-size:0.72rem;cursor:pointer;">🗑 Liga-Cache leeren</button>
+        </div>`}
       </div>`;
 
     // Suchfeld-Fokus nach Re-Render wiederherstellen
@@ -850,10 +854,15 @@
       .catch(() => _setSect('td-tm-sect', ''));
 
     // ── 3. Transfers (Zugänge + Abgänge) ──────────────────────────────────────
-    fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
+    const _transfersCtrl = new AbortController();
+    const _transfersTid  = setTimeout(() => _transfersCtrl.abort(), 45_000);
+    fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store', signal: _transfersCtrl.signal })
+      .then(r => { clearTimeout(_transfersTid); return r.ok ? r.json() : null; })
       .then(tmTransfers => {
-        if (!tmTransfers) { _setSect('td-transfers-sect', ''); return; }
+        if (!tmTransfers) {
+          _setSect('td-transfers-sect', '<div style="color:var(--muted);font-size:0.7rem;padding:4px 0;opacity:0.6;">⚠ Transfers nicht verfügbar</div>');
+          return;
+        }
         const season = tmTransfers.season || '';
         const _fmtFee = (fee, feeText) => {
           if (feeText && (feeText.toLowerCase().includes('leihe') || feeText.toLowerCase().includes('loan'))) return 'Leihe';
@@ -894,7 +903,11 @@
           <div>${arrHtml}</div>
           ${depHtml ? `<div class="liga-td-section-label" style="margin:6px 0 3px;">📤 Abgänge ${_esc(season)}</div><div>${depHtml}</div>` : ''}`);
       })
-      .catch(() => _setSect('td-transfers-sect', ''));
+      .catch(err => {
+        clearTimeout(_transfersTid);
+        const msg = err?.name === 'AbortError' ? '⏱ Timeout – TM.de antwortet nicht' : '⚠ Transfers nicht verfügbar';
+        _setSect('td-transfers-sect', `<div style="color:var(--muted);font-size:0.7rem;padding:4px 0;opacity:0.6;">${msg}</div>`);
+      });
   }
 
   function _backFromTeamDetail() {
@@ -1352,6 +1365,16 @@
     }
   });
 
+  async function _clearLigaCache() {
+    try {
+      const r = await fetch('/liga/cache', { method: 'DELETE' });
+      if (r.ok) {
+        const overlay = document.getElementById('cal-overlay');
+        if (overlay) overlay.innerHTML = '<div class="cal-placeholder" style="padding:24px 0;">✅ Cache geleert. Bitte Seite neu laden.</div>';
+      }
+    } catch {}
+  }
+
   window._liga = {
     start, stop, openFullView, closeFullView,
     _selectLeague,
@@ -1360,6 +1383,7 @@
     _backToMatchday: _backFromKader, // Alias für alte onclick-Referenzen
     _showPlayerProfile, _backToKaderList,
     _showTeamById, _backFromTeamDetail, _showKaderForTeam,
+    _clearLigaCache,
     _cardClubClick: null, // wird von _drawPlayerCard bei jedem Karten-Render überschrieben
     _kaderSearchUpdate: v => { _kaderSearch = v; _renderKaderContent(); },
   };

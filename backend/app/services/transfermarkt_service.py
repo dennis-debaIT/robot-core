@@ -314,8 +314,18 @@ class TransfermarktService:
                 _store(mem_key, fresh if fresh else disk["data"])
             threading.Thread(target=_bg_refresh_profile, args=(tm_id, cache_path, cached_lu, key), daemon=True).start()
             return disk["data"]
-        # 3. Kein Cache → synchron laden
+        # 3. Kein Cache → synchron laden; bei Fehler Suche-Cache invalidieren + Retry
         data = _get(f"/clubs/{tm_id}/profile")
+        if data is None:
+            slug = re.sub(r'[^a-z0-9]', '_', team_name.strip().lower())
+            try:
+                (_SEARCH_CACHE_DIR / f"club_{slug}.json").unlink(missing_ok=True)
+            except Exception:
+                pass
+            _cache.pop(f"tm_search:{team_name.lower().strip()}", None)
+            fresh_id = self.search_club_id(team_name)
+            if fresh_id and fresh_id != tm_id:
+                data = _get(f"/clubs/{fresh_id}/profile")
         if data:
             _club_disk_write(cache_path, data, data.get("lastUpdate"))
             _store(key, data)
@@ -353,6 +363,17 @@ class TransfermarktService:
             threading.Thread(target=_bg_refresh_players, args=(tm_id, cache_path, cached_lu, key), daemon=True).start()
             return disk["data"]
         data = _get(f"/clubs/{tm_id}/players")
+        if data is None:
+            # Veraltete TM-ID im Suche-Cache (z.B. 4453 statt 105) → Cache löschen + einmal neu suchen
+            slug = re.sub(r'[^a-z0-9]', '_', team_name.strip().lower())
+            try:
+                (_SEARCH_CACHE_DIR / f"club_{slug}.json").unlink(missing_ok=True)
+            except Exception:
+                pass
+            _cache.pop(f"tm_search:{team_name.lower().strip()}", None)
+            fresh_id = self.search_club_id(team_name)
+            if fresh_id and fresh_id != tm_id:
+                data = _get(f"/clubs/{fresh_id}/players")
         players: list[dict] = (data or {}).get("players") or []
         if players:
             _club_disk_write(cache_path, players, (data or {}).get("lastUpdate"))
