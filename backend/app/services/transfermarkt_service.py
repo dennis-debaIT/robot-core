@@ -595,12 +595,62 @@ class TransfermarktService:
         arrivals.sort(key=lambda x: x.get("date") or "", reverse=True)
         return {"season": season_label, "arrivals": arrivals, "departures": []}
 
+    @staticmethod
+    def _transfers_from_kader_cache(team_name: str) -> dict | None:
+        """Liest Zugänge direkt aus dem Kader-Disk-Cache (kein API-Call).
+
+        Der Daemon wärmt den Kader vor — für Bundesliga-Teams ist die Datei
+        in der Regel schon da. joinedOn + signedFrom kommen aus TM-Profil-Enrichment.
+        """
+        import datetime as _dt
+        slug = re.sub(r"[^a-z0-9]", "_", team_name.strip().lower())[:80]
+        kader_path = pathlib.Path("/data/tm_cache/kader") / f"{slug}.json"
+        if not kader_path.exists():
+            return None
+        try:
+            data = json.loads(kader_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        squad = data.get("squad") or []
+        if not squad:
+            return None
+        now = _dt.date.today()
+        season_start_year = now.year - 1 if now.month < 7 else now.year
+        season_label = f"{str(season_start_year)[2:]}/{str(season_start_year + 1)[2:]}"
+        season_start = _dt.date(season_start_year, 7, 1)
+        arrivals = []
+        for p in squad:
+            joined_str = (p.get("joinedOn") or "")[:10]
+            if not joined_str:
+                continue
+            try:
+                joined = _dt.date.fromisoformat(joined_str)
+            except ValueError:
+                continue
+            if joined < season_start:
+                continue
+            arrivals.append({
+                "name":         p.get("name") or "",
+                "position":     p.get("position"),
+                "from_club":    p.get("signedFrom"),
+                "to_club":      None,
+                "market_value": p.get("marketValue"),
+                "fee":          None,
+                "fee_text":     None,
+                "date":         joined_str,
+            })
+        if not arrivals:
+            return None  # Kader da, aber keine Saison-Zugänge → andere Quelle versuchen
+        arrivals.sort(key=lambda x: x.get("date") or "", reverse=True)
+        return {"season": season_label, "arrivals": arrivals, "departures": []}
+
     def get_club_transfers(self, team_name: str) -> dict | None:
         """Zugänge + Abgänge — Reihenfolge optimiert für erika-IP-Beschränkung.
 
         1. TM.de Disk-Cache (tmde/ — überlebt DELETE /liga/cache, schnell)
-        2. Community API fly.io — kein IP-Block, synchron wenn kein TM.de-Cache
-        3. TM.de Scraping live — Fallback, auf erika oft von Cloudflare blockiert
+        2. Kader-Disk-Cache (joinedOn aus TM-Profil-Enrichment — kein API-Call)
+        3. Community API fly.io — kein IP-Block, synchron wenn kein Disk-Cache
+        4. TM.de Scraping live — Fallback, auf erika oft von Cloudflare blockiert
         """
         # ── 1. TM.de Disk-Cache (sofortiger Treffer wenn Daten vom letzten Scrape da) ──
         slug: str | None = None
@@ -615,7 +665,12 @@ class TransfermarktService:
                 if age < _CLUB_CHECK_INTERVAL:
                     return disk["data"]
 
-        # ── 2. Community API (fly.io) — synchron laden, in Clubs-Cache speichern ──
+        # ── 2. Kader-Disk-Cache (daemon hat ihn vorgewärmt — kein API-Call) ──────
+        kader_result = self._transfers_from_kader_cache(team_name)
+        if kader_result:
+            return kader_result
+
+        # ── 3. Community API (fly.io) — synchron laden, in Clubs-Cache speichern ──
         tm_id = self.search_club_id(team_name)
         if tm_id:
             api_cache = _CLUB_CACHE_DIR / f"transfers_{tm_id}.json"
