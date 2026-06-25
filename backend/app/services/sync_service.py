@@ -829,14 +829,19 @@ def push_calendar() -> bool:
         cfg = IntegrationConfigService().get_config()
         cal_cfg = cfg.get("calendar") or {}
         selected = cal_cfg.get("selected_calendars") or None
-        excluded = cal_cfg.get("excluded_calendars") or None
+        excluded = list(cal_cfg.get("excluded_calendars") or [])
         days = int(cal_cfg.get("sync_days") or 30)
+
+        # Mülltonnen-Kalender nicht synchronisieren — wird in der App separat dargestellt
+        waste_entity = ((cfg.get("waste") or {}).get("calendar_entity") or "calendar.abfallkalender").strip()
+        if waste_entity not in excluded:
+            excluded.append(waste_entity)
 
         ha = HomeAssistantProvider()
         raw_events = ha.get_events_upcoming(
             days=days,
             selected_calendars=selected,
-            exclude_calendars=excluded,
+            exclude_calendars=excluded if excluded else None,
         )
 
         events = []
