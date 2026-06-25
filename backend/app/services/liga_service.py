@@ -898,6 +898,39 @@ class LigaService:
             except Exception:
                 continue
 
+        # ── Zusätzlich: alle anderen gecachten Kader auffrischen ────────────
+        # Nationalmannschaften, ausländische Vereine, etc. die der Nutzer je
+        # angeschaut hat — team_id + name stehen im Cache selbst.
+        kader_dir = pathlib.Path("/data/tm_cache/kader")
+        processed = {self._kader_norm(t.get("name") or "") for t in all_teams}
+        for json_file in sorted(kader_dir.glob("*.json")):
+            try:
+                data = json.loads(json_file.read_text(encoding="utf-8"))
+                extra_name = (data.get("name") or "").strip()
+                if not extra_name or self._kader_norm(extra_name) in processed:
+                    continue
+                extra_id = data.get("id")
+                processed.add(self._kader_norm(extra_name))
+                age = time.time() - json_file.stat().st_mtime
+
+                if age > KADER_DISK_TTL:
+                    self._enrich_team_blocking(extra_id, extra_name, json_file)
+                    self._warm_tm_data(tm_svc, extra_name)
+                    time.sleep(5)
+                else:
+                    # Differenziell: nur Marktwerte + unangereicherte Spieler
+                    existing_squad = data.get("squad") or []
+                    has_unenriched = any(
+                        p.get("_tmId") and not p.get("imageURL") and not p.get("_tmProfileMissing")
+                        for p in existing_squad
+                    )
+                    if has_unenriched:
+                        self._start_enrichment(extra_id, extra_name, json_file)
+                    self._update_kader_market_values(extra_name, json_file, tm_svc)
+                    self._warm_tm_data(tm_svc, extra_name)
+            except Exception:
+                continue
+
     # ── Cache invalidieren ────────────────────────────────────────
     @classmethod
     def invalidate_cache(cls) -> None:
