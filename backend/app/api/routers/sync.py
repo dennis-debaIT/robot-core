@@ -97,6 +97,14 @@ def trigger_sync() -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"chores: {_tb.format_exc()}")
 
+    if modules.get("lights", False):
+        try:
+            svc.push_lights()
+            svc.push_light_scenes()
+            svc.poll_light_commands()
+        except Exception as exc:
+            errors.append(f"lights: {exc}")
+
     result: dict[str, Any] = {"pushed": pushed, "pulled": pulled}
     if errors:
         result["errors"] = errors

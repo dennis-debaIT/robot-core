@@ -252,6 +252,10 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
 
                 if modules.get("calendar", False):
                     _sync.push_calendar()
+
+                if modules.get("lights", False):
+                    _sync.push_lights()
+                    _sync.push_light_scenes()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
@@ -267,8 +271,11 @@ async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
             url, tok = _sync.get_credentials()
             if url and tok:
                 cfg = _ICS().get_config()
-                if (cfg.get("sync") or {}).get("modules", {}).get("pv", False):
+                modules = (cfg.get("sync") or {}).get("modules", {})
+                if modules.get("pv", False):
                     _sync.push_pv()
+                if modules.get("lights", False):
+                    _sync.poll_light_commands()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)

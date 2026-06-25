@@ -819,6 +819,100 @@ def push_pv() -> bool:
         return False
 
 
+# ── Lichter ────────────────────────────────────────────────────────────────────
+
+def push_lights() -> bool:
+    try:
+        from app.services.integration_config_service import IntegrationConfigService
+        from app.services.light_service import LightService
+        config = IntegrationConfigService().get_config()
+        light_cfg = config.get("lights") or {}
+        if not light_cfg.get("enabled", True):
+            return False
+        lights = LightService().list_lights(config)
+        # Nur Top-Level-Gruppen: Mitglieder ausblenden (gleiche Logik wie Display-Panel)
+        member_ids: set[str] = set()
+        for light in lights:
+            member_ids.update(str(m) for m in (light.get("members") or []))
+        top_level = [l for l in lights if l.get("entity_id") not in member_ids]
+        _sync_request("POST", "/lights", {"lights": top_level})
+        return True
+    except Exception:
+        return False
+
+
+def push_light_scenes() -> bool:
+    try:
+        from app.services.integration_config_service import IntegrationConfigService
+        from app.database.db import get_connection as _rc_conn
+        config = IntegrationConfigService().get_config()
+        light_cfg = config.get("lights") or {}
+        if not light_cfg.get("enabled", True):
+            return False
+        with _rc_conn() as conn:
+            rows = conn.execute(
+                "SELECT id, name FROM light_scenes ORDER BY created_at ASC"
+            ).fetchall()
+        scenes = [{"id": r["id"], "name": r["name"]} for r in rows]
+        _sync_request("POST", "/lights/scenes", {"scenes": scenes})
+        return True
+    except Exception:
+        return False
+
+
+def poll_light_commands() -> int:
+    try:
+        result = _sync_request("GET", "/lights/commands/pending")
+        if not result:
+            return 0
+        commands = result.get("commands") or []
+        if not commands:
+            return 0
+        import json as _json
+        from app.services.integration_config_service import IntegrationConfigService
+        from app.services.light_service import LightService
+        from app.database.db import get_connection as _rc_conn
+        config = IntegrationConfigService().get_config()
+        svc = LightService()
+        done_ids: list[str] = []
+        for cmd in commands:
+            try:
+                if cmd["type"] == "control":
+                    svc.control_light(cmd["payload"])
+                elif cmd["type"] == "scene_apply":
+                    scene_id = cmd["payload"].get("scene_id")
+                    if scene_id is not None:
+                        with _rc_conn() as conn:
+                            row = conn.execute(
+                                "SELECT light_states FROM light_scenes WHERE id = ?", (scene_id,)
+                            ).fetchone()
+                        if row:
+                            states: list[dict] = _json.loads(row["light_states"])
+                            for light in states:
+                                entity_id = light.get("entity_id", "")
+                                if not entity_id:
+                                    continue
+                                if light.get("state") == "off":
+                                    svc.control_light({"entity_id": entity_id, "service": "turn_off"})
+                                else:
+                                    payload: dict = {"entity_id": entity_id, "service": "turn_on"}
+                                    if light.get("brightness_pct") is not None:
+                                        payload["brightness_pct"] = light["brightness_pct"]
+                                    if light.get("hs_color"):
+                                        payload["hs_color"] = light["hs_color"]
+                                    elif light.get("color_temp_kelvin"):
+                                        payload["color_temp_kelvin"] = light["color_temp_kelvin"]
+                                    svc.control_light(payload)
+            except Exception:
+                pass
+            done_ids.append(cmd["id"])
+        if done_ids:
+            _sync_request("POST", "/lights/commands/done", {"ids": done_ids})
+        return len(done_ids)
+    except Exception:
+        return 0
+
+
 # ── Kalender ────────────────────────────────────────────────────────────────
 
 def push_calendar() -> bool:
