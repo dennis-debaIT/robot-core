@@ -3,6 +3,11 @@
  * Nutzt GET/POST/PATCH/DELETE /sync/items
  * Pollt alle 15 Sekunden wenn geöffnet (Änderungen vom Handy sichtbar).
  * Offene Einträge per Drag & Drop sortierbar (Maus + Touch).
+ *
+ * Render-Strategie:
+ *   _renderShell() — einmalig beim Öffnen, baut statisches Gerüst (Header, Input)
+ *   _renderList()  — bei jedem Update, tauscht nur Liste + Clear-Button aus
+ *   → Input-Feld wird nie neu erstellt; Fokus und Tipp-Text bleiben erhalten
  */
 (function () {
   'use strict';
@@ -50,7 +55,7 @@
       if (!r.ok) return;
       const d = await r.json();
       _items = d.items || [];
-      _render();
+      _renderList();
     } catch { /* offline — behalte alten Stand */ }
   }
 
@@ -64,7 +69,7 @@
       if (!r.ok) return;
       const item = await r.json();
       _items.push(item);
-      _render();
+      _renderList();
     } catch {}
   }
 
@@ -81,7 +86,7 @@
       const updated = await r.json();
       const idx = _items.findIndex(i => i.id === id);
       if (idx !== -1) _items[idx] = updated;
-      _render();
+      _renderList();
     } catch {}
   }
 
@@ -90,7 +95,7 @@
       const r = await fetch(`/sync/items/${id}`, { method: 'DELETE' });
       if (!r.ok) return;
       _items = _items.filter(i => i.id !== id);
-      _render();
+      _renderList();
     } catch {}
   }
 
@@ -99,7 +104,7 @@
       const r = await fetch('/sync/items', { method: 'DELETE' });
       if (!r.ok) return;
       _items = _items.filter(i => !i.checked);
-      _render();
+      _renderList();
     } catch {}
   }
 
@@ -166,7 +171,7 @@
         open.forEach((item, idx) => { item.sort_order = idx; });
         _items = [...open, ..._items.filter(i => i.checked)];
         _saveOrder(open);
-        _render();
+        _renderList();
       }
     }
     _dragId = _dragOverId = null;
@@ -184,21 +189,14 @@
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
-  function _render() {
+  function _renderShell() {
     const overlay = _overlay();
-    if (!overlay || !_isOpen) return;
-
-    const savedInput = document.getElementById('sync-input')?.value || '';
-
-    const open    = _items.filter(i => !i.checked);
-    const done    = _items.filter(i => i.checked);
-    const hasDone = done.length > 0;
-
+    if (!overlay) return;
     overlay.innerHTML = `
       <div class="shopping-panel">
         <div class="shopping-header">
           <span class="shopping-title">🛒 Einkaufsliste</span>
-          ${hasDone ? `<button class="shopping-clear-btn" onclick="window._sync._clearChecked()">Erledigte löschen (${done.length})</button>` : ''}
+          <span id="sync-clear-wrap"></span>
         </div>
         <div class="shopping-input-row">
           <input id="sync-input" class="shopping-input" type="text"
@@ -207,18 +205,31 @@
           />
           <button class="shopping-add-btn" onclick="window._sync._submitInput()">+</button>
         </div>
-        <ul class="shopping-list">
-          ${open.map(i => _itemHtml(i, false)).join('')}
-          ${hasDone ? '<li class="shopping-divider">Erledigt</li>' + done.map(i => _itemHtml(i, true)).join('') : ''}
-        </ul>
-        ${_items.length === 0 ? '<p class="shopping-empty">Liste ist leer</p>' : ''}
+        <ul id="sync-list" class="shopping-list"></ul>
+        <p id="sync-empty" class="shopping-empty" style="display:none">Liste ist leer</p>
       </div>
     `;
     overlay.classList.add('active');
-    if (savedInput) {
-      const inp = document.getElementById('sync-input');
-      if (inp) inp.value = savedInput;
-    }
+  }
+
+  function _renderList() {
+    if (!_isOpen) return;
+    const list      = document.getElementById('sync-list');
+    const emptyMsg  = document.getElementById('sync-empty');
+    const clearWrap = document.getElementById('sync-clear-wrap');
+    if (!list) return;
+
+    const open    = _items.filter(i => !i.checked);
+    const done    = _items.filter(i => i.checked);
+    const hasDone = done.length > 0;
+
+    list.innerHTML = open.map(i => _itemHtml(i, false)).join('')
+      + (hasDone ? '<li class="shopping-divider">Erledigt</li>' + done.map(i => _itemHtml(i, true)).join('') : '');
+
+    if (emptyMsg)  emptyMsg.style.display  = _items.length === 0 ? '' : 'none';
+    if (clearWrap) clearWrap.innerHTML = hasDone
+      ? `<button class="shopping-clear-btn" onclick="window._sync._clearChecked()">Erledigte löschen (${done.length})</button>`
+      : '';
   }
 
   function _itemHtml(item, isDone) {
@@ -252,7 +263,7 @@
   function open() {
     _injectStyles();
     _isOpen = true;
-    _render();
+    _renderShell();
     _load();
     _pollTimer = setInterval(_load, 15000);
   }
