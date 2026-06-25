@@ -1028,6 +1028,16 @@
               <button type="button" class="secondary" onclick="_loadLigaTeams()">Teams neu laden</button>
             </div>
           </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Nationalmannschaften vorladen</div>
+              <p>Team-IDs von football-data.org (kommagetrennt) — z.&nbsp;B. f&uuml;r EM oder WM. Der Hintergrund-Daemon l&auml;dt Kader dieser Teams vorab. IDs findest du im Display beim Aufrufen einer Nationalmannschaft (URL-Parameter <code>team_id</code>).</p>
+            </div>
+            <label class="field-block" style="max-width:400px;">
+              <span class="field-label">Team-IDs (z.&nbsp;B. 759, 760)</span>
+              <input id="liga-national-ids" class="field-input" type="text" placeholder="759, 760, 4711">
+            </label>
+          </section>
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 12px;">
             <button type="button" class="primary" onclick="saveLigaConfig()">Speichern</button>
             <span id="liga-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
@@ -3957,6 +3967,8 @@
         if (bl3El) bl3El.checked = leagues.includes('BL3');
         _ligaFavoriteTeamId   = l.favorite_team_id   || null;
         _ligaFavoriteTeamName = l.favorite_team_name || '';
+        const natEl = document.getElementById('liga-national-ids');
+        if (natEl) natEl.value = (l.national_team_ids || []).join(', ');
         await _loadLigaTeams();
       } catch {}
     }
@@ -3993,6 +4005,7 @@
       const bl2El     = document.getElementById('liga-bl2');
       const bl3El     = document.getElementById('liga-bl3');
       const teamSel   = document.getElementById('liga-favorite-team');
+      const natIdsEl  = document.getElementById('liga-national-ids');
       if (statusEl) statusEl.textContent = 'Speichere…';
       const leagues = [];
       if (bl1El?.checked) leagues.push('BL1');
@@ -4000,6 +4013,7 @@
       if (bl3El?.checked) leagues.push('BL3');
       const teamId   = teamSel?.value ? Number(teamSel.value) : null;
       const teamName = teamSel?.selectedOptions[0]?.dataset?.name || '';
+      const nationalTeamIds = (natIdsEl?.value || '').split(',').map(s => s.trim()).filter(s => /^\d+$/.test(s)).map(Number);
       try {
         await fetch('/liga/config', {
           method: 'PATCH',
@@ -4010,6 +4024,7 @@
             leagues,
             favorite_team_id:   teamId,
             favorite_team_name: teamName,
+            national_team_ids:  nationalTeamIds,
           }),
         });
         _ligaFavoriteTeamId   = teamId;

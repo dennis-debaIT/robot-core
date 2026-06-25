@@ -809,7 +809,7 @@ class LigaService:
             except Exception:
                 time.sleep(min(20 * (attempt + 1), 60))
 
-    def warm_all_league_caches(self, codes: list[str], favorite_name: str = "") -> None:
+    def warm_all_league_caches(self, codes: list[str], favorite_name: str = "", national_team_ids: list[int] | None = None) -> None:
         """Wärmt Kader + TM-Caches für alle Vereine der konfigurierten Ligen.
 
         Lieblingsverein zuerst. Kader wird nur neu gebaut wenn der Disk-Cache
@@ -895,6 +895,33 @@ class LigaService:
                 self._update_kader_market_values(name, cp, tm_svc)
                 self._warm_tm_data(tm_svc, name)
 
+            except Exception:
+                continue
+
+        # ── Nationalmannschaften aus Config vorladen ─────────────────────────
+        for nat_id in (national_team_ids or []):
+            try:
+                fdo_data = self.get_team_squad(nat_id)
+                if not fdo_data:
+                    continue
+                name = (fdo_data.get("name") or "").strip()
+                if not name:
+                    continue
+                processed.add(self._kader_norm(name))
+                cp = self._kader_cache_path(name)
+                if cp.exists() and (time.time() - cp.stat().st_mtime) < KADER_DISK_TTL:
+                    existing_squad = (json.loads(cp.read_text(encoding="utf-8")).get("squad") or [])
+                    has_unenriched = any(
+                        p.get("_tmId") and not p.get("imageURL") and not p.get("_tmProfileMissing")
+                        for p in existing_squad
+                    )
+                    if has_unenriched:
+                        self._start_enrichment(nat_id, name, cp)
+                    self._update_kader_market_values(name, cp, tm_svc)
+                else:
+                    self._enrich_team_blocking(nat_id, name, cp)
+                    self._warm_tm_data(tm_svc, name)
+                    time.sleep(5)
             except Exception:
                 continue
 
