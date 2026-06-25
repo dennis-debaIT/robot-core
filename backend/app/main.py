@@ -288,6 +288,33 @@ async def _license_renewal_loop(interval_hours: int = 24) -> None:
         await asyncio.sleep(max(3600, interval_hours * 3600))
 
 
+def _run_liga_cache_warm() -> None:
+    """Synchrone Helferfunktion — läuft in einem Executor-Thread."""
+    try:
+        from app.services.integration_config_service import IntegrationConfigService
+        from app.services.liga_service import LigaService
+        cfg = IntegrationConfigService().get_config().get("liga") or {}
+        if not (cfg.get("enabled") and cfg.get("api_key")):
+            return
+        codes = [c for c in (cfg.get("leagues") or []) if c in {"BL1", "BL2", "BL3"}]
+        if not codes:
+            return
+        LigaService(cfg["api_key"]).warm_all_league_caches(codes, cfg.get("favorite_team_name", ""))
+    except Exception:
+        pass
+
+
+async def _liga_cache_daemon(interval_hours: int = 12) -> None:
+    """Hält Liga-Caches warm: Kader + Vereinsprofil + Transfers für alle
+    konfigurierten Ligen. Lieblingsverein wird zuerst verarbeitet.
+    Startet 90 Sekunden nach Hochfahren, danach alle 12 Stunden."""
+    await asyncio.sleep(90)
+    loop = asyncio.get_event_loop()
+    while True:
+        await loop.run_in_executor(None, _run_liga_cache_warm)
+        await asyncio.sleep(interval_hours * 3600)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> Any:
     init_db()
@@ -309,6 +336,7 @@ async def lifespan(_: FastAPI) -> Any:
     license_task = asyncio.create_task(_license_renewal_loop())
     shopping_sync_task = asyncio.create_task(_sync_loop())
     pv_fast_sync_task = asyncio.create_task(_pv_fast_sync_loop())
+    liga_cache_task = asyncio.create_task(_liga_cache_daemon())
     deps.set_runtime(core, settings_service)
     try:
         yield
@@ -323,6 +351,7 @@ async def lifespan(_: FastAPI) -> Any:
         license_task.cancel()
         shopping_sync_task.cancel()
         pv_fast_sync_task.cancel()
+        liga_cache_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
@@ -339,6 +368,8 @@ async def lifespan(_: FastAPI) -> Any:
             await memory_task
         with suppress(asyncio.CancelledError):
             await license_task
+        with suppress(asyncio.CancelledError):
+            await liga_cache_task
         deps.clear_runtime()
 
 

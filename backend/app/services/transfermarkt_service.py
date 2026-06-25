@@ -37,7 +37,7 @@ _TRANSFERS_CACHE_DIR = pathlib.Path("/data/tm_cache/player_transfers")
 _TMDE_CACHE_DIR      = pathlib.Path("/data/tm_cache/tmde")
 
 # Max. 2 gleichzeitige Profil-API-Calls — verhindert Rate-Limiting, halbiert Ladezeit
-_PROFILE_API_SEM = threading.BoundedSemaphore(2)
+_PROFILE_API_SEM = threading.BoundedSemaphore(5)
 
 _TM_DE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",

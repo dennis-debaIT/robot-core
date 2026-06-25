@@ -727,7 +727,7 @@ class LigaService:
                 except Exception:
                     pass
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
                 futures = {ex.submit(_enrich, p): i for i, p in enumerate(players)}
                 for fut in concurrent.futures.as_completed(futures):
                     idx = futures[fut]
@@ -743,6 +743,81 @@ class LigaService:
         finally:
             with LigaService._enriching_lock:
                 LigaService._enriching_teams.discard(team_name.lower().strip())
+
+    def _enrich_team_blocking(self, team_id: int | None, team_name: str, cache_path: pathlib.Path) -> None:
+        """Synchrone Variante von _start_enrichment für den Hintergrund-Daemon.
+
+        Setzt _enriching_teams-Lock bevor _enrich_and_cache_kader gerufen wird —
+        verhindert einen parallelen User-getriggerten Start für denselben Verein.
+        _enrich_and_cache_kader selbst entfernt den Key im finally-Block.
+        """
+        key = team_name.lower().strip()
+        with LigaService._enriching_lock:
+            if key in LigaService._enriching_teams:
+                return  # läuft schon (z.B. durch User-Request)
+            LigaService._enriching_teams.add(key)
+        self._enrich_and_cache_kader(team_id, team_name, cache_path)
+
+    def _warm_tm_data(self, tm_svc: Any, team_name: str) -> None:
+        """Vereinsprofil + Transfers für einen Verein im Cache halten (mit Retry)."""
+        for attempt in range(3):
+            try:
+                tm_svc.get_club_profile(team_name)
+                break
+            except Exception:
+                time.sleep(min(20 * (attempt + 1), 60))
+        for attempt in range(3):
+            try:
+                tm_svc.get_club_transfers(team_name)
+                break
+            except Exception:
+                time.sleep(min(20 * (attempt + 1), 60))
+
+    def warm_all_league_caches(self, codes: list[str], favorite_name: str = "") -> None:
+        """Wärmt Kader + TM-Caches für alle Vereine der konfigurierten Ligen.
+
+        Lieblingsverein zuerst. Kader wird nur neu gebaut wenn der Disk-Cache
+        älter als die halbe KADER_DISK_TTL (3,5 Tage) ist. Verarbeitung läuft
+        sequenziell damit die Semaphore nicht mit zu vielen Teams gleichzeitig
+        konkurriert.
+        """
+        from app.services.transfermarkt_service import TransfermarktService
+
+        all_teams = self.get_teams(codes)
+        if not all_teams:
+            return
+
+        fav = favorite_name.lower().strip()
+        if fav:
+            all_teams.sort(
+                key=lambda t: 0 if (t.get("name") or "").lower().strip() == fav else 1
+            )
+
+        try:
+            pathlib.Path("/data/tm_cache/kader").mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
+
+        tm_svc = TransfermarktService()
+        refresh_thresh = KADER_DISK_TTL / 2  # 3,5 Tage
+
+        for team in all_teams:
+            name = (team.get("name") or "").strip()
+            tid  = team.get("id")
+            if not name:
+                continue
+            try:
+                cp = self._kader_cache_path(name)
+                if cp.exists() and (time.time() - cp.stat().st_mtime) < refresh_thresh:
+                    # Kader frisch — nur TM-Meta prüfen
+                    self._warm_tm_data(tm_svc, name)
+                else:
+                    # Vollständiger Rebuild (blockiert bis fertig)
+                    self._enrich_team_blocking(tid, name, cp)
+                    self._warm_tm_data(tm_svc, name)
+                    time.sleep(5)
+            except Exception:
+                continue
 
     # ── Cache invalidieren ────────────────────────────────────────
     @classmethod
