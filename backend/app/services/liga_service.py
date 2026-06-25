@@ -924,6 +924,7 @@ class LigaService:
                 continue
 
         # ── Turnier-Nationalmannschaften automatisch vorladen (WC + EC) ─────────
+        processed = {self._kader_norm(t.get("name") or "") for t in all_teams}
         for nat_id in self._get_tournament_team_ids():
             try:
                 fdo_data = self.get_team_squad(nat_id)
@@ -954,7 +955,6 @@ class LigaService:
         # Nationalmannschaften, ausländische Vereine, etc. die der Nutzer je
         # angeschaut hat — team_id + name stehen im Cache selbst.
         kader_dir = pathlib.Path("/data/tm_cache/kader")
-        processed = {self._kader_norm(t.get("name") or "") for t in all_teams}
         for json_file in sorted(kader_dir.glob("*.json")):
             try:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
