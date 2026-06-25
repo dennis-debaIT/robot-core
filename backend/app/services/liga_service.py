@@ -744,6 +744,42 @@ class LigaService:
             with LigaService._enriching_lock:
                 LigaService._enriching_teams.discard(team_name.lower().strip())
 
+    @staticmethod
+    def _kader_norm(n: str) -> str:
+        n = unicodedata.normalize("NFKD", n or "").encode("ascii", "ignore").decode().lower()
+        return re.sub(r"[^a-z]", "", n)
+
+    def _update_kader_market_values(
+        self, team_name: str, cache_path: pathlib.Path, tm_svc: Any
+    ) -> None:
+        """Aktualisiert Marktwerte im Kader-Cache aus der TM-Kaderliste.
+        Keine Profilcalls — nur Disk-Read + TM-Kaderliste (eigener Cache).
+        """
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        squad = cached.get("squad") or []
+        if not squad:
+            return
+        tm_players = tm_svc.get_club_players(team_name) or []
+        if not tm_players:
+            return
+        tm_by = {self._kader_norm(p.get("name") or ""): p for p in tm_players}
+        changed = False
+        for p in squad:
+            tp = tm_by.get(self._kader_norm(p.get("name") or ""))
+            if tp and tp.get("marketValue") and tp["marketValue"] != p.get("marketValue"):
+                p["marketValue"] = tp["marketValue"]
+                changed = True
+        if changed:
+            try:
+                cache_path.write_text(
+                    json.dumps(cached, ensure_ascii=False), encoding="utf-8"
+                )
+            except Exception:
+                pass
+
     def _enrich_team_blocking(self, team_id: int | None, team_name: str, cache_path: pathlib.Path) -> None:
         """Synchrone Variante von _start_enrichment für den Hintergrund-Daemon.
 
@@ -799,7 +835,6 @@ class LigaService:
             pass
 
         tm_svc = TransfermarktService()
-        refresh_thresh = KADER_DISK_TTL / 2  # 3,5 Tage
 
         for team in all_teams:
             name = (team.get("name") or "").strip()
@@ -808,14 +843,58 @@ class LigaService:
                 continue
             try:
                 cp = self._kader_cache_path(name)
-                if cp.exists() and (time.time() - cp.stat().st_mtime) < refresh_thresh:
-                    # Kader frisch — nur TM-Meta prüfen
-                    self._warm_tm_data(tm_svc, name)
-                else:
-                    # Vollständiger Rebuild (blockiert bis fertig)
+
+                if not cp.exists():
+                    # Kein Cache → vollständiger Rebuild
                     self._enrich_team_blocking(tid, name, cp)
                     self._warm_tm_data(tm_svc, name)
                     time.sleep(5)
+                    continue
+
+                # ── Differenzieller Refresh ──────────────────────────
+                age = time.time() - cp.stat().st_mtime
+
+                if age > KADER_DISK_TTL:
+                    # Cache abgelaufen → vollständiger Rebuild
+                    self._enrich_team_blocking(tid, name, cp)
+                    self._warm_tm_data(tm_svc, name)
+                    time.sleep(5)
+                    continue
+
+                try:
+                    existing = json.loads(cp.read_text(encoding="utf-8"))
+                    existing_squad = existing.get("squad") or []
+                except Exception:
+                    self._enrich_team_blocking(tid, name, cp)
+                    self._warm_tm_data(tm_svc, name)
+                    time.sleep(5)
+                    continue
+
+                # Neue Spieler erkannt? (fd.o-Squad aus In-Memory-Cache — 1h TTL, meist schon drin)
+                fdo_data = self.get_team_squad(tid) if tid else None
+                fdo_squad = (fdo_data or {}).get("squad") or []
+                if fdo_squad:
+                    existing_norm = {self._kader_norm(p.get("name") or "") for p in existing_squad}
+                    new_players   = [p for p in fdo_squad if self._kader_norm(p.get("name") or "") not in existing_norm]
+                    if new_players:
+                        # Neue Spieler → vollständiger Rebuild (fügt sie an)
+                        self._enrich_team_blocking(tid, name, cp)
+                        self._warm_tm_data(tm_svc, name)
+                        time.sleep(5)
+                        continue
+
+                # Unangereicherte Spieler nacharbeiten (API vorhin ausgefallen o.ä.)
+                has_unenriched = any(
+                    p.get("_tmId") and not p.get("imageURL") and not p.get("_tmProfileMissing")
+                    for p in existing_squad
+                )
+                if has_unenriched:
+                    self._start_enrichment(tid, name, cp)  # async, läuft im Hintergrund
+
+                # Marktwerte aktualisieren — kein API-Call, nur Disk+TM-Kaderliste (gecacht)
+                self._update_kader_market_values(name, cp, tm_svc)
+                self._warm_tm_data(tm_svc, name)
+
             except Exception:
                 continue
 
