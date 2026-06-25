@@ -299,8 +299,7 @@ def _run_liga_cache_warm() -> None:
         codes = [c for c in (cfg.get("leagues") or []) if c in {"BL1", "BL2", "BL3"}]
         if not codes:
             return
-        nat_ids = [int(i) for i in (cfg.get("national_team_ids") or []) if str(i).isdigit()]
-        LigaService(cfg["api_key"]).warm_all_league_caches(codes, cfg.get("favorite_team_name", ""), nat_ids)
+        LigaService(cfg["api_key"]).warm_all_league_caches(codes, cfg.get("favorite_team_name", ""))
     except Exception:
         pass
 

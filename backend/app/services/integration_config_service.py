@@ -161,7 +161,6 @@ class IntegrationConfigService:
                 "leagues": [],
                 "favorite_team_id": None,
                 "favorite_team_name": "",
-                "national_team_ids": [],
             },
             "meta": {
                 "version": 1,
@@ -318,7 +317,6 @@ class IntegrationConfigService:
         liga["leagues"] = [c for c in (liga.get("leagues") or []) if c in _valid_codes]
         liga["favorite_team_id"] = (int(liga["favorite_team_id"]) if liga.get("favorite_team_id") else None)
         liga["favorite_team_name"] = str(liga.get("favorite_team_name") or "").strip()
-        liga["national_team_ids"] = [int(i) for i in (liga.get("national_team_ids") or []) if str(i).strip().isdigit()]
         attention = merged.setdefault("attention", {})
         attention["wake_word_enabled"] = bool(attention.get("wake_word_enabled", True))
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"

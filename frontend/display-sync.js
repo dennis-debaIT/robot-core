@@ -188,6 +188,8 @@
     const overlay = _overlay();
     if (!overlay || !_isOpen) return;
 
+    const savedInput = document.getElementById('sync-input')?.value || '';
+
     const open    = _items.filter(i => !i.checked);
     const done    = _items.filter(i => i.checked);
     const hasDone = done.length > 0;
@@ -213,6 +215,10 @@
       </div>
     `;
     overlay.classList.add('active');
+    if (savedInput) {
+      const inp = document.getElementById('sync-input');
+      if (inp) inp.value = savedInput;
+    }
   }
 
   function _itemHtml(item, isDone) {

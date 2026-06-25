@@ -246,7 +246,7 @@ def clear_liga_cache() -> dict[str, Any]:
 
 @router.patch("/liga/config")
 def update_liga_config(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    allowed = {"enabled", "api_key", "leagues", "favorite_team_id", "favorite_team_name", "national_team_ids"}
+    allowed = {"enabled", "api_key", "leagues", "favorite_team_id", "favorite_team_name"}
     patch = {k: v for k, v in payload.items() if k in allowed}
     if not patch:
         raise HTTPException(400, "Keine gültigen Felder")

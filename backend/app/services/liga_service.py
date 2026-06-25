@@ -809,7 +809,32 @@ class LigaService:
             except Exception:
                 time.sleep(min(20 * (attempt + 1), 60))
 
-    def warm_all_league_caches(self, codes: list[str], favorite_name: str = "", national_team_ids: list[int] | None = None) -> None:
+    def _get_tournament_team_ids(self) -> list[int]:
+        """Holt alle Team-IDs aus den aktuellen WC/EC-Turnieren (football-data.org).
+
+        Nutzt den _comp_teams_cache (1h TTL) — derselbe Cache wie _get_comp_squad.
+        Gibt leere Liste zurück wenn API nicht erreichbar oder kein Turnier aktiv.
+        """
+        now = time.time()
+        ids: set[int] = set()
+        for code in ("WC", "EC"):
+            cached = LigaService._comp_teams_cache.get(code)
+            if cached and (now - cached["ts"]) < COMP_TEAMS_TTL:
+                ids.update(cached["data"].keys())
+            else:
+                data = self._fetch(f"/competitions/{code}/teams")
+                if data:
+                    squads_by_id = {
+                        int(t["id"]): t.get("squad") or []
+                        for t in (data.get("teams") or [])
+                        if t.get("id")
+                    }
+                    if squads_by_id:
+                        LigaService._comp_teams_cache[code] = {"data": squads_by_id, "ts": now}
+                        ids.update(squads_by_id.keys())
+        return list(ids)
+
+    def warm_all_league_caches(self, codes: list[str], favorite_name: str = "") -> None:
         """Wärmt Kader + TM-Caches für alle Vereine der konfigurierten Ligen.
 
         Lieblingsverein zuerst. Kader wird nur neu gebaut wenn der Disk-Cache
@@ -898,8 +923,8 @@ class LigaService:
             except Exception:
                 continue
 
-        # ── Nationalmannschaften aus Config vorladen ─────────────────────────
-        for nat_id in (national_team_ids or []):
+        # ── Turnier-Nationalmannschaften automatisch vorladen (WC + EC) ─────────
+        for nat_id in self._get_tournament_team_ids():
             try:
                 fdo_data = self.get_team_squad(nat_id)
                 if not fdo_data:
