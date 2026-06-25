@@ -790,6 +790,7 @@
       <div class="liga-kader-wrap">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <button class="liga-kader-back" onclick="window._liga._backFromTeamDetail()">← Spieltag</button>
+          <button class="liga-kader-btn" style="margin:0;" onclick="window._liga._showKaderForTeam()">👥 Kader</button>
         </div>
         <div class="liga-td-header">
           ${crestHtml}
@@ -800,10 +801,8 @@
         </div>
         <div id="td-focus-sect">${_hasPlus ? _loadRow('Letzte Spiele…') : ''}</div>
         ${miniTableHtml}
+        <div id="td-transfers-sect">${_hasPlus ? _loadRow('Zugänge…') : ''}</div>
         <div id="td-tm-sect">${_hasPlus ? _loadRow('Vereinsprofil (TM)…') : ''}</div>
-        <div id="td-transfers-sect">${_hasPlus ? _loadRow('Transfers…') : ''}</div>
-        <div class="liga-td-divider"></div>
-        <button class="liga-kader-btn" onclick="window._liga._showKaderForTeam()">👥 Kader anzeigen</button>
       </div>`;
 
     if (!_hasPlus) return;
@@ -880,11 +879,7 @@
     fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store', signal: _transfersCtrl.signal })
       .then(r => { clearTimeout(_transfersTid); return r.ok ? r.json() : null; })
       .then(tmTransfers => {
-        if (!tmTransfers) {
-          _setSect('td-transfers-sect', '');
-          return;
-        }
-        const season = tmTransfers.season || '';
+        const season = (tmTransfers || {}).season || '';
         const _fmtFee = (fee, feeText) => {
           if (feeText && (feeText.toLowerCase().includes('leihe') || feeText.toLowerCase().includes('loan'))) return 'Leihe';
           if (fee === null || fee === undefined) return null;
@@ -908,12 +903,12 @@
             ${right}
           </div>`;
         }).join('');
-        const arrivals = tmTransfers.arrivals || [];
-        const transfersHtml = arrivals.length
-          ? `<div class="liga-td-divider"></div>
+        const arrivals = (tmTransfers || {}).arrivals || [];
+        const transfersHtml = `<div class="liga-td-divider"></div>
              <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
-             <div>${_renderTransferRows(arrivals)}</div>`
-          : '';
+             ${arrivals.length
+               ? `<div>${_renderTransferRows(arrivals)}</div>`
+               : `<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Zugänge in dieser Saison.</div>`}`;
         _tdHtmlCache[`${teamId}:transfers`] = { html: transfersHtml, ts: Date.now() };
         _setSect('td-transfers-sect', transfersHtml);
       })

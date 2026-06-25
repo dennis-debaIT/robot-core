@@ -592,8 +592,6 @@ class TransfermarktService:
                 "date":         joined_str,
             })
 
-        if not arrivals:
-            return None
         arrivals.sort(key=lambda x: x.get("date") or "", reverse=True)
         return {"season": season_label, "arrivals": arrivals, "departures": []}
 
