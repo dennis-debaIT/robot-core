@@ -26,52 +26,62 @@
           </button>
         </div>
 
-        <div class="sidebar-group">
+        <div class="sidebar-group" data-group="assistent">
           <div class="sidebar-group-label">Assistent</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-erika"><span class="si-icon">🤖</span><span>Persönlichkeit</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-llm"><span class="si-icon">🧠</span><span>KI / LLM</span></button>
+          <div class="sg-body">
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-erika"><span class="si-icon">🤖</span><span>Persönlichkeit</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-llm"><span class="si-icon">🧠</span><span>KI / LLM</span></button>
+          </div>
         </div>
 
-        <div class="sidebar-group">
+        <div class="sidebar-group" data-group="module">
           <div class="sidebar-group-label">Module</div>
-          <div class="sidebar-sub-label">Haus &amp; Haushalt</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-lights"><span class="si-icon">💡</span><span>Lichter</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-chores"><span class="si-icon">🧹</span><span>Hausaufgaben</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-robots"><span class="si-icon">🤖</span><span>Roboter</span></button>
-          <div class="sidebar-sub-label">Information</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-news"><span class="si-icon">📰</span><span>News</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-weather"><span class="si-icon">🌤</span><span>Wetter</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-calendar"><span class="si-icon">📅</span><span>Kalender</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-cameras"><span class="si-icon">📷</span><span>Kameras</span></button>
-          <div class="sidebar-sub-label">Fahrzeug &amp; Energie</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-vehicles"><span class="si-icon">🚗</span><span>Fahrzeuge</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-fuel"><span class="si-icon">⛽</span><span>Kraftstoff</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-pv"><span class="si-icon">☀️</span><span>PV-Anlage</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-energy"><span class="si-icon">⚡</span><span>Strom</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
-          <div class="sidebar-sub-label">Sport</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball-Liga</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">🏆</span><span>Turnier</span></button>
+          <div class="sg-body">
+            <div class="sidebar-sub-label">Haus &amp; Haushalt</div>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-lights"><span class="si-icon">💡</span><span>Lichter</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-chores"><span class="si-icon">🧹</span><span>Hausaufgaben</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-waste"><span class="si-icon">🗑</span><span>Abfall</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-robots"><span class="si-icon">🤖</span><span>Roboter</span></button>
+            <div class="sidebar-sub-label">Information</div>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-news"><span class="si-icon">📰</span><span>News</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-weather"><span class="si-icon">🌤</span><span>Wetter</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-calendar"><span class="si-icon">📅</span><span>Kalender</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-cameras"><span class="si-icon">📷</span><span>Kameras</span></button>
+            <div class="sidebar-sub-label">Fahrzeug &amp; Energie</div>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-vehicles"><span class="si-icon">🚗</span><span>Fahrzeuge</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-fuel"><span class="si-icon">⛽</span><span>Kraftstoff</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-pv"><span class="si-icon">☀️</span><span>PV-Anlage</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-energy"><span class="si-icon">⚡</span><span>Strom</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
+            <div class="sidebar-sub-label">Sport</div>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball-Liga</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">🏆</span><span>Turnier</span></button>
+          </div>
         </div>
 
-        <div class="sidebar-group">
+        <div class="sidebar-group" data-group="app-sync">
           <div class="sidebar-group-label">App &amp; Sync</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-sync"><span class="si-icon">📱</span><span>Companion-App</span></button>
+          <div class="sg-body">
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-sync"><span class="si-icon">📱</span><span>Companion-App</span></button>
+          </div>
         </div>
 
-        <div class="sidebar-group">
+        <div class="sidebar-group" data-group="einstellungen">
           <div class="sidebar-group-label">Einstellungen</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-schedules"><span class="si-icon">⏱</span><span>Zeitpläne</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-notifications"><span class="si-icon">🔔</span><span>Benachrichtigungen</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-design"><span class="si-icon">🎨</span><span>Design</span></button>
+          <div class="sg-body">
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-persons"><span class="si-icon">👤</span><span>Personen</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-schedules"><span class="si-icon">⏱</span><span>Zeitpläne</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-notifications"><span class="si-icon">🔔</span><span>Benachrichtigungen</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-design"><span class="si-icon">🎨</span><span>Design</span></button>
+          </div>
         </div>
 
-        <div class="sidebar-group">
+        <div class="sidebar-group" data-group="system">
           <div class="sidebar-group-label">System</div>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-system"><span class="si-icon">⚙️</span><span>System</span></button>
-          <button type="button" class="tab-button sidebar-item" data-tab-target="tab-auditlog"><span class="si-icon">📋</span><span>Protokoll</span></button>
+          <div class="sg-body">
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-system"><span class="si-icon">⚙️</span><span>System</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-auditlog"><span class="si-icon">📋</span><span>Protokoll</span></button>
+          </div>
         </div>
       </nav>
 
@@ -2011,7 +2021,58 @@
       document.querySelectorAll('.tab-panel').forEach((panel) => {
         panel.classList.toggle('active', panel.id === tabId);
       });
+      // Gruppe des aktiven Tabs automatisch aufklappen
+      const btn = document.querySelector(`.tab-button[data-tab-target="${tabId}"]`);
+      const group = btn?.closest('.sidebar-group[data-group]');
+      if (group && group.classList.contains('collapsed')) {
+        group.classList.remove('collapsed');
+        _saveSidebarCollapsed();
+      }
     }
+
+    // ── Sidebar Collapse ────────────────────────────────────
+    function _saveSidebarCollapsed() {
+      const ids = Array.from(document.querySelectorAll('.sidebar-group.collapsed'))
+        .map(g => g.dataset.group).filter(Boolean);
+      try { localStorage.setItem('admin-sidebar-collapsed', JSON.stringify(ids)); } catch {}
+    }
+    (function _initSidebarCollapse() {
+      // Gespeicherten Zustand wiederherstellen
+      let saved = [];
+      try { saved = JSON.parse(localStorage.getItem('admin-sidebar-collapsed') || '[]'); } catch {}
+      saved.forEach(id => {
+        const g = document.querySelector(`.sidebar-group[data-group="${id}"]`);
+        if (g) g.classList.add('collapsed');
+      });
+      // Klick auf Gruppen-Label → auf-/zuklappen
+      document.querySelectorAll('.sidebar-group[data-group] .sidebar-group-label').forEach(label => {
+        label.addEventListener('click', () => {
+          label.closest('.sidebar-group').classList.toggle('collapsed');
+          _saveSidebarCollapsed();
+        });
+      });
+    })();
+
+    // ── Admin-Theme aus Display-Konfiguration laden ─────────
+    (function _initAdminTheme() {
+      function apply(t) {
+        const r = document.documentElement.style;
+        const map = { bg:'--bg', surface:'--panel', surface2:'--panel-soft', border:'--line',
+                      accent:'--accent', text:'--ink', muted:'--muted',
+                      success:'--success', warning:'--warning', danger:'--danger' };
+        Object.entries(map).forEach(([k, v]) => { if (t[k]) r.setProperty(v, t[k]); });
+        if (t.accent) {
+          const hex = t.accent.replace('#','');
+          if (/^[0-9a-f]{6}$/i.test(hex)) {
+            const rv = parseInt(hex.slice(0,2),16), gv = parseInt(hex.slice(2,4),16), bv = parseInt(hex.slice(4,6),16);
+            r.setProperty('--accent-soft', `rgba(${rv},${gv},${bv},0.12)`);
+          }
+        }
+      }
+      const load = () => fetch('/display/theme/effective').then(r => r.ok ? r.json() : null).then(t => { if (t) apply(t); }).catch(() => {});
+      load();
+      setInterval(load, 5 * 60 * 1000);  // alle 5 Min neu laden (zeitabhängiges Theme)
+    })();
 
     function syncPill() {
       pillEl.textContent = `${rangeEl.value}h`;
