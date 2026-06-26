@@ -401,9 +401,24 @@ async def _liga_cache_daemon(interval_hours: int = 12) -> None:
         await asyncio.sleep(interval_hours * 3600)
 
 
+def _migrate_deprecated_llm_models() -> None:
+    """Ersetzt abgekündigte LLM-Modelle automatisch durch den empfohlenen Nachfolger."""
+    _REPLACEMENTS = {"llama-3.1-8b-instant": "openai/gpt-oss-20b"}
+    try:
+        from app.database.db import get_connection, read_state, write_state
+        with get_connection() as conn:
+            cfg = dict(read_state(conn, "llm_config", {}) or {})
+            if cfg.get("model") in _REPLACEMENTS:
+                cfg["model"] = _REPLACEMENTS[cfg["model"]]
+                write_state(conn, "llm_config", cfg)
+    except Exception:
+        pass
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> Any:
     init_db()
+    _migrate_deprecated_llm_models()
     settings_service = SettingsService()
     settings_service.ensure_runtime_state()
     IntegrationConfigService().ensure_runtime_state()
