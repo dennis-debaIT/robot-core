@@ -281,6 +281,71 @@ async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
         await asyncio.sleep(interval_seconds)
 
 
+async def _ha_lights_ws_loop() -> None:
+    """Abonniert HA WebSocket für state_changed auf Licht-Entitäten und pusht
+    sofort zum Sync Server — kein Polling-Intervall nötig."""
+    import json as _json
+    from app.services import sync_service as _sync
+    from app.services.integration_config_service import IntegrationConfigService as _ICS
+
+    await asyncio.sleep(40)
+
+    while True:
+        try:
+            url, tok = _sync.get_credentials()
+            if not (url and tok):
+                await asyncio.sleep(60)
+                continue
+
+            cfg = _ICS().get_config()
+            if not (cfg.get("sync") or {}).get("modules", {}).get("lights", False):
+                await asyncio.sleep(60)
+                continue
+
+            from app.services.homeassistant_runtime_config_service import HomeAssistantRuntimeConfigService as _HARCS
+            runtime = _HARCS.to_public_payload()
+            base_url = str(runtime.get("base_url") or "")
+            ha_token = str(runtime.get("token") or "")
+            if not (base_url and ha_token):
+                await asyncio.sleep(60)
+                continue
+
+            ws_url = base_url.replace("https://", "wss://").replace("http://", "ws://") + "/api/websocket"
+
+            import websockets
+            async with websockets.connect(ws_url) as ws:
+                # Authentifizierung
+                msg = _json.loads(await ws.recv())
+                if msg.get("type") != "auth_required":
+                    await asyncio.sleep(30)
+                    continue
+                await ws.send(_json.dumps({"type": "auth", "access_token": ha_token}))
+                msg = _json.loads(await ws.recv())
+                if msg.get("type") != "auth_ok":
+                    await asyncio.sleep(60)
+                    continue
+
+                # state_changed abonnieren
+                await ws.send(_json.dumps({"id": 1, "type": "subscribe_events", "event_type": "state_changed"}))
+                await ws.recv()  # result-Bestätigung
+
+                async for raw in ws:
+                    try:
+                        event = _json.loads(raw)
+                        if event.get("type") != "event":
+                            continue
+                        data = (event.get("event") or {}).get("data") or {}
+                        entity_id = str(data.get("entity_id") or "")
+                        if not (entity_id.startswith("light.") or entity_id.startswith("switch.")):
+                            continue
+                        await asyncio.to_thread(_sync.push_lights)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        await asyncio.sleep(10)  # Reconnect-Pause bei Verbindungsabbruch
+
+
 async def _license_renewal_loop(interval_hours: int = 24) -> None:
     """Erneuert eine installierte Abo-Lizenz täglich beim Lizenzserver.
     Lifetime-Lizenzen und fehlende Lizenzen werden übersprungen (still)."""
@@ -343,6 +408,7 @@ async def lifespan(_: FastAPI) -> Any:
     license_task = asyncio.create_task(_license_renewal_loop())
     shopping_sync_task = asyncio.create_task(_sync_loop())
     pv_fast_sync_task = asyncio.create_task(_pv_fast_sync_loop())
+    ha_lights_ws_task = asyncio.create_task(_ha_lights_ws_loop())
     liga_cache_task = asyncio.create_task(_liga_cache_daemon())
     deps.set_runtime(core, settings_service)
     try:
@@ -358,6 +424,7 @@ async def lifespan(_: FastAPI) -> Any:
         license_task.cancel()
         shopping_sync_task.cancel()
         pv_fast_sync_task.cancel()
+        ha_lights_ws_task.cancel()
         liga_cache_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
