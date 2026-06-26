@@ -274,7 +274,6 @@ async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
                 if modules.get("pv", False):
                     _sync.push_pv()
                 if modules.get("lights", False):
-                    _sync.push_lights()
                     _sync.poll_light_commands()
         except Exception:
             pass
