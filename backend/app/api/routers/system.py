@@ -412,7 +412,7 @@ def trigger_reboot() -> dict[str, Any]:
 # ── LLM KONFIGURATION ────────────────────────────────────────
 
 _LLM_PROVIDERS: dict[str, dict[str, Any]] = {
-    "groq":    {"url": "https://api.groq.com/openai/v1/chat/completions",                             "models": ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "gemma2-9b-it", "mixtral-8x7b-32768"]},
+    "groq":    {"url": "https://api.groq.com/openai/v1/chat/completions",                             "models": ["llama-3.3-70b-versatile", "gemma2-9b-it", "mixtral-8x7b-32768"]},
     "openai":  {"url": "https://api.openai.com/v1/chat/completions",                                  "models": ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo"]},
     "gemini":  {"url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",    "models": ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]},
     "mistral": {"url": "https://api.mistral.ai/v1/chat/completions",                                  "models": ["mistral-small-latest", "open-mistral-nemo", "mistral-large-latest"]},
