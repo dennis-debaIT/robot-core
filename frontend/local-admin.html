@@ -919,6 +919,14 @@
                   <span class="switch-text">HA-Kalendertermine in der App synchronisieren</span>
                 </span>
               </label>
+              <label class="switch-card" style="padding:10px 14px;">
+                <input id="sync-module-lights" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">💡 Lichter</span>
+                  <span class="switch-text">Lichtstatus &amp; Szenen in der App synchronisieren</span>
+                </span>
+              </label>
             </div>
             <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
               <button type="button" class="btn btn-secondary" onclick="_triggerSync()">Jetzt synchronisieren</button>
@@ -3843,6 +3851,7 @@
         const mne = document.getElementById('sync-module-news');
         const mp  = document.getElementById('sync-module-pv');
         const mcal = document.getElementById('sync-module-calendar');
+        const mli = document.getElementById('sync-module-lights');
         if (ms)  ms.checked   = mods.shopping !== false;
         if (mn)  mn.checked   = mods.notes === true;
         if (mr)  mr.checked   = mods.reminders === true;
@@ -3851,6 +3860,7 @@
         if (mne) mne.checked  = mods.news === true;
         if (mp)  mp.checked   = mods.pv === true;
         if (mcal) mcal.checked = mods.calendar === true;
+        if (mli) mli.checked  = mods.lights === true;
       } catch {}
     }
 
@@ -3864,6 +3874,7 @@
       const mne = document.getElementById('sync-module-news');
       const mp   = document.getElementById('sync-module-pv');
       const mcal = document.getElementById('sync-module-calendar');
+      const mli  = document.getElementById('sync-module-lights');
       const res  = document.getElementById('sync-result');
       try {
         await fetch('/local-admin/integrations/config', {
@@ -3881,6 +3892,7 @@
                 news:      mne?.checked || false,
                 pv:        mp?.checked || false,
                 calendar:  mcal?.checked || false,
+                lights:    mli?.checked || false,
               },
             },
           }),
@@ -4136,6 +4148,7 @@
     document.getElementById('sync-module-news')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-pv')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-calendar')?.addEventListener('change', saveSyncConfig);
+    document.getElementById('sync-module-lights')?.addEventListener('change', saveSyncConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);
