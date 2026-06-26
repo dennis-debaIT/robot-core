@@ -273,7 +273,22 @@ async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
                 modules = (cfg.get("sync") or {}).get("modules", {})
                 if modules.get("pv", False):
                     _sync.push_pv()
-                if modules.get("lights", False):
+        except Exception:
+            pass
+        await asyncio.sleep(interval_seconds)
+
+
+async def _light_command_poll_loop(interval_seconds: int = 3) -> None:
+    """Pollt Licht-Befehle alle 3 Sekunden für schnelle Reaktion auf App-Befehle."""
+    from app.services import sync_service as _sync
+    from app.services.integration_config_service import IntegrationConfigService as _ICS
+    await asyncio.sleep(38)
+    while True:
+        try:
+            url, tok = _sync.get_credentials()
+            if url and tok:
+                cfg = _ICS().get_config()
+                if (cfg.get("sync") or {}).get("modules", {}).get("lights", False):
                     _sync.poll_light_commands()
         except Exception:
             pass
@@ -407,6 +422,7 @@ async def lifespan(_: FastAPI) -> Any:
     license_task = asyncio.create_task(_license_renewal_loop())
     shopping_sync_task = asyncio.create_task(_sync_loop())
     pv_fast_sync_task = asyncio.create_task(_pv_fast_sync_loop())
+    light_cmd_poll_task = asyncio.create_task(_light_command_poll_loop())
     ha_lights_ws_task = asyncio.create_task(_ha_lights_ws_loop())
     liga_cache_task = asyncio.create_task(_liga_cache_daemon())
     deps.set_runtime(core, settings_service)
@@ -423,6 +439,7 @@ async def lifespan(_: FastAPI) -> Any:
         license_task.cancel()
         shopping_sync_task.cancel()
         pv_fast_sync_task.cancel()
+        light_cmd_poll_task.cancel()
         ha_lights_ws_task.cancel()
         liga_cache_task.cancel()
         with suppress(asyncio.CancelledError):
