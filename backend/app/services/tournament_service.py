@@ -14,6 +14,14 @@ _LIVE = {"IN_PLAY", "PAUSED"}
 _ACTIVE = {"IN_PLAY", "PAUSED", "SCHEDULED", "TIMED"}
 _DONE = {"FINISHED"}
 
+_STAGE_LABEL: dict[str, str] = {
+    "LAST_16":        "Achtelfinale",
+    "QUARTER_FINALS": "Viertelfinale",
+    "SEMI_FINALS":    "Halbfinale",
+    "THIRD_PLACE":    "Spiel um Platz 3",
+    "FINAL":          "Finale",
+}
+
 # Maximale Spieldauer inkl. Verlängerung + Elfmeterschießen (Puffer)
 _MAX_MATCH_MINUTES = 130
 
@@ -94,16 +102,18 @@ def _resolve_matchday(all_matches: list[dict[str, Any]], hint: int | None) -> tu
             day = upcoming[0]["matchday"]
             return day, [x for x in group_matches if x.get("matchday") == day]
 
-        # e) Alle Gruppenspiele abgeschlossen → letzter Spieltag
-        finished = [m for m in group_matches if m.get("status") in _DONE]
-        if finished:
-            finished.sort(key=lambda x: x.get("utcDate") or "")
-            day = finished[-1]["matchday"]
-            return day, [x for x in group_matches if x.get("matchday") == day]
+        # e) Gruppenphase abgeschlossen → KO-Runde bevorzugen wenn aktiv/anstehend
+        ko_active = [m for m in all_matches if m.get("matchday") is None and m.get("status") in _ACTIVE]
+        if not ko_active:
+            finished = [m for m in group_matches if m.get("status") in _DONE]
+            if finished:
+                finished.sort(key=lambda x: x.get("utcDate") or "")
+                day = finished[-1]["matchday"]
+                return day, [x for x in group_matches if x.get("matchday") == day]
+            return None, group_matches  # Fallback: alles
+        # KO-Runde ist aktiv → Fall-through zur KO-Logik
 
-        return None, group_matches  # Fallback: alles
-
-    # KO-Phase (kein matchday): aktive Stage finden
+    # KO-Phase (kein matchday oder Fall-through nach Gruppenphase): aktive Stage finden
     stages_order: list[str] = []
     for m in all_matches:
         s = m.get("stage") or ""
@@ -219,10 +229,13 @@ class TournamentService:
 
         matchday_matches.sort(key=lambda m: m.get("utcDate") or "")
 
+        stage_key = matchday_matches[0].get("stage") if (matchday_nr is None and matchday_matches) else None
         result: dict[str, Any] = {
             "live": live_matches,
             "matchday": matchday_matches,
             "matchday_nr": matchday_nr,
+            "stage": stage_key,
+            "stage_label": _STAGE_LABEL.get(stage_key or "", None),
             "competition_name": competition.get("name", "Turnier"),
         }
         TournamentService._cache = result

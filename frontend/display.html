@@ -4306,7 +4306,9 @@
       const liveIds = new Set((data.live || []).map(m => m.id));
       const label = data.matchday_nr
         ? `${data.competition_name || 'Turnier'} · Spieltag ${data.matchday_nr}`
-        : data.competition_name || 'Turnier';
+        : data.stage_label
+          ? `${data.competition_name || 'Turnier'} · ${data.stage_label}`
+          : data.competition_name || 'Turnier';
 
       if (!matches.length) {
         return `<div class="trn-header">${escapeHTML(label)}</div>
