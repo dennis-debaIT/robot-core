@@ -64,12 +64,21 @@ class ChoreService:
             next_sort = conn.execute(
                 "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM chore_tasks"
             ).fetchone()["n"]
+            existing = {
+                row["name"]
+                for row in conn.execute("SELECT name FROM chore_tasks").fetchall()
+            }
+            unique_name = name
+            counter = 0
+            while unique_name in existing:
+                counter += 1
+                unique_name = f"{name} {counter}"
             cur = conn.execute(
                 """
                 INSERT INTO chore_tasks(name, icon, points, sort_order, active, created_at, updated_at)
                 VALUES (?, ?, ?, ?, 1, ?, ?)
                 """,
-                (name, icon, points, next_sort, now, now),
+                (unique_name, icon, points, next_sort, now, now),
             )
             row = conn.execute("SELECT * FROM chore_tasks WHERE id = ?", (cur.lastrowid,)).fetchone()
         return self._task_row_to_dict(row)
