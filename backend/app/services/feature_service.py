@@ -35,6 +35,7 @@ FEATURES: dict[str, str] = {
     "energy_costs":    "plus",   # Stromkosten-Berechnung (Verbrauch je Sensor bleibt frei)
     "chores":          "plus",   # Hausaufgaben-Modul (Aufgabenverwaltung + Statistik)
     "liga_plus":       "plus",   # Liga-Modul Plus: Marktwerte, Spielerprofile, letzte Spiele, Mini-Tabelle
+    "sync":            "plus",   # Companion-App & Einkaufslisten-Sync (Erika Plus)
 }
 
 _TIER_RANK = {"community": 0, "plus": 1, "family": 2}

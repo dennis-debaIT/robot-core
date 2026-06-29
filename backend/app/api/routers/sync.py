@@ -1,4 +1,4 @@
-"""Sync-Endpunkte — Einkaufsliste (lokal + Sync-Trigger)."""
+"""Sync-Endpunkte — Einkaufsliste (lokal + Sync-Trigger). Erika Plus."""
 from __future__ import annotations
 
 from typing import Any
@@ -10,13 +10,21 @@ from app.services import sync_service as svc
 router = APIRouter()
 
 
+def _require_sync() -> None:
+    from app.services.feature_service import FeatureService
+    if not FeatureService().has_feature("sync"):
+        raise HTTPException(status_code=403, detail="Companion-App erfordert Erika Plus")
+
+
 @router.get("/sync/items")
 def get_items() -> dict[str, Any]:
+    _require_sync()
     return {"items": svc.list_items()}
 
 
 @router.post("/sync/items")
 def add_item(payload: dict[str, Any]) -> dict[str, Any]:
+    _require_sync()
     text = str(payload.get("text") or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="text fehlt")
@@ -27,6 +35,7 @@ def add_item(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.patch("/sync/items/{item_id}")
 def patch_item(item_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    _require_sync()
     item = svc.update_item(
         item_id,
         text=payload.get("text"),
@@ -41,6 +50,7 @@ def patch_item(item_id: str, payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.delete("/sync/items/{item_id}")
 def remove_item(item_id: str) -> dict[str, Any]:
+    _require_sync()
     if not svc.delete_item(item_id):
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
     svc.push_item({"id": item_id, "deleted": True})
@@ -49,11 +59,13 @@ def remove_item(item_id: str) -> dict[str, Any]:
 
 @router.delete("/sync/items")
 def clear_checked() -> dict[str, Any]:
+    _require_sync()
     return {"deleted": svc.clear_checked()}
 
 
 @router.post("/sync/trigger")
 def trigger_sync() -> dict[str, Any]:
+    _require_sync()
     """Manuellen Sync anstoßen — alle aktivierten Module."""
     import traceback as _tb
     from app.services.integration_config_service import IntegrationConfigService

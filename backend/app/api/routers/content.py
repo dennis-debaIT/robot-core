@@ -246,6 +246,11 @@ def get_weather_display(location: str | None = None) -> dict[str, Any]:
     return result
 
 
+def _sync_has_feature() -> bool:
+    from app.services.feature_service import FeatureService
+    return FeatureService().has_feature("sync")
+
+
 @router.get("/display/state")
 def get_display_state() -> dict[str, Any]:
     import os as _os
@@ -279,7 +284,7 @@ def get_display_state() -> dict[str, Any]:
         "chores":      bool((config.get("chores")      or {}).get("enabled", False)),
         "tournament":  bool((config.get("tournament")  or {}).get("enabled", False) and bool((config.get("tournament") or {}).get("api_key", ""))),
         "liga":        bool((config.get("liga")        or {}).get("enabled", False) and bool((config.get("liga") or {}).get("api_key", "")) and bool((config.get("liga") or {}).get("leagues"))),
-        "sync":        bool((config.get("sync")         or {}).get("enabled", False)),
+        "sync":        bool((config.get("sync")         or {}).get("enabled", False)) and _sync_has_feature(),
     }
     cal_cfg = config.get("calendar") or {}
     calendar_config = {"open_trigger": cal_cfg.get("open_trigger", "both")}

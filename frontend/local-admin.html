@@ -3611,6 +3611,8 @@
         if (wasteBtn) wasteBtn.style.display = feats.waste ? '' : 'none';
         const choresBtn = document.querySelector('[data-tab-target="tab-chores"]');
         if (choresBtn) choresBtn.style.display = feats.chores ? '' : 'none';
+        const syncBtn = document.querySelector('[data-tab-target="tab-sync"]');
+        if (syncBtn) syncBtn.style.display = feats.sync ? '' : 'none';
         const scheduleCard = document.getElementById('theme-schedule-card');
         if (scheduleCard) scheduleCard.style.display = feats.theme_schedule ? '' : 'none';
       } catch {}
