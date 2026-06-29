@@ -21,6 +21,9 @@
   --border: var(--line);
   --color-muted: var(--muted);
   --color-text: var(--ink);
+  --surface2: var(--panel-soft);
+  --text: var(--ink);
+  --text-muted: var(--muted);
   --success: #00e676;
   --warning: #ffab00;
   --danger: #ff4f5f;

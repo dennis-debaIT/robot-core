@@ -1806,7 +1806,7 @@
               <p>Sicherung der Konfigurationsdatenbank erstellen oder wiederherstellen. Vor jedem Update wird automatisch ein Backup angelegt.</p>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-              <button type="button" onclick="downloadBackup()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+              <button type="button" onclick="downloadBackup()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:var(--accent-10);border:1px solid var(--accent-30);color:var(--accent);">
                 ⬇️ Backup herunterladen
               </button>
             </div>
@@ -5920,14 +5920,14 @@
     function _showUpdateProgress() {
       const box = document.getElementById('update-status-box');
       box.innerHTML = `
-        <div style="font-weight:700;color:#ffab00;margin-bottom:6px;">⏳ Update wird installiert…</div>
-        <div style="background:#24284a;border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px;position:relative;">
-          <div id="upd-bar" style="position:absolute;top:0;height:100%;background:#00c8ff;border-radius:6px;
+        <div style="font-weight:700;color:var(--warning);margin-bottom:6px;">⏳ Update wird installiert…</div>
+        <div style="background:var(--line);border-radius:6px;height:8px;overflow:hidden;margin-bottom:10px;position:relative;">
+          <div id="upd-bar" style="position:absolute;top:0;height:100%;background:var(--accent);border-radius:6px;
             width:40%;animation:update-bar-slide 1.8s ease-in-out infinite;"></div>
         </div>
-        <div id="update-phase" style="font-size:0.78rem;color:#7f8dcb;margin-bottom:8px;">Warte auf Cron-Job…</div>
-        <pre id="update-log-box" style="font-size:0.7rem;color:#7f8dcb;background:rgba(0,0,0,0.35);
-          border:1px solid #24284a;border-radius:6px;padding:8px;max-height:150px;
+        <div id="update-phase" style="font-size:0.78rem;color:var(--muted);margin-bottom:8px;">Warte auf Cron-Job…</div>
+        <pre id="update-log-box" style="font-size:0.7rem;color:var(--muted);background:var(--bg);
+          border:1px solid var(--line);border-radius:6px;padding:8px;max-height:150px;
           overflow-y:auto;white-space:pre-wrap;margin:0;">(warte auf Log…)</pre>
       `;
       document.getElementById('update-install-btn').style.display = 'none';
@@ -5939,7 +5939,7 @@
       if (elapsed > _UPDATE_TIMEOUT_MS) {
         clearInterval(_updatePollInterval);
         document.getElementById('update-status-box').innerHTML =
-          '<span style="color:#ffab00;">⚠️ Timeout — bitte Seite neu laden und manuell prüfen.</span>';
+          '<span style="color:var(--warning);">⚠️ Timeout — bitte Seite neu laden und manuell prüfen.</span>';
         document.getElementById('update-check-btn').disabled = false;
         document.getElementById('update-install-btn').style.display = '';
         return;
