@@ -377,9 +377,12 @@ class FootballProvider:
     ) -> dict[str, Any] | None:
         url = f"{self.BASE}/getmatchdata/{league_id}/{season_year}"
         try:
+            from app.services.health_service import mark_attempt, mark_success
+            mark_attempt("football")
             req = urllib.request.Request(url, headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 matches = json.loads(resp.read().decode())
+            mark_success("football")
         except Exception:
             return None
 
@@ -465,9 +468,14 @@ class FootballProvider:
     def _fetch_table(self, league_id: str, season_year: int) -> list[dict] | None:
         url = f"{self.BASE}/getbltable/{league_id}/{season_year}"
         try:
+            from app.services.health_service import mark_attempt, mark_success
+            mark_attempt("football")
             req = urllib.request.Request(url, headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode())
-                return data if isinstance(data, list) else None
+            result = data if isinstance(data, list) else None
+            if result is not None:
+                mark_success("football")
+            return result
         except Exception:
             return None

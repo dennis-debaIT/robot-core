@@ -270,6 +270,9 @@
 <!-- Audio-Element für TTS (iOS braucht ein vorab erstelltes Element) -->
 <audio id="tts-audio" preload="none" style="display:none"></audio>
 
+<!-- ── API HEALTH BAR ────────────────────────────────── -->
+<div id="api-health-bar" style="display:none;position:fixed;bottom:64px;left:0;right:0;z-index:90;background:rgba(255,171,0,0.10);border-top:1px solid rgba(255,171,0,0.25);color:var(--warning,#ffab00);font-size:10px;padding:3px 14px;text-align:center;pointer-events:none;"></div>
+
 <!-- ── NAV BAR (unten) ───────────────────────────────── -->
 <div class="nav-bar">
   <div class="nav-left-group">
@@ -2590,6 +2593,28 @@
     if (banner) banner.style.display = offline ? 'flex' : 'none';
   }
 
+  function _applyApiHealth(health) {
+    const bar = document.getElementById('api-health-bar');
+    if (!bar || !health) return;
+    const LABELS = { ha: 'Home Assistant', weather: 'Wetter', football: 'Fußball' };
+    const THRESH = { ha: 120, weather: 300, football: 300 };
+    const msgs = [];
+    for (const [src, secs] of Object.entries(health)) {
+      if (secs == null) continue;
+      const threshold = THRESH[src] ?? 300;
+      if (secs < threshold) continue;
+      const label = LABELS[src] || src;
+      const dur = secs < 120 ? `${secs} s` : `${Math.round(secs / 60)} min`;
+      msgs.push(`${label} (${dur})`);
+    }
+    if (msgs.length) {
+      bar.textContent = `⚠  Keine Verbindung: ${msgs.join(' · ')}`;
+      bar.style.display = '';
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
   async function pollDisplayState() {
     try {
       const state = await fetch('/display/state', { cache: 'no-store' }).then(r => r.json());
@@ -2597,6 +2622,7 @@
       applyAppHash(state.app_hash);
       applyModuleVisibility(state.modules, state.calendar_config);
       applyConfigVersion(state.config_version);
+      _applyApiHealth(state.health);
       if (state.mode === 'notes') {
         if (!document.getElementById('notes-overlay')) toggleNotesOverlay();
       } else if (state.mode === 'shopping') {

@@ -39,6 +39,8 @@ class HomeAssistantProvider:
     def _get(self, path: str) -> Any | None:
         if not self._token:
             return None
+        from app.services.health_service import mark_attempt, mark_success
+        mark_attempt("ha")
         url = f"{self._base_url}/api{path}"
         try:
             req = urllib.request.Request(
@@ -49,7 +51,9 @@ class HomeAssistantProvider:
                 },
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
-                return json.loads(resp.read().decode())
+                result = json.loads(resp.read().decode())
+            mark_success("ha")
+            return result
         except Exception:
             return None
 

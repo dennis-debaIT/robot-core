@@ -150,9 +150,12 @@ class WeatherProvider:
         })
         url = f"{self.WEATHER_URL}?{params}"
         try:
+            from app.services.health_service import mark_attempt, mark_success
+            mark_attempt("weather")
             req = urllib.request.Request(url, headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode())
+            mark_success("weather")
         except Exception:
             return None
 
