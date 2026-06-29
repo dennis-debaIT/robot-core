@@ -821,7 +821,7 @@
         <article id="tab-chores" class="panel-card tab-panel">
           <header class="panel-header">
             <div>
-              <div class="panel-kicker">Hausaufgaben <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
+              <div class="panel-kicker">Hausaufgaben <span style="font-size:0.6rem;background:var(--accent-10);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
               <h2>Hausaufgaben-Verwaltung</h2>
             </div>
             <label class="switch-card">
@@ -846,7 +846,7 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Aufgaben</div>
-              <p>Lege die Hausaufgaben an, die im Display erledigt werden können (z. B. „Treppe saugen"). Das Icon ist ein optionales Emoji. Reihenfolge per ↑/↓, Löschen entfernt die Aufgabe aus dem Display (bisherige Statistik bleibt erhalten).</p>
+              <p>Lege die Hausaufgaben an, die im Display erledigt werden können (z. B. „Treppe saugen"). Das Icon ist ein optionales Emoji. Reihenfolge per Drag &amp; Drop änderbar, Löschen entfernt die Aufgabe aus dem Display (bisherige Statistik bleibt erhalten).</p>
             </div>
             <div id="chore-tasks" class="layout-slot-list"></div>
             <div class="layout-add-row" style="margin-top:10px;">
@@ -2061,6 +2061,10 @@
                       accent:'--accent', text:'--ink', muted:'--muted',
                       success:'--success', warning:'--warning', danger:'--danger' };
         Object.entries(map).forEach(([k, v]) => { if (t[k]) r.setProperty(v, t[k]); });
+        // panel-muted folgt surface2 (nicht im Theme, aber gleiche Ebene)
+        if (t.surface2) r.setProperty('--panel-muted', t.surface2);
+        // line-strong = border mit etwas mehr Deckkraft
+        if (t.border) r.setProperty('--line-strong', t.border);
         if (t.accent) {
           const hex = t.accent.replace('#','');
           if (/^[0-9a-f]{6}$/i.test(hex)) {
