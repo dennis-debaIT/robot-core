@@ -300,9 +300,30 @@
       }
 
       // ── Autarkie-Anzeige ──
+      // Wenn der Energie-Sensor (gd) verlässliche Netz-Daten liefert, überschreiben
+      // wir die Backend-Autarkie-Berechnung — analog zur Savings-Korrektur über
+      // gd.einspeisung. Nötig wenn grid_id-Sensor falsche Vorzeichenkonvention hat
+      // (häufig bei Balkonkraftwerken ohne bidirektionalen Netzzähler).
+      let _autarkie = d.autarkie;
+      if (
+        view === 'today' && d.autarkie &&
+        typeof gd?.einspeisung === 'number' && typeof gd?.netzbezug === 'number'
+      ) {
+        const corrFeedIn   = gd.einspeisung;
+        const corrBattC    = (d.savings?.battery_charge_kwh) || 0;
+        const corrSelfC    = Math.max(0, (total || 0) - corrFeedIn - corrBattC);
+        const corrImport   = gd.netzbezug;
+        const corrTotalC   = corrSelfC + corrImport;
+        _autarkie = {
+          ...d.autarkie,
+          autarkie_pct: corrTotalC > 0 ? Math.round(corrSelfC / corrTotalC * 1000) / 10 : 0,
+          self_use_pct: (total || 0) > 0 ? Math.round(corrSelfC / total * 1000) / 10 : 0,
+          import_kwh: corrImport,
+        };
+      }
       let autarkieHtml = '';
-      if (d.autarkie) {
-        const a = d.autarkie;
+      if (_autarkie) {
+        const a = _autarkie;
         const fmtPct = v => typeof v === 'number' ? v.toLocaleString('de-DE', {maximumFractionDigits: 1}) + ' %' : '–';
         const bar = (pct, color) => {
           const w = Math.min(100, Math.max(0, pct || 0));
