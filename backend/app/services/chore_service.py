@@ -234,6 +234,78 @@ class ChoreService:
             "leader": persons[0] if persons else None,
         }
 
+    def weekly_hall_of_fame(self) -> dict[str, Any]:
+        """Wochensieger-Rangliste über alle abgeschlossenen Kalenderwochen.
+
+        Zählt für jede vergangene Woche (Mo-So, Montag 00:00 lokale TZ als Grenze)
+        wer die meisten Punkte hatte. Aktuelle Woche wird ausgeschlossen.
+        Gibt hall_of_fame (Personen mit Gesamtsiegen) und weeks (neueste zuerst) zurück.
+        """
+        from collections import defaultdict
+        tz = self._local_tz()
+        now_local = datetime.now(tz)
+        current_week_start_utc = self._period_start_utc("week", now_local).isoformat()
+
+        with get_connection() as conn:
+            rows = conn.execute("""
+                SELECT p.id AS person_id, p.name AS person_name,
+                       CAST(strftime('%Y', c.completed_at) AS INTEGER) * 100 +
+                       CAST(strftime('%W', c.completed_at) AS INTEGER) AS week_num,
+                       SUM(COALESCE(t.points, 1)) AS total_points,
+                       COUNT(*) AS total_completions
+                FROM chore_completions c
+                JOIN persons p ON p.id = c.person_id
+                JOIN chore_tasks t ON t.id = c.task_id
+                WHERE c.completed_at < ?
+                GROUP BY week_num, p.id, p.name
+                ORDER BY week_num ASC, total_points DESC, p.name ASC
+            """, (current_week_start_utc,)).fetchall()
+
+        weeks_data: dict[int, list[dict[str, Any]]] = defaultdict(list)
+        for r in rows:
+            weeks_data[r["week_num"]].append({
+                "person_id": r["person_id"],
+                "name": r["person_name"],
+                "total_points": r["total_points"],
+                "total_completions": r["total_completions"],
+            })
+
+        winner_counts: dict[int, dict[str, Any]] = {}
+        weeks: list[dict[str, Any]] = []
+        for week_num in sorted(weeks_data.keys()):
+            persons = weeks_data[week_num]  # sorted by total_points DESC
+            winner = persons[0]
+            year = week_num // 100
+            week_n = week_num % 100
+            week_label = f"KW {week_n:02d} / {year}"
+            weeks.append({
+                "week_num": week_num,
+                "week_label": week_label,
+                "persons": persons,
+                "winner": winner,
+            })
+            pid = winner["person_id"]
+            if pid not in winner_counts:
+                winner_counts[pid] = {
+                    "person_id": pid,
+                    "name": winner["name"],
+                    "wins": 0,
+                    "won_weeks": [],
+                }
+            winner_counts[pid]["wins"] += 1
+            winner_counts[pid]["won_weeks"].append({
+                "week_num": week_num,
+                "week_label": week_label,
+                "points": winner["total_points"],
+                "completions": winner["total_completions"],
+            })
+
+        hall_of_fame = sorted(winner_counts.values(), key=lambda x: (-x["wins"], x["name"]))
+        return {
+            "hall_of_fame": hall_of_fame,
+            "weeks": list(reversed(weeks)),  # neueste Woche zuerst
+        }
+
     def person_completions(self, person_id: int, period: str = "week") -> dict[str, Any]:
         tz = self._local_tz()
         now_local = datetime.now(tz)

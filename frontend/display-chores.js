@@ -90,6 +90,16 @@
     }
   }
 
+  async function _fetchHallOfFame() {
+    try {
+      const r = await fetch('/chores/hall-of-fame', { cache: 'no-store' });
+      if (!r.ok) return null;
+      return await r.json();
+    } catch {
+      return null;
+    }
+  }
+
   function _renderTaskList() {
     if (!state.tasks.length) return '<div class="cal-placeholder">Keine Hausaufgaben angelegt.</div>';
     return state.tasks.map(t => {
@@ -279,7 +289,9 @@
     lc.innerHTML = _renderTaskList();
     const lf = document.getElementById('left-footer');
     if (lf) {
-      lf.innerHTML = `<button class="chore-overview-btn" onclick="window._choresPlus.showOverall()">📊 Wochenübersicht</button>`;
+      lf.innerHTML = `
+        <button class="chore-overview-btn" onclick="window._choresPlus.showOverall()">📊 Diese Woche</button>
+        <button class="chore-overview-btn" onclick="window._choresPlus.showHallOfFame()">🏆 Hall of Fame</button>`;
     }
     setPanel('right', 'Personen', _renderPersonList());
     await _renderCenter();
@@ -335,6 +347,72 @@
     overlay.innerHTML = `
       <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;margin-bottom:14px;">📊 Wochenübersicht</div>
       <div class="chore-rank-list">${rankHtml}</div>`;
+  }
+
+  async function showHallOfFame() {
+    state.selectedTaskId = null;
+    state.selectedPersonId = null;
+    state.showingOverall = false;
+    document.getElementById('left-content').innerHTML = _renderTaskList();
+    setPanel('right', '', '');
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
+    overlay.classList.add('active');
+
+    const data = await _fetchHallOfFame();
+    if (!data || !data.hall_of_fame.length) {
+      overlay.innerHTML = '<div class="cal-placeholder">Noch keine abgeschlossenen Wochen — die Hall of Fame füllt sich ab nächster Woche.</div>';
+      return;
+    }
+
+    const medals = ['🥇', '🥈', '🥉'];
+    const rankHtml = data.hall_of_fame.map((p, i) => {
+      const medal = medals[i] || `${i + 1}.`;
+      const wins = p.wins;
+      const wLabel = wins === 1 ? 'Sieg' : 'Siege';
+      return `<div class="chore-rank-row" style="cursor:pointer;" onclick="window._choresPlus.showHallOfFamePerson(${p.person_id})">
+        <span class="chore-rank-pos">${medal}</span>
+        <span class="chore-color-dot" style="background:${_personColor(p.person_id)}"></span>
+        <span class="chore-rank-name">${escapeHTML(p.name)}</span>
+        <span class="chore-rank-count">${wins} ${wLabel}</span>
+      </div>`;
+    }).join('');
+
+    overlay.innerHTML = `
+      <div style="font-size:0.62rem;font-weight:800;letter-spacing:0.14em;color:var(--accent);text-transform:uppercase;margin-bottom:14px;">🏆 Hall of Fame · Alle Wochen</div>
+      <div class="chore-rank-list">${rankHtml}</div>`;
+  }
+
+  async function showHallOfFamePerson(personId) {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
+
+    const data = await _fetchHallOfFame();
+    if (!data) { overlay.innerHTML = '<div class="cal-placeholder">Fehler beim Laden.</div>'; return; }
+
+    const person = data.hall_of_fame.find(p => p.person_id === personId);
+    if (!person) { overlay.innerHTML = '<div class="cal-placeholder">Person nicht gefunden.</div>'; return; }
+
+    const winsLabel = person.wins === 1 ? 'Sieg' : 'Siege';
+    const wonHtml = (person.won_weeks || []).map(w => `
+      <div class="chore-recent-row">
+        <span style="flex:1;min-width:0;font-weight:600;">${escapeHTML(w.week_label)}</span>
+        <span style="color:var(--muted);font-size:0.78rem;flex-shrink:0;">${w.points} ${w.points === 1 ? 'Pkt' : 'Pkt'} · ${w.completions}×</span>
+      </div>`).join('');
+
+    overlay.innerHTML = `
+      <div class="vehicle-detail-wrap">
+        <div class="vehicle-detail-header">
+          <div>
+            <div class="vehicle-detail-kicker">Hall of Fame · ${person.wins} ${winsLabel}</div>
+            <div class="vehicle-detail-title">${escapeHTML(person.name)}</div>
+          </div>
+          <button class="chore-back-btn" onclick="window._choresPlus.showHallOfFame()">← Rangliste</button>
+        </div>
+        <div class="chore-recent-list">${wonHtml || '<div class="cal-placeholder">Keine Siege.</div>'}</div>
+      </div>`;
   }
 
   async function showPersonDetail(personId) {
@@ -424,5 +502,5 @@
     if (lf) lf.innerHTML = '';
   }
 
-  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion, showOverall, showPersonDetail };
+  window._choresPlus = { open, close, selectTask, showStatsTab, selectPerson, logCompletion, deleteCompletion, showOverall, showPersonDetail, showHallOfFame, showHallOfFamePerson };
 })();

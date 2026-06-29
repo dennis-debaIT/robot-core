@@ -115,6 +115,11 @@ def get_chore_overall_stats() -> dict[str, Any]:
     return ChoreService().overall_weekly_stats()
 
 
+@router.get("/chores/hall-of-fame")
+def get_chore_hall_of_fame() -> dict[str, Any]:
+    return ChoreService().weekly_hall_of_fame()
+
+
 @router.get("/chores/persons/{person_id}/completions")
 def get_person_completions(person_id: int, period: str = "week") -> dict[str, Any]:
     if period not in ("week", "month", "year"):

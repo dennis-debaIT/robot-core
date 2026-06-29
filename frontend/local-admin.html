@@ -3811,6 +3811,8 @@
     // ── HAUSAUFGABEN (Erika Plus) ─────────────────────────────
     let _choreTasks = [];
 
+    let _choreDragSrc = null;
+
     function _renderChoreTasks() {
       const box = document.getElementById('chore-tasks');
       if (!box) return;
@@ -3819,7 +3821,8 @@
         return;
       }
       box.innerHTML = _choreTasks.map((t, i) => `
-        <div class="layout-slot-row" style="gap:10px;flex-wrap:wrap;">
+        <div class="layout-slot-row chore-drag-row" draggable="true" data-index="${i}" style="gap:10px;flex-wrap:wrap;">
+          <span class="chore-drag-handle" title="Ziehen zum Sortieren">⠿</span>
           <input class="field-input" style="width:60px;text-align:center;" placeholder="🧹" maxlength="4"
                  value="${(t.icon||'').replace(/"/g,'&quot;')}" onchange="_updateChoreTask(${t.id}, {icon: this.value})">
           <input class="field-input" style="flex:1;min-width:140px;" placeholder="Aufgabenname"
@@ -3829,10 +3832,55 @@
             <input class="field-input" type="number" min="1" max="5" style="width:52px;text-align:center;"
                    value="${t.points || 1}" onchange="_updateChoreTask(${t.id}, {points: +this.value})">
           </label>
-          <button type="button" class="secondary" ${i === 0 ? 'disabled' : ''} onclick="_moveChoreTask(${i}, -1)" title="Nach oben">↑</button>
-          <button type="button" class="secondary" ${i === _choreTasks.length - 1 ? 'disabled' : ''} onclick="_moveChoreTask(${i}, 1)" title="Nach unten">↓</button>
           <button type="button" class="layout-remove-btn" onclick="_deleteChoreTask(${t.id})" title="Löschen">×</button>
         </div>`).join('');
+
+      // Drag & Drop Events
+      box.querySelectorAll('.chore-drag-row').forEach(row => {
+        row.addEventListener('dragstart', e => {
+          _choreDragSrc = +row.dataset.index;
+          e.dataTransfer.effectAllowed = 'move';
+          setTimeout(() => row.classList.add('chore-dragging'), 0);
+        });
+        row.addEventListener('dragend', () => {
+          row.classList.remove('chore-dragging');
+          box.querySelectorAll('.chore-drag-over').forEach(r => r.classList.remove('chore-drag-over'));
+        });
+        row.addEventListener('dragover', e => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          box.querySelectorAll('.chore-drag-over').forEach(r => r.classList.remove('chore-drag-over'));
+          row.classList.add('chore-drag-over');
+        });
+        row.addEventListener('drop', async e => {
+          e.preventDefault();
+          const target = +row.dataset.index;
+          if (_choreDragSrc !== null && _choreDragSrc !== target) {
+            await _reorderChoreTasks(_choreDragSrc, target);
+          }
+          _choreDragSrc = null;
+        });
+      });
+    }
+
+    async function _reorderChoreTasks(fromIndex, toIndex) {
+      const reordered = [..._choreTasks];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+      try {
+        await Promise.all(
+          reordered.map((t, i) =>
+            t.sort_order !== i
+              ? fetch(`/chores/tasks/${t.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sort_order: i }),
+                })
+              : Promise.resolve()
+          )
+        );
+        await _loadChoreTasks();
+      } catch {}
     }
 
     async function _loadChoreTasks() {
@@ -3876,19 +3924,6 @@
       } catch {}
     }
 
-    async function _moveChoreTask(index, dir) {
-      const other = index + dir;
-      if (other < 0 || other >= _choreTasks.length) return;
-      const a = _choreTasks[index];
-      const b = _choreTasks[other];
-      try {
-        await Promise.all([
-          fetch(`/chores/tasks/${a.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sort_order: b.sort_order }) }),
-          fetch(`/chores/tasks/${b.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sort_order: a.sort_order }) }),
-        ]);
-        await _loadChoreTasks();
-      } catch {}
-    }
 
     async function _loadChoresConfig() {
       try {
