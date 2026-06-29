@@ -2066,6 +2066,19 @@
           if (/^[0-9a-f]{6}$/i.test(hex)) {
             const rv = parseInt(hex.slice(0,2),16), gv = parseInt(hex.slice(2,4),16), bv = parseInt(hex.slice(4,6),16);
             r.setProperty('--accent-soft', `rgba(${rv},${gv},${bv},0.12)`);
+            r.setProperty('--accent-8',    `rgba(${rv},${gv},${bv},0.08)`);
+            r.setProperty('--accent-10',   `rgba(${rv},${gv},${bv},0.10)`);
+            r.setProperty('--accent-20',   `rgba(${rv},${gv},${bv},0.22)`);
+            r.setProperty('--accent-30',   `rgba(${rv},${gv},${bv},0.30)`);
+            r.setProperty('--accent-40',   `rgba(${rv},${gv},${bv},0.40)`);
+          }
+        }
+        if (t.muted) {
+          const mhex = t.muted.replace('#','');
+          if (/^[0-9a-f]{6}$/i.test(mhex)) {
+            const mr = parseInt(mhex.slice(0,2),16), mg = parseInt(mhex.slice(2,4),16), mb = parseInt(mhex.slice(4,6),16);
+            r.setProperty('--muted-14', `rgba(${mr},${mg},${mb},0.14)`);
+            r.setProperty('--muted-20', `rgba(${mr},${mg},${mb},0.20)`);
           }
         }
       }
