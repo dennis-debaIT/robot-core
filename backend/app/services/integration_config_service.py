@@ -145,6 +145,10 @@ class IntegrationConfigService:
                     {"match": "grau",  "label": "Restmüll",    "color": "black"},
                     {"match": "grün",  "label": "Grüne Tonne", "color": "green"},
                 ],
+                "push_notifications": {
+                    "enabled": True,
+                    "notify_time": "18:00",
+                },
             },
             "chores": {
                 "enabled": False,

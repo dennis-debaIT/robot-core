@@ -8,3 +8,4 @@ python-multipart>=0.0.9
 edge-tts>=6.1.9
 cryptography>=42.0
 trafilatura>=2.0,<3.0
+firebase-admin>=6.0,<7.0

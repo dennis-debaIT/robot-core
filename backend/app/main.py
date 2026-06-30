@@ -144,7 +144,23 @@ async def _reminder_watcher_loop() -> None:
                 except Exception:
                     pass
 
-            # Normale Erinnerungen (ohne light_command) als notified markieren
+            # Normale Erinnerungen (ohne light_command): FCM senden + notified markieren
+            with get_connection() as conn:
+                pending_rows = conn.execute(
+                    "SELECT id, text, person_id FROM reminders "
+                    "WHERE notified=0 AND dismissed=0 AND fire_at <= ? AND light_command IS NULL",
+                    (now_iso,),
+                ).fetchall()
+
+            for row in pending_rows:
+                try:
+                    from app.services.push_service import send_notification
+                    title = "Erinnerung"
+                    body  = str(row["text"] or "")
+                    send_notification(title, body, channel="reminders")
+                except Exception:
+                    pass
+
             with get_connection() as conn:
                 conn.execute(
                     "UPDATE reminders SET notified=1 WHERE notified=0 AND dismissed=0 AND fire_at <= ?",
@@ -153,6 +169,58 @@ async def _reminder_watcher_loop() -> None:
         except Exception as exc:
             _audit.log_error(source="reminder_watcher_loop", message=str(exc))
         await asyncio.sleep(5)
+
+
+async def _waste_push_loop() -> None:
+    """Sendet täglich zur konfigurierten Uhrzeit eine Push-Notification
+    falls morgen Müllabfuhr ist. Verhindert Doppelsendungen per Tages-Flag."""
+    from app.audit.service import AuditService
+    _audit = AuditService()
+    last_notified_date: str | None = None
+    await asyncio.sleep(60)
+    while True:
+        try:
+            from datetime import datetime, timezone, date as _date
+            from app.services.integration_config_service import IntegrationConfigService
+            from app.services.waste_service import WasteService
+            from app.services.push_service import send_notification
+
+            cfg         = IntegrationConfigService().get_config()
+            waste_cfg   = cfg.get("waste") or {}
+            push_cfg    = waste_cfg.get("push_notifications") or {}
+            if not push_cfg.get("enabled", True):
+                await asyncio.sleep(60)
+                continue
+
+            notify_time = str(push_cfg.get("notify_time", "18:00"))
+            now_local   = datetime.now()
+            today_str   = now_local.strftime("%Y-%m-%d")
+            current_hm  = now_local.strftime("%H:%M")
+
+            if current_hm == notify_time and last_notified_date != today_str:
+                tomorrow = (_date.today().toordinal() + 1)
+                tomorrow_str = _date.fromordinal(tomorrow).isoformat()
+
+                waste_data = WasteService().get_display_data(cfg)
+                bins_tomorrow = [
+                    b["label"] for b in waste_data.get("bins", [])
+                    if b.get("date") == tomorrow_str
+                ]
+                if bins_tomorrow:
+                    labels = ", ".join(bins_tomorrow)
+                    send_notification(
+                        title="🗑️ Müllabfuhr morgen",
+                        body=f"Morgen wird abgeholt: {labels}",
+                        channel="waste",
+                    )
+                    last_notified_date = today_str
+        except Exception as exc:
+            try:
+                from app.audit.service import AuditService
+                AuditService().log_error(source="waste_push_loop", message=str(exc))
+            except Exception:
+                pass
+        await asyncio.sleep(60)
 
 
 async def _notification_check_loop(interval_seconds: int = 30) -> None:
@@ -433,6 +501,7 @@ async def lifespan(_: FastAPI) -> Any:
     timer_task = asyncio.create_task(_timer_watcher_loop())
     notification_task = asyncio.create_task(_notification_check_loop())
     reminder_task = asyncio.create_task(_reminder_watcher_loop())
+    waste_push_task = asyncio.create_task(_waste_push_loop())
     memory_task = asyncio.create_task(_memory_maintenance_loop())
     license_task = asyncio.create_task(_license_renewal_loop())
     shopping_sync_task = asyncio.create_task(_sync_loop())
@@ -450,6 +519,7 @@ async def lifespan(_: FastAPI) -> Any:
         timer_task.cancel()
         notification_task.cancel()
         reminder_task.cancel()
+        waste_push_task.cancel()
         memory_task.cancel()
         license_task.cancel()
         shopping_sync_task.cancel()
@@ -469,6 +539,8 @@ async def lifespan(_: FastAPI) -> Any:
             await notification_task
         with suppress(asyncio.CancelledError):
             await reminder_task
+        with suppress(asyncio.CancelledError):
+            await waste_push_task
         with suppress(asyncio.CancelledError):
             await memory_task
         with suppress(asyncio.CancelledError):

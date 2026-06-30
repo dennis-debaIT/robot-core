@@ -1,5 +1,6 @@
 # Laufzeit & Secrets
 .env
+firebase-credentials.json
 *.db
 *.db-shm
 *.db-wal
