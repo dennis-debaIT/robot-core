@@ -595,35 +595,66 @@ def pull_chore_completions() -> int:
     merged = 0
     with get_connection() as conn:
         for comp in result.get("completions", []):
+            sync_id = str(comp.get("id", ""))
+
+            # task_id / person_id müssen lokale Integer sein
+            try:
+                task_id   = int(comp["task_id"])
+                person_id = int(comp["person_id"])
+            except (ValueError, TypeError):
+                continue
+
             if comp.get("deleted"):
+                # Integer-ID (robot-core-Eintrag): direkt per id löschen
                 try:
+                    local_id = int(sync_id)
+                    conn.execute("DELETE FROM chore_completions WHERE id = ?", (local_id,))
+                except (ValueError, TypeError):
+                    # UUID (App-Eintrag): per Inhalt suchen und löschen
                     conn.execute(
-                        "DELETE FROM chore_completions WHERE id = ?", (int(comp["id"]),)
+                        "DELETE FROM chore_completions WHERE task_id=? AND person_id=? AND completed_at=?",
+                        (task_id, person_id, comp["completed_at"]),
                     )
-                except Exception:
-                    pass
                 merged += 1
                 continue
-            existing = conn.execute(
-                "SELECT id FROM chore_completions WHERE id = ?", (int(comp["id"]),)
-            ).fetchone()
+
+            # Duplikat-Prüfung: Integer-IDs über id, UUID-IDs über Inhalt
+            try:
+                local_id = int(sync_id)
+                existing = conn.execute(
+                    "SELECT id FROM chore_completions WHERE id = ?", (local_id,)
+                ).fetchone()
+            except (ValueError, TypeError):
+                local_id = None
+                existing = conn.execute(
+                    "SELECT id FROM chore_completions WHERE task_id=? AND person_id=? AND completed_at=?",
+                    (task_id, person_id, comp["completed_at"]),
+                ).fetchone()
+
             if existing:
                 continue
+
             try:
-                conn.execute(
-                    "INSERT INTO chore_completions(id, task_id, person_id, completed_at) VALUES (?,?,?,?)",
-                    (
-                        int(comp["id"]),
-                        int(comp["task_id"]),
-                        int(comp["person_id"]),
-                        comp["completed_at"],
-                    ),
-                )
+                if local_id is not None:
+                    conn.execute(
+                        "INSERT INTO chore_completions(id, task_id, person_id, completed_at) VALUES (?,?,?,?)",
+                        (local_id, task_id, person_id, comp["completed_at"]),
+                    )
+                else:
+                    conn.execute(
+                        "INSERT INTO chore_completions(task_id, person_id, completed_at) VALUES (?,?,?)",
+                        (task_id, person_id, comp["completed_at"]),
+                    )
                 merged += 1
             except Exception:
                 pass
     _set_chores_last_pull(_now())
     return merged
+
+
+def push_chore_completion_deletion(completion_id: int) -> None:
+    """Informiert den Sync-Server über eine lokal gelöschte Completion."""
+    _sync_request("DELETE", f"/chores/completions/{completion_id}")
 
 
 # ── Abfallkalender ─────────────────────────────────────────────────────────

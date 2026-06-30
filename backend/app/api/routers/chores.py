@@ -90,6 +90,11 @@ def log_chore_completion(payload: dict[str, Any]) -> dict[str, Any]:
 def delete_chore_completion(completion_id: int) -> dict[str, Any]:
     if not ChoreService().delete_completion(completion_id):
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
+    try:
+        from app.services import sync_service as _sync
+        _sync.push_chore_completion_deletion(completion_id)
+    except Exception:
+        pass
     return {"ok": True}
 
 
