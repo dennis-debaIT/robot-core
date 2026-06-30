@@ -563,8 +563,31 @@ def push_chore_completions() -> int:
     return count
 
 
+def _get_chores_last_pull() -> str | None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT value FROM system_state WHERE key = ?", ("__chores_last_pull__",)
+        ).fetchone()
+    if not row:
+        return None
+    import json as _json
+    try:
+        return _json.loads(row["value"]).get("t")
+    except Exception:
+        return None
+
+
+def _set_chores_last_pull(ts: str) -> None:
+    import json as _json
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO system_state(key, value) VALUES (?,?)",
+            ("__chores_last_pull__", _json.dumps({"t": ts})),
+        )
+
+
 def pull_chore_completions() -> int:
-    since = _get_chores_last_sync()
+    since = _get_chores_last_pull()
     path  = "/chores/completions" + (f"?since={since}" if since else "")
     result = _sync_request("GET", path)
     if not result:
@@ -599,6 +622,7 @@ def pull_chore_completions() -> int:
                 merged += 1
             except Exception:
                 pass
+    _set_chores_last_pull(_now())
     return merged
 
 
