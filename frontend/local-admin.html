@@ -811,6 +811,22 @@
               <button type="button" class="secondary" onclick="addWasteBin()">+ Tonne hinzufügen</button>
             </div>
           </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Push-Benachrichtigung</div>
+              <p>Erika sendet eine Push-Nachricht auf dein Smartphone, wenn am nächsten Tag Müllabfuhr ist.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block" style="flex-direction:row;align-items:center;gap:12px;">
+                <span class="field-label" style="margin:0;">Benachrichtigungen aktivieren</span>
+                <input id="waste-push-enabled" type="checkbox">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Uhrzeit der Benachrichtigung</span>
+                <input id="waste-push-time" class="field-input" type="time" value="18:00" style="max-width:140px;">
+              </label>
+            </div>
+          </section>
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
             <button type="button" class="primary" onclick="saveWasteConfig()">Speichern</button>
             <span id="waste-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
@@ -3792,6 +3808,11 @@
         if (el) el.value = waste.calendar_entity || 'calendar.abfallkalender';
         _wasteBins = Array.isArray(waste.bins) ? waste.bins.map(b => ({ ...b })) : [];
         _renderWasteBins();
+        const push = waste.push_notifications || {};
+        const pushEnabled = document.getElementById('waste-push-enabled');
+        const pushTime = document.getElementById('waste-push-time');
+        if (pushEnabled) pushEnabled.checked = push.enabled !== false;
+        if (pushTime) pushTime.value = push.notify_time || '18:00';
       } catch {}
     }
 
@@ -3806,7 +3827,10 @@
         await fetch('/local-admin/integrations/config', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ waste: { enabled: true, calendar_entity: val, bins } }),
+          body: JSON.stringify({ waste: { enabled: true, calendar_entity: val, bins, push_notifications: {
+            enabled: document.getElementById('waste-push-enabled')?.checked !== false,
+            notify_time: document.getElementById('waste-push-time')?.value || '18:00',
+          }}}),
         });
         if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
       } catch (e) {
