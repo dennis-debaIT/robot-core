@@ -517,7 +517,7 @@ def _set_chores_last_sync(ts: str) -> None:
 def push_chore_tasks() -> int:
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT id, name, icon, sort_order, active, created_at, updated_at FROM chore_tasks"
+            "SELECT id, name, icon, sort_order, active, points, created_at, updated_at FROM chore_tasks"
         ).fetchall()
     count = 0
     for r in rows:
@@ -527,6 +527,7 @@ def push_chore_tasks() -> int:
             "icon":       r["icon"],
             "sort_order": r["sort_order"],
             "active":     bool(r["active"]),
+            "points":     r["points"] if r["points"] is not None else 1,
             "created_at": r["created_at"],
         })
         if result and not result.get("error"):
