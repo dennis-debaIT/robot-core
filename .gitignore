@@ -1,5 +1,6 @@
 # Laufzeit & Secrets
 .env
+restore.env
 firebase-credentials.json
 *.db
 *.db-shm

@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import deps
 from app.api.deps import BASE_DIR
 from app.api.routers import (
+    backup,
     chat,
     content,
     features,
@@ -584,6 +585,7 @@ app.include_router(ha_pv.router)
 app.include_router(ha_energy_costs.router)
 app.include_router(ha_waste.router)
 app.include_router(local_admin.router)
+app.include_router(backup.router)
 app.include_router(setup.router)
 app.include_router(simulation.router)
 app.include_router(personality_audio.router)

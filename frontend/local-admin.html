@@ -1818,24 +1818,23 @@
 
           <section class="module-card">
             <div class="section-copy">
-              <div class="section-title">Backup & Restore</div>
-              <p>Sicherung der Konfigurationsdatenbank erstellen oder wiederherstellen. Vor jedem Update wird automatisch ein Backup angelegt.</p>
+              <div class="section-title">Cloud-Backup</div>
+              <p>Erstellt ein verschlüsseltes Backup (Datenbank + Einstellungen) und speichert es sicher in der Cloud. Bei einem Gerätedefekt einfach neu aufsetzen, Sync-Token eintragen und wiederherstellen — alles ist sofort wie vorher.</p>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-              <button type="button" onclick="downloadBackup()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:var(--accent-10);border:1px solid var(--accent-30);color:var(--accent);">
-                ⬇️ Backup herunterladen
+            <div id="backup-info-box" style="margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--surface-2);font-size:0.84rem;color:var(--muted);">
+              Lade Backup-Status…
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button type="button" onclick="createCloudBackup()" id="backup-create-btn"
+                style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:var(--accent-10);border:1px solid var(--accent-30);color:var(--accent);">
+                ☁️ Backup erstellen
               </button>
-            </div>
-            <div class="section-copy" style="margin-bottom:8px;">
-              <span style="font-size:0.82rem;color:var(--muted);">Backup wiederherstellen (ZIP-Datei):</span>
-            </div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-              <input type="file" id="restore-file-input" accept=".zip" style="font-size:0.82rem;color:var(--text);">
-              <button type="button" onclick="restoreBackup()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(255,171,0,0.1);border:1px solid var(--warning);color:var(--warning);">
+              <button type="button" onclick="restoreCloudBackup()" id="backup-restore-btn"
+                style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(255,171,0,0.1);border:1px solid var(--warning);color:var(--warning);display:none;">
                 ↩️ Wiederherstellen
               </button>
             </div>
-            <div id="backup-status" style="margin-top:8px;font-size:0.8rem;color:var(--muted);"></div>
+            <div id="backup-status" style="margin-top:10px;font-size:0.82rem;color:var(--muted);"></div>
           </section>
 
           <section class="module-card weather-legacy-hidden">
@@ -5857,42 +5856,61 @@
     refreshSysRes();
     _sysresInterval = setInterval(refreshSysRes, 5000);
 
-    // ── Backup-Funktionen ─────────────────────────────────────
-    async function downloadBackup() {
-      const status = document.getElementById('backup-status');
-      if (status) status.textContent = 'Erstelle Backup…';
+    // ── Cloud-Backup-Funktionen ────────────────────────────────
+    async function loadBackupInfo() {
+      const box = document.getElementById('backup-info-box');
+      const restoreBtn = document.getElementById('backup-restore-btn');
+      if (!box) return;
       try {
-        const r = await fetch('/system/backup/download');
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const blob = await r.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const cd = r.headers.get('Content-Disposition') || '';
-        const fn = cd.match(/filename="([^"]+)"/)?.[1] || 'erika_backup.zip';
-        a.href = url; a.download = fn; a.click();
-        URL.revokeObjectURL(url);
-        if (status) status.textContent = '✓ Backup heruntergeladen: ' + fn;
-      } catch (e) {
-        if (status) status.textContent = '✗ Fehler: ' + e.message;
+        const info = await fetch('/admin/backup/info').then(r => r.json());
+        if (info.exists) {
+          const date = new Date(info.created_at).toLocaleString('de-DE');
+          const kb = Math.round(info.size_bytes / 1024);
+          box.innerHTML = `<span style="color:var(--text);">☁️ Letztes Backup: <strong>${date}</strong> (${kb} KB)</span>`;
+          if (restoreBtn) restoreBtn.style.display = '';
+        } else {
+          box.textContent = 'Noch kein Cloud-Backup vorhanden.';
+          if (restoreBtn) restoreBtn.style.display = 'none';
+        }
+      } catch {
+        box.textContent = 'Backup-Status nicht verfügbar (Sync Server nicht verbunden?).';
       }
     }
 
-    async function restoreBackup() {
-      const input = document.getElementById('restore-file-input');
+    async function createCloudBackup() {
       const status = document.getElementById('backup-status');
-      if (!input?.files?.length) { if (status) status.textContent = 'Bitte zuerst eine ZIP-Datei auswählen.'; return; }
-      if (!await showConfirm('Backup wirklich einspielen?\nDie aktuelle Konfiguration wird überschrieben. Erika startet danach neu.', 'Wiederherstellen')) return;
-      const fd = new FormData();
-      fd.append('file', input.files[0]);
-      if (status) status.textContent = 'Stelle wieder her…';
+      const btn = document.getElementById('backup-create-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Erstelle…'; }
+      if (status) status.textContent = '';
       try {
-        const r = await fetch('/system/backup/restore', { method: 'POST', body: fd });
+        const r = await fetch('/admin/backup/create', { method: 'POST' });
         const d = await r.json();
         if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
-        if (status) status.textContent = '✓ Wiederhergestellt. Neustart…';
-        setTimeout(() => fetch('/system/reboot', { method: 'POST' }).catch(() => {}), 1500);
+        const kb = Math.round((d.size_bytes || 0) / 1024);
+        if (status) status.textContent = `✓ Backup erfolgreich in der Cloud gespeichert (${kb} KB)`;
+        await loadBackupInfo();
       } catch (e) {
         if (status) status.textContent = '✗ Fehler: ' + e.message;
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '☁️ Backup erstellen'; }
+      }
+    }
+
+    async function restoreCloudBackup() {
+      const status = document.getElementById('backup-status');
+      if (!await showConfirm('Cloud-Backup wirklich wiederherstellen?\n\nDie aktuelle Datenbank und Einstellungen werden überschrieben. Erika startet danach neu.', 'Wiederherstellen')) return;
+      const btn = document.getElementById('backup-restore-btn');
+      if (btn) { btn.disabled = true; btn.textContent = '⏳ Stelle wieder her…'; }
+      if (status) status.textContent = '';
+      try {
+        const r = await fetch('/admin/backup/restore', { method: 'POST' });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+        if (status) status.textContent = '✓ Backup wiederhergestellt. Erika startet neu…';
+        setTimeout(() => fetch('/system/reboot', { method: 'POST' }).catch(() => {}), 2000);
+      } catch (e) {
+        if (status) status.textContent = '✗ Fehler: ' + e.message;
+        if (btn) { btn.disabled = false; btn.textContent = '↩️ Wiederherstellen'; }
       }
     }
 
@@ -6570,6 +6588,7 @@
   document.querySelector('[data-tab-target="tab-system"]')?.addEventListener('click', () => {
     loadEdition();
     loadLicenseStatus();
+    loadBackupInfo();
   });
 
   // ── LAYOUT SLOT EDITOR ───────────────────────────────────
