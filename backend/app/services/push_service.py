@@ -1,12 +1,14 @@
 """FCM Push-Notification Service.
 
 Sendet Push-Nachrichten an alle registrierten Geräte eines Tenants.
-Liest FCM-Tokens vom Sync Server, sendet via Firebase Admin SDK.
+Credentials werden aus der Umgebungsvariable FIREBASE_CREDENTIALS_B64 (Base64-JSON)
+geladen. Fallback: Datei FIREBASE_CREDENTIALS_FILE (Pfad).
 """
 from __future__ import annotations
 
+import base64
+import json
 import os
-from typing import Any
 
 _app = None
 
@@ -15,12 +17,19 @@ def _get_firebase_app():
     global _app
     if _app is not None:
         return _app
-    creds_path = os.getenv("FIREBASE_CREDENTIALS", "/app/firebase-credentials.json")
-    if not os.path.exists(creds_path):
-        raise FileNotFoundError(f"Firebase credentials nicht gefunden: {creds_path}")
     import firebase_admin
     from firebase_admin import credentials
-    cred = credentials.Certificate(creds_path)
+
+    b64 = os.getenv("FIREBASE_CREDENTIALS_B64", "").strip()
+    if b64:
+        cred_dict = json.loads(base64.b64decode(b64).decode())
+        cred = credentials.Certificate(cred_dict)
+    else:
+        path = os.getenv("FIREBASE_CREDENTIALS_FILE", "")
+        if not path or not os.path.exists(path):
+            raise RuntimeError("FCM nicht konfiguriert: FIREBASE_CREDENTIALS_B64 fehlt in .env")
+        cred = credentials.Certificate(path)
+
     _app = firebase_admin.initialize_app(cred)
     return _app
 

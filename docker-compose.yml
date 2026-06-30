@@ -65,7 +65,6 @@ services:
       - ./wifi-scan.json:/wifi-scan.json
       - ./host-ip.txt:/host-ip.txt
       - ./printer-start.flag:/printer-start.flag
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--ssl-keyfile", "/ssl/key.pem", "--ssl-certfile", "/ssl/cert.pem"]
     restart: unless-stopped
 
