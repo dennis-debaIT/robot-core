@@ -17,16 +17,20 @@ if ! mkdir "$LOCKFILE" 2>/dev/null; then
 fi
 trap "rmdir '$LOCKFILE' 2>/dev/null || true" EXIT
 
-echo "[update] Starte Update: $(date)" | tee -a "$LOG"
+# Alle Ausgaben direkt in den Log leiten — verhindert Doppelzeilen wenn
+# der Cron-Aufruf (>> update.log 2>&1) stdout zusätzlich umleitet.
+exec 1>>"$LOG" 2>&1
+
+echo "[update] Starte Update: $(date)"
 # SSH-Fetch (falls Key vorhanden), Fallback auf HTTPS (Public Repo, kein Token nötig)
-if git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>>"$LOG"; then
-    echo "[update] Fetch via SSH" | tee -a "$LOG"
+if git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1; then
+    echo "[update] Fetch via SSH"
 else
-    echo "[update] SSH nicht verfügbar, versuche HTTPS..." | tee -a "$LOG"
+    echo "[update] SSH nicht verfügbar, versuche HTTPS..."
     GIT_TERMINAL_PROMPT=0 git -c safe.directory=. -c credential.helper= \
-        fetch https://github.com/dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1 | tee -a "$LOG"
+        fetch https://github.com/dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1
 fi
-git -c safe.directory=. reset --hard origin/main 2>&1 | tee -a "$LOG"
+git -c safe.directory=. reset --hard origin/main 2>&1
 
 # .git-Verzeichnis dem aktuellen User gehören lassen (verhindert Permission-Fehler bei gemischten sudo/User-Runs)
 chown -R "$(id -u):$(id -g)" .git 2>/dev/null || true
@@ -56,22 +60,23 @@ export GIT_HASH=$(git -c safe.directory=. rev-parse HEAD)
 EDITION=$(cat "$INSTALL_DIR/edition" 2>/dev/null | tr -d '[:space:]')
 [ -z "$EDITION" ] && EDITION=community
 export EDITION
-echo "[update] Build startet (GIT_HASH=$GIT_HASH, EDITION=$EDITION)..." | tee -a "$LOG"
-docker compose up -d --build robot-core 2>&1 | tail -4 | tee -a "$LOG"
+echo "[update] Build startet (GIT_HASH=$GIT_HASH, EDITION=$EDITION)..."
+docker compose up -d --build robot-core 2>&1 | tail -4
 
 # Watcher neu starten falls nicht aktiv
 chmod +x "$INSTALL_DIR/reboot-watcher.sh" "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
 pgrep -f reboot-watcher.sh  > /dev/null || nohup bash "$INSTALL_DIR/reboot-watcher.sh"  >> "$INSTALL_DIR/reboot.log"  2>&1 &
 pgrep -f setup-watcher.sh   > /dev/null || nohup bash "$INSTALL_DIR/setup-watcher.sh"   >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
 
-# Nur verwaiste Images entfernen — Build-Cache NICHT löschen (würde nächsten Build verlangsamen)
-docker image prune -f >> "$LOG" 2>&1 || true
+# Verwaiste Images + Build-Cache aufräumen
+docker image prune -f
+echo "[update] $(docker system df --format 'Images: {{.ImagesSize}}  Build-Cache: {{.BuildCacheSize}}')"
 
 # Monatlichen Cron-Job für Build-Cache-Bereinigung einrichten (einmalig, idempotent)
 CRON_JOB="0 3 1 * * docker builder prune --keep-storage=2GB -f >> $INSTALL_DIR/update.log 2>&1"
 if ! crontab -l 2>/dev/null | grep -qF "docker builder prune"; then
     (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    echo "[update] Monatlicher Docker-Cache-Cron eingerichtet" | tee -a "$LOG"
+    echo "[update] Monatlicher Docker-Cache-Cron eingerichtet"
 fi
 
-echo "[update] Abgeschlossen: $(date)" | tee -a "$LOG"
+echo "[update] Abgeschlossen: $(date)"
