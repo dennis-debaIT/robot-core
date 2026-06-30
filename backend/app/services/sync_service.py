@@ -605,20 +605,17 @@ def pull_chore_completions() -> int:
                 continue
 
             if comp.get("deleted"):
-                # Integer-ID (robot-core-Eintrag): direkt per id löschen
                 try:
                     local_id = int(sync_id)
                     conn.execute("DELETE FROM chore_completions WHERE id = ?", (local_id,))
                 except (ValueError, TypeError):
-                    # UUID (App-Eintrag): per Inhalt suchen und löschen
                     conn.execute(
-                        "DELETE FROM chore_completions WHERE task_id=? AND person_id=? AND completed_at=?",
-                        (task_id, person_id, comp["completed_at"]),
+                        "DELETE FROM chore_completions WHERE sync_id = ?", (sync_id,)
                     )
                 merged += 1
                 continue
 
-            # Duplikat-Prüfung: Integer-IDs über id, UUID-IDs über Inhalt
+            # Duplikat-Prüfung: Integer-IDs über id, UUID-IDs über sync_id
             try:
                 local_id = int(sync_id)
                 existing = conn.execute(
@@ -627,8 +624,7 @@ def pull_chore_completions() -> int:
             except (ValueError, TypeError):
                 local_id = None
                 existing = conn.execute(
-                    "SELECT id FROM chore_completions WHERE task_id=? AND person_id=? AND completed_at=?",
-                    (task_id, person_id, comp["completed_at"]),
+                    "SELECT id FROM chore_completions WHERE sync_id = ?", (sync_id,)
                 ).fetchone()
 
             if existing:
@@ -642,8 +638,8 @@ def pull_chore_completions() -> int:
                     )
                 else:
                     conn.execute(
-                        "INSERT INTO chore_completions(task_id, person_id, completed_at) VALUES (?,?,?)",
-                        (task_id, person_id, comp["completed_at"]),
+                        "INSERT INTO chore_completions(task_id, person_id, completed_at, sync_id) VALUES (?,?,?,?)",
+                        (task_id, person_id, comp["completed_at"], sync_id),
                     )
                 merged += 1
             except Exception:
@@ -652,9 +648,10 @@ def pull_chore_completions() -> int:
     return merged
 
 
-def push_chore_completion_deletion(completion_id: int) -> None:
+def push_chore_completion_deletion(completion_id: int, sync_id: str | None = None) -> None:
     """Informiert den Sync-Server über eine lokal gelöschte Completion."""
-    _sync_request("DELETE", f"/chores/completions/{completion_id}")
+    remote_id = sync_id if sync_id else str(completion_id)
+    _sync_request("DELETE", f"/chores/completions/{remote_id}")
 
 
 # ── Abfallkalender ─────────────────────────────────────────────────────────

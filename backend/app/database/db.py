@@ -439,6 +439,10 @@ def init_db() -> None:
         if "points" not in chore_task_columns:
             conn.execute("ALTER TABLE chore_tasks ADD COLUMN points INTEGER NOT NULL DEFAULT 1")
 
+        chore_comp_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chore_completions)").fetchall()}
+        if "sync_id" not in chore_comp_columns:
+            conn.execute("ALTER TABLE chore_completions ADD COLUMN sync_id TEXT")
+
         rows = conn.execute(
             """
             SELECT id, subject, category, content

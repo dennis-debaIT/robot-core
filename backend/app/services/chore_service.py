@@ -128,10 +128,14 @@ class ChoreService:
             )
         return {"id": cur.lastrowid, "task_id": task_id, "person_id": person_id, "completed_at": now.isoformat()}
 
-    def delete_completion(self, completion_id: int) -> bool:
+    def delete_completion(self, completion_id: int) -> tuple[bool, str | None]:
         with get_connection() as conn:
+            row = conn.execute(
+                "SELECT sync_id FROM chore_completions WHERE id = ?", (completion_id,)
+            ).fetchone()
             cur = conn.execute("DELETE FROM chore_completions WHERE id = ?", (completion_id,))
-        return cur.rowcount > 0
+        sync_id = row["sync_id"] if row and row["sync_id"] else None
+        return cur.rowcount > 0, sync_id
 
     def list_completions(
         self,

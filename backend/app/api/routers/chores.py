@@ -88,11 +88,12 @@ def log_chore_completion(payload: dict[str, Any]) -> dict[str, Any]:
 
 @router.delete("/chores/completions/{completion_id}")
 def delete_chore_completion(completion_id: int) -> dict[str, Any]:
-    if not ChoreService().delete_completion(completion_id):
+    ok, sync_id = ChoreService().delete_completion(completion_id)
+    if not ok:
         raise HTTPException(status_code=404, detail="Eintrag nicht gefunden")
     try:
         from app.services import sync_service as _sync
-        _sync.push_chore_completion_deletion(completion_id)
+        _sync.push_chore_completion_deletion(completion_id, sync_id)
     except Exception:
         pass
     return {"ok": True}
