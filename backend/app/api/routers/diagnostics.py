@@ -67,23 +67,15 @@ def _chk_disk() -> dict:
 def _chk_ha() -> dict:
     try:
         from app.services.homeassistant_runtime_config_service import HomeAssistantRuntimeConfigService
-        cfg = HomeAssistantRuntimeConfigService().get()
-        url = (cfg.get("url") or "").rstrip("/")
-        token = cfg.get("token") or ""
-        if not url:
-            return _err("Home Assistant", "URL nicht konfiguriert")
-        req = urllib.request.Request(
-            f"{url}/api/",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
-            return _ok("Home Assistant", f"erreichbar (HTTP {r.status})")
-    except urllib.error.HTTPError as exc:
-        if exc.code == 401:
-            return _err("Home Assistant", "Token ungültig (HTTP 401)")
-        return _err("Home Assistant", f"HTTP {exc.code}")
+        result = HomeAssistantRuntimeConfigService.test_connection()
+        if result.get("ok"):
+            return _ok("Home Assistant", f"erreichbar ({result.get('base_url', '')})")
+        detail = result.get("detail", "Verbindung fehlgeschlagen")
+        if result.get("token_required") and not HomeAssistantRuntimeConfigService.get_config().get("token"):
+            return _err("Home Assistant", "Token nicht konfiguriert")
+        return _err("Home Assistant", detail)
     except Exception as exc:
-        return _err("Home Assistant", f"nicht erreichbar: {type(exc).__name__}")
+        return _err("Home Assistant", f"Fehler: {type(exc).__name__}: {exc}")
 
 
 def _chk_llm() -> dict:
