@@ -48,6 +48,8 @@ services:
       ROBOT_HA_PASSWORD: ${ROBOT_HA_PASSWORD:-}
       ROBOT_HA_TOKEN: ${ROBOT_HA_TOKEN:-}
       ROBOT_CORS_ORIGINS: ${ROBOT_CORS_ORIGINS:-}
+      FIREBASE_CREDENTIALS_B64: ${FIREBASE_CREDENTIALS_B64:-}
+      FIREBASE_CREDENTIALS_FILE: ${FIREBASE_CREDENTIALS_FILE:-}
     volumes:
       - robot_core_data:/data
       - ./models:/models:ro
