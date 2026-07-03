@@ -827,7 +827,8 @@
               </label>
             </div>
             <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-              <button type="button" class="secondary" onclick="sendWastePushTest()" id="waste-push-test-btn">Test-Benachrichtigung senden</button>
+              <button type="button" class="secondary" onclick="sendWastePushTest(false)" id="waste-push-test-btn">Test-Benachrichtigung senden</button>
+              <button type="button" class="secondary" onclick="sendWastePushTest(true)" id="waste-push-test-real-btn">Test mit echten HA-Daten</button>
               <span id="waste-push-test-status" style="font-size:0.82rem;"></span>
             </div>
           </section>
@@ -3841,13 +3842,13 @@
       }
     }
 
-    async function sendWastePushTest() {
-      const btn = document.getElementById('waste-push-test-btn');
+    async function sendWastePushTest(real = false) {
+      const btn = document.getElementById(real ? 'waste-push-test-real-btn' : 'waste-push-test-btn');
       const statusEl = document.getElementById('waste-push-test-status');
       if (btn) btn.disabled = true;
       if (statusEl) { statusEl.textContent = 'Sende…'; statusEl.style.color = 'var(--muted)'; }
       try {
-        const res = await fetch('/ha/waste/push-test', { method: 'POST' });
+        const res = await fetch(`/ha/waste/push-test?real=${real}`, { method: 'POST' });
         const data = await res.json();
         if (data.ok) {
           statusEl.textContent = `✓ Gesendet an ${data.sent} von ${data.total_tokens} Gerät(en)`;
