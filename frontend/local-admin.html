@@ -7,6 +7,113 @@
   <link rel="stylesheet" href="/local-admin.css">
 </head>
 <body>
+
+  <!-- ── PIN-OVERLAY ────────────────────────────────────────────────────── -->
+  <div id="pin-overlay" style="
+    display:none;position:fixed;inset:0;z-index:9999;
+    background:rgba(10,12,18,0.96);backdrop-filter:blur(12px);
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0;">
+    <style>
+      #pin-card { background:var(--surface-1,#1a1d26);border:1px solid var(--line,#2a2d3a);border-radius:20px;padding:32px 28px;width:280px;display:flex;flex-direction:column;align-items:center;gap:20px; }
+      #pin-title { font-size:1rem;font-weight:700;color:var(--text,#e8eaf0);letter-spacing:0.04em; }
+      #pin-dots { display:flex;gap:12px;height:14px; }
+      .pin-dot { width:14px;height:14px;border-radius:50%;border:2px solid var(--muted,#6b7280);background:transparent;transition:background 0.15s,border-color 0.15s; }
+      .pin-dot.filled { background:var(--accent,#00c8ff);border-color:var(--accent,#00c8ff); }
+      #pin-error { font-size:0.78rem;color:var(--error,#ff4444);min-height:18px;text-align:center; }
+      #pin-numpad { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%; }
+      .pin-key { height:58px;border-radius:12px;border:1px solid var(--line,#2a2d3a);background:var(--surface-2,#22263a);color:var(--text,#e8eaf0);font-size:1.35rem;font-weight:600;cursor:pointer;transition:background 0.1s,transform 0.08s;user-select:none;display:flex;align-items:center;justify-content:center; }
+      .pin-key:active { background:var(--accent-10,rgba(0,200,255,0.12));transform:scale(0.94); }
+      .pin-key.pin-del { font-size:1.1rem;color:var(--muted,#6b7280); }
+      .pin-key.pin-ok { background:var(--accent,#00c8ff);color:#000;border-color:var(--accent,#00c8ff);font-size:1rem; }
+      .pin-key.pin-ok:active { background:#00a8d4; }
+      @keyframes pin-shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+      .pin-shake { animation:pin-shake 0.35s ease; }
+    </style>
+    <div id="pin-card">
+      <div id="pin-title">Admin · PIN eingeben</div>
+      <div id="pin-dots"></div>
+      <div id="pin-error"></div>
+      <div id="pin-numpad">
+        <button class="pin-key" onclick="_pinKey('1')">1</button>
+        <button class="pin-key" onclick="_pinKey('2')">2</button>
+        <button class="pin-key" onclick="_pinKey('3')">3</button>
+        <button class="pin-key" onclick="_pinKey('4')">4</button>
+        <button class="pin-key" onclick="_pinKey('5')">5</button>
+        <button class="pin-key" onclick="_pinKey('6')">6</button>
+        <button class="pin-key" onclick="_pinKey('7')">7</button>
+        <button class="pin-key" onclick="_pinKey('8')">8</button>
+        <button class="pin-key" onclick="_pinKey('9')">9</button>
+        <button class="pin-key pin-del" onclick="_pinDel()">⌫</button>
+        <button class="pin-key" onclick="_pinKey('0')">0</button>
+        <button class="pin-key pin-ok" onclick="_pinSubmit()">✓</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    let _pinBuffer = '';
+    const _PIN_MAX = 8;
+
+    function _pinRender() {
+      const box = document.getElementById('pin-dots');
+      if (!box) return;
+      box.innerHTML = Array.from({length: Math.max(_pinBuffer.length, 4)}, (_, i) =>
+        `<span class="pin-dot${i < _pinBuffer.length ? ' filled' : ''}"></span>`
+      ).join('');
+    }
+    function _pinKey(d) {
+      if (_pinBuffer.length >= _PIN_MAX) return;
+      _pinBuffer += d;
+      document.getElementById('pin-error').textContent = '';
+      _pinRender();
+    }
+    function _pinDel() {
+      _pinBuffer = _pinBuffer.slice(0, -1);
+      _pinRender();
+    }
+    async function _pinSubmit() {
+      if (_pinBuffer.length < 4) { document.getElementById('pin-error').textContent = 'Mindestens 4 Stellen'; return; }
+      try {
+        const r = await fetch('/admin/pin/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pin: _pinBuffer}) });
+        const d = await r.json();
+        if (d.ok) {
+          sessionStorage.setItem('erika_admin_ok', '1');
+          document.getElementById('pin-overlay').style.display = 'none';
+        } else {
+          _pinBuffer = '';
+          _pinRender();
+          const err = document.getElementById('pin-error');
+          err.textContent = 'Falscher PIN';
+          const card = document.getElementById('pin-card');
+          card.classList.remove('pin-shake');
+          void card.offsetWidth;
+          card.classList.add('pin-shake');
+        }
+      } catch { document.getElementById('pin-error').textContent = 'Verbindungsfehler'; }
+    }
+
+    // Keyboard-Support (Desktop)
+    document.addEventListener('keydown', e => {
+      if (document.getElementById('pin-overlay').style.display === 'none') return;
+      if (e.key >= '0' && e.key <= '9') _pinKey(e.key);
+      else if (e.key === 'Backspace') _pinDel();
+      else if (e.key === 'Enter') _pinSubmit();
+    });
+
+    // PIN-Check beim Laden
+    (async () => {
+      try {
+        if (sessionStorage.getItem('erika_admin_ok') === '1') return;
+        const r = await fetch('/admin/pin/status');
+        const d = await r.json();
+        if (d.set) {
+          const overlay = document.getElementById('pin-overlay');
+          overlay.style.display = 'flex';
+          _pinRender();
+        }
+      } catch {}
+    })();
+  </script>
+
   <main class="shell">
     <section class="hero" style="display:none;"></section>
 
@@ -1840,6 +1947,33 @@
               </button>
             </div>
             <div id="backup-status" style="margin-top:10px;font-size:0.82rem;color:var(--muted);"></div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Admin-PIN</div>
+              <p>Schützt den Admin-Bereich mit einem numerischen PIN. Nach dem Schließen des Tabs muss der PIN erneut eingegeben werden.</p>
+            </div>
+            <div id="pin-mgmt-status" style="margin-bottom:10px;font-size:0.84rem;color:var(--muted);"></div>
+            <div id="pin-set-form" style="display:flex;flex-direction:column;gap:10px;max-width:300px;">
+              <div id="pin-current-row" style="display:none;">
+                <label class="field-label">Aktueller PIN</label>
+                <input id="pin-current" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" maxlength="8" autocomplete="current-password">
+              </div>
+              <div>
+                <label class="field-label">Neuer PIN (4–8 Ziffern)</label>
+                <input id="pin-new" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" maxlength="8" autocomplete="new-password">
+              </div>
+              <div>
+                <label class="field-label">Wiederholen</label>
+                <input id="pin-confirm" class="field-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="••••" maxlength="8" autocomplete="new-password">
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px;">
+                <button type="button" class="primary" onclick="savePinSettings()">PIN speichern</button>
+                <button type="button" id="pin-remove-btn" class="secondary" onclick="removePin()" style="display:none;">PIN entfernen</button>
+                <span id="pin-save-status" style="font-size:0.82rem;color:var(--muted);"></span>
+              </div>
+            </div>
           </section>
 
           <section class="module-card" id="diag-section">
@@ -6630,7 +6764,61 @@
     loadEdition();
     loadLicenseStatus();
     loadBackupInfo();
+    loadPinStatus();
   });
+
+  // ── ADMIN-PIN-VERWALTUNG ─────────────────────────────────────────────────
+  async function loadPinStatus() {
+    try {
+      const r = await fetch('/admin/pin/status');
+      const d = await r.json();
+      const statusEl = document.getElementById('pin-mgmt-status');
+      const currentRow = document.getElementById('pin-current-row');
+      const removeBtn = document.getElementById('pin-remove-btn');
+      if (statusEl) statusEl.textContent = d.set ? '🔒 PIN ist gesetzt' : '🔓 Kein PIN gesetzt — Admin-Bereich ungeschützt';
+      if (currentRow) currentRow.style.display = d.set ? '' : 'none';
+      if (removeBtn) removeBtn.style.display = d.set ? '' : 'none';
+    } catch {}
+  }
+
+  async function savePinSettings() {
+    const newPin = document.getElementById('pin-new')?.value || '';
+    const confirm = document.getElementById('pin-confirm')?.value || '';
+    const currentPin = document.getElementById('pin-current')?.value || '';
+    const statusEl = document.getElementById('pin-save-status');
+    if (newPin.length < 4) { if (statusEl) { statusEl.textContent = 'Mindestens 4 Stellen'; statusEl.style.color = 'var(--error,#ff4444)'; } return; }
+    if (!/^\d+$/.test(newPin)) { if (statusEl) { statusEl.textContent = 'Nur Ziffern erlaubt'; statusEl.style.color = 'var(--error,#ff4444)'; } return; }
+    if (newPin !== confirm) { if (statusEl) { statusEl.textContent = 'PINs stimmen nicht überein'; statusEl.style.color = 'var(--error,#ff4444)'; } return; }
+    try {
+      const r = await fetch('/admin/pin/set', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({pin: newPin, current_pin: currentPin || null}),
+      });
+      if (!r.ok) { const e = await r.json(); if (statusEl) { statusEl.textContent = e.detail || 'Fehler'; statusEl.style.color = 'var(--error,#ff4444)'; } return; }
+      if (statusEl) { statusEl.textContent = 'PIN gespeichert ✓'; statusEl.style.color = 'var(--success,#00c832)'; setTimeout(() => statusEl.textContent = '', 3000); }
+      document.getElementById('pin-new').value = '';
+      document.getElementById('pin-confirm').value = '';
+      document.getElementById('pin-current').value = '';
+      sessionStorage.setItem('erika_admin_ok', '1');
+      loadPinStatus();
+    } catch (e) { if (statusEl) { statusEl.textContent = 'Fehler: ' + e.message; statusEl.style.color = 'var(--error,#ff4444)'; } }
+  }
+
+  async function removePin() {
+    const currentPin = document.getElementById('pin-current')?.value || '';
+    const statusEl = document.getElementById('pin-save-status');
+    if (!currentPin) { if (statusEl) { statusEl.textContent = 'Aktuellen PIN eingeben'; statusEl.style.color = 'var(--error,#ff4444)'; } return; }
+    try {
+      const r = await fetch('/admin/pin', {
+        method: 'DELETE', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({pin: currentPin}),
+      });
+      if (!r.ok) { const e = await r.json(); if (statusEl) { statusEl.textContent = e.detail || 'Falscher PIN'; statusEl.style.color = 'var(--error,#ff4444)'; } return; }
+      if (statusEl) { statusEl.textContent = 'PIN entfernt ✓'; statusEl.style.color = 'var(--success,#00c832)'; setTimeout(() => statusEl.textContent = '', 3000); }
+      document.getElementById('pin-current').value = '';
+      loadPinStatus();
+    } catch (e) { if (statusEl) { statusEl.textContent = 'Fehler: ' + e.message; statusEl.style.color = 'var(--error,#ff4444)'; } }
+  }
 
   // ── DIAGNOSE ─────────────────────────────────────────────────────────────
   let _diagReportText = '';

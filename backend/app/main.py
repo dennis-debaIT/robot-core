@@ -590,6 +590,8 @@ app.include_router(local_admin.router)
 app.include_router(backup.router)
 from app.api.routers import diagnostics
 app.include_router(diagnostics.router)
+from app.api.routers import admin_pin
+app.include_router(admin_pin.router)
 app.include_router(setup.router)
 app.include_router(simulation.router)
 app.include_router(personality_audio.router)
