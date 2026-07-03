@@ -4861,11 +4861,6 @@
         const relState = ws.relationship_state || {};
         const total    = facts.length + approved.length + pending.length;
 
-        if (!total) {
-          el.innerHTML = '<div style="font-size:0.78rem;color:var(--muted);padding:8px 0;">Noch nichts bekannt.</div>';
-          return;
-        }
-
         // ── Hilfsfunktion: einklappbarer Abschnitt ─────────────────────────
         const _secKey = (label) => `person-sec-${id}-${label.replace(/\W/g,'_')}`;
         const _sec = (icon, label, content, defaultOpen = false) => {
