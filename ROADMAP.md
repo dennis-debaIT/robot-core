@@ -141,7 +141,7 @@ Ziel: Liga-Modul mit bezahlten Premiumfunktionen, News-Artikel direkt lesbar im 
 - [x] **News Iframe-Fallback**: Button „Im Browser öffnen" als letzter Ausweg wenn trafilatura und RSS-Inhalt nicht ausreichen (DSGVO-Consent-Walls)
 - [x] **News Stichwort-Filter**: Artikel per Keyword hervorheben (Accent-Rahmen, Titelfarbe) oder ausblenden — Chip-basierte Verwaltung im Admin, Theme-adaptiv, case-insensitive
 - [x] **News Titelbild-Erhaltung**: `include_images=True` in trafilatura + Frontend-Fallback sichert RSS-Headline-Bild vor dem Ersetzen durch Volltext
-- [x] **Einkaufsliste + Sync-Server**: Lokales Einkaufslisten-Modul (Display + Admin), Delta-Sync mit `erika-sync-server` auf `erika.wdk-it.de:9000`, Android-App-ready — Sprachsteuerung noch offen
+- [x] **Einkaufsliste + Sync-Server**: Lokales Einkaufslisten-Modul (Display + Admin), Delta-Sync mit `erika-sync-server` auf `erika.wdk-it.de:9000`, Android-App-ready; Sprachsteuerung (Hinzufügen + Löschen) integriert
 
 ---
 
@@ -153,7 +153,7 @@ Ziel: Android-App als Ergänzung zum Display — ohne externe Cloud.
 - [x] **FCM Push-Notifications**: Fällige Erinnerungen und Mülltonnen-Vorab-Benachrichtigung direkt aufs Smartphone; konfigurierbare Uhrzeit für Müllabfuhr im Admin; Firebase-Credentials werden automatisch via `update.sh` verteilt
 - [x] **Startseite Companion App**: Logo + „ERIKA"-Header, nächster Kalendertermin als erster Block (inkl. korrekter Sortierung ganztägiger Termine), News-Feed ohne redundante Überschrift
 - [x] **Cloud-Backup**: Verschlüsseltes Backup (DB + `.env`) im Sync Server; Ein-Klick-Wiederherstellung bei Gerätedefekt; `update.sh` injiziert Credentials und übernimmt `restore.env` vor dem Rebuild
-- [ ] **Einkaufsliste Sprachsteuerung**: „Erika, füge Milch zur Einkaufsliste hinzu" — Intent-Erkennung in `shopping`-Handler
+- [x] **Einkaufsliste Sprachsteuerung**: „Erika, füge Milch zur Einkaufsliste hinzu" — Hinzufügen und Löschen per Sprache, Display wechselt automatisch zur Einkaufsliste
 - [ ] **Personenerkennung für Hausaufgaben**: Automatische Zuordnung per Gesichtserkennung oder Profil-Auswahl
 
 ---

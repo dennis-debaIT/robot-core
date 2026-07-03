@@ -15,6 +15,8 @@ Format: neueste Einträge oben.
 - **Android Companion App — Navigation neu**: Navigationslabels „Hausaufgaben" → „Aufgaben" und „Erinnerungen" → „Erinnerung" (Zeilenumbruch in der Navigationleiste vermieden). `alwaysShowLabel = false` für inaktive Tabs.
 - **Android Companion App — Benachrichtigungs-Permission**: Beim ersten App-Start (Android 13+) wird die System-Abfrage für Push-Benachrichtigungen automatisch ausgelöst.
 
+- **Einkaufsliste Sprachsteuerung**: Artikel können jetzt per Stimme hinzugefügt und gelöscht werden. Erkannte Phrasen: „füge Milch zur Einkaufsliste hinzu", „pack Brot auf den Einkaufszettel", „schreib Käse auf die Einkaufsliste", „lösche Milch von der Einkaufsliste", „entferne Brot von der Einkaufsliste" u.v.m. Nach einem Sprachbefehl wechselt das Display automatisch zur Einkaufsliste. Erika bestätigt jede Aktion per Sprache.
+
 ### Verbessert
 - **Sync Server — Device-Token-Verwaltung**: Neue Endpoints `POST /devices/token` (App registriert FCM-Token) und `GET /devices/tokens` (robot-core holt Tokens, tenant-isoliert). Neue Tabelle `device_tokens (device_id, tenant_id, fcm_token, updated_at)`.
 - **Sync Server — Cloud-Backup-Endpoint**: `POST /backup/upload`, `GET /backup/download`, `GET /backup/info`, `DELETE /backup` — verschlüsselte Binärdaten, max 50 MB, ein Slot pro Tenant.

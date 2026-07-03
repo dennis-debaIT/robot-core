@@ -164,6 +164,30 @@ Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
 
 ---
 
+## 5. Einkaufsliste
+
+### Artikel hinzufügen
+
+| Befehl | Funktion |
+|---|---|
+| `Füge Milch zur Einkaufsliste hinzu` | Artikel hinzufügen |
+| `Pack Brot auf den Einkaufszettel` | Artikel hinzufügen |
+| `Schreib Käse auf die Einkaufsliste` | Artikel hinzufügen |
+| `Notiere Butter zur Einkaufsliste` | Artikel hinzufügen |
+| `Setze Joghurt auf die Einkaufsliste` | Artikel hinzufügen |
+
+### Artikel entfernen
+
+| Befehl | Funktion |
+|---|---|
+| `Lösche Milch von der Einkaufsliste` | Artikel löschen |
+| `Entferne Brot von der Einkaufsliste` | Artikel löschen |
+| `Streiche Käse von der Einkaufsliste` | Artikel löschen |
+
+> Nach jedem Sprachbefehl wechselt das Display automatisch zur Einkaufsliste und Erika bestätigt die Aktion per Sprache.
+
+---
+
 ## 5. Notizen
 
 ### Notiz speichern
