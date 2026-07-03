@@ -8,6 +8,45 @@ Format: neueste Einträge oben.
 ## [Unreleased]
 
 ### Neu
+- **Erweitertes Audit-Protokoll mit Level-Unterstützung**: Das Protokoll unterscheidet jetzt drei Schweregrade — `info` (normale Ereignisse), `warning` (Unregelmäßigkeiten ohne Ausfall), `error` (Fehler, die eine Reaktion erfordern). Die `audit_log`-Tabelle hat eine neue `level`-Spalte (Migration erfolgt automatisch); bestehende Einträge erhalten `info`. Neue Kurzfunktionen `_audit.log_info(source, message)`, `log_warn(...)`, `log_error(...)` — kein langer `log()`-Aufruf mehr nötig.
+- **Protokoll-Tab Filter-UI**: Der „Protokoll"-Tab im Admin zeigt jetzt eine Filterleiste: Level-Dropdown (Alle / Info / Warnung / Fehler), Aktions-Suchfeld (Freitext, Suche per `LIKE`), Limit-Auswahl (50 / 100 / 200 / 500). Jede Zeile hat ein farbiges Level-Badge (grün = info, gelb = warning, rot = error). Der Filter feuert mit 300 ms Debounce. Der Query-Parameter `GET /audit-log?level=error&action=llm&limit=200` ist vollständig filterbar.
+- **Personen: Rolle und eigenes Emoji**: Im Personen-Tab des Admins lassen sich jetzt zwei neue Felder pro Person setzen: **Rolle** (Erwachsener ♂ / Erwachsene ♀ / Kind ♂ / Kind ♀) als Dropdown und ein **eigenes Emoji** als Freitext-Eingabe. Die Rolle (Werte `adult_male`, `adult_female`, `child_male`, `child_female`) ersetzt das bisherige `gender`-Feld konzeptionell; das Emoji wird im Avatar der Personenliste angezeigt. Beide Felder werden per `PATCH /profiles/{id}` mit `{role, emoji}` gespeichert und fließen in den LLM-Kontext ein. DB-Migration läuft automatisch.
+- **Admin-PIN: Protokoll-Einträge**: Jede PIN-Aktion wird jetzt geloggt — PIN gesetzt/geändert (`info`), PIN entfernt (`info`), falsche PIN-Eingabe (`warning`).
+
+### Verbessert
+- **Mehr Events im Protokoll**: Die folgenden Systemereignisse schreiben jetzt Einträge ins Protokoll:
+
+  | Aktion | Level | Quelle |
+  |--------|-------|--------|
+  | `reminder.light` — Licht-Erinnerung ausgeführt | info | main.py |
+  | `reminder_watcher.light` — Licht konnte nicht angesteuert werden | error | main.py |
+  | `reminder.push` — Erinnerung per Push ausgelöst | info | main.py |
+  | `reminder.push` — Push-Benachrichtigung fehlgeschlagen | warning | main.py |
+  | `waste.push` — Mülltonnen-Benachrichtigung gesendet | info | main.py |
+  | `reminder_watcher_loop` — Fehler im Reminder-Loop | error | main.py |
+  | `waste_push_loop` — Fehler im Müll-Push-Loop | error | main.py |
+  | `notification_check_loop` — Fehler im Benachrichtigungs-Check | error | main.py |
+  | `memory_maintenance` — Memory-Fehler pro Person | error | main.py |
+  | `llm.fallback` — LLM-Fallback verwendet | warning | robot_core.py |
+  | `llm` — LLM nicht erreichbar | error | robot_core.py |
+  | `admin.pin.set` — Admin-PIN gesetzt / geändert | info | admin_pin.py |
+  | `admin.pin.removed` — Admin-PIN entfernt | info | admin_pin.py |
+  | `admin.pin.verify.fail` — Falsche PIN-Eingabe | warning | admin_pin.py |
+  | `admin.diagnostics.run` — Diagnose abgeschlossen (X OK / Y Warnungen / Z Fehler) | info / warning / error | diagnostics.py |
+  | `admin.backup.create` — Cloud-Backup erstellt (X KB) | info | backup_service.py |
+  | `admin.backup.restore` — Backup wiederhergestellt, Neustart eingeleitet | info | backup_service.py |
+  | `admin.backup.error` — Backup-Fehler (Erstellen oder Wiederherstellen) | error | backup_service.py |
+
+  Bereits vorher geloggte Aktionen (weiterhin aktiv): `device.updated`, `profile.preferences_updated`, `persona.global_reset/person_reset`, `interest.auto_promoted`, `memory.approved/rejected`, `person.deleted`, `system.update_install`, `system.backup_created/downloaded/restored`, `system.reboot`, `llm.config_updated`, `config.updated`, `license.activated/installed/removed`, `personality.updated`.
+
+### Behoben
+- **Cloud-Backup SSL-Fehler**: `_upload()` und `_download()` in `backup_service.py` nutzten bisher `urlopen()` ohne SSL-Kontext — schlägt bei selbst-signierten Zertifikaten (Erika-Sync-Server) fehl. Fix: SSL-Kontext (`check_hostname=False`, `CERT_NONE`) aus `sync_service._SSL_CTX` wird jetzt übergeben.
+- **Diagnose HA-Verbindungstest (`AttributeError`)**: `_chk_ha()` rief `.get()` auf `HomeAssistantRuntimeConfigService` auf, das diese Methode nicht hat. Fix: `test_connection()` classmethod verwenden, der direkt `{"ok": bool, "detail": str}` zurückgibt.
+- **Neuerstellte Personen mit 0 Einträgen zeigten leere Detailansicht**: Der frühe `if (!total) { return; }`-Guard verhinderte das Rendern aller Sections für Personen ohne bisherige Interaktionen (z. B. Niklas). Fix: Guard entfernt — alle Sections werden immer gerendert.
+- **`no such column: person_id` flood im Log**: Der Reminder-Loop in `main.py` enthielt `SELECT person_id FROM reminders`, aber die Tabelle hat keine `person_id`-Spalte (nur `person_name`). Fix: `SELECT id, text FROM reminders` (der Wert wurde im Loop ohnehin nicht genutzt).
+- **`--keep-storage` Deprecation in `update.sh`**: Docker 25+ hat das Flag in `--reserved-space` umbenannt. Beide Vorkommen (reguläres Prune + monatlicher Cron) wurden aktualisiert.
+
+### Neu
 - **FCM Push-Notifications**: Erika sendet Push-Benachrichtigungen direkt auf das Android-Smartphone — ohne dauerhaft geöffnete App. Zwei Kanäle: `reminders` (Prio: Hoch) für fällige Erinnerungen, `waste` (Prio: Normal) für Müllabfuhr am nächsten Tag. Der Versandzeitpunkt für die Mülltonnen-Benachrichtigung ist im Admin unter **Abfall → Push-Benachrichtigung** frei konfigurierbar (Standard: 18:00 Uhr). Technisch: Firebase Admin SDK in robot-core (`push_service.py`), FCM-Token-Speicherung im Sync Server (`device_tokens`-Tabelle, tenant-isoliert), automatische Token-Registrierung beim App-Start. Firebase-Credentials werden bei der ersten `update.sh`-Ausführung automatisch in `.env` eingetragen — kein manueller Setup-Schritt.
 - **Cloud-Backup**: Im Admin-Panel unter **System → Cloud-Backup** lässt sich mit einem Klick ein verschlüsseltes Backup (Datenbank + alle `.env`-Einstellungen inkl. HA-Token, LLM-Key usw.) in der Cloud speichern. Verschlüsselung per Fernet/AES256, Key abgeleitet vom Sync-Token — nur wer den richtigen Tenant-Token kennt, kann das Backup entschlüsseln. Wiederherstellung: Neues Gerät aufsetzen, Sync-Token eintragen, im Admin „Wiederherstellen" klicken → Datenbank und alle Einstellungen werden zurückgeladen, Erika startet automatisch neu. Kein manuelles Kopieren von Dateien nötig. Backup im Sync Server (`backups`-Tabelle, max 50 MB, ein Backup pro Tenant).
 - **Android Companion App — Startseite neu gestaltet**: Statt „ErikaCompanion" in der TopAppBar erscheinen jetzt das App-Logo + „ERIKA" (fett). Erster Block auf der Startseite ist der nächste bevorstehende Kalendertermin (alle Kalendertypen inkl. Ganztags-Termine, korrekt sortiert). Die Überschrift „Nachrichten" wurde entfernt — der News-Feed folgt direkt darunter.

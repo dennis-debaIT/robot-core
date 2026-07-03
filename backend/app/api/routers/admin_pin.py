@@ -32,11 +32,11 @@ def pin_status() -> dict[str, Any]:
         return {"set": bool(_get_stored_hash(conn))}
 
 
-def _audit(action: str, summary: str) -> None:
+def _audit(action: str, summary: str, level: str = "info") -> None:
     try:
         from app.audit.service import AuditService
         AuditService().log(action=action, target_type="admin", target_id="pin",
-                           actor_type="local_admin", summary=summary)
+                           actor_type="local_admin", summary=summary, level=level)
     except Exception:
         pass
 
@@ -49,7 +49,7 @@ def verify_pin(body: PinBody) -> dict[str, Any]:
         return {"ok": True}  # kein PIN gesetzt → immer OK
     ok = _hash(body.pin) == stored
     if not ok:
-        _audit("admin.pin.verify.fail", "Falsche PIN-Eingabe im Admin-Bereich")
+        _audit("admin.pin.verify.fail", "Falsche PIN-Eingabe im Admin-Bereich", level="warning")
     return {"ok": ok}
 
 

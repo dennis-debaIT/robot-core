@@ -526,7 +526,7 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 |---|---|
 | **Erika** | Persönlichkeit, TTS, Aufmerksamkeit, Wake Word, Stimmung |
 | **Erika → Begrüßung** | LLM-Begrüßung an/aus, Kontext-Checkboxen (Tageszeit, Kalender, PV, Themen) |
-| **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus, Offenheit |
+| **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus, Offenheit, Rolle (Erwachsener/Kind ♂/♀), eigenes Emoji |
 | **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
 | **PV** | Sensoren konfigurieren, Widget-Felder per Checkbox, Statistiken, Energiefluss |
 | **Design → Farben** | Theme-Farben anpassen, 6 Presets (inkl. Light Theme) |
@@ -534,6 +534,8 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 | **Design → Layout** | Widgets auf linkes/rechtes Panel verteilen, Größe & Reihenfolge |
 | **System → Standort** | Koordinaten manuell oder via "Von HA übernehmen" (zone.home) |
 | **System → Cloud-Backup** | Verschlüsseltes Backup erstellen oder wiederherstellen |
+| **System → Admin-PIN** | Admin-Bereich mit 4–8-stelliger PIN schützen |
+| **System → Diagnose** | Verbindungsstatus aller Integrationen prüfen (HA, LLM, Sync-Server, Internet) |
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |
 | **Wetter** | Anzeige-Optionen, Anbieter (Open-Meteo / Yr.no / OpenWeatherMap) |
 | **Abfall → Push-Benachrichtigung** | Müllabfuhr-Benachrichtigung aktivieren, Uhrzeit einstellen |
@@ -541,7 +543,7 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 | **Zeitpläne** | Aktive Erinnerungen und zeitgesteuerte Lichtbefehle einsehen/löschen |
 | **Benachrichtigungen** | Proaktive Regeln (HA-Entitäten) |
 | **Licht** | Szenen verwalten |
-| **Audit-Log** | Verlauf aller Aktionen, Fehler-Einträge rot hervorgehoben |
+| **Protokoll** | Vollständiger Verlauf aller Systemereignisse. Filterbar nach Level (Info / Warnung / Fehler), Aktionstyp und Anzahl der Einträge. Level-Badges farbcodiert: grün = info, gelb = warning, rot = error. |
 
 ---
 
