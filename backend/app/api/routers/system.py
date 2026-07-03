@@ -628,9 +628,13 @@ def patch_config(payload: ConfigPatchRequest) -> dict[str, Any]:
 
 
 @router.get("/audit-log")
-def get_audit_log(limit: int = 100) -> dict[str, Any]:
+def get_audit_log(
+    limit: int = 100,
+    level: str | None = None,
+    action: str | None = None,
+) -> dict[str, Any]:
     from app.audit.service import AuditService
-    return {"entries": AuditService().list_entries(limit)}
+    return {"entries": AuditService().list_entries(limit=limit, level=level, action=action)}
 
 
 @router.get("/debug/light-schedule")

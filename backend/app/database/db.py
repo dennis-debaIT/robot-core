@@ -170,6 +170,7 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS audit_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 action TEXT NOT NULL,
+                level TEXT NOT NULL DEFAULT 'info',
                 target_type TEXT NOT NULL,
                 target_id TEXT,
                 actor_type TEXT NOT NULL,
@@ -430,6 +431,10 @@ def init_db() -> None:
         note_columns = {row["name"] for row in conn.execute("PRAGMA table_info(person_notes)").fetchall()}
         if "sync_server_id" not in note_columns:
             conn.execute("ALTER TABLE person_notes ADD COLUMN sync_server_id TEXT")
+
+        audit_columns = {row["name"] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
+        if "level" not in audit_columns:
+            conn.execute("ALTER TABLE audit_log ADD COLUMN level TEXT NOT NULL DEFAULT 'info'")
 
         person_columns = {row["name"] for row in conn.execute("PRAGMA table_info(persons)").fetchall()}
         if "gender" not in person_columns:

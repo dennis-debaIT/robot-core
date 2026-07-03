@@ -127,9 +127,10 @@ async def _reminder_watcher_loop() -> None:
                 error = None
                 try:
                     result = HomeAssistantProvider().execute_light_command(row["light_command"])
+                    _audit.log_info(source="reminder.light", message=f"Licht-Erinnerung ausgeführt: {row['light_command']}")
                 except Exception as exc:
                     error = str(exc)
-                    _audit.log_error(source="reminder_watcher.light", message=error, details={"command": row["light_command"]})
+                    _audit.log_error(source="reminder_watcher.light", message=f"Licht konnte nicht angesteuert werden: {error}", details={"command": row["light_command"]})
                 try:
                     with get_connection() as conn:
                         conn.execute(
@@ -159,8 +160,9 @@ async def _reminder_watcher_loop() -> None:
                     title = "Erinnerung"
                     body  = str(row["text"] or "")
                     send_notification(title, body, channel="reminders")
-                except Exception:
-                    pass
+                    _audit.log_info(source="reminder.push", message=f"Erinnerung ausgelöst: {body[:80]}")
+                except Exception as exc:
+                    _audit.log_warn(source="reminder.push", message=f"Push-Benachrichtigung fehlgeschlagen: {exc}")
 
             with get_connection() as conn:
                 conn.execute(
@@ -216,13 +218,10 @@ async def _waste_push_loop() -> None:
                         body=f"{date_label} – {labels}",
                         channel="waste",
                     )
+                    _audit.log_info(source="waste.push", message=f"Mülltonnen-Benachrichtigung gesendet: {labels} am {date_label}")
                     last_notified_date = today_str
         except Exception as exc:
-            try:
-                from app.audit.service import AuditService
-                AuditService().log_error(source="waste_push_loop", message=str(exc))
-            except Exception:
-                pass
+            _audit.log_error(source="waste_push_loop", message=str(exc))
         await asyncio.sleep(60)
 
 

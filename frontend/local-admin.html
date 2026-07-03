@@ -2095,18 +2095,39 @@
             </div>
             <button type="button" class="secondary" onclick="loadAuditLog()" style="font-size:0.8rem;padding:6px 14px;">Aktualisieren</button>
           </header>
-          <section class="module-card" style="padding:0;overflow:hidden;">
+          <section class="module-card" style="padding:12px 16px 0;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+              <select id="audit-filter-level" onchange="loadAuditLog()"
+                style="padding:5px 10px;border-radius:8px;font-size:0.78rem;background:var(--panel-soft);border:1px solid var(--line);color:var(--ink);">
+                <option value="">Alle Level</option>
+                <option value="info">ℹ Info</option>
+                <option value="warning">⚠ Warning</option>
+                <option value="error">✗ Error</option>
+              </select>
+              <input id="audit-filter-action" oninput="loadAuditLog()" placeholder="Aktion filtern…"
+                style="padding:5px 10px;border-radius:8px;font-size:0.78rem;background:var(--panel-soft);border:1px solid var(--line);color:var(--ink);width:180px;">
+              <select id="audit-filter-limit" onchange="loadAuditLog()"
+                style="padding:5px 10px;border-radius:8px;font-size:0.78rem;background:var(--panel-soft);border:1px solid var(--line);color:var(--ink);">
+                <option value="100">100 Einträge</option>
+                <option value="200" selected>200 Einträge</option>
+                <option value="500">500 Einträge</option>
+              </select>
+              <span id="audit-count" style="font-size:0.76rem;color:var(--muted);margin-left:4px;"></span>
+            </div>
+          </section>
+          <section class="module-card" style="padding:0;overflow:hidden;margin-top:0;">
             <div id="audit-log-container" style="overflow-x:auto;">
               <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
                 <thead>
                   <tr style="background:rgba(255,255,255,0.04);border-bottom:1px solid var(--border);">
-                    <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Zeit</th>
+                    <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;white-space:nowrap;">Zeit</th>
+                    <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;white-space:nowrap;">Level</th>
                     <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Aktion</th>
                     <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:600;">Zusammenfassung</th>
                   </tr>
                 </thead>
                 <tbody id="audit-log-body">
-                  <tr><td colspan="3" style="padding:16px;color:var(--text-muted);text-align:center;">Wird geladen…</td></tr>
+                  <tr><td colspan="4" style="padding:16px;color:var(--text-muted);text-align:center;">Wird geladen…</td></tr>
                 </tbody>
               </table>
             </div>
@@ -5677,30 +5698,48 @@
     document.querySelector('[data-tab-target="tab-schedules"]')?.addEventListener('click', loadSchedules);
 
     // ── Audit-Log ─────────────────────────────────────────────
+    let _auditDebounce = null;
     async function loadAuditLog() {
+      clearTimeout(_auditDebounce);
+      _auditDebounce = setTimeout(_doLoadAuditLog, 200);
+    }
+    async function _doLoadAuditLog() {
       const tbody = document.getElementById('audit-log-body');
       if (!tbody) return;
-      tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;color:var(--text-muted);text-align:center;">Wird geladen…</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--text-muted);text-align:center;">Wird geladen…</td></tr>';
+      const level  = document.getElementById('audit-filter-level')?.value || '';
+      const action = document.getElementById('audit-filter-action')?.value || '';
+      const limit  = document.getElementById('audit-filter-limit')?.value || '200';
+      const params = new URLSearchParams({ limit });
+      if (level)  params.set('level', level);
+      if (action) params.set('action', action);
       try {
-        const { entries } = await fetch('/audit-log?limit=200').then(r => r.json());
+        const { entries } = await fetch(`/audit-log?${params}`).then(r => r.json());
+        const countEl = document.getElementById('audit-count');
+        if (countEl) countEl.textContent = entries?.length ? `${entries.length} Einträge` : '';
         if (!entries?.length) {
-          tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;color:var(--text-muted);text-align:center;">Keine Einträge vorhanden.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--text-muted);text-align:center;">Keine Einträge vorhanden.</td></tr>';
           return;
         }
+        const _LEVEL_CFG = {
+          error:   { icon: '✗', color: '#f87171', bg: 'rgba(248,113,113,0.06)' },
+          warning: { icon: '⚠', color: '#fbbf24', bg: 'rgba(251,191,36,0.05)' },
+          info:    { icon: 'ℹ', color: 'var(--muted)', bg: '' },
+        };
         tbody.innerHTML = entries.map(e => {
-          const ts = e.created_at ? new Date(e.created_at).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'}) : '—';
-          const isError = e.action === 'system.error';
-          const actionColor = isError ? '#f87171' : 'var(--accent)';
-          const rowBg = isError ? 'rgba(248,113,113,0.06)' : '';
-          const action = `<code style="font-size:0.78rem;color:${actionColor};">${escHtml(e.action)}</code>`;
-          return `<tr style="border-bottom:1px solid var(--border);background:${rowBg}">
-            <td style="padding:9px 12px;white-space:nowrap;color:var(--text-muted);">${ts}</td>
-            <td style="padding:9px 12px;">${action}</td>
-            <td style="padding:9px 12px;${isError ? 'color:#fca5a5;' : ''}">${escHtml(e.summary || '')}</td>
+          const ts  = e.created_at ? new Date(e.created_at).toLocaleString('de-DE', {dateStyle:'short', timeStyle:'short'}) : '—';
+          const lvl = _LEVEL_CFG[e.level] || _LEVEL_CFG.info;
+          const levelBadge = `<span style="font-size:0.75rem;font-weight:700;color:${lvl.color};">${lvl.icon} ${(e.level||'info').toUpperCase()}</span>`;
+          const actionEl = `<code style="font-size:0.75rem;color:var(--accent-40);">${escHtml(e.action)}</code>`;
+          return `<tr style="border-bottom:1px solid var(--border);background:${lvl.bg}">
+            <td style="padding:8px 12px;white-space:nowrap;color:var(--muted);font-size:0.78rem;">${ts}</td>
+            <td style="padding:8px 12px;white-space:nowrap;">${levelBadge}</td>
+            <td style="padding:8px 12px;">${actionEl}</td>
+            <td style="padding:8px 12px;color:${e.level==='error'?'#fca5a5':e.level==='warning'?'#fde68a':'var(--ink)'};">${escHtml(e.summary || '')}</td>
           </tr>`;
         }).join('');
       } catch {
-        tbody.innerHTML = '<tr><td colspan="3" style="padding:16px;color:var(--danger);text-align:center;">Fehler beim Laden.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:var(--danger);text-align:center;">Fehler beim Laden.</td></tr>';
       }
     }
 
