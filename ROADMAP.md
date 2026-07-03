@@ -154,7 +154,6 @@ Ziel: Android-App als Ergänzung zum Display — ohne externe Cloud.
 - [x] **Startseite Companion App**: Logo + „ERIKA"-Header, nächster Kalendertermin als erster Block (inkl. korrekter Sortierung ganztägiger Termine), News-Feed ohne redundante Überschrift
 - [x] **Cloud-Backup**: Verschlüsseltes Backup (DB + `.env`) im Sync Server; Ein-Klick-Wiederherstellung bei Gerätedefekt; `update.sh` injiziert Credentials und übernimmt `restore.env` vor dem Rebuild
 - [x] **Einkaufsliste Sprachsteuerung**: „Erika, füge Milch zur Einkaufsliste hinzu" — Hinzufügen und Löschen per Sprache, Display wechselt automatisch zur Einkaufsliste
-- [ ] **Personenerkennung für Hausaufgaben**: Automatische Zuordnung per Gesichtserkennung oder Profil-Auswahl
 
 ---
 
@@ -167,6 +166,7 @@ Ziel: Die Fake-Adapter aus Phase 0 werden durch echte Hardware ersetzt — ohne 
 - [ ] **Akku-Management**: Echter Batterie-Adapter für physischen Roboter-Akku
 - [ ] **Hardware-Abstractions-Layer dokumentieren**: Klare Anleitung wie Dritte eigene Adapter schreiben können
 - [ ] **Display auf dedizierter Hardware**: Kiosk-Modus auf Touchscreen (z.B. offizielles Pi-Display) getestet und dokumentiert
+- [ ] **Personenerkennung für Hausaufgaben**: Automatische Zuordnung der Hausaufgaben-Erledigung per Gesichtserkennung — setzt echte Kamera voraus
 
 ---
 
