@@ -208,10 +208,12 @@ async def _waste_push_loop() -> None:
                     if b.get("date") == tomorrow_str
                 ]
                 if bins_tomorrow:
+                    from app.api.routers.ha_waste import format_waste_date
                     labels = ", ".join(bins_tomorrow)
+                    date_label = format_waste_date(tomorrow_str)
                     send_notification(
                         title="🗑️ Müllabfuhr morgen",
-                        body=f"Morgen wird abgeholt: {labels}",
+                        body=f"{date_label} – {labels}",
                         channel="waste",
                     )
                     last_notified_date = today_str

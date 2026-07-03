@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 
 from fastapi import APIRouter
@@ -8,6 +9,14 @@ from app.services.integration_config_service import IntegrationConfigService
 from app.services.waste_service import WasteService
 
 router = APIRouter()
+
+_WEEKDAYS_DE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+
+
+def format_waste_date(date_str: str) -> str:
+    """'2026-07-06' → 'Montag, 06.07.2026'"""
+    d = date.fromisoformat(date_str)
+    return f"{_WEEKDAYS_DE[d.weekday()]}, {d.strftime('%d.%m.%Y')}"
 
 
 @router.get("/ha/waste")
@@ -25,7 +34,6 @@ def test_waste_push(real: bool = False) -> dict[str, Any]:
     """
     from app.services import push_service
 
-    # Firebase-Initialisierung prüfen
     try:
         push_service._get_firebase_app()
     except RuntimeError as exc:
@@ -33,7 +41,6 @@ def test_waste_push(real: bool = False) -> dict[str, Any]:
     except Exception as exc:
         return {"ok": False, "sent": 0, "total_tokens": 0, "error": f"Firebase-Initialisierung fehlgeschlagen: {exc}"}
 
-    # Registrierte Geräte holen
     try:
         tokens = push_service._get_device_tokens()
     except Exception as exc:
@@ -46,7 +53,6 @@ def test_waste_push(real: bool = False) -> dict[str, Any]:
         }
 
     if real:
-        # Echte HA-Daten: nächster fälliger Termin unabhängig vom Datum
         try:
             cfg = IntegrationConfigService().get_config()
             waste_data = WasteService().get_display_data(cfg)
@@ -57,12 +63,11 @@ def test_waste_push(real: bool = False) -> dict[str, Any]:
         if not bins:
             return {"ok": False, "sent": 0, "total_tokens": len(tokens), "error": "Keine Mülltonnen-Termine im HA-Kalender gefunden."}
 
-        # Nächsten Termin nehmen (bins ist bereits nach Datum sortiert)
         next_bin = bins[0]
-        labels = ", ".join(b["label"] for b in bins if b.get("date") == next_bin.get("date"))
-        date_str = next_bin.get("date", "?")
-        title = "🗑️ Müllabfuhr Test (echte Daten)"
-        body = f"{date_str}: {labels}"
+        next_date = next_bin.get("date", "")
+        labels = ", ".join(b["label"] for b in bins if b.get("date") == next_date)
+        title = "🗑️ Müllabfuhr (Test)"
+        body = f"{format_waste_date(next_date)} – {labels}" if next_date else labels
     else:
         title = "🗑 Test-Benachrichtigung"
         body = "Wenn du das liest, funktionieren Push-Benachrichtigungen!"
