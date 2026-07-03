@@ -1567,6 +1567,24 @@
               </label>
             </div>
 
+            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Spracherkennung (STT)</div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Modus</span>
+                <select class="field-input" id="attention-stt-provider">
+                  <option value="online">Online – Google (empfohlen, schnell)</option>
+                  <option value="local">Lokal – Whisper auf erika (offline-fähig, ~2 s Verzögerung)</option>
+                </select>
+              </label>
+              <div class="field-block" id="stt-local-hint" style="display:none;">
+                <span class="field-label"> </span>
+                <p style="margin:0;font-size:0.82rem;color:var(--muted);line-height:1.4;">
+                  Das Modell (<code>tiny</code>, ~75 MB) wird beim ersten Aufruf automatisch heruntergeladen.
+                  Das Wake Word erkennt weiterhin Google — nur die Spracheingabe nach dem Auslösen wird lokal verarbeitet.
+                </p>
+              </div>
+            </div>
+
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Begrüßung</div>
             <div class="field-grid">
               <label class="field-block checkbox-block">
@@ -5803,6 +5821,15 @@
         if (gCalEl)   gCalEl.checked   = att.greeting_context_calendar !== false;
         if (gPvEl)    gPvEl.checked    = att.greeting_context_pv !== false;
         if (gTopicEl) gTopicEl.checked = att.greeting_context_topics !== false;
+        const sttEl   = document.getElementById('attention-stt-provider');
+        const sttHint = document.getElementById('stt-local-hint');
+        if (sttEl) {
+          sttEl.value = att.stt_provider || 'online';
+          if (sttHint) sttHint.style.display = sttEl.value === 'local' ? '' : 'none';
+          sttEl.addEventListener('change', () => {
+            if (sttHint) sttHint.style.display = sttEl.value === 'local' ? '' : 'none';
+          }, { once: true });
+        }
       } catch {}
     }
 
@@ -5905,6 +5932,7 @@
               greeting_context_calendar: document.getElementById('attention-greeting-ctx-calendar')?.checked ?? true,
               greeting_context_pv: document.getElementById('attention-greeting-ctx-pv')?.checked ?? true,
               greeting_context_topics: document.getElementById('attention-greeting-ctx-topics')?.checked ?? true,
+              stt_provider: document.getElementById('attention-stt-provider')?.value || 'online',
             },
           }),
         });

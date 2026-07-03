@@ -99,6 +99,7 @@ class IntegrationConfigService:
                 "proactive_end": "22:00",
                 "evening_recap_enabled": False,
                 "evening_recap_time": "20:00",
+                "stt_provider": "online",
             },
             "printer": {
                 "enabled":        False,
@@ -336,6 +337,7 @@ class IntegrationConfigService:
         attention["greeting_context_calendar"] = bool(attention.get("greeting_context_calendar", True))
         attention["greeting_context_pv"] = bool(attention.get("greeting_context_pv", True))
         attention["greeting_context_topics"] = bool(attention.get("greeting_context_topics", True))
+        attention["stt_provider"] = attention.get("stt_provider") if attention.get("stt_provider") in ("online", "local") else "online"
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -449,6 +451,7 @@ class IntegrationConfigService:
         attention["greeting_context_calendar"] = bool(attention.get("greeting_context_calendar", True))
         attention["greeting_context_pv"] = bool(attention.get("greeting_context_pv", True))
         attention["greeting_context_topics"] = bool(attention.get("greeting_context_topics", True))
+        attention["stt_provider"] = attention.get("stt_provider") if attention.get("stt_provider") in ("online", "local") else "online"
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:

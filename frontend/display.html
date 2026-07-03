@@ -2949,9 +2949,11 @@
   function stopSpeech() {
     _listening = false;  // ZUERST setzen, damit onend nicht erneut startet
     if (_recognition) { try { _recognition.stop(); } catch {} }
+    if (_mediaRecorder && _mediaRecorder.state !== 'inactive') { try { _mediaRecorder.stop(); } catch {} _mediaRecorder = null; }
   }
 
   function startSpeech() {
+    if (_attentionConfig.stt_provider === 'local') { startSpeechLocal(); return; }
     if (_recognition) { try { _recognition.abort(); } catch {} _recognition = null; }
 
     _listening  = true;
@@ -3072,6 +3074,113 @@
     resetMicState();
     const wave = document.getElementById('wave-indicator');
     if (wave) wave.remove();
+  }
+
+  // ── Lokaler STT-Modus (Whisper via /stt/transcribe) ──────────
+  let _mediaRecorder = null;
+  let _audioChunks   = [];
+
+  async function startSpeechLocal() {
+    if (_listening) return;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      openTextOverlay('Kein Mikrofon-Zugriff.');
+      return;
+    }
+
+    _listening = true;
+    _audioChunks = [];
+
+    const micBtn  = document.getElementById('nav-mic');
+    const micIcon = document.getElementById('mic-icon');
+    const micLbl  = document.getElementById('mic-label');
+    micBtn?.classList.add('listening');
+    if (micIcon) micIcon.textContent = '⏹';
+    if (micLbl)  micLbl.textContent  = 'Tippen = Stop';
+
+    const wave = document.createElement('div');
+    wave.id = 'wave-indicator';
+    wave.style.cssText = 'position:fixed;bottom:64px;left:50%;transform:translateX(-50%);' +
+      'display:flex;gap:5px;align-items:center;z-index:300;' +
+      'background:rgba(255,61,61,0.15);border:1px solid rgba(255,61,61,0.4);' +
+      'border-radius:20px;padding:8px 20px;';
+    wave.innerHTML = [20,32,16,40,24].map(h =>
+      `<div style="width:4px;height:${h}px;background:var(--danger);border-radius:2px;` +
+      `animation:wave-bar 0.6s ease-in-out infinite alternate;` +
+      `animation-delay:${Math.random()*0.4}s"></div>`
+    ).join('') + '<span style="font-size:0.8rem;color:var(--danger);margin-left:10px;font-weight:700;">Höre zu …</span>';
+    document.body.appendChild(wave);
+
+    // Silence-Detection: 2,5 s ohne Audio-Aktivität → automatisch stoppen
+    let _silenceTimer = null;
+    const _SILENCE_MS = 2500;
+    const resetSilence = () => {
+      clearTimeout(_silenceTimer);
+      _silenceTimer = setTimeout(() => { if (_listening) stopSpeechLocal(stream); }, _SILENCE_MS);
+    };
+
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+    _mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+    // AudioContext für Stille-Erkennung
+    let _actx = null, _analyser = null, _actxSource = null;
+    try {
+      _actx = new AudioContext();
+      _actxSource = _actx.createMediaStreamSource(stream);
+      _analyser = _actx.createAnalyser();
+      _analyser.fftSize = 512;
+      _actxSource.connect(_analyser);
+      const _buf = new Uint8Array(_analyser.frequencyBinCount);
+      const _checkAudio = () => {
+        if (!_listening) return;
+        _analyser.getByteFrequencyData(_buf);
+        const avg = _buf.reduce((a, b) => a + b, 0) / _buf.length;
+        if (avg > 8) resetSilence();
+        requestAnimationFrame(_checkAudio);
+      };
+      _checkAudio();
+    } catch {}
+
+    resetSilence();
+
+    _mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) _audioChunks.push(e.data); };
+    _mediaRecorder.onstop = async () => {
+      clearTimeout(_silenceTimer);
+      try { _actx?.close(); } catch {}
+      stream.getTracks().forEach(t => t.stop());
+      finishListening();
+      const blob = new Blob(_audioChunks, { type: mimeType });
+      _audioChunks = [];
+      if (blob.size < 1000) { openTextOverlay('Nichts erkannt — bitte Text eingeben.'); return; }
+      showReplyText('⏳ Erkenne …', false);
+      try {
+        const fd = new FormData();
+        fd.append('file', blob, 'audio' + (mimeType === 'audio/webm' ? '.webm' : '.ogg'));
+        const res = await fetch('/stt/transcribe', { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(await res.text());
+        const { text } = await res.json();
+        if (text?.trim()) {
+          sendToDisplay(text.trim());
+        } else {
+          openTextOverlay('Nichts erkannt — bitte Text eingeben.');
+        }
+      } catch (err) {
+        openTextOverlay('Transkription fehlgeschlagen: ' + (err.message || err));
+      }
+    };
+
+    _mediaRecorder.start(100);  // alle 100 ms ein Chunk
+  }
+
+  function stopSpeechLocal(stream) {
+    if (!_listening) return;
+    _listening = false;
+    if (_mediaRecorder && _mediaRecorder.state !== 'inactive') {
+      try { _mediaRecorder.stop(); } catch {}
+    }
+    _mediaRecorder = null;
   }
 
   function openTextOverlay(hint) {

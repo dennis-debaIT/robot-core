@@ -607,6 +607,8 @@ app.include_router(license.router)
 app.include_router(tournament.router)
 from app.api.routers import liga
 app.include_router(liga.router)
+from app.api.routers import stt
+app.include_router(stt.router)
 
 # ── Paid-Module (Erika Plus) — optional ──────────────────────
 # Diese Module fehlen im Community-Build. Ist die Datei nicht vorhanden,
