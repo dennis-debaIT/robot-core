@@ -1508,7 +1508,8 @@ class RobotCore:
         )
         try:
             llm_result = self.llm.generate(payload, timeout_seconds=settings.llm_timeout_seconds)
-        except Exception:
+        except Exception as _llm_exc:
+            self.audit.log_error(source="llm", message=f"LLM nicht erreichbar: {type(_llm_exc).__name__}: {_llm_exc}")
             llm_result = {"reply": "Das kann ich leider gerade nicht beantworten.", "provider": "mock", "used_fallback": True}
         reply = self._sanitize_reply_text(llm_result["reply"])
         self._finalize_chat(reply, person_name)

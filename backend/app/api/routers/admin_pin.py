@@ -32,13 +32,25 @@ def pin_status() -> dict[str, Any]:
         return {"set": bool(_get_stored_hash(conn))}
 
 
+def _audit(action: str, summary: str) -> None:
+    try:
+        from app.audit.service import AuditService
+        AuditService().log(action=action, target_type="admin", target_id="pin",
+                           actor_type="local_admin", summary=summary)
+    except Exception:
+        pass
+
+
 @router.post("/verify")
 def verify_pin(body: PinBody) -> dict[str, Any]:
     with get_connection() as conn:
         stored = _get_stored_hash(conn)
     if not stored:
         return {"ok": True}  # kein PIN gesetzt → immer OK
-    return {"ok": _hash(body.pin) == stored}
+    ok = _hash(body.pin) == stored
+    if not ok:
+        _audit("admin.pin.verify.fail", "Falsche PIN-Eingabe im Admin-Bereich")
+    return {"ok": ok}
 
 
 @router.post("/set")
@@ -51,10 +63,10 @@ def set_pin(body: PinBody) -> dict[str, Any]:
     with get_connection() as conn:
         stored = _get_stored_hash(conn)
         if stored:
-            # Änderung: aktuellen PIN prüfen
             if not body.current_pin or _hash(body.current_pin) != stored:
                 raise HTTPException(status_code=403, detail="Aktueller PIN falsch")
         write_state(conn, _STATE_KEY, _hash(body.pin))
+    _audit("admin.pin.set", "Admin-PIN wurde gesetzt" if not stored else "Admin-PIN wurde geändert")
     return {"ok": True}
 
 
@@ -65,4 +77,5 @@ def remove_pin(body: PinBody) -> dict[str, Any]:
         if stored and (_hash(body.pin) != stored):
             raise HTTPException(status_code=403, detail="PIN falsch")
         write_state(conn, _STATE_KEY, None)
+    _audit("admin.pin.removed", "Admin-PIN wurde entfernt")
     return {"ok": True}

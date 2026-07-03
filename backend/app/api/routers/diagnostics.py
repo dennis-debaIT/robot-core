@@ -227,6 +227,23 @@ def get_diagnostics() -> dict[str, Any]:
     lines.append("=== Ende Report ===")
     report_text = "\n".join(lines)
 
+    errors   = [c for c in checks if c["status"] == "error"]
+    warnings = [c for c in checks if c["status"] == "warn"]
+    summary  = f"Diagnose abgeschlossen: {len(checks) - len(errors) - len(warnings)} OK, {len(warnings)} Warnung(en), {len(errors)} Fehler"
+    if errors:
+        summary += " — Fehler: " + ", ".join(c["name"] for c in errors)
+    try:
+        from app.audit.service import AuditService
+        AuditService().log(
+            action="admin.diagnostics.run",
+            target_type="system",
+            actor_type="local_admin",
+            summary=summary,
+            details={"errors": [c["name"] for c in errors], "warnings": [c["name"] for c in warnings]},
+        )
+    except Exception:
+        pass
+
     return {
         "checks": checks,
         "generated_at": generated_at,

@@ -55,6 +55,14 @@ def _restore_env_path() -> Path:
     return Path("/restore.env")
 
 
+def _audit(action: str, summary: str, details: dict | None = None) -> None:
+    try:
+        from app.audit.service import AuditService
+        AuditService().log(action=action, target_type="backup", actor_type="local_admin", summary=summary, details=details)
+    except Exception:
+        pass
+
+
 def create_backup() -> int:
     """Erstellt Backup und lädt es hoch. Gibt Größe in Bytes zurück."""
     token = _get_sync_token()
@@ -71,7 +79,13 @@ def create_backup() -> int:
             zf.write(env, ".env")
 
     payload = _encrypt(buf.getvalue(), token)
-    _upload(payload)
+    try:
+        _upload(payload)
+    except Exception as exc:
+        _audit("admin.backup.error", f"Backup fehlgeschlagen: {exc}")
+        raise
+    size_kb = round(len(payload) / 1024)
+    _audit("admin.backup.create", f"Cloud-Backup erstellt ({size_kb} KB)")
     return len(payload)
 
 
@@ -81,7 +95,11 @@ def restore_backup() -> None:
     if not token:
         raise RuntimeError("Kein Sync-Token konfiguriert — Restore nicht möglich")
 
-    payload = _download()
+    try:
+        payload = _download()
+    except Exception as exc:
+        _audit("admin.backup.error", f"Backup-Download fehlgeschlagen: {exc}")
+        raise
     raw = _decrypt(payload, token)
 
     with zipfile.ZipFile(io.BytesIO(raw)) as zf:
@@ -97,6 +115,7 @@ def restore_backup() -> None:
     flag = Path("/update.flag")
     if flag.exists():
         flag.write_text("restore")
+    _audit("admin.backup.restore", "Backup wiederhergestellt — Neustart eingeleitet")
 
 
 def backup_info() -> dict:
@@ -109,7 +128,7 @@ def backup_info() -> dict:
 
 
 def _upload(data: bytes) -> None:
-    from app.services.sync_service import get_credentials
+    from app.services.sync_service import get_credentials, _SSL_CTX
     import urllib.request
     url, token = get_credentials()
     if not (url and token):
@@ -120,13 +139,13 @@ def _upload(data: bytes) -> None:
         method="POST",
         headers={"Authorization": f"Bearer {token}", "Content-Type": "application/octet-stream"},
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
         if resp.status >= 400:
             raise RuntimeError(f"Upload fehlgeschlagen: HTTP {resp.status}")
 
 
 def _download() -> bytes:
-    from app.services.sync_service import get_credentials
+    from app.services.sync_service import get_credentials, _SSL_CTX
     import urllib.request
     url, token = get_credentials()
     if not (url and token):
@@ -135,5 +154,5 @@ def _download() -> bytes:
         url.rstrip("/") + "/backup/download",
         headers={"Authorization": f"Bearer {token}"},
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=60, context=_SSL_CTX) as resp:
         return resp.read()
