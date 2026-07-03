@@ -59,10 +59,21 @@ def patch_profile_preferences(person_id: int, payload: PersonPreferencePatchRequ
 
 @router.patch("/profiles/{person_id}")
 def update_profile(person_id: int, payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
-    if "gender" not in payload:
+    _SENTINEL = object()
+    profile = get_core().profile
+    result = None
+    if "gender" in payload:
+        result = profile.set_gender(person_id, payload.get("gender"))
+    if "role" in payload or "emoji" in payload:
+        kwargs: dict[str, Any] = {}
+        if "role" in payload:
+            kwargs["role"] = payload["role"]
+        if "emoji" in payload:
+            kwargs["emoji"] = payload["emoji"]
+        result = profile.update_meta(person_id, **kwargs)
+    if result is None and not any(k in payload for k in ("gender", "role", "emoji")):
         raise HTTPException(status_code=400, detail="Keine unterstützten Felder im Payload")
-    result = get_core().profile.set_gender(person_id, payload.get("gender"))
-    if not result:
+    if result is None:
         raise HTTPException(status_code=404, detail="Person not found")
     return result
 

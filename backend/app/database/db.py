@@ -434,6 +434,10 @@ def init_db() -> None:
         person_columns = {row["name"] for row in conn.execute("PRAGMA table_info(persons)").fetchall()}
         if "gender" not in person_columns:
             conn.execute("ALTER TABLE persons ADD COLUMN gender TEXT")
+        if "role" not in person_columns:
+            conn.execute("ALTER TABLE persons ADD COLUMN role TEXT")
+        if "emoji" not in person_columns:
+            conn.execute("ALTER TABLE persons ADD COLUMN emoji TEXT")
 
         chore_task_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chore_tasks)").fetchall()}
         if "points" not in chore_task_columns:

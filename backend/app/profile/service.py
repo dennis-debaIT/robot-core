@@ -312,6 +312,8 @@ class PersonProfileService:
             "id": person["id"],
             "name": person["name"],
             "gender": person["gender"],
+            "role": person["role"] if "role" in person.keys() else None,
+            "emoji": person["emoji"] if "emoji" in person.keys() else None,
             "created_at": person["created_at"],
             "updated_at": person["updated_at"],
             "facts": [dict(row) for row in facts],
@@ -336,6 +338,20 @@ class PersonProfileService:
             "updated_at": None,
             "facts": [],
         }
+
+    def update_meta(self, person_id: int, *, role: str | None = ..., emoji: str | None = ...) -> dict[str, Any] | None:
+        _VALID_ROLES = {None, "adult_male", "adult_female", "child_male", "child_female"}
+        with get_connection() as conn:
+            if not conn.execute("SELECT id FROM persons WHERE id = ?", (person_id,)).fetchone():
+                return None
+            if role is not ...:
+                if role not in _VALID_ROLES:
+                    role = None
+                conn.execute("UPDATE persons SET role = ?, updated_at = ? WHERE id = ?", (role, now_iso(), person_id))
+            if emoji is not ...:
+                emoji_val = str(emoji).strip()[:8] if emoji else None
+                conn.execute("UPDATE persons SET emoji = ?, updated_at = ? WHERE id = ?", (emoji_val, now_iso(), person_id))
+        return self.get_person_by_id(person_id)
 
     def set_gender(self, person_id: int, gender: str | None) -> dict[str, Any] | None:
         if gender not in (None, "m", "w"):

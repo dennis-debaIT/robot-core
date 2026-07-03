@@ -148,7 +148,7 @@ async def _reminder_watcher_loop() -> None:
             # Normale Erinnerungen (ohne light_command): FCM senden + notified markieren
             with get_connection() as conn:
                 pending_rows = conn.execute(
-                    "SELECT id, text, person_id FROM reminders "
+                    "SELECT id, text FROM reminders "
                     "WHERE notified=0 AND dismissed=0 AND fire_at <= ? AND light_command IS NULL",
                     (now_iso,),
                 ).fetchall()
