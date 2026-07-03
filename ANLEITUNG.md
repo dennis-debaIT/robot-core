@@ -22,8 +22,9 @@ Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen.
 13. [Tägliches Fazit](#13-tägliches-fazit)
 14. [Persönliches](#14-persönliches)
 15. [PV-Anlage](#15-pv-anlage)
-16. [System](#16-system)
-17. [Design & Layout](#17-design--layout)
+16. [Push-Benachrichtigungen](#16-push-benachrichtigungen)
+17. [System & Backup](#17-system--backup)
+18. [Design & Layout](#18-design--layout)
 
 ---
 
@@ -405,7 +406,35 @@ Im Admin-Panel unter **System → Standort** können Koordinaten für Wetter- un
 
 ---
 
-## 16. System
+## 16. Push-Benachrichtigungen
+
+Erika kann Benachrichtigungen direkt auf dein Smartphone senden — auch wenn die Companion App nicht geöffnet ist.
+
+### Voraussetzungen
+
+- **Erika Companion App** installiert und eingerichtet (Android)
+- Beim ersten App-Start: Benachrichtigungen im System-Dialog **erlauben**
+- App muss mindestens einmal geöffnet und mit dem Sync Server verbunden gewesen sein (Token-Registrierung)
+
+### Was wird benachrichtigt?
+
+| Ereignis | Kanal | Priorität |
+|---|---|---|
+| Fällige Erinnerung | Erinnerungen | Hoch (mit Ton) |
+| Müllabfuhr morgen | Mülltonnen | Normal |
+
+### Müllabfuhr-Benachrichtigung konfigurieren
+
+Im Admin-Panel unter **Abfall → Push-Benachrichtigung**:
+
+- **Aktivieren/Deaktivieren**: Checkbox
+- **Uhrzeit**: Zeitfeld, zu der die Benachrichtigung am Vorabend gesendet wird (Standard: 18:00 Uhr)
+
+> Erika prüft täglich zur eingestellten Uhrzeit ob am nächsten Tag eine Tonne abgeholt wird. Ist das der Fall, erhalten alle registrierten Geräte eine Benachrichtigung mit den betroffenen Tonnen.
+
+---
+
+## 17. System & Backup
 
 | Befehl | Funktion |
 |---|---|
@@ -413,9 +442,27 @@ Im Admin-Panel unter **System → Standort** können Koordinaten für Wetter- un
 | `Gibt es Updates?` | Update-Status |
 | `Was zeigt dein Display gerade an?` | Display-Status |
 
+### Cloud-Backup
+
+Im Admin-Panel unter **System → Cloud-Backup** kann ein verschlüsseltes Backup erstellt werden, das Datenbank und alle Einstellungen (inkl. HA-Token, LLM-Konfiguration usw.) enthält.
+
+**Backup erstellen:**
+1. Im Admin → System → Cloud-Backup auf **„☁️ Backup erstellen"** klicken
+2. Das Backup wird verschlüsselt im Sync Server gespeichert
+3. Datum und Größe des letzten Backups werden angezeigt
+
+**Wiederherstellen nach Gerätedefekt:**
+1. Neues System aufsetzen (`install.sh` ausführen)
+2. Sync-Token in `.env` eintragen (`SHOPPING_SYNC_TOKEN=...`)
+3. `update.sh` ausführen — lädt den aktuellen Code
+4. Im Admin → System → Cloud-Backup auf **„↩️ Wiederherstellen"** klicken
+5. Erika startet automatisch neu — alle Einstellungen sind wie vorher
+
+> Das Backup ist mit deinem Sync-Token verschlüsselt (AES-256). Ohne diesen Token kann niemand das Backup entschlüsseln.
+
 ---
 
-## 17. Design & Layout
+## 18. Design & Layout
 
 Das Aussehen des Displays wird im Admin-Panel unter **Design** angepasst — nicht per Sprache.
 
@@ -462,8 +509,10 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 | **Design → Zeitabhängiges Design** *(Plus)* | Automatischer Tag/Nacht-Theme-Wechsel mit eigenem Nacht-Theme und Uhrzeiten |
 | **Design → Layout** | Widgets auf linkes/rechtes Panel verteilen, Größe & Reihenfolge |
 | **System → Standort** | Koordinaten manuell oder via "Von HA übernehmen" (zone.home) |
+| **System → Cloud-Backup** | Verschlüsseltes Backup erstellen oder wiederherstellen |
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |
 | **Wetter** | Anzeige-Optionen, Anbieter (Open-Meteo / Yr.no / OpenWeatherMap) |
+| **Abfall → Push-Benachrichtigung** | Müllabfuhr-Benachrichtigung aktivieren, Uhrzeit einstellen |
 | **Nachrichten** | RSS-Quellen auswählen, eigene RSS/Atom-Feeds hinzufügen |
 | **Zeitpläne** | Aktive Erinnerungen und zeitgesteuerte Lichtbefehle einsehen/löschen |
 | **Benachrichtigungen** | Proaktive Regeln (HA-Entitäten) |

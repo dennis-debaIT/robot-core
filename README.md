@@ -19,8 +19,11 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 - **Stimmung & Beziehung** — Erika entwickelt eine eigene Stimmung und Beziehungsdynamik zu Personen
 - **Fahrzeugabfragen** — Akku, Reichweite, Ladestatus per Sprache
 - **PV-Anlage** — Leistung, Hausverbrauch, Netz-Ein-/Einspeiseverfolgung, Batterieladung; konfigurierbare Widget-Felder; Echtzeit-Update alle 5 s; animiertes Energiefluss-Diagramm; Tages-/Wochen-/Monatsstatistik für Einspeisung und Netzbezug
-- **Timer & Erinnerungen** — Labels, mehrere gleichzeitig, per Sprache verwalten
+- **Timer & Erinnerungen** — Labels, mehrere gleichzeitig, per Sprache verwalten; Push-Notification auf Smartphone bei Fälligkeit
 - **Kalender** — Einträge per Sprache, Tagesübersicht, CalDAV-ready via Home Assistant
+- **Mülltonnen-Erinnerung** — Push-Notification am Vorabend wenn morgen Müllabfuhr ist; Uhrzeit frei konfigurierbar
+- **Android Companion App** — bidirektionaler Sync (Einkaufsliste, Kalender, Erinnerungen, Hausaufgaben u.a.) über den Erika Sync Server; Push-Benachrichtigungen via FCM; keine externe Cloud nötig
+- **Cloud-Backup** — verschlüsseltes Backup (DB + alle Einstellungen) im Sync Server; Ein-Klick-Wiederherstellung bei Gerätedefekt; Credentials werden automatisch per `update.sh` injiziert
 - **Websuche** — Wikipedia-Provider, erweiterbar
 - **Standort via zone.home** — Koordinaten direkt aus Home Assistant übernehmen, kein mehrdeutiges Geocoding
 - **LLM-Router** — OpenAI-kompatibel (LM Studio, Ollama, OpenAI), Mock-Fallback wenn offline

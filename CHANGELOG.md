@@ -8,6 +8,22 @@ Format: neueste Einträge oben.
 ## [Unreleased]
 
 ### Neu
+- **FCM Push-Notifications**: Erika sendet Push-Benachrichtigungen direkt auf das Android-Smartphone — ohne dauerhaft geöffnete App. Zwei Kanäle: `reminders` (Prio: Hoch) für fällige Erinnerungen, `waste` (Prio: Normal) für Müllabfuhr am nächsten Tag. Der Versandzeitpunkt für die Mülltonnen-Benachrichtigung ist im Admin unter **Abfall → Push-Benachrichtigung** frei konfigurierbar (Standard: 18:00 Uhr). Technisch: Firebase Admin SDK in robot-core (`push_service.py`), FCM-Token-Speicherung im Sync Server (`device_tokens`-Tabelle, tenant-isoliert), automatische Token-Registrierung beim App-Start. Firebase-Credentials werden bei der ersten `update.sh`-Ausführung automatisch in `.env` eingetragen — kein manueller Setup-Schritt.
+- **Cloud-Backup**: Im Admin-Panel unter **System → Cloud-Backup** lässt sich mit einem Klick ein verschlüsseltes Backup (Datenbank + alle `.env`-Einstellungen inkl. HA-Token, LLM-Key usw.) in der Cloud speichern. Verschlüsselung per Fernet/AES256, Key abgeleitet vom Sync-Token — nur wer den richtigen Tenant-Token kennt, kann das Backup entschlüsseln. Wiederherstellung: Neues Gerät aufsetzen, Sync-Token eintragen, im Admin „Wiederherstellen" klicken → Datenbank und alle Einstellungen werden zurückgeladen, Erika startet automatisch neu. Kein manuelles Kopieren von Dateien nötig. Backup im Sync Server (`backups`-Tabelle, max 50 MB, ein Backup pro Tenant).
+- **Android Companion App — Startseite neu gestaltet**: Statt „ErikaCompanion" in der TopAppBar erscheinen jetzt das App-Logo + „ERIKA" (fett). Erster Block auf der Startseite ist der nächste bevorstehende Kalendertermin (alle Kalendertypen inkl. Ganztags-Termine, korrekt sortiert). Die Überschrift „Nachrichten" wurde entfernt — der News-Feed folgt direkt darunter.
+- **Android Companion App — Kalender-Sortierung ganztägiger Termine**: `CalendarRepository` warf bisher eine Exception bei datums-only Strings wie `"2026-07-04"` und sortierte diese Events durch den Fallback auf `OffsetDateTime.MIN` immer ganz nach vorne. Ganztägige Termine werden jetzt korrekt als Tagesbeginn in der lokalen Zeitzone interpretiert.
+- **Android Companion App — Navigation neu**: Navigationslabels „Hausaufgaben" → „Aufgaben" und „Erinnerungen" → „Erinnerung" (Zeilenumbruch in der Navigationleiste vermieden). `alwaysShowLabel = false` für inaktive Tabs.
+- **Android Companion App — Benachrichtigungs-Permission**: Beim ersten App-Start (Android 13+) wird die System-Abfrage für Push-Benachrichtigungen automatisch ausgelöst.
+
+### Verbessert
+- **Sync Server — Device-Token-Verwaltung**: Neue Endpoints `POST /devices/token` (App registriert FCM-Token) und `GET /devices/tokens` (robot-core holt Tokens, tenant-isoliert). Neue Tabelle `device_tokens (device_id, tenant_id, fcm_token, updated_at)`.
+- **Sync Server — Cloud-Backup-Endpoint**: `POST /backup/upload`, `GET /backup/download`, `GET /backup/info`, `DELETE /backup` — verschlüsselte Binärdaten, max 50 MB, ein Slot pro Tenant.
+- **update.sh — automatische Firebase-Credentials-Injektion**: Prüft bei jedem Aufruf ob `FIREBASE_CREDENTIALS_B64` in `.env` fehlt und trägt den Wert einmalig ein. Neu aufgesetzte Instanzen erhalten damit Push-Notifications ohne manuelle Konfiguration.
+- **update.sh — Backup-Restore-Unterstützung**: Wenn beim Restore eine `restore.env`-Datei geschrieben wurde, wird sie vor dem Docker-Rebuild als neue `.env` übernommen und danach gelöscht.
+
+---
+
+### Neu
 - **Liga-Modul Plus-Feature-Split**: Marktwerte, Spielerprofile, letzte 5 Spiele, Mini-Tabelle und Transfermarkt-Vereinsinfos sind jetzt hinter dem `liga_plus`-Feature-Flag (Erika Plus). Kader-Übersicht, Liga-Spielplan und Turnier-Modus bleiben kostenlos. Ohne Plus erscheint beim Klick auf einen Spieler oder die Plus-Inhalte eine Upgrade-Box.
 - **Edition-Preview (server-seitig)**: Im Admin kann ein Test-Override für das Edition-Featureset gesetzt werden (`POST /features/preview`), ohne die Lizenz zu entfernen. Der Override wird in der DB gespeichert und von allen Geräten über `/features` abgerufen (`preview: true`-Flag) — Cross-Device funktionsfähig. Zuvor war der Override nur per localStorage pro Browser-Tab gespeichert.
 - **Liga Live-Spielminute**: Die Spielminute wird aus der Anstoßzeit (`utcDate`) berechnet (`_liveMinute()`). Live-Karten zeigen jetzt z. B. „LIVE 67'" statt nur „LIVE". Halbzeit wird via `status: PAUSED` (football-data.org) exakt erkannt statt zeitbasiert geschätzt. Compact-Karten zeigen während der Pause „HZ".

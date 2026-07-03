@@ -145,11 +145,14 @@ Ziel: Liga-Modul mit bezahlten Premiumfunktionen, News-Artikel direkt lesbar im 
 
 ---
 
-## 📱 Phase 4.6 — Mobile Companion (geplant)
+## ✅ Phase 4.6 — Mobile Companion (abgeschlossen)
 
 Ziel: Android-App als Ergänzung zum Display — ohne externe Cloud.
 
-- [ ] **Einkaufsliste Android-App**: Bidirektionaler Sync über `erika-sync-server`, Offline-Queue, Push-Benachrichtigung bei neuen Einträgen
+- [x] **Erika Companion Android-App**: Bidirektionaler Sync über `erika-sync-server` (Einkaufsliste, Kalender, Erinnerungen, Hausaufgaben, Personen, Notizen, Abfall u.a.)
+- [x] **FCM Push-Notifications**: Fällige Erinnerungen und Mülltonnen-Vorab-Benachrichtigung direkt aufs Smartphone; konfigurierbare Uhrzeit für Müllabfuhr im Admin; Firebase-Credentials werden automatisch via `update.sh` verteilt
+- [x] **Startseite Companion App**: Logo + „ERIKA"-Header, nächster Kalendertermin als erster Block (inkl. korrekter Sortierung ganztägiger Termine), News-Feed ohne redundante Überschrift
+- [x] **Cloud-Backup**: Verschlüsseltes Backup (DB + `.env`) im Sync Server; Ein-Klick-Wiederherstellung bei Gerätedefekt; `update.sh` injiziert Credentials und übernimmt `restore.env` vor dem Rebuild
 - [ ] **Einkaufsliste Sprachsteuerung**: „Erika, füge Milch zur Einkaufsliste hinzu" — Intent-Erkennung in `shopping`-Handler
 - [ ] **Personenerkennung für Hausaufgaben**: Automatische Zuordnung per Gesichtserkennung oder Profil-Auswahl
 
