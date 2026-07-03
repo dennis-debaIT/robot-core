@@ -1842,6 +1842,20 @@
             <div id="backup-status" style="margin-top:10px;font-size:0.82rem;color:var(--muted);"></div>
           </section>
 
+          <section class="module-card" id="diag-section">
+            <div class="section-copy">
+              <div class="section-title">Diagnose</div>
+              <p>Prüft alle Abhängigkeiten und gibt einen copierbaren Statusbericht aus — nützlich bei Problemen oder zur Weitergabe an den Support.</p>
+            </div>
+            <div id="diag-checks" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px;"></div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+              <button type="button" class="secondary" onclick="runDiagnostics()" id="diag-run-btn">Prüfung starten</button>
+              <button type="button" class="secondary" onclick="copyDiagReport()" id="diag-copy-btn" style="display:none;">Bericht kopieren</button>
+              <span id="diag-status" style="font-size:0.82rem;color:var(--muted);"></span>
+            </div>
+            <textarea id="diag-report-text" style="display:none;" readonly></textarea>
+          </section>
+
           <section class="module-card weather-legacy-hidden">
             <div class="section-copy">
               <div class="section-title">Wetteranzeige</div>
@@ -6617,6 +6631,54 @@
     loadLicenseStatus();
     loadBackupInfo();
   });
+
+  // ── DIAGNOSE ─────────────────────────────────────────────────────────────
+  let _diagReportText = '';
+
+  async function runDiagnostics() {
+    const btn = document.getElementById('diag-run-btn');
+    const copyBtn = document.getElementById('diag-copy-btn');
+    const statusEl = document.getElementById('diag-status');
+    const checksEl = document.getElementById('diag-checks');
+    if (btn) btn.disabled = true;
+    if (copyBtn) copyBtn.style.display = 'none';
+    if (statusEl) { statusEl.textContent = 'Prüfung läuft…'; statusEl.style.color = 'var(--muted)'; }
+    if (checksEl) checksEl.innerHTML = '';
+    try {
+      const res = await fetch('/admin/diagnostics');
+      const data = await res.json();
+      _diagReportText = data.report_text || '';
+      if (checksEl) {
+        checksEl.innerHTML = (data.checks || []).map(c => {
+          const icon = c.status === 'ok' ? '✓' : c.status === 'warn' ? '⚠' : '✗';
+          const color = c.status === 'ok' ? 'var(--success,#00c832)' : c.status === 'warn' ? 'var(--warning,#ffab00)' : 'var(--error,#ff4444)';
+          const detail = c.detail ? ` <span style="color:var(--muted);font-size:0.8rem;">— ${c.detail}</span>` : '';
+          return `<div style="display:flex;align-items:baseline;gap:8px;">
+            <span style="color:${color};font-weight:700;min-width:16px;">${icon}</span>
+            <span style="font-size:0.85rem;">${c.name}${detail}</span>
+          </div>`;
+        }).join('');
+      }
+      if (statusEl) { statusEl.textContent = `Stand: ${data.generated_at} · ${data.version} (${data.git_hash})`; }
+      if (copyBtn) copyBtn.style.display = '';
+    } catch (e) {
+      if (statusEl) { statusEl.textContent = '✗ Fehler: ' + e.message; statusEl.style.color = 'var(--error,#ff4444)'; }
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function copyDiagReport() {
+    if (!_diagReportText) return;
+    try {
+      await navigator.clipboard.writeText(_diagReportText);
+      const btn = document.getElementById('diag-copy-btn');
+      if (btn) { const orig = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = orig, 2000); }
+    } catch {
+      const ta = document.getElementById('diag-report-text');
+      if (ta) { ta.style.display = ''; ta.value = _diagReportText; ta.select(); document.execCommand('copy'); ta.style.display = 'none'; }
+    }
+  }
 
   // ── LAYOUT SLOT EDITOR ───────────────────────────────────
   const _WIDGET_META = {

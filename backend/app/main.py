@@ -588,6 +588,8 @@ app.include_router(ha_energy_costs.router)
 app.include_router(ha_waste.router)
 app.include_router(local_admin.router)
 app.include_router(backup.router)
+from app.api.routers import diagnostics
+app.include_router(diagnostics.router)
 app.include_router(setup.router)
 app.include_router(simulation.router)
 app.include_router(personality_audio.router)
