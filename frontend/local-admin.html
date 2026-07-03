@@ -826,6 +826,10 @@
                 <input id="waste-push-time" class="field-input" type="time" value="18:00" style="max-width:140px;">
               </label>
             </div>
+            <div style="margin-top:12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <button type="button" class="secondary" onclick="sendWastePushTest()" id="waste-push-test-btn">Test-Benachrichtigung senden</button>
+              <span id="waste-push-test-status" style="font-size:0.82rem;"></span>
+            </div>
           </section>
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
             <button type="button" class="primary" onclick="saveWasteConfig()">Speichern</button>
@@ -3834,6 +3838,28 @@
         if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
       } catch (e) {
         if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function sendWastePushTest() {
+      const btn = document.getElementById('waste-push-test-btn');
+      const statusEl = document.getElementById('waste-push-test-status');
+      if (btn) btn.disabled = true;
+      if (statusEl) { statusEl.textContent = 'Sende…'; statusEl.style.color = 'var(--muted)'; }
+      try {
+        const res = await fetch('/ha/waste/push-test', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          statusEl.textContent = `✓ Gesendet an ${data.sent} von ${data.total_tokens} Gerät(en)`;
+          statusEl.style.color = 'var(--success, #00c832)';
+        } else {
+          statusEl.textContent = `✗ ${data.error || 'Unbekannter Fehler'}`;
+          statusEl.style.color = 'var(--error, #ff4444)';
+        }
+      } catch (e) {
+        if (statusEl) { statusEl.textContent = '✗ Netzwerkfehler: ' + e.message; statusEl.style.color = 'var(--error, #ff4444)'; }
+      } finally {
+        if (btn) btn.disabled = false;
       }
     }
 
