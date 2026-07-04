@@ -7,7 +7,7 @@ import urllib.request as _ureq
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.services import sync_service as svc
 
@@ -157,8 +157,29 @@ def get_sync_config() -> dict[str, Any]:
     return {"url": "", "email": "", "has_password": False, "configured": False}
 
 
+def _bg_update_edition() -> None:
+    """Holt den Tier vom Sync-Server und schreibt die Edition in DB + Host-Datei.
+
+    Läuft als FastAPI-Background-Task, damit der HTTP-Handler sofort antwortet.
+    """
+    try:
+        url_base, token = svc.get_credentials()
+        if not url_base or not token:
+            return
+        me_req = _ureq.Request(f"{url_base}/auth/me")
+        me_req.add_header("Authorization", f"Bearer {token}")
+        with _ureq.urlopen(me_req, timeout=8, context=_SSL_CTX) as resp:
+            account = json.loads(resp.read())
+        tier = str(account.get("tier") or "").lower()
+        if tier in ("plus", "family"):
+            from app.services.feature_service import FeatureService
+            FeatureService().set_edition(tier)
+    except Exception:
+        pass
+
+
 @router.post("/sync/config")
-def save_sync_config(payload: dict[str, Any]) -> dict[str, Any]:
+def save_sync_config(payload: dict[str, Any], bg: BackgroundTasks) -> dict[str, Any]:
     """Sync-Credentials speichern. Bestehende Lizenzfelder bleiben erhalten."""
     url   = str(payload.get("url") or _DEFAULT_SYNC_URL).rstrip("/").strip()
     email = str(payload.get("email")    or "").strip()
@@ -177,21 +198,8 @@ def save_sync_config(payload: dict[str, Any]) -> dict[str, Any]:
     _LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
     _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
     svc.reset_token_cache()
-    # Tier vom Sync-Server abfragen und Edition-Datei + DB aktualisieren.
-    # So stimmt EDITION beim nächsten Build, und Features funktionieren sofort.
-    try:
-        url_base, token = svc.get_credentials()
-        if url_base and token:
-            me_req = _ureq.Request(f"{url_base}/auth/me")
-            me_req.add_header("Authorization", f"Bearer {token}")
-            with _ureq.urlopen(me_req, timeout=8, context=_SSL_CTX) as resp:
-                account = json.loads(resp.read())
-            tier = str(account.get("tier") or "").lower()
-            if tier in ("plus", "family"):
-                from app.services.feature_service import FeatureService
-                FeatureService().set_edition(tier)
-    except Exception:
-        pass
+    # Edition-Update läuft im Hintergrund — Handler antwortet sofort.
+    bg.add_task(_bg_update_edition)
     return {"ok": True}
 
 

@@ -4376,6 +4376,8 @@
         if (res) { res.textContent = 'Gespeichert ✓'; setTimeout(() => res.textContent = '', 3000); }
         _loadSyncCredentials();
         _loadSyncAccount();
+        // Edition-Update läuft im Hintergrund (~1-2s) → danach Feature-Gates neu prüfen
+        setTimeout(_applyFeatureGating, 2000);
       } catch (e) {
         if (res) res.textContent = 'Fehler: ' + e.message;
       }

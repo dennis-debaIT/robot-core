@@ -15,6 +15,7 @@ _ACTIVE = {"IN_PLAY", "PAUSED", "SCHEDULED", "TIMED"}
 _DONE = {"FINISHED"}
 
 _STAGE_LABEL: dict[str, str] = {
+    "ROUND_OF_32":    "Runde der letzten 32",
     "LAST_16":        "Achtelfinale",
     "QUARTER_FINALS": "Viertelfinale",
     "SEMI_FINALS":    "Halbfinale",
