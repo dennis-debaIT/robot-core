@@ -43,14 +43,15 @@ _TIER_RANK = {"community": 0, "plus": 1, "family": 2}
 
 class FeatureService:
     def get_edition(self) -> str:
-        # Eine installierte Lizenz hat Vorrang (Live-Prüfung inkl. Ablauf):
-        # gültig → Plan aus Lizenz, abgelaufen/ungültig → community.
+        # Offline-Lizenz mit kryptografischer Signatur hat Vorrang.
         from app.services.license_service import LicenseService
         lic = LicenseService()
-        if lic.load() is not None:
+        lic_data = lic.load()
+        if lic_data is not None and lic_data.get("signature"):
             edition = lic.current_edition()
             return edition if edition in _TIER_RANK else "community"
-        # Keine Lizenzdatei → manueller Wert (Admin-Test-Schalter), Default community.
+        # Keine signierte Lizenz → DB-Wert (wird von save_sync_config gesetzt).
+        # Der DB-Wert überlebt Rebuilds, da er im gemounteten /data-Volume liegt.
         with get_connection() as conn:
             ed = read_state(conn, _STATE_KEY)
         return ed if ed in _TIER_RANK else DEFAULT_EDITION

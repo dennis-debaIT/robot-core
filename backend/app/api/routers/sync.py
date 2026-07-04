@@ -177,6 +177,21 @@ def save_sync_config(payload: dict[str, Any]) -> dict[str, Any]:
     _LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
     _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
     svc.reset_token_cache()
+    # Tier vom Sync-Server abfragen und Edition-Datei + DB aktualisieren.
+    # So stimmt EDITION beim nächsten Build, und Features funktionieren sofort.
+    try:
+        url_base, token = svc.get_credentials()
+        if url_base and token:
+            me_req = _ureq.Request(f"{url_base}/auth/me")
+            me_req.add_header("Authorization", f"Bearer {token}")
+            with _ureq.urlopen(me_req, timeout=8, context=_SSL_CTX) as resp:
+                account = json.loads(resp.read())
+            tier = str(account.get("tier") or "").lower()
+            if tier in ("plus", "family"):
+                from app.services.feature_service import FeatureService
+                FeatureService().set_edition(tier)
+    except Exception:
+        pass
     return {"ok": True}
 
 
