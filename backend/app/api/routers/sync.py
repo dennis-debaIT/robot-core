@@ -158,24 +158,14 @@ def get_sync_config() -> dict[str, Any]:
 
 
 def _bg_update_edition() -> None:
-    """Holt den Tier vom Sync-Server und schreibt die Edition in DB + Host-Datei.
+    """Erneuert die signierte Lizenz vom Lizenzserver (falls license_key vorhanden).
 
     Läuft als FastAPI-Background-Task, damit der HTTP-Handler sofort antwortet.
+    Kein direktes DB-Schreiben — Editionen sind nur via signierter Lizenz gültig.
     """
     try:
-        url_base, token = svc.get_credentials()
-        if not url_base or not token:
-            return
-        me_req = _ureq.Request(f"{url_base}/auth/me")
-        me_req.add_header("Authorization", f"Bearer {token}")
-        with _ureq.urlopen(me_req, timeout=8, context=_SSL_CTX) as resp:
-            account = json.loads(resp.read())
-        tier = str(account.get("tier") or "").lower()
-        if tier in ("plus", "family"):
-            from app.services.feature_service import FeatureService
-            fs = FeatureService()
-            fs.set_edition(tier)
-            fs.set_preview_edition(None)
+        from app.api.routers.license import renew_license
+        renew_license()
     except Exception:
         pass
 
