@@ -80,6 +80,12 @@
     }
     .pin-key.pin-ok:hover { background: #20d8ff; }
     .pin-key.pin-ok:active { background: #00acd4; transform: scale(0.93); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes stt-progress {
+      0%   { width: 0%;   margin-left: 0; }
+      50%  { width: 60%;  margin-left: 20%; }
+      100% { width: 0%;   margin-left: 100%; }
+    }
     @keyframes pin-shake {
       0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-10px)} 40%,80%{transform:translateX(10px)}
     }
@@ -1578,10 +1584,23 @@
               </label>
               <div class="field-block" id="stt-local-hint" style="display:none;">
                 <span class="field-label"> </span>
-                <p style="margin:0;font-size:0.82rem;color:var(--muted);line-height:1.4;">
-                  Das Modell (<code>tiny</code>, ~75 MB) wird beim ersten Aufruf automatisch heruntergeladen.
-                  Das Wake Word erkennt weiterhin Google — nur die Spracheingabe nach dem Auslösen wird lokal verarbeitet.
-                </p>
+                <div id="stt-model-status" style="font-size:0.82rem;line-height:1.5;">
+                  <div id="stt-status-idle" style="color:var(--muted);">
+                    Modell (<code>tiny</code>, ~75 MB) noch nicht geladen.
+                    Das Wake Word nutzt weiterhin Google — nur die Haupteingabe wird lokal verarbeitet.
+                  </div>
+                  <div id="stt-status-downloading" style="display:none;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">
+                      <div style="width:16px;height:16px;border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;flex-shrink:0;"></div>
+                      <span style="color:var(--accent);font-weight:600;">Modell wird heruntergeladen (~75 MB) …</span>
+                    </div>
+                    <div style="height:4px;background:var(--line-strong);border-radius:2px;overflow:hidden;">
+                      <div style="height:100%;background:var(--accent);border-radius:2px;animation:stt-progress 2s ease-in-out infinite;"></div>
+                    </div>
+                  </div>
+                  <div id="stt-status-ready" style="display:none;color:var(--accent);font-weight:600;">✓ Modell bereit — lokale Spracherkennung aktiv.</div>
+                  <div id="stt-status-error" style="display:none;color:var(--danger);font-weight:600;"></div>
+                </div>
               </div>
             </div>
 
@@ -5821,15 +5840,69 @@
         if (gCalEl)   gCalEl.checked   = att.greeting_context_calendar !== false;
         if (gPvEl)    gPvEl.checked    = att.greeting_context_pv !== false;
         if (gTopicEl) gTopicEl.checked = att.greeting_context_topics !== false;
-        const sttEl   = document.getElementById('attention-stt-provider');
-        const sttHint = document.getElementById('stt-local-hint');
+        const sttEl = document.getElementById('attention-stt-provider');
         if (sttEl) {
           sttEl.value = att.stt_provider || 'online';
-          if (sttHint) sttHint.style.display = sttEl.value === 'local' ? '' : 'none';
+          _sttUpdateHint(sttEl.value);
+          if (sttEl.value === 'local') _sttPollOrDownload();
           sttEl.addEventListener('change', () => {
-            if (sttHint) sttHint.style.display = sttEl.value === 'local' ? '' : 'none';
-          }, { once: true });
+            _sttUpdateHint(sttEl.value);
+            if (sttEl.value === 'local') _sttPollOrDownload();
+          });
         }
+      } catch {}
+    }
+
+    // ── STT Modell-Download & Status ─────────────────────────
+    let _sttPollTimer = null;
+
+    function _sttUpdateHint(provider) {
+      const hint = document.getElementById('stt-local-hint');
+      if (hint) hint.style.display = provider === 'local' ? '' : 'none';
+    }
+
+    function _sttShowState(state, errorMsg) {
+      const ids = ['idle', 'downloading', 'ready', 'error'];
+      ids.forEach(id => {
+        const el = document.getElementById('stt-status-' + id);
+        if (el) el.style.display = id === state ? '' : 'none';
+      });
+      if (state === 'error' && errorMsg) {
+        const errEl = document.getElementById('stt-status-error');
+        if (errEl) errEl.textContent = '✗ Fehler: ' + errorMsg;
+      }
+    }
+
+    async function _sttPollOrDownload() {
+      clearInterval(_sttPollTimer);
+      try {
+        const s = await fetch('/stt/status').then(r => r.json());
+        if (s.state === 'ready') { _sttShowState('ready'); return; }
+        if (s.state === 'downloading') {
+          _sttShowState('downloading');
+          _sttPollTimer = setInterval(_sttPoll, 2000);
+          return;
+        }
+        // idle oder error → Download starten
+        _sttShowState('downloading');
+        await fetch('/stt/download', { method: 'POST' });
+        _sttPollTimer = setInterval(_sttPoll, 2000);
+      } catch {
+        _sttShowState('idle');
+      }
+    }
+
+    async function _sttPoll() {
+      try {
+        const s = await fetch('/stt/status').then(r => r.json());
+        if (s.state === 'ready') {
+          clearInterval(_sttPollTimer);
+          _sttShowState('ready');
+        } else if (s.state === 'error') {
+          clearInterval(_sttPollTimer);
+          _sttShowState('error', s.error);
+        }
+        // downloading → weiter pollen
       } catch {}
     }
 

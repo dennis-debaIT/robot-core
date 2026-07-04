@@ -4,16 +4,32 @@ from fastapi import APIRouter, HTTPException, UploadFile
 
 router = APIRouter(prefix="/stt", tags=["stt"])
 
-_ALLOWED_TYPES = {
-    "audio/webm", "audio/ogg", "audio/wav", "audio/wave",
-    "audio/mpeg", "audio/mp4", "audio/x-m4a", "application/octet-stream",
-}
 _SUFFIX_MAP = {
     "audio/webm": ".webm", "audio/ogg": ".ogg",
     "audio/wav": ".wav", "audio/wave": ".wav",
     "audio/mpeg": ".mp3", "audio/mp4": ".mp4", "audio/x-m4a": ".m4a",
 }
 _MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+
+
+@router.get("/status")
+def stt_status() -> dict:
+    try:
+        from app.voice import stt_service
+        return stt_service.status()
+    except Exception as exc:
+        return {"available": False, "state": "error", "error": str(exc)}
+
+
+@router.post("/download")
+def stt_download() -> dict[str, str]:
+    """Startet den Modell-Download im Hintergrund (idempotent)."""
+    try:
+        from app.voice import stt_service
+        stt_service.ensure_downloaded()
+        return {"ok": True, "state": stt_service.status()["state"]}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.post("/transcribe")
@@ -33,12 +49,3 @@ async def transcribe(file: UploadFile) -> dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Transkription fehlgeschlagen: {exc}") from exc
 
     return {"text": text}
-
-
-@router.get("/status")
-def stt_status() -> dict:
-    try:
-        from app.voice import stt_service
-        return stt_service.status()
-    except Exception as exc:
-        return {"available": False, "error": str(exc)}
