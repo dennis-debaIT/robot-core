@@ -4,7 +4,11 @@ Lokale SQLite-Tabelle als primäre Quelle (funktioniert auch offline).
 Sync-Credentials werden automatisch aus der Lizenz-Datei geladen sobald
 eine Plus/Family-Lizenz installiert ist — kein manuelles .env nötig.
 
-Fallback: SYNC_SERVER_URL + SYNC_SERVER_TOKEN als Env-Vars für Self-Hosted.
+Auth-Pfade (Priorität):
+  1. license.json: sync_email + sync_password → Login via /auth/login (JWT)
+  2. license.json: sync_jwt → statisches Token (Legacy)
+  3. Env-Vars: SYNC_EMAIL + SYNC_PASSWORD → Login via /auth/login
+  4. Env-Vars: SYNC_SERVER_TOKEN → statisches Token (Self-Hosted)
 
 Sync-Protokoll:
   GET  /items?since=<ISO>  → Delta-Sync (inkl. deleted=1)
@@ -17,8 +21,9 @@ from __future__ import annotations
 import json
 import os
 import ssl
+import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib import request as _req
@@ -31,31 +36,110 @@ _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
 _SSL_CTX.verify_mode    = ssl.CERT_NONE
 
+# Token-Cache für email/password Auth (verhindert Login-Spam)
+_token_cache: dict[str, Any] = {
+    "access_token":   "",
+    "refresh_token":  "",
+    "expires_at":     None,  # datetime oder None
+    "base_url":       "",
+}
+_token_lock = threading.Lock()
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def get_credentials() -> tuple[str, str]:
-    """Sync-URL und Token aus Lizenz-Datei laden (hat Vorrang vor .env).
+def _do_login(url: str, email: str, password: str) -> tuple[str, str] | None:
+    """Führt POST /auth/login aus. Gibt (access_token, refresh_token) zurück."""
+    body = json.dumps({"email": email, "password": password}).encode()
+    req  = _req.Request(f"{url}/auth/login", data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with _req.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
+            data = json.loads(resp.read())
+        return data["access_token"], data.get("refresh_token", "")
+    except Exception:
+        return None
 
-    Gibt (sync_url, sync_jwt) zurück. Beide leer → kein Sync konfiguriert.
-    Die Lizenz-Datei wird bei jedem Aufruf neu gelesen, damit ein frisches
-    JWT nach Lizenz-Renewal sofort aktiv wird ohne Neustart.
+
+def _do_refresh(url: str, refresh_token: str) -> tuple[str, str] | None:
+    """Führt POST /auth/refresh aus. Gibt (access_token, refresh_token) zurück."""
+    body = json.dumps({"refresh_token": refresh_token}).encode()
+    req  = _req.Request(f"{url}/auth/refresh", data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with _req.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
+            data = json.loads(resp.read())
+        return data["access_token"], data.get("refresh_token", "")
+    except Exception:
+        return None
+
+
+def _get_token_via_email(url: str, email: str, password: str) -> str:
+    """Gibt ein gültiges Access-Token zurück (mit automatischem Refresh)."""
+    now = datetime.now(timezone.utc)
+    with _token_lock:
+        c = _token_cache
+        if (
+            c["access_token"]
+            and c["base_url"] == url
+            and c["expires_at"] is not None
+            and now < c["expires_at"] - timedelta(minutes=5)
+        ):
+            return c["access_token"]
+
+        # Refresh versuchen wenn Token vorhanden aber abgelaufen
+        if c["refresh_token"] and c["base_url"] == url:
+            result = _do_refresh(url, c["refresh_token"])
+            if result:
+                access, refresh = result
+                c["access_token"]  = access
+                c["refresh_token"] = refresh
+                c["expires_at"]    = now + timedelta(hours=1)
+                c["base_url"]      = url
+                return access
+
+        # Frischer Login
+        result = _do_login(url, email, password)
+        if result:
+            access, refresh = result
+            c["access_token"]  = access
+            c["refresh_token"] = refresh
+            c["expires_at"]    = now + timedelta(hours=1)
+            c["base_url"]      = url
+            return access
+
+    return ""
+
+
+def get_credentials() -> tuple[str, str]:
+    """Sync-URL und Token laden.
+
+    Gibt (sync_url, bearer_token) zurück. Beide leer → kein Sync konfiguriert.
     """
     try:
         lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
-        url = str(lic.get("sync_url") or "").rstrip("/")
+        url   = str(lic.get("sync_url")      or "").rstrip("/")
+        email = str(lic.get("sync_email")    or "").strip()
+        pw    = str(lic.get("sync_password") or "").strip()
+        if url and email and pw:
+            tok = _get_token_via_email(url, email, pw)
+            return url, tok
         tok = str(lic.get("sync_jwt") or "")
         if url and tok:
             return url, tok
     except Exception:
         pass
-    # Fallback: manuelle Env-Vars (Self-Hosted ohne Lizenzserver)
-    return (
-        os.getenv("SYNC_SERVER_URL", "").rstrip("/"),
-        os.getenv("SYNC_SERVER_TOKEN", ""),
-    )
+
+    # Fallback: Env-Vars
+    url   = os.getenv("SYNC_SERVER_URL",   "").rstrip("/")
+    email = os.getenv("SYNC_EMAIL",        "").strip()
+    pw    = os.getenv("SYNC_PASSWORD",     "").strip()
+    if url and email and pw:
+        tok = _get_token_via_email(url, email, pw)
+        return url, tok
+    return url, os.getenv("SYNC_SERVER_TOKEN", "")
 
 
 def _row(r) -> dict[str, Any]:
