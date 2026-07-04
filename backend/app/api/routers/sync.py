@@ -171,7 +171,7 @@ def _bg_update_edition() -> None:
         with _ureq.urlopen(me_req, timeout=8, context=_SSL_CTX) as resp:
             account = json.loads(resp.read())
         tier = str(account.get("tier") or "").lower()
-        if tier in ("community", "plus", "family"):
+        if tier in ("plus", "family"):
             from app.services.feature_service import FeatureService
             fs = FeatureService()
             fs.set_edition(tier)
