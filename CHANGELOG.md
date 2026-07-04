@@ -8,6 +8,18 @@ Format: neueste Einträge oben.
 ## [Unreleased]
 
 ### Neu
+- **Auth-System: E-Mail/Passwort-Login + Tenant/Lizenz-Verwaltung** (Sync Server v3.0.0):
+  - Benutzer melden sich mit E-Mail + Passwort an statt mit einem statischen Lizenz-Token. Die Lizenz ist unsichtbar und wird dem Account zugeordnet.
+  - **Activation-based Licensing**: `activated_at` + `expires_at` bleiben NULL bis zum **ersten Login** auf einem Gerät. Wer eine Erika bestellt aber noch nicht eingerichtet hat, verliert keine Lizenzlaufzeit.
+  - **Tiers**: `community`, `plus`, `family`. Family-Tier erlaubt mehrere User pro Tenant (master + member). Master kann über `POST /auth/invite` weitere Mitglieder einladen.
+  - **Admin-Endpoints** (`X-Admin-Key`-Header): `POST /admin/users` (Account für Tester, Kunden, interne Zwecke anlegen), `PATCH /admin/users/{id}` (Tier ändern, Laufzeit verlängern, Passwort zurücksetzen, deaktivieren), `GET /admin/users` (Übersicht aller Tenants + User), `GET /admin/tenants/{id}` (Detail-Ansicht).
+  - **JWT-Rotation**: Access-Token (1 h), Refresh-Token (30 Tage, rotierend — altes Token wird bei Refresh widerrufen).
+  - **Nachrichten-System**: `POST /messages` (Erika → Erika, Erika → App, Broadcast an alle Geräte im Tenant), `GET /messages/inbox` (mit optionalem `?since=` für Polling), `PATCH /messages/{id}/read`. FCM-Push wird bei jeder Nachricht gefeuert (fire-and-forget).
+  - **Geräte-Token mit User-Zuordnung**: Neuer Endpoint `POST /devices/token/auth` speichert FCM-Token mit `user_id` — Push-Nachrichten an `recipient_type=user` landen nur auf den Geräten des richtigen Benutzers.
+  - **Backward-Compat**: `SYNC_STATIC_TOKEN`-Env-Var weiterhin unterstützt; alter `license_id`-JWT-Claim ebenfalls akzeptiert.
+- **robot-core: Sync-Auth via E-Mail/Passwort**: `sync_service.get_credentials()` unterstützt jetzt `sync_email` + `sync_password` in `license.json` (oder Env-Vars `SYNC_EMAIL` / `SYNC_PASSWORD`). Login via `/auth/login`, Token-Cache mit automatischem Refresh (5 Minuten Puffer vor Ablauf). Alter `sync_jwt`-Pfad bleibt als Fallback erhalten.
+
+### Neu
 - **Erweitertes Audit-Protokoll mit Level-Unterstützung**: Das Protokoll unterscheidet jetzt drei Schweregrade — `info` (normale Ereignisse), `warning` (Unregelmäßigkeiten ohne Ausfall), `error` (Fehler, die eine Reaktion erfordern). Die `audit_log`-Tabelle hat eine neue `level`-Spalte (Migration erfolgt automatisch); bestehende Einträge erhalten `info`. Neue Kurzfunktionen `_audit.log_info(source, message)`, `log_warn(...)`, `log_error(...)` — kein langer `log()`-Aufruf mehr nötig.
 - **Protokoll-Tab Filter-UI**: Der „Protokoll"-Tab im Admin zeigt jetzt eine Filterleiste: Level-Dropdown (Alle / Info / Warnung / Fehler), Aktions-Suchfeld (Freitext, Suche per `LIKE`), Limit-Auswahl (50 / 100 / 200 / 500). Jede Zeile hat ein farbiges Level-Badge (grün = info, gelb = warning, rot = error). Der Filter feuert mit 300 ms Debounce. Der Query-Parameter `GET /audit-log?level=error&action=llm&limit=200` ist vollständig filterbar.
 - **Personen: Rolle und eigenes Emoji**: Im Personen-Tab des Admins lassen sich jetzt zwei neue Felder pro Person setzen: **Rolle** (Erwachsener ♂ / Erwachsene ♀ / Kind ♂ / Kind ♀) als Dropdown und ein **eigenes Emoji** als Freitext-Eingabe. Die Rolle (Werte `adult_male`, `adult_female`, `child_male`, `child_female`) ersetzt das bisherige `gender`-Feld konzeptionell; das Emoji wird im Avatar der Personenliste angezeigt. Beide Felder werden per `PATCH /profiles/{id}` mit `{role, emoji}` gespeichert und fließen in den LLM-Kontext ein. DB-Migration läuft automatisch.

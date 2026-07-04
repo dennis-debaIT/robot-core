@@ -1089,10 +1089,11 @@
     }
 
     if (!allLive.length) {
+      const _MAX_AHEAD_MS = 14 * 24 * 3_600_000;
       const nextMatch = data.leagues
         .flatMap(l => (l.matches || []).filter(m => ['SCHEDULED','TIMED'].includes(m.status)).map(m => ({ ...m, _league: l })))
         .sort((a, b) => (a.utcDate || '') < (b.utcDate || '') ? -1 : 1)[0];
-      if (!nextMatch) { overlay.innerHTML = ''; return; }
+      if (!nextMatch || (new Date(nextMatch.utcDate) - Date.now()) > _MAX_AHEAD_MS) { overlay.innerHTML = ''; return; }
       const cd = _countdown(nextMatch.utcDate);
       overlay.innerHTML = `<div class="liga-overlay-next">
         <span class="liga-overlay-league">${_esc(nextMatch._league?.name || '')}</span>

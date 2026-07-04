@@ -1,13 +1,24 @@
 """Sync-Endpunkte — Einkaufsliste (lokal + Sync-Trigger). Erika Plus."""
 from __future__ import annotations
 
+import json
+import ssl
+import urllib.request as _ureq
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
 from app.services import sync_service as svc
 
+_SSL_CTX = ssl.create_default_context()
+_SSL_CTX.check_hostname = False
+_SSL_CTX.verify_mode    = ssl.CERT_NONE
+
 router = APIRouter()
+
+_LICENSE_FILE = Path("/data/license.json")
+_DEFAULT_SYNC_URL = "https://erika.wdk-it.de:9000"
 
 
 def _require_sync() -> None:
@@ -117,7 +128,84 @@ def trigger_sync() -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"lights: {exc}")
 
+    try:
+        svc.push_device_heartbeat()
+    except Exception:
+        pass
+
     result: dict[str, Any] = {"pushed": pushed, "pulled": pulled}
     if errors:
         result["errors"] = errors
     return result
+
+
+# ── Sync-Credentials (Admin-Konfiguration) ────────────────────────────────
+
+@router.get("/sync/config")
+def get_sync_config() -> dict[str, Any]:
+    """Aktuelle Sync-Credentials lesen. Passwort wird nicht zurückgegeben."""
+    try:
+        if _LICENSE_FILE.exists():
+            lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
+            url   = str(lic.get("sync_url")      or "").rstrip("/")
+            email = str(lic.get("sync_email")    or "").strip()
+            has_pw = bool(str(lic.get("sync_password") or "").strip())
+            return {"url": url, "email": email, "has_password": has_pw,
+                    "configured": bool(url and email and has_pw)}
+    except Exception:
+        pass
+    return {"url": "", "email": "", "has_password": False, "configured": False}
+
+
+@router.post("/sync/config")
+def save_sync_config(payload: dict[str, Any]) -> dict[str, Any]:
+    """Sync-Credentials speichern. Bestehende Lizenzfelder bleiben erhalten."""
+    url   = str(payload.get("url") or _DEFAULT_SYNC_URL).rstrip("/").strip()
+    email = str(payload.get("email")    or "").strip()
+    pw    = str(payload.get("password") or "").strip()
+    if not email or not pw:
+        raise HTTPException(400, "email und password sind erforderlich")
+    lic: dict = {}
+    try:
+        if _LICENSE_FILE.exists():
+            lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    lic["sync_url"]      = url
+    lic["sync_email"]    = email
+    lic["sync_password"] = pw
+    _LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
+    svc.reset_token_cache()
+    return {"ok": True}
+
+
+@router.delete("/sync/config")
+def remove_sync_config() -> dict[str, Any]:
+    """Sync-Credentials aus license.json entfernen."""
+    try:
+        if _LICENSE_FILE.exists():
+            lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
+            for k in ("sync_url", "sync_email", "sync_password"):
+                lic.pop(k, None)
+            _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+    svc.reset_token_cache()
+    return {"ok": True}
+
+
+@router.get("/sync/account")
+def get_sync_account() -> dict[str, Any]:
+    """Ruft /auth/me vom Sync-Server ab — Tier, Ablaufdatum, Rolle."""
+    url_base, token = svc.get_credentials()
+    if not url_base or not token:
+        return {"connected": False}
+    req = _ureq.Request(f"{url_base}/auth/me")
+    req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with _ureq.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
+            data = json.loads(resp.read())
+        return {"connected": True, **data}
+    except Exception as exc:
+        return {"connected": False, "error": str(exc)}

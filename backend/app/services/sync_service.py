@@ -46,6 +46,25 @@ _token_cache: dict[str, Any] = {
 _token_lock = threading.Lock()
 
 
+def reset_token_cache() -> None:
+    """Token-Cache leeren — sofort neuen Login erzwingen (z.B. nach Credential-Änderung)."""
+    with _token_lock:
+        _token_cache.update({"access_token": "", "refresh_token": "", "expires_at": None, "base_url": ""})
+
+
+def push_device_heartbeat() -> None:
+    """Registriert dieses Gerät mit seinem Namen am Sync-Server."""
+    from app.services.integration_config_service import IntegrationConfigService
+    from app.services.license_service import LicenseService
+    try:
+        device_id = LicenseService.device_id()
+        cfg = IntegrationConfigService().get_config()
+        name = (cfg.get("system") or {}).get("device", {}).get("name") or "Erika"
+    except Exception:
+        return
+    _sync_request("POST", "/devices/erika/heartbeat", {"device_id": device_id, "name": name})
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 

@@ -58,6 +58,9 @@ class IntegrationConfigService:
                 "site": {
                     "location": "Ostenfeld",
                 },
+                "device": {
+                    "name": "Erika",
+                },
             },
             "weather": {
                 "enabled": True,

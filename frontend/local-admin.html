@@ -1860,22 +1860,42 @@
 
           <section class="module-card">
             <div class="section-copy">
-              <div class="section-title">Lizenz</div>
-              <p>Erika Plus mit deinem Lizenzcode aktivieren. Der Code wird online geprüft; bei Gültigkeit schaltet sich die Edition automatisch frei.</p>
+              <div class="section-title">Erika-Konto</div>
+              <p>Verbinde diese Erika mit deinem Konto. Die Anmeldedaten werden sicher auf dem Gerät gespeichert.</p>
             </div>
-            <div id="license-current" style="margin-top:8px;"></div>
-            <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap;">
-              <input id="license-code" class="field-input" style="max-width:260px;text-transform:uppercase;"
-                     placeholder="EZ-XXXX-XXXX-XXXX" autocomplete="off">
-              <button type="button" onclick="activateLicense()"
-                style="padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
-                Aktivieren
-              </button>
-              <button type="button" onclick="removeLicense()"
-                style="padding:8px 14px;border-radius:10px;font-size:0.82rem;font-weight:700;cursor:pointer;background:none;border:1px solid var(--line);color:var(--muted);">
-                Entfernen
-              </button>
-              <span id="license-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:.85rem;">
+              <span id="sync-cred-dot" style="width:10px;height:10px;border-radius:50%;flex-shrink:0;background:#aaa;display:inline-block;"></span>
+              <span id="sync-cred-text" style="color:var(--muted);">Lädt…</span>
+            </div>
+            <div id="sync-account-info" style="display:none;background:var(--card-bg,rgba(255,255,255,.04));border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-bottom:14px;">
+              <div class="field-grid" style="margin:0;">
+                <div class="field-block" style="margin:0;">
+                  <span class="field-label">Edition</span>
+                  <span id="sync-account-tier" style="font-size:.95rem;font-weight:600;"></span>
+                </div>
+                <div class="field-block" style="margin:0;">
+                  <span class="field-label">Gültig bis</span>
+                  <span id="sync-account-expires" style="font-size:.95rem;font-weight:600;"></span>
+                </div>
+              </div>
+            </div>
+            <div class="field-grid" style="margin-bottom:12px;">
+              <label class="field-block">
+                <span class="field-label">E-Mail</span>
+                <input id="sync-cred-email" class="field-input" type="email" placeholder="deine@email.de">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Passwort</span>
+                <div style="position:relative;">
+                  <input id="sync-cred-pw" class="field-input" type="password" placeholder="Passwort" style="padding-right:38px;width:100%;box-sizing:border-box;">
+                  <button type="button" title="Passwort anzeigen" onclick="_toggleSyncPwVisibility()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1rem;opacity:.5;line-height:1;">👁</button>
+                </div>
+              </label>
+            </div>
+            <div class="stack-actions" style="padding:0;align-items:center;">
+              <button type="button" class="primary" onclick="_saveSyncCredentials()">Speichern</button>
+              <button type="button" id="sync-cred-remove-btn" style="display:none;" onclick="_removeSyncCredentials()">Entfernen</button>
+              <span id="sync-cred-result" style="font-size:.8rem;color:var(--muted);margin-left:6px;"></span>
             </div>
           </section>
 
@@ -1950,6 +1970,23 @@
             <div class="system-actions">
               <button id="ha-test-btn" class="secondary" type="button">Verbindung prüfen</button>
               <div id="ha-test-status" class="inline-status"></div>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Gerätename</div>
+              <p>Anzeigename dieses Geräts — erscheint in der App bei der Empfänger-Auswahl für Nachrichten.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Name</span>
+                <input id="device-name" class="field-input" type="text" placeholder="z. B. Erika unten, Niklas, Wohnzimmer">
+              </label>
+            </div>
+            <div class="stack-actions" style="margin-top:6px;">
+              <button type="button" class="primary" onclick="_saveDeviceName()">Speichern</button>
+              <span id="device-name-status" style="font-size:0.8rem;color:var(--muted);margin-left:6px;"></span>
             </div>
           </section>
 
@@ -3618,6 +3655,9 @@
       haUsernameEl.value = haConfig.username || '';
       haPasswordEl.value = haConfig.password || '';
       siteLocationEl.value = siteConfig.location || data?.catalog?.entities?.system?.site?.default_location || 'Ostenfeld';
+      const deviceConfig = data?.config?.system?.device || {};
+      const deviceNameEl = document.getElementById('device-name');
+      if (deviceNameEl) deviceNameEl.value = deviceConfig.name || 'Erika';
       const siteLatEl = document.getElementById('site-latitude');
       const siteLonEl = document.getElementById('site-longitude');
       if (siteLatEl) siteLatEl.value = siteConfig.latitude != null ? siteConfig.latitude : '';
@@ -4277,6 +4317,107 @@
       } catch (e) {
         if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
       }
+    }
+
+    async function _saveDeviceName() {
+      const name = (document.getElementById('device-name') || {}).value?.trim() || '';
+      const st   = document.getElementById('device-name-status');
+      if (!name) { if (st) st.textContent = 'Bitte einen Namen eingeben.'; return; }
+      try {
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ system: { device: { name } } }),
+        });
+        if (st) { st.textContent = 'Gespeichert ✓'; setTimeout(() => st.textContent = '', 2500); }
+      } catch (e) {
+        if (st) st.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function _loadSyncCredentials() {
+      const dot  = document.getElementById('sync-cred-dot');
+      const txt  = document.getElementById('sync-cred-text');
+      const rmBtn = document.getElementById('sync-cred-remove-btn');
+      try {
+        const d = await fetch('/sync/config').then(r => r.json());
+        const emailEl = document.getElementById('sync-cred-email');
+        if (emailEl) emailEl.value = d.email || '';
+        if (d.configured) {
+          if (dot) { dot.style.background = '#00c832'; }
+          if (txt) txt.textContent = `Verbunden als ${d.email}`;
+          if (rmBtn) rmBtn.style.display = '';
+        } else {
+          if (dot) { dot.style.background = '#aaa'; }
+          if (txt) txt.textContent = 'Nicht konfiguriert';
+          if (rmBtn) rmBtn.style.display = 'none';
+        }
+      } catch {
+        if (txt) txt.textContent = 'Fehler beim Laden';
+      }
+    }
+
+    async function _saveSyncCredentials() {
+      const email = (document.getElementById('sync-cred-email') || {}).value?.trim() || '';
+      const pw    = (document.getElementById('sync-cred-pw')    || {}).value?.trim() || '';
+      const res   = document.getElementById('sync-cred-result');
+      if (!email || !pw) {
+        if (res) res.textContent = 'Bitte E-Mail und Passwort ausfüllen.';
+        return;
+      }
+      try {
+        const r = await fetch('/sync/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pw }),
+        });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.detail || r.status); }
+        document.getElementById('sync-cred-pw').value = '';
+        if (res) { res.textContent = 'Gespeichert ✓'; setTimeout(() => res.textContent = '', 3000); }
+        _loadSyncCredentials();
+        _loadSyncAccount();
+      } catch (e) {
+        if (res) res.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function _removeSyncCredentials() {
+      const res = document.getElementById('sync-cred-result');
+      try {
+        await fetch('/sync/config', { method: 'DELETE' });
+        document.getElementById('sync-cred-email').value = '';
+        if (res) { res.textContent = 'Entfernt ✓'; setTimeout(() => res.textContent = '', 3000); }
+        _loadSyncCredentials();
+        _loadSyncAccount();
+      } catch (e) {
+        if (res) res.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function _loadSyncAccount() {
+      const info      = document.getElementById('sync-account-info');
+      const tierEl    = document.getElementById('sync-account-tier');
+      const expiresEl = document.getElementById('sync-account-expires');
+      const tierLabels = { plus: 'Erika Plus', family: 'Erika Family', community: 'Community (kostenlos)' };
+      try {
+        const d = await fetch('/sync/account').then(r => r.json());
+        if (d.connected) {
+          if (tierEl)    tierEl.textContent    = tierLabels[d.tier] || d.tier || '–';
+          if (expiresEl) expiresEl.textContent = d.expires_at
+            ? new Date(d.expires_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : 'Unbegrenzt';
+          if (info) info.style.display = '';
+        } else {
+          if (info) info.style.display = 'none';
+        }
+      } catch {
+        if (info) info.style.display = 'none';
+      }
+    }
+
+    function _toggleSyncPwVisibility() {
+      const inp = document.getElementById('sync-cred-pw');
+      if (inp) inp.type = inp.type === 'password' ? 'text' : 'password';
     }
 
     async function _loadSyncConfig() {
@@ -7000,6 +7141,8 @@
     loadLicenseStatus();
     loadBackupInfo();
     loadPinStatus();
+    _loadSyncCredentials();
+    _loadSyncAccount();
   });
 
   // ── ADMIN-PIN-VERWALTUNG ─────────────────────────────────────────────────
