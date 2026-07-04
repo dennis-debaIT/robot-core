@@ -36,22 +36,46 @@ def get_tournament_standings() -> dict:
 @router.get("/tournament/debug")
 def get_tournament_debug() -> dict[str, Any]:
     """Gibt die rohen Spieldaten von football-data.org zurück (stage, matchday, status)."""
+    from urllib.request import Request
+    from urllib.error import HTTPError, URLError
+    import ssl as _ssl
     cfg = _get_cfg()
     if not cfg.get("enabled") or not cfg.get("api_key"):
-        return {"error": "nicht konfiguriert"}
-    svc = TournamentService(cfg["api_key"], cfg.get("competition_code", "WC"))
-    data = svc._fetch(f"/competitions/{svc.competition_code}/matches") or {}
-    matches = data.get("matches", [])
-    summary: dict[str, Any] = {}
-    for m in matches:
-        stage = m.get("stage") or "None"
-        mday  = m.get("matchday")
-        status = m.get("status", "?")
-        key = f"{stage}|md={mday}"
-        if key not in summary:
-            summary[key] = {"stage": stage, "matchday": mday, "statuses": {}}
-        summary[key]["statuses"][status] = summary[key]["statuses"].get(status, 0) + 1
-    return {"total": len(matches), "stages": list(summary.values())}
+        return {"error": "nicht konfiguriert", "api_key_set": bool(cfg.get("api_key")), "enabled": cfg.get("enabled")}
+    api_key = cfg["api_key"]
+    code    = cfg.get("competition_code", "WC")
+    url     = f"https://api.football-data.org/v4/competitions/{code}/matches"
+    ctx = _ssl.create_default_context()
+    try:
+        req = Request(url, headers={"X-Auth-Token": api_key})
+        import urllib.request as _ur
+        with _ur.urlopen(req, timeout=10, context=ctx) as resp:
+            import json as _json
+            raw = _json.loads(resp.read().decode())
+        matches = raw.get("matches", [])
+        summary: dict[str, Any] = {}
+        for m in matches:
+            stage  = m.get("stage") or "None"
+            mday   = m.get("matchday")
+            status = m.get("status", "?")
+            key    = f"{stage}|md={mday}"
+            if key not in summary:
+                summary[key] = {"stage": stage, "matchday": mday, "statuses": {}}
+            summary[key]["statuses"][status] = summary[key]["statuses"].get(status, 0) + 1
+        return {"total": len(matches), "stages": list(summary.values()),
+                "competition": raw.get("competition", {}).get("name"), "season": raw.get("filters")}
+    except HTTPError as e:
+        import json as _json
+        body = ""
+        try:
+            body = e.read().decode()
+        except Exception:
+            pass
+        return {"error": f"HTTP {e.code}", "url": url, "body": body}
+    except URLError as e:
+        return {"error": f"URLError: {e.reason}", "url": url}
+    except Exception as e:
+        return {"error": str(e), "url": url}
 
 
 @router.patch("/tournament/config")
