@@ -184,7 +184,10 @@ def save_sync_config(payload: dict[str, Any], bg: BackgroundTasks) -> dict[str, 
             lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
     except Exception:
         pass
-    lic["sync_url"]      = url
+    # sync_url ist Teil der signierten Lizenz — nur überschreiben wenn keine
+    # signierte Lizenz vorhanden (kein sync_jwt), sonst Signatur ungültig.
+    if not lic.get("sync_jwt"):
+        lic["sync_url"] = url
     lic["sync_email"]    = email
     lic["sync_password"] = pw
     _LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)

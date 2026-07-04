@@ -29,11 +29,13 @@ _LICENSE_FILE = Path("/data/license.json")
 
 
 # Felder die der Lizenzserver signiert (muss signing.py auf lic.wdk-it.de entsprechen).
-# Lokal hinzugefügte Felder (sync_url, sync_email, sync_password, sync_jwt …)
-# dürfen die Signaturprüfung nicht beeinflussen.
+# Der deployed Lizenzserver fügt sync_jwt + sync_url VOR der Signatur hinzu.
+# Lokal hinzugefügte Felder (sync_email, sync_password) dürfen die Prüfung nicht
+# beeinflussen — sie werden NACH dem Signieren per save_sync_config angefügt.
 _SIGNED_FIELDS = frozenset({
     "license_key", "email", "plan", "device_id",
     "device_limit", "issued_at", "valid_until",
+    "sync_jwt", "sync_url",  # vom Lizenzserver vor der Signatur gesetzt
 })
 
 
