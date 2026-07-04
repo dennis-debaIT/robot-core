@@ -116,13 +116,36 @@ class LicenseService:
         """Stabile Hardware-ID dieses Geräts.
 
         Bevorzugt die Pi-Seriennummer (/proc/cpuinfo zeigt im Container die
-        des Hosts), Fallback auf MAC-Adresse. Bindet eine Lizenz ans Gerät."""
+        des Hosts), Fallback auf MAC-Adresse.
+        Das Ergebnis wird in /data/device_id persistiert, damit die ID auch
+        nach Container-Rebuilds (neue Docker-MAC) stabil bleibt."""
+        _DEVICE_ID_FILE = Path("/data/device_id")
+        # 1. Bereits persistierte ID verwenden (überlebt Rebuilds)
+        try:
+            stored = _DEVICE_ID_FILE.read_text(encoding="utf-8").strip()
+            if stored:
+                return stored
+        except OSError:
+            pass
+        # 2. Pi-Seriennummer bevorzugen
         try:
             for line in Path("/proc/cpuinfo").read_text().splitlines():
                 if line.lower().startswith("serial"):
                     serial = line.split(":", 1)[1].strip()
                     if serial and set(serial) != {"0"}:
-                        return f"pi-{serial}"
+                        did = f"pi-{serial}"
+                        try:
+                            _DEVICE_ID_FILE.write_text(did, encoding="utf-8")
+                        except OSError:
+                            pass
+                        return did
         except OSError:
             pass
-        return f"mac-{uuid.getnode():012x}"
+        # 3. MAC-Adresse als Fallback — persistieren damit sie stabil bleibt
+        did = f"mac-{uuid.getnode():012x}"
+        try:
+            _DEVICE_ID_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _DEVICE_ID_FILE.write_text(did, encoding="utf-8")
+        except OSError:
+            pass
+        return did
