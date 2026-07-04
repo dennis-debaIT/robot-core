@@ -15,12 +15,19 @@ router = APIRouter()
 
 @router.get("/local-admin", response_class=FileResponse)
 def local_admin_page() -> Any:
-    return FileResponse(LOCAL_ADMIN_INDEX)
+    return FileResponse(
+        LOCAL_ADMIN_INDEX,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @router.get("/local-admin.css", response_class=FileResponse)
 def local_admin_css() -> Any:
-    return FileResponse(LOCAL_ADMIN_CSS, media_type="text/css")
+    return FileResponse(
+        LOCAL_ADMIN_CSS,
+        media_type="text/css",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
 
 
 @router.get("/local-admin/integrations/catalog")
