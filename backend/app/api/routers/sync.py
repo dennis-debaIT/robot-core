@@ -184,9 +184,11 @@ def save_sync_config(payload: dict[str, Any], bg: BackgroundTasks) -> dict[str, 
             lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
     except Exception:
         pass
-    # sync_url ist Teil der signierten Lizenz — nur überschreiben wenn keine
-    # signierte Lizenz vorhanden (kein sync_jwt), sonst Signatur ungültig.
-    if not lic.get("sync_jwt"):
+    # sync_url ist Teil der signierten Lizenz. Nur setzen wenn:
+    # a) noch keine signierte Lizenz (kein sync_jwt) — normaler Erstsetup
+    # b) sync_url fehlt (z.B. nach Entfernen) — Wiederherstellung mit Default
+    # Wenn sync_jwt + sync_url beide vorhanden: nicht überschreiben (Signatur!)
+    if not lic.get("sync_jwt") or not lic.get("sync_url"):
         lic["sync_url"] = url
     lic["sync_email"]    = email
     lic["sync_password"] = pw
@@ -204,7 +206,8 @@ def remove_sync_config() -> dict[str, Any]:
     try:
         if _LICENSE_FILE.exists():
             lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
-            for k in ("sync_url", "sync_email", "sync_password"):
+            # sync_url ist Teil der signierten Lizenz — darf NICHT entfernt werden
+            for k in ("sync_email", "sync_password"):
                 lic.pop(k, None)
             _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
     except Exception:
