@@ -28,9 +28,18 @@ _PUBLIC_KEY_B64 = "9gMS1WDzh0w/GBE51ykGEUDgQHKIwQFv9ZzNVTh1jBM="
 _LICENSE_FILE = Path("/data/license.json")
 
 
+# Felder die der Lizenzserver signiert (muss signing.py auf lic.wdk-it.de entsprechen).
+# Lokal hinzugefügte Felder (sync_url, sync_email, sync_password, sync_jwt …)
+# dürfen die Signaturprüfung nicht beeinflussen.
+_SIGNED_FIELDS = frozenset({
+    "license_key", "email", "plan", "device_id",
+    "device_limit", "issued_at", "valid_until",
+})
+
+
 def _canonical(payload: dict) -> bytes:
-    """Kanonische Bytes über alle Felder außer 'signature' — Basis der Signatur."""
-    data = {k: v for k, v in payload.items() if k != "signature"}
+    """Kanonische Bytes über die vom Lizenzserver signierten Felder."""
+    data = {k: v for k, v in payload.items() if k in _SIGNED_FIELDS}
     return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
