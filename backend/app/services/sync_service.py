@@ -650,8 +650,8 @@ def push_chore_completions() -> int:
             rows = conn.execute(
                 "SELECT * FROM chore_completions ORDER BY completed_at ASC"
             ).fetchall()
-    now = _now()
     count = 0
+    last_pushed_at: str | None = None
     for r in rows:
         result = _sync_request("POST", "/chores/completions", {
             "id":           str(r["id"]),
@@ -661,8 +661,12 @@ def push_chore_completions() -> int:
         })
         if result and not result.get("error"):
             count += 1
-    if count > 0:
-        _set_chores_last_sync(now)
+            last_pushed_at = r["completed_at"]
+    # Advance cursor only to the last successfully pushed completion's timestamp.
+    # Using _now() would skip all existing completions when a newer pull-derived
+    # entry happens to succeed first.
+    if last_pushed_at:
+        _set_chores_last_sync(last_pushed_at)
     return count
 
 
