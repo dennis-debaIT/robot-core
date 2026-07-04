@@ -1901,11 +1901,24 @@
 
           <section class="module-card">
             <div class="section-copy">
-              <div class="section-title">Edition (Test)</div>
-              <p>Vorschau-Schalter zum Testen, wie das Display in der jeweiligen Edition aussieht. Der Backend-Wert greift nur ohne Lizenz — der <strong>Browser-Preview</strong> funktioniert immer (auch mit aktiver Lizenz) und überschreibt die Anzeige lokal.</p>
+              <div class="section-title">Edition dauerhaft setzen</div>
+              <p>Setzt die Edition permanent in der Datenbank und in der Build-Datei. Löst einen Rebuild aus, damit Paid-Module ein-/ausgeblendet werden. Damit die Companion-App-Sync-Zugangsdaten die Edition danach nicht überschreiben, hier nach dem Setzen einmal „<em>Zugangsdaten speichern</em>" klicken.</p>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+              <button onclick="setEditionPermanent('community')" style="padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:none;color:var(--muted);font-size:0.85rem;cursor:pointer;">Community</button>
+              <button onclick="setEditionPermanent('plus')" class="secondary" style="padding:6px 14px;border-radius:8px;font-size:0.85rem;cursor:pointer;">Erika Plus aktivieren</button>
+              <button onclick="setEditionPermanent('family')" class="primary" style="padding:6px 14px;border-radius:8px;font-size:0.85rem;cursor:pointer;">Erika Family aktivieren</button>
+              <span id="edition-permanent-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
+          </section>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Edition (Test / Vorschau)</div>
+              <p>Vorschau-Schalter zum Testen, wie Funktionen in der jeweiligen Edition aussehen. Überschreibt nur temporär — kein Rebuild. Wird beim nächsten Speichern der Zugangsdaten automatisch zurückgesetzt.</p>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;">
-              <select id="edition-select" class="field-input" style="max-width:220px;" onchange="setEdition()">
+              <select id="edition-select" class="field-input" style="max-width:220px;" onchange="setEditionPreviewOnly()">
                 <option value="community">Community</option>
                 <option value="plus">Plus</option>
                 <option value="family">Family</option>
@@ -7036,27 +7049,45 @@
     _updateEditionPreviewHint();
   }
 
-  async function setEdition() {
-    const sel = document.getElementById('edition-select');
-    const statusEl = document.getElementById('edition-status');
-    if (!sel) return;
+  async function setEditionPermanent(edition) {
+    const statusEl = document.getElementById('edition-permanent-status');
     if (statusEl) statusEl.textContent = 'Speichern…';
     try {
-      // Backend-Edition speichern (wirkt wenn keine Lizenz installiert)
       const r = await fetch('/features/edition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ edition: sel.value }),
+        body: JSON.stringify({ edition }),
       });
       if (!r.ok) throw new Error(await r.text());
-      // Server-seitigen Preview setzen — überschreibt Lizenz auf ALLEN Geräten
+      // Preview löschen damit der dauerhafte Wert wirkt
+      await fetch('/features/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ edition: null }),
+      });
+      await _updateEditionPreviewHint();
+      _applyFeatureGating();
+      if (statusEl) { statusEl.textContent = `${edition.charAt(0).toUpperCase() + edition.slice(1)} dauerhaft gesetzt ✓ — Rebuild läuft`; setTimeout(() => { statusEl.textContent = ''; }, 6000); }
+    } catch (e) {
+      if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+    }
+  }
+
+  async function setEdition() { await setEditionPreviewOnly(); }
+
+  async function setEditionPreviewOnly() {
+    const sel = document.getElementById('edition-select');
+    const statusEl = document.getElementById('edition-status');
+    if (!sel) return;
+    if (statusEl) statusEl.textContent = 'Vorschau wird gesetzt…';
+    try {
       await fetch('/features/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ edition: sel.value }),
       });
       await _updateEditionPreviewHint();
-      if (statusEl) { statusEl.textContent = 'Gespeichert ✓ — Preview aktiv auf allen Geräten'; setTimeout(() => { statusEl.textContent = ''; }, 5000); }
+      if (statusEl) { statusEl.textContent = 'Vorschau aktiv ✓'; setTimeout(() => { statusEl.textContent = ''; }, 4000); }
     } catch (e) {
       if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
     }

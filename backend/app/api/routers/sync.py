@@ -171,7 +171,7 @@ def _bg_update_edition() -> None:
         with _ureq.urlopen(me_req, timeout=8, context=_SSL_CTX) as resp:
             account = json.loads(resp.read())
         tier = str(account.get("tier") or "").lower()
-        if tier in ("plus", "family"):
+        if tier in ("community", "plus", "family"):
             from app.services.feature_service import FeatureService
             fs = FeatureService()
             fs.set_edition(tier)
@@ -200,12 +200,6 @@ def save_sync_config(payload: dict[str, Any], bg: BackgroundTasks) -> dict[str, 
     _LICENSE_FILE.parent.mkdir(parents=True, exist_ok=True)
     _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
     svc.reset_token_cache()
-    # Preview-Override sofort löschen, damit Feature-Gating nicht mehr blockiert.
-    try:
-        from app.services.feature_service import FeatureService
-        FeatureService().set_preview_edition(None)
-    except Exception:
-        pass
     # Edition-Update läuft im Hintergrund — Handler antwortet sofort.
     bg.add_task(_bg_update_edition)
     return {"ok": True}
