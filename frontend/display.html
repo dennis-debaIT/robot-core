@@ -297,6 +297,29 @@
   width:8px;height:8px;border-radius:50%;
   background:#f87171;display:block;
 }
+/* ── Nachrichten-View ─────────────────────────────── */
+.msg-contact-item {
+  display:flex;flex-direction:column;gap:3px;
+  padding:11px 14px;border-radius:10px;cursor:pointer;
+  border:1px solid transparent;transition:background 0.15s;
+}
+.msg-contact-item:hover { background:rgba(255,255,255,0.06); }
+.msg-contact-item.selected { background:rgba(99,179,237,0.12);border-color:rgba(99,179,237,0.25); }
+.msg-contact-name { font-size:0.85rem;font-weight:700;color:#e2e8f0; }
+.msg-contact-preview { font-size:0.78rem;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px; }
+.msg-contact-time { font-size:0.72rem;color:#4a5568; }
+.msg-conv-wrap { display:flex;flex-direction:column;height:100%;min-height:0; }
+.msg-conv-header { font-size:0.8rem;font-weight:700;color:#63b3ed;letter-spacing:0.06em;text-transform:uppercase;padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0; }
+.msg-conv-messages { flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px; }
+.msg-bubble { max-width:75%;padding:9px 13px;border-radius:14px;font-size:0.88rem;line-height:1.4; }
+.msg-bubble.incoming { background:rgba(255,255,255,0.07);color:#e2e8f0;align-self:flex-start;border-bottom-left-radius:4px; }
+.msg-bubble.outgoing { background:rgba(99,179,237,0.2);color:#bee3f8;align-self:flex-end;border-bottom-right-radius:4px; }
+.msg-bubble-meta { font-size:0.7rem;color:#4a5568;margin-top:3px; }
+.msg-compose-bar { display:flex;gap:8px;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.07);flex-shrink:0; }
+.msg-compose-bar input { flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:9px 13px;color:#e2e8f0;font-size:0.88rem;outline:none; }
+.msg-compose-bar input:focus { border-color:rgba(99,179,237,0.4); }
+.msg-compose-bar button { background:#63b3ed;border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-weight:700;cursor:pointer;font-size:0.85rem; }
+.msg-empty-state { display:flex;align-items:center;justify-content:center;height:100%;color:#4a5568;font-size:0.9rem;flex-direction:column;gap:12px; }
 </style>
 
 <!-- ── NAV BAR (unten) ───────────────────────────────── -->
@@ -3748,56 +3771,92 @@
     if (overlay) overlay.style.display = 'none';
   }
 
+  let _msgSelectedSender = null;
+  let _msgAllMessages    = [];
+
   function _openMessagesView() {
     _msgUnread = 0;
     const badge = document.getElementById('msg-badge');
     if (badge) badge.hidden = true;
     _dismissIncomingMsg();
+    _msgSelectedSender = null;
+    // Left panel: conversation list
+    document.getElementById('left-label').textContent = 'Nachrichten';
+    const lc = document.getElementById('left-content');
+    if (lc) { lc.style.overflowY = 'auto'; lc.innerHTML = '<div class="loading-dots" style="color:var(--muted);font-size:0.85rem;">Lade…</div>'; }
+    // Center: empty state
     const center = document.getElementById('center-content');
-    if (center) {
-      center.innerHTML = `
-        <div style="padding:24px 20px;max-width:600px;margin:0 auto;">
-          <div style="font-size:1rem;font-weight:700;color:#63b3ed;margin-bottom:16px;letter-spacing:0.05em;text-transform:uppercase;">💬 Nachrichten</div>
-          <div id="msg-inbox-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;"></div>
-          <div style="display:flex;gap:8px;">
-            <input id="msg-compose" type="text" placeholder="Nachricht schreiben…"
-              style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:10px 14px;color:#e2e8f0;font-size:0.9rem;outline:none;"
-              onkeydown="if(event.key==='Enter')_sendMsgFromView()">
-            <button onclick="_sendMsgFromView()"
-              style="background:#63b3ed;border:none;border-radius:10px;padding:10px 18px;color:#0d1117;font-weight:700;cursor:pointer;font-size:0.9rem;">
-              Senden
-            </button>
-          </div>
-        </div>`;
-      _loadMsgInbox();
-    }
+    if (center) center.innerHTML = '<div class="msg-empty-state"><span style="font-size:2rem;">💬</span><span>Chat auswählen</span></div>';
+    _loadMsgContacts();
   }
 
   function clearMessagesView() {
-    const center = document.getElementById('center-content');
-    if (center && _navMode !== 'messages') {
-      // Nur leeren wenn wir den messages-View aktiv gerendert haben
+    if (_navMode === 'messages') return;
+    _msgSelectedSender = null;
+    _msgAllMessages    = [];
+  }
+
+  async function _loadMsgContacts() {
+    const lc = document.getElementById('left-content');
+    try {
+      const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      _msgAllMessages = d.messages || [];
+      // Group by sender_label, keep latest message per sender
+      const map = new Map();
+      for (const m of _msgAllMessages) {
+        const key = m.sender_label || 'Unbekannt';
+        if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
+      }
+      const contacts = [...map.entries()].sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
+      if (!lc) return;
+      if (!contacts.length) {
+        lc.innerHTML = '<div style="padding:16px;color:#718096;font-size:0.82rem;">Noch keine Nachrichten.</div>';
+        return;
+      }
+      lc.innerHTML = contacts.map(([sender, last]) => `
+        <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" onclick="_openConversation(${JSON.stringify(sender)})">
+          <div class="msg-contact-name">${escapeHTML(sender)}</div>
+          <div class="msg-contact-preview">${escapeHTML((last.content || '').slice(0, 38))}</div>
+          <div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>
+        </div>`).join('');
+    } catch {
+      if (lc) lc.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
     }
   }
 
-  async function _loadMsgInbox() {
-    const list = document.getElementById('msg-inbox-list');
-    if (!list) return;
-    try {
-      const r = await fetch('/messages/inbox?limit=20', { cache: 'no-store' });
-      if (!r.ok) { list.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Keine Verbindung zum Sync-Server.</div>'; return; }
-      const d = await r.json();
-      const msgs = d.messages || [];
-      if (!msgs.length) { list.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Keine Nachrichten.</div>'; return; }
-      list.innerHTML = msgs.map(m => `
-        <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px 14px;border-left:3px solid ${m.sender_type==='erika'?'#68d391':'#63b3ed'};">
-          <div style="font-size:0.7rem;font-weight:700;color:${m.sender_type==='erika'?'#68d391':'#63b3ed'};margin-bottom:4px;">
-            ${escapeHTML(m.sender_label || (m.sender_type === 'erika' ? 'Erika' : 'App'))}
-            <span style="font-weight:400;color:#4a5568;margin-left:8px;">${_fmtMsgTime(m.created_at)}</span>
-          </div>
-          <div style="font-size:0.9rem;color:#e2e8f0;">${escapeHTML(m.content)}</div>
-        </div>`).join('');
-    } catch { list.innerHTML = '<div style="color:#f87171;font-size:0.85rem;">Fehler beim Laden.</div>'; }
+  function _openConversation(senderLabel) {
+    _msgSelectedSender = senderLabel;
+    // Re-render left panel to update selection highlight
+    const lc = document.getElementById('left-content');
+    if (lc) lc.querySelectorAll('.msg-contact-item').forEach(el => {
+      el.classList.toggle('selected', el.querySelector('.msg-contact-name')?.textContent === senderLabel);
+    });
+    // Filter messages for this sender
+    const msgs = _msgAllMessages.filter(m => (m.sender_label || 'Unbekannt') === senderLabel)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const center = document.getElementById('center-content');
+    if (!center) return;
+    center.innerHTML = `
+      <div class="msg-conv-wrap">
+        <div class="msg-conv-header">💬 ${escapeHTML(senderLabel)}</div>
+        <div class="msg-conv-messages" id="msg-conv-messages">
+          ${msgs.length ? msgs.map(m => `
+            <div style="display:flex;flex-direction:column;align-items:flex-start;">
+              <div class="msg-bubble incoming">${escapeHTML(m.content)}</div>
+              <div class="msg-bubble-meta">${_fmtMsgTime(m.created_at)}</div>
+            </div>`).join('') : '<div style="color:#718096;font-size:0.82rem;padding:8px 0;">Keine weiteren Nachrichten.</div>'}
+        </div>
+        <div class="msg-compose-bar">
+          <input id="msg-compose" type="text" placeholder="Nachricht schreiben…"
+            onkeydown="if(event.key==='Enter')_sendMsgFromView()">
+          <button onclick="_sendMsgFromView()">Senden</button>
+        </div>
+      </div>`;
+    // Scroll to bottom
+    const convEl = document.getElementById('msg-conv-messages');
+    if (convEl) convEl.scrollTop = convEl.scrollHeight;
   }
 
   async function _sendMsgFromView() {
@@ -3811,7 +3870,11 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, recipient_type: 'broadcast' }),
       });
-      _loadMsgInbox();
+      // Reload contacts + reopen conversation
+      const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
+      if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
+      await _loadMsgContacts();
+      if (_msgSelectedSender) _openConversation(_msgSelectedSender);
     } catch {}
   }
 
