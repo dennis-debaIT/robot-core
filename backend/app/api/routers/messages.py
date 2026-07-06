@@ -14,7 +14,7 @@ router = APIRouter(prefix="/messages", tags=["messages"])
 
 def _display_name() -> str:
     cfg = IntegrationConfigService().get_config()
-    return (cfg.get("messages") or {}).get("display_name") or "Erika"
+    return (cfg.get("system") or {}).get("device", {}).get("name") or "Erika"
 
 
 @router.get("/inbox")

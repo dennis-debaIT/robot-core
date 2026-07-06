@@ -1286,14 +1286,8 @@
           </header>
           <section class="module-card">
             <div class="section-copy">
-              <div class="section-title">Anzeigename dieses Displays</div>
-              <p>Dieser Name wird als Absender angezeigt wenn das Display eine Nachricht sendet.</p>
-            </div>
-            <div class="field-grid">
-              <label class="field-block">
-                <span class="field-label">Anzeigename</span>
-                <input id="messages-display-name" class="field-input" type="text" placeholder="Erika Wohnzimmer">
-              </label>
+              <div class="section-title">Anzeigename</div>
+              <p>Als Absendername wird der unter <strong>System → Gerätename</strong> eingetragene Name verwendet.</p>
             </div>
           </section>
           <section class="module-card">
@@ -4577,9 +4571,7 @@
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
         const m = (cfg.config || cfg).messages || {};
         const enabledEl = document.getElementById('messages-enabled');
-        const nameEl    = document.getElementById('messages-display-name');
         if (enabledEl) enabledEl.checked = m.enabled === true;
-        if (nameEl)    nameEl.value      = m.display_name || '';
       } catch {}
     }
 
@@ -4717,7 +4709,6 @@
     async function saveMessagesConfig() {
       const statusEl  = document.getElementById('messages-status');
       const enabledEl = document.getElementById('messages-enabled');
-      const nameEl    = document.getElementById('messages-display-name');
       if (statusEl) statusEl.textContent = 'Speichere…';
       try {
         await fetch('/local-admin/integrations/config', {
@@ -4726,7 +4717,6 @@
           body: JSON.stringify({
             messages: {
               enabled: enabledEl?.checked || false,
-              display_name: (nameEl?.value || '').trim() || 'Erika',
             },
           }),
         });

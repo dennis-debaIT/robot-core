@@ -172,7 +172,6 @@ class IntegrationConfigService:
             },
             "messages": {
                 "enabled": False,
-                "display_name": "Erika",
                 "cross_tenant": {
                     "enabled": False,
                     "trusted_emails": [],
