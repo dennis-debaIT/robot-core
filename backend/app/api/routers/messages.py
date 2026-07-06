@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services import sync_service as _sync
+from app.services import push_service as _push
 from app.services.integration_config_service import IntegrationConfigService
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -48,6 +49,12 @@ def send_message(body: SendRequest) -> dict[str, Any]:
     result = _sync._sync_request("POST", "/messages", payload)
     if result is None:
         raise HTTPException(status_code=503, detail="Sync-Server nicht erreichbar")
+    # Push notification to all registered app devices
+    _push.send_notification(
+        title=_display_name(),
+        body=body.content[:200],
+        channel="messages",
+    )
     return result
 
 

@@ -305,21 +305,21 @@
 }
 .msg-contact-item:hover { background:rgba(255,255,255,0.06); }
 .msg-contact-item.selected { background:rgba(99,179,237,0.12);border-color:rgba(99,179,237,0.25); }
-.msg-contact-name { font-size:0.85rem;font-weight:700;color:#e2e8f0; }
-.msg-contact-preview { font-size:0.78rem;color:#718096;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px; }
-.msg-contact-time { font-size:0.72rem;color:#4a5568; }
+.msg-contact-name { font-size:0.85rem;font-weight:700;color:var(--text); }
+.msg-contact-preview { font-size:0.78rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px; }
+.msg-contact-time { font-size:0.72rem;color:var(--muted); }
 .msg-conv-wrap { display:flex;flex-direction:column;height:100%;min-height:0; }
-.msg-conv-header { font-size:0.8rem;font-weight:700;color:#63b3ed;letter-spacing:0.06em;text-transform:uppercase;padding:14px 18px 10px;border-bottom:1px solid rgba(255,255,255,0.07);flex-shrink:0; }
+.msg-conv-header { font-size:0.8rem;font-weight:700;color:var(--accent);letter-spacing:0.06em;text-transform:uppercase;padding:14px 18px 10px;border-bottom:1px solid var(--border);flex-shrink:0; }
 .msg-conv-messages { flex:1;overflow-y:auto;padding:14px 18px;display:flex;flex-direction:column;gap:8px; }
 .msg-bubble { max-width:75%;padding:9px 13px;border-radius:14px;font-size:0.88rem;line-height:1.4; }
-.msg-bubble.incoming { background:rgba(255,255,255,0.07);color:#e2e8f0;align-self:flex-start;border-bottom-left-radius:4px; }
-.msg-bubble.outgoing { background:rgba(99,179,237,0.2);color:#bee3f8;align-self:flex-end;border-bottom-right-radius:4px; }
-.msg-bubble-meta { font-size:0.7rem;color:#4a5568;margin-top:3px; }
-.msg-compose-bar { display:flex;gap:8px;padding:10px 14px;border-top:1px solid rgba(255,255,255,0.07);flex-shrink:0; }
-.msg-compose-bar input { flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:9px 13px;color:#e2e8f0;font-size:0.88rem;outline:none; }
-.msg-compose-bar input:focus { border-color:rgba(99,179,237,0.4); }
-.msg-compose-bar button { background:#63b3ed;border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-weight:700;cursor:pointer;font-size:0.85rem; }
-.msg-empty-state { display:flex;align-items:center;justify-content:center;height:100%;color:#4a5568;font-size:0.9rem;flex-direction:column;gap:12px; }
+.msg-bubble.incoming { background:var(--surface2);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px; }
+.msg-bubble.outgoing { background:rgba(99,179,237,0.2);color:var(--text);align-self:flex-end;border-bottom-right-radius:4px; }
+.msg-bubble-meta { font-size:0.7rem;color:var(--muted);margin-top:3px; }
+.msg-compose-bar { display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0; }
+.msg-compose-bar input { flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--text);font-size:0.88rem;outline:none; }
+.msg-compose-bar input:focus { border-color:var(--accent); }
+.msg-compose-bar button { background:var(--accent);border:none;border-radius:10px;padding:9px 16px;color:#0d1117;font-weight:700;cursor:pointer;font-size:0.85rem; }
+.msg-empty-state { display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:0.9rem;flex-direction:column;gap:12px; }
 </style>
 
 <!-- ── NAV BAR (unten) ───────────────────────────────── -->
@@ -3870,11 +3870,14 @@
       const contacts  = [...withMsgs, ...noMsgs];
 
       scroll.innerHTML = contacts.map(([sender, last]) => `
-        <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" onclick="_openConversation(${JSON.stringify(sender)})">
+        <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" data-sender="${escapeAttr(sender)}">
           <div class="msg-contact-name">${escapeHTML(sender)}</div>
-          <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="color:#4a5568;">Noch keine Nachrichten</em>'}</div>
+          <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="color:var(--muted);opacity:0.6;">Noch keine Nachrichten</em>'}</div>
           ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
         </div>`).join('');
+      scroll.querySelectorAll('.msg-contact-item').forEach(el => {
+        el.addEventListener('click', () => _openConversation(el.dataset.sender));
+      });
     } catch {
       if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
     }
