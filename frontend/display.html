@@ -3780,11 +3780,22 @@
     if (badge) badge.hidden = true;
     _dismissIncomingMsg();
     _msgSelectedSender = null;
-    // Left panel: conversation list
     document.getElementById('left-label').textContent = 'Nachrichten';
     const lc = document.getElementById('left-content');
-    if (lc) { lc.style.overflowY = 'auto'; lc.innerHTML = '<div class="loading-dots" style="color:var(--muted);font-size:0.85rem;">Lade…</div>'; }
-    // Center: empty state
+    if (lc) {
+      lc.style.overflowY = 'hidden';
+      lc.style.display   = 'flex';
+      lc.style.flexDirection = 'column';
+      lc.innerHTML = `
+        <div id="msg-contact-scroll" style="flex:1;overflow-y:auto;">
+          <div class="loading-dots" style="color:var(--muted);font-size:0.85rem;padding:12px;">Lade…</div>
+        </div>
+        <div class="msg-compose-bar" style="border-top:1px solid rgba(255,255,255,0.08);">
+          <input id="msg-broadcast-input" type="text" placeholder="Broadcast senden…"
+            onkeydown="if(event.key==='Enter')_sendBroadcast()">
+          <button onclick="_sendBroadcast()">➤</button>
+        </div>`;
+    }
     const center = document.getElementById('center-content');
     if (center) center.innerHTML = '<div class="msg-empty-state"><span style="font-size:2rem;">💬</span><span>Chat auswählen</span></div>';
     _loadMsgContacts();
@@ -3797,33 +3808,49 @@
   }
 
   async function _loadMsgContacts() {
-    const lc = document.getElementById('left-content');
+    const scroll = document.getElementById('msg-contact-scroll');
     try {
       const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
       if (!r.ok) throw new Error();
       const d = await r.json();
       _msgAllMessages = d.messages || [];
-      // Group by sender_label, keep latest message per sender
       const map = new Map();
       for (const m of _msgAllMessages) {
         const key = m.sender_label || 'Unbekannt';
         if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
       }
       const contacts = [...map.entries()].sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
-      if (!lc) return;
+      if (!scroll) return;
       if (!contacts.length) {
-        lc.innerHTML = '<div style="padding:16px;color:#718096;font-size:0.82rem;">Noch keine Nachrichten.</div>';
+        scroll.innerHTML = '<div style="padding:16px;color:#718096;font-size:0.82rem;">Noch keine Nachrichten.<br><span style="font-size:0.75rem;color:#4a5568;">Sende unten eine Broadcast-Nachricht um die Verbindung zu starten.</span></div>';
         return;
       }
-      lc.innerHTML = contacts.map(([sender, last]) => `
+      scroll.innerHTML = contacts.map(([sender, last]) => `
         <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" onclick="_openConversation(${JSON.stringify(sender)})">
           <div class="msg-contact-name">${escapeHTML(sender)}</div>
           <div class="msg-contact-preview">${escapeHTML((last.content || '').slice(0, 38))}</div>
           <div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>
         </div>`).join('');
     } catch {
-      if (lc) lc.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
+      if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
     }
+  }
+
+  async function _sendBroadcast() {
+    const inp = document.getElementById('msg-broadcast-input');
+    if (!inp || !inp.value.trim()) return;
+    const content = inp.value.trim();
+    inp.value = '';
+    try {
+      await fetch('/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, recipient_type: 'broadcast' }),
+      });
+      const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
+      if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
+      await _loadMsgContacts();
+    } catch {}
   }
 
   function _openConversation(senderLabel) {
