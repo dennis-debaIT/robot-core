@@ -227,6 +227,8 @@
             <div class="sidebar-sub-label">Sport</div>
             <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball-Liga</span></button>
             <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">🏆</span><span>Turnier</span></button>
+            <div class="sidebar-sub-label">Kommunikation</div>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-messages"><span class="si-icon">💬</span><span>Nachrichten</span></button>
           </div>
         </div>
 
@@ -1263,6 +1265,63 @@
               <span id="liga-cache-status" style="font-size:0.8rem;color:var(--muted);"></span>
             </div>
             <p style="font-size:0.75rem;color:var(--muted);margin:6px 0 0;">Löscht gecachte Kader, Spieler-Profile und Suchergebnisse von Transfermarkt. Bilder bleiben erhalten. Die Daten werden beim nächsten Kader-Aufruf neu geladen.</p>
+          </div>
+        </article>
+
+        <!-- ── NACHRICHTEN ───────────────────────────────────── -->
+        <article id="tab-messages" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Kommunikation</div>
+              <h2>Nachrichten</h2>
+            </div>
+            <label class="switch-card">
+              <input id="messages-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Nachrichten-Button im Display anzeigen und eingehende Nachrichten als Overlay anzeigen</span>
+              </span>
+            </label>
+          </header>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Anzeigename dieses Displays</div>
+              <p>Dieser Name wird als Absender angezeigt wenn das Display eine Nachricht sendet.</p>
+            </div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Anzeigename</span>
+                <input id="messages-display-name" class="field-input" type="text" placeholder="Erika Wohnzimmer">
+              </label>
+            </div>
+          </section>
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Nachrichten zwischen Haushalten <span style="font-size:0.72rem;color:var(--muted);font-weight:400;margin-left:8px;">(Demnächst)</span></div>
+              <p>Ermöglicht das Senden von Nachrichten zwischen verschiedenen Erika-Installationen, z.&nbsp;B. zwischen Familienmitgliedern in unterschiedlichen Haushalten.</p>
+            </div>
+            <label class="switch-card" style="opacity:0.5;pointer-events:none;">
+              <input id="messages-cross-tenant-enabled" type="checkbox" disabled>
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Haushalt-übergreifende Nachrichten aktivieren</span>
+                <span class="switch-text">Noch nicht verfügbar – kommt in einer späteren Version</span>
+              </span>
+            </label>
+            <div style="margin-top:14px;opacity:0.5;">
+              <div class="section-title" style="font-size:0.78rem;margin-bottom:8px;">Vertrauenswürdige Haushalte</div>
+              <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px;">E-Mail-Adresse des Master-Accounts eines anderen Erika-Haushalts eingeben, um Nachrichten austauschen zu können.</p>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="messages-trusted-email" class="field-input" type="email" placeholder="familie@example.com" style="flex:1;" disabled>
+                <button type="button" class="btn btn-secondary" disabled>Hinzufügen</button>
+              </div>
+              <div id="messages-trusted-list" style="margin-top:10px;font-size:0.8rem;color:var(--muted);">Noch keine vertrauenswürdigen Haushalte konfiguriert.</div>
+            </div>
+          </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveMessagesConfig()">Speichern</button>
+            <span id="messages-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
           </div>
         </article>
 
@@ -4513,6 +4572,17 @@
       }
     }
 
+    async function _loadMessagesConfig() {
+      try {
+        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
+        const m = (cfg.config || cfg).messages || {};
+        const enabledEl = document.getElementById('messages-enabled');
+        const nameEl    = document.getElementById('messages-display-name');
+        if (enabledEl) enabledEl.checked = m.enabled === true;
+        if (nameEl)    nameEl.value      = m.display_name || '';
+      } catch {}
+    }
+
     async function _loadTournamentConfig() {
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
@@ -4644,6 +4714,28 @@
       }
     }
 
+    async function saveMessagesConfig() {
+      const statusEl  = document.getElementById('messages-status');
+      const enabledEl = document.getElementById('messages-enabled');
+      const nameEl    = document.getElementById('messages-display-name');
+      if (statusEl) statusEl.textContent = 'Speichere…';
+      try {
+        await fetch('/local-admin/integrations/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: {
+              enabled: enabledEl?.checked || false,
+              display_name: (nameEl?.value || '').trim() || 'Erika',
+            },
+          }),
+        });
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
+      } catch (e) {
+        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
     const _ENERGY_ROLES = [
       ['device', 'Gerät (Verbrauch & Kosten)'],
       ['grid', 'Gesamt-Netzbezug (Saldo)'],
@@ -4748,6 +4840,7 @@
     document.getElementById('sync-module-pv')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-calendar')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-lights')?.addEventListener('change', saveSyncConfig);
+    document.querySelector('[data-tab-target="tab-messages"]')?.addEventListener('click', _loadMessagesConfig);
     document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     document.querySelector('[data-tab-target="tab-energy"]')?.addEventListener('click', _loadEnergyConfig);

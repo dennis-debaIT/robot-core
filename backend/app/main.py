@@ -30,6 +30,7 @@ from app.api.routers import (
     license,
     local_admin,
     memory,
+    messages as messages_router,
     notes as notes_router,
     notifications,
     people,
@@ -601,6 +602,7 @@ app.include_router(personality_audio.router)
 app.include_router(people.router)
 app.include_router(timer.router)
 app.include_router(notifications.router)
+app.include_router(messages_router.router)
 app.include_router(ha_calendar.router)
 app.include_router(reminders_router.router)
 app.include_router(notes_router.router)

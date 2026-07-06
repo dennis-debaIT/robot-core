@@ -285,6 +285,7 @@ def get_display_state() -> dict[str, Any]:
         "tournament":  bool((config.get("tournament")  or {}).get("enabled", False) and bool((config.get("tournament") or {}).get("api_key", ""))),
         "liga":        bool((config.get("liga")        or {}).get("enabled", False) and bool((config.get("liga") or {}).get("api_key", "")) and bool((config.get("liga") or {}).get("leagues"))),
         "sync":        bool((config.get("sync")         or {}).get("enabled", False)) and _sync_has_feature(),
+        "messages":    bool((config.get("messages")     or {}).get("enabled", False)) and _sync_has_feature(),
     }
     cal_cfg = config.get("calendar") or {}
     calendar_config = {"open_trigger": cal_cfg.get("open_trigger", "both")}

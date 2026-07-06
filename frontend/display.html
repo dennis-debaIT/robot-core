@@ -273,6 +273,32 @@
 <!-- ── API HEALTH BAR ────────────────────────────────── -->
 <div id="api-health-bar" style="display:none;position:fixed;bottom:64px;left:0;right:0;z-index:90;background:rgba(255,171,0,0.10);border-top:1px solid rgba(255,171,0,0.25);color:var(--warning,#ffab00);font-size:10px;padding:3px 14px;text-align:center;pointer-events:none;"></div>
 
+<!-- ── EINGEHENDE NACHRICHT OVERLAY ─────────────────── -->
+<div id="msg-incoming-overlay" style="display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:8000;min-width:320px;max-width:520px;width:90%;background:rgba(18,18,28,0.97);border:1px solid rgba(99,179,237,0.35);border-radius:16px;padding:18px 20px 14px;box-shadow:0 8px 32px rgba(0,0,0,0.55);animation:msgSlideIn 0.3s ease;">
+  <div style="display:flex;align-items:flex-start;gap:12px;">
+    <span id="msg-incoming-icon" style="font-size:1.8rem;line-height:1;flex-shrink:0;">💬</span>
+    <div style="flex:1;min-width:0;">
+      <div id="msg-incoming-sender" style="font-size:0.78rem;font-weight:700;color:#63b3ed;letter-spacing:0.04em;margin-bottom:4px;text-transform:uppercase;"></div>
+      <div id="msg-incoming-content" style="font-size:1.05rem;color:#e2e8f0;line-height:1.4;word-break:break-word;"></div>
+    </div>
+    <button onclick="_dismissIncomingMsg()" style="background:none;border:none;color:#718096;font-size:1.3rem;cursor:pointer;padding:0 2px;flex-shrink:0;line-height:1;">✕</button>
+  </div>
+  <div id="msg-incoming-progress" style="margin-top:10px;height:2px;background:rgba(99,179,237,0.2);border-radius:1px;overflow:hidden;">
+    <div id="msg-incoming-bar" style="height:100%;background:#63b3ed;width:100%;transition:width linear;"></div>
+  </div>
+</div>
+<style>
+@keyframes msgSlideIn {
+  from { opacity:0; transform:translateX(-50%) translateY(16px); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+.nav-msg-badge {
+  position:absolute;top:4px;right:4px;
+  width:8px;height:8px;border-radius:50%;
+  background:#f87171;display:block;
+}
+</style>
+
 <!-- ── NAV BAR (unten) ───────────────────────────────── -->
 <div class="nav-bar">
   <div class="nav-left-group">
@@ -293,6 +319,11 @@
     <span class="nav-label">Fu&szlig;ball</span>
   </button>
   </div>
+  <button class="nav-btn" id="nav-messages" onclick="navTo('messages')" hidden>
+    <span class="nav-icon">💬</span>
+    <span class="nav-label">Nachrichten</span>
+    <span class="nav-msg-badge" id="msg-badge" hidden></span>
+  </button>
   <button class="nav-btn nav-mic" id="nav-mic" onclick="startInput()">
     <span class="nav-icon" id="mic-icon">🎤</span>
     <span class="nav-label" id="mic-label">Sprechen</span>
@@ -3446,6 +3477,8 @@
     // Tournament / Liga ggf. sofort starten
     if (_enabledModules.tournament) window._tournament?.start();
     if (_enabledModules.liga) window._liga?.start();
+    // Nachrichten-Polling starten
+    if (_enabledModules.messages) _startMsgPolling();
   });
 
   function applyModuleVisibility(modules, calendarConfig) {
@@ -3467,6 +3500,7 @@
       tournament:  modules?.tournament  === true,
       liga:        modules?.liga        === true,
       sync:        modules?.sync        === true,
+      messages:    modules?.messages    === true,
     };
     const calChanged = (_enabledModules.calendar !== false) !== prevCal;
     const pvChanged  = (_enabledModules.pv === true) !== prevPv;
@@ -3482,6 +3516,7 @@
     const calBtn = document.getElementById('nav-calendar');
     const choresBtn = document.getElementById('nav-chores');
     const shoppingBtn = document.getElementById('nav-sync');
+    const messagesBtn = document.getElementById('nav-messages');
     if (lightsBtn) lightsBtn.hidden = !_enabledModules.lights;
     if (vehiclesBtn) vehiclesBtn.hidden = !_enabledModules.vehicles;
     if (robotsBtn) robotsBtn.hidden = !_enabledModules.robots;
@@ -3489,6 +3524,7 @@
     if (energyBtn) energyBtn.hidden = !_enabledModules.energy;
     if (choresBtn) choresBtn.hidden = !_enabledModules.chores;
     if (shoppingBtn) shoppingBtn.hidden = !_enabledModules.sync;
+    if (messagesBtn) messagesBtn.hidden = !_enabledModules.messages;
     const ligaBtn = document.getElementById('nav-liga');
     if (ligaBtn) ligaBtn.hidden = !_enabledModules.liga;
     if ((_navMode === 'lights' && !_enabledModules.lights) || (_navMode === 'vehicles' && !_enabledModules.vehicles) || (_navMode === 'robots' && !_enabledModules.robots) || (_navMode === 'cameras' && !_enabledModules.cameras) || (_navMode === 'chores' && !_enabledModules.chores) || (_navMode === 'sync' && !_enabledModules.sync)) {
@@ -3510,6 +3546,8 @@
     } else if (!_enabledModules.liga && prevLiga) {
       window._liga?.stop();
     }
+    if (_enabledModules.messages) _startMsgPolling();
+    else _stopMsgPolling();
   }
 
   function _startLightsPolling() {
@@ -3523,7 +3561,7 @@
   }
 
   function navTo(mode) {
-    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras) || (mode === 'chores' && !_enabledModules.chores) || (mode === 'liga' && !_enabledModules.liga)) {
+    if ((mode === 'lights' && !_enabledModules.lights) || (mode === 'vehicles' && !_enabledModules.vehicles) || (mode === 'robots' && !_enabledModules.robots) || (mode === 'cameras' && !_enabledModules.cameras) || (mode === 'chores' && !_enabledModules.chores) || (mode === 'liga' && !_enabledModules.liga) || (mode === 'messages' && !_enabledModules.messages)) {
       mode = 'home';
     }
     _navMode = mode;
@@ -3541,6 +3579,7 @@
       clearVehiclesView();
       clearChoresView();
       clearSyncView();
+      clearMessagesView();
       window._liga?.closeFullView();
       currentMode = null;
       applyMode('idle');
@@ -3630,10 +3669,159 @@
       clearRobotsView();
       clearVehiclesView();
       clearChoresView();
+      clearMessagesView();
       window._liga?.closeFullView();
       showWeatherLeft();
       window._sync?.open();
+    } else if (mode === 'messages') {
+      clearTimeout(_lightsAutoReturnTimer); _lightsAutoReturnTimer = null;
+      _stopLightsPolling();
+      _stopCamerasPolling();
+      clearCalendarCenter();
+      clearLightsView();
+      clearCamerasView();
+      clearRobotsView();
+      clearVehiclesView();
+      clearChoresView();
+      clearSyncView();
+      window._liga?.closeFullView();
+      _openMessagesView();
     }
+  }
+
+  // ── NACHRICHTEN ────────────────────────────────────────
+  let _msgPollSince = new Date().toISOString();
+  let _msgPollTimer = null;
+  let _msgDismissTimer = null;
+  let _msgUnread = 0;
+
+  function _startMsgPolling() {
+    if (_msgPollTimer) return;
+    _pollMessages();
+    _msgPollTimer = setInterval(_pollMessages, 5000);
+  }
+
+  function _stopMsgPolling() {
+    if (_msgPollTimer) { clearInterval(_msgPollTimer); _msgPollTimer = null; }
+  }
+
+  async function _pollMessages() {
+    if (!_enabledModules.messages) return;
+    try {
+      const r = await fetch(`/messages/inbox?since=${encodeURIComponent(_msgPollSince)}&limit=10`, { cache: 'no-store' });
+      if (!r.ok) return;
+      const d = await r.json();
+      const msgs = (d.messages || []).filter(m => m.sender_type !== 'erika');
+      if (!msgs.length) return;
+      msgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      _msgPollSince = msgs[msgs.length - 1].created_at;
+      msgs.forEach(m => _showIncomingMsg(m));
+    } catch {}
+  }
+
+  function _showIncomingMsg(msg) {
+    const overlay = document.getElementById('msg-incoming-overlay');
+    if (!overlay) return;
+    if (_msgDismissTimer) { clearTimeout(_msgDismissTimer); _msgDismissTimer = null; }
+    document.getElementById('msg-incoming-sender').textContent = msg.sender_label || 'Erika';
+    document.getElementById('msg-incoming-content').textContent = msg.content;
+    overlay.style.display = 'block';
+    _msgUnread++;
+    const badge = document.getElementById('msg-badge');
+    if (badge) { badge.hidden = false; badge.textContent = _msgUnread > 9 ? '9+' : _msgUnread; }
+    const bar = document.getElementById('msg-incoming-bar');
+    if (bar) {
+      bar.style.transition = 'none';
+      bar.style.width = '100%';
+      requestAnimationFrame(() => {
+        bar.style.transition = 'width 15s linear';
+        bar.style.width = '0%';
+      });
+    }
+    _msgDismissTimer = setTimeout(_dismissIncomingMsg, 15000);
+    fetch(`/messages/${msg.id}/read`, { method: 'PATCH' }).catch(() => {});
+  }
+
+  function _dismissIncomingMsg() {
+    if (_msgDismissTimer) { clearTimeout(_msgDismissTimer); _msgDismissTimer = null; }
+    const overlay = document.getElementById('msg-incoming-overlay');
+    if (overlay) overlay.style.display = 'none';
+  }
+
+  function _openMessagesView() {
+    _msgUnread = 0;
+    const badge = document.getElementById('msg-badge');
+    if (badge) badge.hidden = true;
+    _dismissIncomingMsg();
+    const center = document.getElementById('center-content');
+    if (center) {
+      center.innerHTML = `
+        <div style="padding:24px 20px;max-width:600px;margin:0 auto;">
+          <div style="font-size:1rem;font-weight:700;color:#63b3ed;margin-bottom:16px;letter-spacing:0.05em;text-transform:uppercase;">💬 Nachrichten</div>
+          <div id="msg-inbox-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;"></div>
+          <div style="display:flex;gap:8px;">
+            <input id="msg-compose" type="text" placeholder="Nachricht schreiben…"
+              style="flex:1;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:10px;padding:10px 14px;color:#e2e8f0;font-size:0.9rem;outline:none;"
+              onkeydown="if(event.key==='Enter')_sendMsgFromView()">
+            <button onclick="_sendMsgFromView()"
+              style="background:#63b3ed;border:none;border-radius:10px;padding:10px 18px;color:#0d1117;font-weight:700;cursor:pointer;font-size:0.9rem;">
+              Senden
+            </button>
+          </div>
+        </div>`;
+      _loadMsgInbox();
+    }
+  }
+
+  function clearMessagesView() {
+    const center = document.getElementById('center-content');
+    if (center && _navMode !== 'messages') {
+      // Nur leeren wenn wir den messages-View aktiv gerendert haben
+    }
+  }
+
+  async function _loadMsgInbox() {
+    const list = document.getElementById('msg-inbox-list');
+    if (!list) return;
+    try {
+      const r = await fetch('/messages/inbox?limit=20', { cache: 'no-store' });
+      if (!r.ok) { list.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Keine Verbindung zum Sync-Server.</div>'; return; }
+      const d = await r.json();
+      const msgs = d.messages || [];
+      if (!msgs.length) { list.innerHTML = '<div style="color:#718096;font-size:0.85rem;">Keine Nachrichten.</div>'; return; }
+      list.innerHTML = msgs.map(m => `
+        <div style="background:rgba(255,255,255,0.05);border-radius:10px;padding:12px 14px;border-left:3px solid ${m.sender_type==='erika'?'#68d391':'#63b3ed'};">
+          <div style="font-size:0.7rem;font-weight:700;color:${m.sender_type==='erika'?'#68d391':'#63b3ed'};margin-bottom:4px;">
+            ${escapeHTML(m.sender_label || (m.sender_type === 'erika' ? 'Erika' : 'App'))}
+            <span style="font-weight:400;color:#4a5568;margin-left:8px;">${_fmtMsgTime(m.created_at)}</span>
+          </div>
+          <div style="font-size:0.9rem;color:#e2e8f0;">${escapeHTML(m.content)}</div>
+        </div>`).join('');
+    } catch { list.innerHTML = '<div style="color:#f87171;font-size:0.85rem;">Fehler beim Laden.</div>'; }
+  }
+
+  async function _sendMsgFromView() {
+    const inp = document.getElementById('msg-compose');
+    if (!inp || !inp.value.trim()) return;
+    const content = inp.value.trim();
+    inp.value = '';
+    try {
+      await fetch('/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, recipient_type: 'broadcast' }),
+      });
+      _loadMsgInbox();
+    } catch {}
+  }
+
+  function _fmtMsgTime(iso) {
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
   }
 
   // Fahrzeuge

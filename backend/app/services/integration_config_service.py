@@ -170,6 +170,14 @@ class IntegrationConfigService:
                 "favorite_team_id": None,
                 "favorite_team_name": "",
             },
+            "messages": {
+                "enabled": False,
+                "display_name": "Erika",
+                "cross_tenant": {
+                    "enabled": False,
+                    "trusted_emails": [],
+                },
+            },
             "meta": {
                 "version": 1,
             },
