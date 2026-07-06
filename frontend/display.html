@@ -3745,7 +3745,8 @@
       // If messages view is open: render instantly from cache (no REST fetch)
       if (_navMode === 'messages') {
         _renderMsgContactsFromCache();
-        if (_msgSelectedSender) _openConversation(_msgSelectedSender);
+        // Only refresh message list — _openConversation would rebuild compose bar and kill input focus
+        if (_msgSelectedSender) _refreshConvMessages();
       }
     };
 
@@ -3914,6 +3915,28 @@
       if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
       await _loadMsgContacts();
     } catch {}
+  }
+
+  // Update only the message list — called by SSE to avoid rebuilding compose bar
+  function _refreshConvMessages() {
+    const convEl = document.getElementById('msg-conv-messages');
+    if (!convEl || !_msgSelectedSender) return;
+    const msgs = _msgAllMessages.filter(m => {
+      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+      const isTheirs = (m.sender_label || 'Unbekannt') === _msgSelectedSender;
+      return isMine || isTheirs;
+    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    const wasAtBottom = convEl.scrollHeight - convEl.scrollTop - convEl.clientHeight < 60;
+    convEl.innerHTML = msgs.length
+      ? msgs.map(m => {
+          const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+          return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
+            <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
+            <div class="msg-bubble-meta">${_fmtMsgTime(m.created_at)}</div>
+          </div>`;
+        }).join('')
+      : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>';
+    if (wasAtBottom) convEl.scrollTop = convEl.scrollHeight;
   }
 
   function _openConversation(senderLabel) {
