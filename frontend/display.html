@@ -3742,9 +3742,9 @@
       );
       incoming.forEach(m => { _msgShownIds.add(m.id); _showIncomingMsg(m); });
 
-      // If messages view is open: refresh contact list + open conversation
+      // If messages view is open: render instantly from cache (no REST fetch)
       if (_navMode === 'messages') {
-        _loadMsgContacts();
+        _renderMsgContactsFromCache();
         if (_msgSelectedSender) _openConversation(_msgSelectedSender);
       }
     };
@@ -3845,10 +3845,40 @@
     if (_msgShowBroadcast) document.getElementById('msg-broadcast-input')?.focus();
   }
 
+  // Render contact list purely from in-memory cache — called by SSE (instant, no fetch)
+  function _renderMsgContactsFromCache(extraContacts = []) {
+    const scroll = document.getElementById('msg-contact-scroll');
+    if (!scroll) return;
+    const map = new Map();
+    for (const m of _msgAllMessages) {
+      if (_msgSelfLabel && m.sender_label === _msgSelfLabel) continue;
+      const key = m.sender_label || 'Unbekannt';
+      if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
+    }
+    for (const name of extraContacts) {
+      if (name !== _msgSelfLabel && !map.has(name)) map.set(name, null);
+    }
+    if (!map.size) {
+      scroll.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;opacity:0.6;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
+      return;
+    }
+    const withMsgs = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
+    const noMsgs   = [...map.entries()].filter(([,v]) => !v);
+    scroll.innerHTML = [...withMsgs, ...noMsgs].map(([sender, last]) => `
+      <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" data-sender="${escapeAttr(sender)}">
+        <div class="msg-contact-name">${escapeHTML(sender)}</div>
+        <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="opacity:0.5;">Noch keine Nachrichten</em>'}</div>
+        ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
+      </div>`).join('');
+    scroll.querySelectorAll('.msg-contact-item').forEach(el => {
+      el.addEventListener('click', () => _openConversation(el.dataset.sender));
+    });
+  }
+
+  // Full load with REST fetch — called only on initial view open
   async function _loadMsgContacts() {
     const scroll = document.getElementById('msg-contact-scroll');
     try {
-      // Load inbox + known contacts in parallel
       const [inboxRes, contactsRes] = await Promise.all([
         fetch('/messages/inbox?limit=100', { cache: 'no-store' }),
         fetch('/messages/contacts', { cache: 'no-store' }).catch(() => null),
@@ -3857,50 +3887,8 @@
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
       if (d.self_label) _msgSelfLabel = d.self_label;
-
-      // Build contact map: key = OTHER party (not self), value = last message in thread
-      // A thread is identified by the non-self sender
-      const map = new Map();
-      for (const m of _msgAllMessages) {
-        const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
-        // For own messages in a broadcast: there's no specific recipient — skip for contact grouping
-        // For incoming messages: group under sender_label
-        if (!isMine) {
-          const key = m.sender_label || 'Unbekannt';
-          if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) {
-            map.set(key, m);
-          }
-        }
-      }
-
-      // Add known devices that haven't messaged yet (but exclude self)
-      if (contactsRes?.ok) {
-        const cd = await contactsRes.json();
-        for (const name of (cd.contacts || [])) {
-          if (name !== _msgSelfLabel && !map.has(name)) map.set(name, null);
-        }
-      }
-
-      if (!scroll) return;
-      if (!map.size) {
-        scroll.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;opacity:0.6;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
-        return;
-      }
-
-      // Sort: contacts with messages first (newest first), then known-only contacts
-      const withMsgs = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
-      const noMsgs   = [...map.entries()].filter(([,v]) => !v);
-      const contacts = [...withMsgs, ...noMsgs];
-
-      scroll.innerHTML = contacts.map(([sender, last]) => `
-        <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" data-sender="${escapeAttr(sender)}">
-          <div class="msg-contact-name">${escapeHTML(sender)}</div>
-          <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="opacity:0.5;">Noch keine Nachrichten</em>'}</div>
-          ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
-        </div>`).join('');
-      scroll.querySelectorAll('.msg-contact-item').forEach(el => {
-        el.addEventListener('click', () => _openConversation(el.dataset.sender));
-      });
+      const extraContacts = contactsRes?.ok ? ((await contactsRes.json()).contacts || []) : [];
+      _renderMsgContactsFromCache(extraContacts);
     } catch {
       if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
     }
