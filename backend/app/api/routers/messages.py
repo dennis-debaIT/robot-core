@@ -25,7 +25,8 @@ def get_inbox(since: str | None = None, limit: int = 50) -> dict[str, Any]:
         path += f"&since={since}"
     result = _sync._sync_request("GET", path)
     if result is None:
-        return {"messages": []}
+        return {"messages": [], "self_label": _display_name()}
+    result["self_label"] = _display_name()
     return result
 
 

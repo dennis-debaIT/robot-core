@@ -3718,6 +3718,7 @@
   let _msgDismissTimer = null;
   let _msgUnread = 0;
   let _msgShownIds = new Set();
+  let _msgSelfLabel = '';   // display's own name — loaded from /messages/inbox self_label
 
   function _startMsgPolling() {
     if (_msgPollTimer) return;
@@ -3735,8 +3736,11 @@
       const r = await fetch(`/messages/inbox?since=${encodeURIComponent(_msgPollSince)}&limit=10`, { cache: 'no-store' });
       if (!r.ok) return;
       const d = await r.json();
-      // Only show notifications for messages from other devices (not our own sent messages)
-      const msgs = (d.messages || []).filter(m => !_msgShownIds.has(m.id));
+      if (d.self_label) _msgSelfLabel = d.self_label;
+      // Only show notifications for messages from others (not own sent messages)
+      const msgs = (d.messages || []).filter(m =>
+        !_msgShownIds.has(m.id) && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)
+      );
       if (!msgs.length) return;
       msgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
       _msgPollSince = msgs[msgs.length - 1].created_at;
@@ -3842,37 +3846,46 @@
       if (!inboxRes.ok) throw new Error();
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
+      if (d.self_label) _msgSelfLabel = d.self_label;
 
-      // Build map of sender → last message
+      // Build contact map: key = OTHER party (not self), value = last message in thread
+      // A thread is identified by the non-self sender
       const map = new Map();
       for (const m of _msgAllMessages) {
-        const key = m.sender_label || 'Unbekannt';
-        if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
+        const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+        // For own messages in a broadcast: there's no specific recipient — skip for contact grouping
+        // For incoming messages: group under sender_label
+        if (!isMine) {
+          const key = m.sender_label || 'Unbekannt';
+          if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) {
+            map.set(key, m);
+          }
+        }
       }
 
-      // Add known devices that haven't messaged yet
+      // Add known devices that haven't messaged yet (but exclude self)
       if (contactsRes?.ok) {
         const cd = await contactsRes.json();
         for (const name of (cd.contacts || [])) {
-          if (!map.has(name)) map.set(name, null);
+          if (name !== _msgSelfLabel && !map.has(name)) map.set(name, null);
         }
       }
 
       if (!scroll) return;
       if (!map.size) {
-        scroll.innerHTML = '<div style="padding:16px;color:#718096;font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;color:#4a5568;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
+        scroll.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;opacity:0.6;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
         return;
       }
 
-      // Sort: contacts with messages first (by time), then known-only contacts
-      const withMsgs  = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
-      const noMsgs    = [...map.entries()].filter(([,v]) => !v);
-      const contacts  = [...withMsgs, ...noMsgs];
+      // Sort: contacts with messages first (newest first), then known-only contacts
+      const withMsgs = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
+      const noMsgs   = [...map.entries()].filter(([,v]) => !v);
+      const contacts = [...withMsgs, ...noMsgs];
 
       scroll.innerHTML = contacts.map(([sender, last]) => `
         <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" data-sender="${escapeAttr(sender)}">
           <div class="msg-contact-name">${escapeHTML(sender)}</div>
-          <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="color:var(--muted);opacity:0.6;">Noch keine Nachrichten</em>'}</div>
+          <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="opacity:0.5;">Noch keine Nachrichten</em>'}</div>
           ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
         </div>`).join('');
       scroll.querySelectorAll('.msg-contact-item').forEach(el => {
@@ -3911,9 +3924,12 @@
     document.querySelectorAll('.msg-contact-item').forEach(el => {
       el.classList.toggle('selected', el.querySelector('.msg-contact-name')?.textContent === senderLabel);
     });
-    // Filter messages for this sender
-    const msgs = _msgAllMessages.filter(m => (m.sender_label || 'Unbekannt') === senderLabel)
-      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    // All messages in this thread: incoming from senderLabel + outgoing from self
+    const msgs = _msgAllMessages.filter(m => {
+      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+      const isTheirs = (m.sender_label || 'Unbekannt') === senderLabel;
+      return isMine || isTheirs;
+    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     // Render into cal-overlay
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
@@ -3921,11 +3937,13 @@
       <div class="msg-conv-wrap">
         <div class="msg-conv-header">💬 ${escapeHTML(senderLabel)}</div>
         <div class="msg-conv-messages" id="msg-conv-messages">
-          ${msgs.length ? msgs.map(m => `
-            <div style="display:flex;flex-direction:column;align-items:flex-start;">
-              <div class="msg-bubble incoming">${escapeHTML(m.content)}</div>
+          ${msgs.length ? msgs.map(m => {
+            const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+            return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
+              <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
               <div class="msg-bubble-meta">${_fmtMsgTime(m.created_at)}</div>
-            </div>`).join('') : '<div style="color:#718096;font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
+            </div>`;
+          }).join('') : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
         </div>
         <div class="msg-compose-bar">
           <input id="msg-compose" type="text" placeholder="Nachricht schreiben…"
@@ -3934,7 +3952,6 @@
         </div>
       </div>`;
     overlay.classList.add('active');
-    // Scroll to bottom
     const convEl = document.getElementById('msg-conv-messages');
     if (convEl) convEl.scrollTop = convEl.scrollHeight;
   }
