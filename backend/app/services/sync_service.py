@@ -332,6 +332,22 @@ def push_unsynced() -> int:
     return count
 
 
+def reconcile_items() -> int:
+    """Push active local items that are missing from the server (handles server data loss)."""
+    result = _sync_request("GET", "/items")
+    if result is None:
+        return 0
+    server_ids = {item["id"] for item in result.get("items", []) if not item.get("deleted")}
+    with get_connection() as conn:
+        local_active = conn.execute("SELECT * FROM sync_items WHERE deleted=0").fetchall()
+    count = 0
+    for r in local_active:
+        if r["id"] not in server_ids:
+            push_item(_row(r) | {"deleted": False})
+            count += 1
+    return count
+
+
 # ── Personen ───────────────────────────────────────────────────────────────
 
 def push_persons() -> int:

@@ -1,7 +1,9 @@
 # Erika — Benutzeranleitung
 
 Erika ist ein KI-gestützter Haushaltsassistent, der per Sprache gesteuert wird.  
-Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen.
+Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen für den täglichen Einsatz.
+
+> Für Installation, Konfiguration und technische Einrichtung → [`ADMIN_ANLEITUNG.md`](ADMIN_ANLEITUNG.md)
 
 ---
 
@@ -11,20 +13,24 @@ Diese Anleitung beschreibt alle Sprachbefehle und wichtigen Funktionen.
 2. [Lichtsteuerung](#2-lichtsteuerung)
 3. [Timer](#3-timer)
 4. [Erinnerungen](#4-erinnerungen)
-5. [Notizen](#5-notizen)
-6. [Kalender](#6-kalender)
-7. [Wetter](#7-wetter)
-8. [Fußball](#8-fußball)
-9. [Fahrzeuge](#9-fahrzeuge)
-10. [Roboter](#10-roboter)
-11. [Smart Home](#11-smart-home)
-12. [Zusammenfassungen & Briefing](#12-zusammenfassungen--briefing)
-13. [Tägliches Fazit](#13-tägliches-fazit)
-14. [Persönliches](#14-persönliches)
-15. [PV-Anlage](#15-pv-anlage)
-16. [Push-Benachrichtigungen](#16-push-benachrichtigungen)
-17. [System & Backup](#17-system--backup)
-18. [Design & Layout](#18-design--layout)
+5. [Einkaufsliste](#5-einkaufsliste)
+6. [Hausaufgaben *(Plus/Family)*](#6-hausaufgaben-plusfamily)
+7. [Notizen](#7-notizen)
+8. [Kalender](#8-kalender)
+9. [Wetter](#9-wetter)
+10. [Fußball](#10-fußball)
+11. [Fahrzeuge](#11-fahrzeuge)
+12. [Roboter](#12-roboter)
+13. [Smart Home](#13-smart-home)
+14. [Zusammenfassungen & Briefing](#14-zusammenfassungen--briefing)
+15. [Tägliches Fazit](#15-tägliches-fazit)
+16. [Persönliches](#16-persönliches)
+17. [PV-Anlage](#17-pv-anlage)
+18. [Push-Benachrichtigungen](#18-push-benachrichtigungen)
+19. [System & Backup](#19-system--backup)
+20. [Design & Layout](#20-design--layout)
+21. [Erika Companion App](#21-erika-companion-app)
+22. [Admin-Panel Übersicht](#22-admin-panel-übersicht)
 
 ---
 
@@ -160,11 +166,13 @@ Mehrere Timer gleichzeitig sind möglich. Wenn ein Timer abläuft, ertönt ein P
 | `Lösch alle Erinnerungen` | Alle Erinnerungen löschen |
 
 ### Was passiert wenn die Erinnerung fällig ist?
-Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
+Erika sagt den Erinnerungstext laut an, zeigt ein Overlay auf dem Display und sendet eine Push-Benachrichtigung auf dein Smartphone (wenn die Companion App eingerichtet ist).
 
 ---
 
 ## 5. Einkaufsliste
+
+Die Einkaufsliste ist auf dem Display über den 🛒-Button erreichbar und wird automatisch mit der Erika Companion App synchronisiert.
 
 ### Artikel hinzufügen
 
@@ -186,9 +194,36 @@ Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
 
 > Nach jedem Sprachbefehl wechselt das Display automatisch zur Einkaufsliste und Erika bestätigt die Aktion per Sprache.
 
+> Artikel, die am Display hinzugefügt werden, erscheinen innerhalb von 60 Sekunden in der Companion App — und umgekehrt.
+
 ---
 
-## 5. Notizen
+## 6. Hausaufgaben *(Plus/Family)*
+
+Das Hausaufgaben-Modul verwaltet wiederkehrende Haushaltsaufgaben (z. B. Staubsaugen, Spülmaschine ausräumen) und zeigt pro Aufgabe eine Statistik, wer sie wie oft erledigt hat.
+
+> Dieses Feature ist in **Erika Plus** und **Erika Family** enthalten.
+
+### Aufgaben im Display
+
+Das Hausaufgaben-Modul ist über den 🧹-Button in der Navigation erreichbar (zwischen „Start" und „Fahrzeuge").
+
+- **Linkes Panel**: Alle angelegten Aufgaben als Liste — Klick wählt die Aufgabe aus
+- **Rechtes Panel**: Alle Personen aus den Profilen — Klick auf eine Person loggt sofort eine Erledigung für die ausgewählte Aufgabe
+- **Center**: Statistik der ausgewählten Aufgabe (Tabs: Woche / Monat / Jahr) mit Balkendiagramm (Erledigungen pro Person) und Wochensieger
+
+Oben im Center wird optional ein **Gesamt-Wochensieger** über alle Aufgaben hinweg angezeigt (in der Admin konfigurierbar).
+
+### Verwaltung im Admin
+Aufgaben werden im Admin-Panel unter **Hausaufgaben** angelegt:
+
+- Aufgabe hinzufügen: Name + optionales Emoji-Icon
+- Reihenfolge anpassen: ↑↓-Buttons
+- Aufgabe löschen: Soft-Delete (Erledigungs-Historie bleibt erhalten)
+
+---
+
+## 7. Notizen
 
 ### Notiz speichern
 
@@ -221,7 +256,7 @@ Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
 
 ---
 
-## 6. Kalender
+## 8. Kalender
 
 ### Termin abfragen
 
@@ -243,7 +278,7 @@ Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
 
 ---
 
-## 7. Wetter
+## 9. Wetter
 
 | Befehl | Funktion |
 |---|---|
@@ -252,11 +287,11 @@ Erika sagt den Erinnerungstext laut an und zeigt ein Overlay auf dem Display.
 | `Brauche ich heute einen Regenschirm?` | Regenwahrscheinlichkeit |
 | `Wie warm wird es heute?` | Temperatur |
 
-Das Wetter-Widget auf dem Display zeigt automatisch aktuelle Daten (Open-Meteo).
+Das Wetter-Widget auf dem Display zeigt automatisch aktuelle Daten (Open-Meteo). Den Wetter-Anbieter (Open-Meteo / Yr.no / OpenWeatherMap) kann man im Admin unter **Wetter → Datenquelle** wählen.
 
 ---
 
-## 8. Fußball
+## 10. Fußball
 
 | Befehl | Funktion |
 |---|---|
@@ -269,7 +304,7 @@ Der Lieblingsverein kann im Admin-Panel unter dem Personenprofil hinterlegt werd
 
 ---
 
-## 9. Fahrzeuge
+## 11. Fahrzeuge
 
 | Befehl | Funktion |
 |---|---|
@@ -283,7 +318,7 @@ Fahrzeuge werden im Admin-Panel unter **Fahrzeuge** mit HA-Entitäten verknüpft
 
 ---
 
-## 10. Roboter
+## 12. Roboter
 
 ### Staubsauger
 
@@ -307,7 +342,7 @@ Räume und Roboternamen werden im Admin-Panel konfiguriert.
 
 ---
 
-## 11. Smart Home
+## 13. Smart Home
 
 ### Proaktive Benachrichtigungen
 Erika kann HA-Entitäten überwachen und bei Zustandsänderungen automatisch informieren (z. B. "Die Waschmaschine ist fertig").  
@@ -315,7 +350,7 @@ Regeln werden im Admin-Panel unter **Benachrichtigungen** angelegt.
 
 ---
 
-## 12. Zusammenfassungen & Briefing
+## 14. Zusammenfassungen & Briefing
 
 ### Tagesbriefing
 
@@ -336,7 +371,7 @@ Die Reihenfolge ist per Drag & Drop im Admin anpassbar.
 
 ---
 
-## 13. Tägliches Fazit
+## 15. Tägliches Fazit
 
 Erika fragt zu einer konfigurierbaren Abendzeit (Standard: 20:00 Uhr) proaktiv:  
 **"Wie war dein Tag heute?"**
@@ -347,7 +382,7 @@ Aktivierung und Uhrzeit im Admin-Panel unter **Erika → Aufmerksamkeit → Täg
 
 ---
 
-## 14. Persönliches
+## 16. Persönliches
 
 Erika lernt beim Gespräch Fakten über dich kennen und merkt sie sich.
 
@@ -373,7 +408,7 @@ Alle gespeicherten Informationen können im Admin-Panel unter **Personen** einge
 
 ---
 
-## 15. PV-Anlage
+## 17. PV-Anlage
 
 Das PV-Widget auf dem Display zeigt Echtzeitdaten der Solaranlage und aktualisiert sich alle 5 Sekunden.
 
@@ -390,24 +425,9 @@ Das PV-Widget auf dem Display zeigt Echtzeitdaten der Solaranlage und aktualisie
 
 Welche Felder angezeigt werden, lässt sich im Admin-Panel unter **PV → Widget-Anzeige** per Checkbox bestimmen.
 
-### Konfiguration im Admin (PV → Sensoren)
-
-| Feld | Empfohlener HA-Sensor (Huawei SUN2000) |
-|---|---|
-| **Aktuelle Leistung** | `sensor.wechselrichter_wirkleistung` (AC-Ausgang) |
-| **Tagesertrag** | `sensor.wechselrichter_tagesertrag` |
-| **Temperatur** | `sensor.wechselrichter_interne_temperatur` |
-| **Batterieladung (SOC)** | `sensor.batterien_batterieladung` |
-| **Netz-Sensor** | `sensor.stromzahler_wirkleistung` (positiv = Einspeisung) |
-| **Batterie-Leistung** | Leer lassen bei DC-gekoppelten Systemen (Huawei LUNA2000) |
-
-> **Wichtig bei DC-gekoppelten Batteriesystemen (Huawei SUN2000 + LUNA2000):** Die Wirkleistung am AC-Ausgang berücksichtigt das Laden der Batterie bereits intern. Das Feld "Batterie-Leistung" muss leer bleiben — sonst wird die Batterieleistung doppelt abgezogen und der Hausverbrauch zeigt 0 W.
-
-### PV-Statistik & Energiekosten (nur Erika Plus)
+### PV-Statistik & Energiekosten *(Erika Plus)*
 
 Über das PV-Widget lässt sich eine ausführliche **PV-Statistik** öffnen (Reiter Fluss / Heute / 7 Tage / Monat / Jahr) mit Diagrammen zu Ertrag, Einspeisung und Netzbezug.
-
-Monat und Jahr greifen auf die Langzeitstatistiken von Home Assistant zu (über dessen WebSocket-API). Die Jahresansicht zeigt daher nur Monate, für die Home Assistant selbst bereits Statistiken aufgezeichnet hat — bei neu eingerichteten Sensoren oder kurz nach der Erika-Installation können ältere Monate fehlen, bis HA entsprechend lange Daten gesammelt hat.
 
 Im Admin-Panel unter **PV → Stromtarife** können zwei Werte hinterlegt werden:
 
@@ -416,21 +436,13 @@ Im Admin-Panel unter **PV → Stromtarife** können zwei Werte hinterlegt werden
 | **Einspeisevergütung (ct/kWh)** | Vergütung pro eingespeister kWh (z.B. nach EEG) |
 | **Strombezugstarif (ct/kWh)** | Preis pro kWh, der für Netzbezug bezahlt wird |
 
-Sind beide Werte hinterlegt und ein **Netz-Sensor** konfiguriert (siehe oben), berechnet die PV-Statistik daraus automatisch:
+Sind beide Werte hinterlegt, berechnet die PV-Statistik daraus automatisch Einspeiseerlös, Netzbezugskosten und Saldo.
 
-- **Einspeiseerlös** = Einspeisung (kWh) × Einspeisevergütung
-- **Netzbezugskosten** = Netzbezug (kWh) × Strombezugstarif
-- **Saldo** = Einspeiseerlös − Netzbezugskosten
-
-Diese Werte erscheinen in der PV-Statistik unter den Einspeisung-/Netzbezug-Balken — für Heute, 7 Tage, Monat und Jahr. Im PV-Widget selbst werden sie nicht angezeigt. Ohne hinterlegte Tarife bleibt die Statistik unverändert (kein Block mit Beträgen).
-
-### Standort für Wetter-Abfragen
-
-Im Admin-Panel unter **System → Standort** können Koordinaten für Wetter- und Standortabfragen gespeichert werden. Mit dem Button **"Von HA übernehmen"** werden die Koordinaten automatisch aus `zone.home` in Home Assistant gelesen — das vermeidet Verwechslungen bei gleichnamigen Orten (z.B. Frankfurt am Main vs. Frankfurt an der Oder).
+> **Hinweis:** Die Jahresansicht zeigt nur Monate, für die Home Assistant bereits Langzeitstatistiken aufgezeichnet hat — bei neu eingerichteten Sensoren können ältere Monate fehlen.
 
 ---
 
-## 16. Push-Benachrichtigungen
+## 18. Push-Benachrichtigungen
 
 Erika kann Benachrichtigungen direkt auf dein Smartphone senden — auch wenn die Companion App nicht geöffnet ist.
 
@@ -458,7 +470,7 @@ Im Admin-Panel unter **Abfall → Push-Benachrichtigung**:
 
 ---
 
-## 17. System & Backup
+## 19. System & Backup
 
 | Befehl | Funktion |
 |---|---|
@@ -477,7 +489,7 @@ Im Admin-Panel unter **System → Cloud-Backup** kann ein verschlüsseltes Backu
 
 **Wiederherstellen nach Gerätedefekt:**
 1. Neues System aufsetzen (`install.sh` ausführen)
-2. Sync-Token in `.env` eintragen (`SHOPPING_SYNC_TOKEN=...`)
+2. Sync-Zugangsdaten in `license.json` eintragen (E-Mail + Passwort)
 3. `update.sh` ausführen — lädt den aktuellen Code
 4. Im Admin → System → Cloud-Backup auf **„↩️ Wiederherstellen"** klicken
 5. Erika startet automatisch neu — alle Einstellungen sind wie vorher
@@ -486,7 +498,7 @@ Im Admin-Panel unter **System → Cloud-Backup** kann ein verschlüsseltes Backu
 
 ---
 
-## 18. Design & Layout
+## 20. Design & Layout
 
 Das Aussehen des Displays wird im Admin-Panel unter **Design** angepasst — nicht per Sprache.
 
@@ -498,14 +510,13 @@ Unter **Design → Farben** lassen sich alle 12 Farben des Displays anpassen (Hi
 
 Ein Klick auf ein Preset füllt die Farbwähler — gespeichert wird erst über **Speichern**. Die Farben werden beim nächsten Laden des Displays übernommen.
 
-### Zeitabhängiges Design (Plus)
+### Zeitabhängiges Design *(Plus)*
 
 Unter **Design → Zeitabhängiges Design** kann ein automatischer Tag/Nacht-Wechsel aktiviert werden:
 
-- **Tag ab** / **Nacht ab**: Uhrzeiten, zu denen zwischen dem oben konfigurierten Theme (Tag) und einem separaten, gedämpften **Nacht-Theme** gewechselt wird
+- **Tag ab** / **Nacht ab**: Uhrzeiten, zu denen zwischen dem normalen Theme und einem separaten, gedämpften **Nacht-Theme** gewechselt wird
 - Das Nacht-Theme wird genauso wie das Tag-Theme über Presets oder die 12 Farbwähler eingestellt
-- Außerhalb der Nachtspanne bleibt immer das normale (Community-)Theme aktiv — manuelle Theme-Änderungen unter **Design → Farben** funktionieren unverändert und unabhängig davon
-- Das Display übernimmt einen Wechsel innerhalb von ca. 10 Sekunden (gleicher Abruf wie für Layout-Änderungen)
+- Das Display übernimmt einen Wechsel innerhalb von ca. 10 Sekunden
 
 ### Layout
 
@@ -518,7 +529,37 @@ Unter **Design → Layout** wird festgelegt, welche Widgets im linken und rechte
 
 ---
 
-## Admin-Panel
+## 21. Erika Companion App
+
+Die **Erika Companion App** (Android) ist die mobile Ergänzung zum Display — ohne externe Cloud. Alle Daten laufen direkt über den Erika Sync Server.
+
+### Funktionen
+
+| Funktion | Beschreibung |
+|---|---|
+| **Einkaufsliste** | Artikel hinzufügen, abhaken, löschen — synchronisiert bidirektional mit dem Display |
+| **Kalender** | Nächster Termin direkt auf der Startseite sichtbar |
+| **Hausaufgaben** *(Plus)* | Aufgaben einsehen und Erledigungen loggen |
+| **Erinnerungen** | Übersicht aller aktiven Erinnerungen |
+| **Push-Benachrichtigungen** | Fällige Erinnerungen und Müllabfuhr-Vorabnachricht direkt aufs Smartphone |
+
+### Einrichtung
+
+1. App installieren (APK oder Play Store)
+2. Beim ersten Start: **Mit Lizenz anmelden**
+3. E-Mail-Adresse und Passwort des Erika-Accounts eingeben
+4. App verbindet sich automatisch mit dem Sync Server
+
+### Sync-Verhalten
+
+- Die Einkaufsliste wird alle **60 Sekunden** automatisch synchronisiert
+- Artikel, die am Display per Sprache hinzugefügt werden, erscheinen innerhalb von 60 Sekunden in der App
+- Artikel, die in der App eingetragen werden, landen innerhalb von 60 Sekunden auf dem Display
+- Offline-Betrieb: Die App speichert Änderungen lokal und synchronisiert beim nächsten Online-Kontakt
+
+---
+
+## 22. Admin-Panel Übersicht
 
 Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 
@@ -528,9 +569,11 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 | **Erika → Begrüßung** | LLM-Begrüßung an/aus, Kontext-Checkboxen (Tageszeit, Kalender, PV, Themen) |
 | **Personen** | Profile, Fakten, Gedächtnis, Beziehungsstatus, Offenheit, Rolle (Erwachsener/Kind ♂/♀), eigenes Emoji |
 | **Integrationen** | Home Assistant, Lichter, Roboter, Kameras, Fahrzeuge |
+| **Hausaufgaben** *(Plus)* | Aufgaben anlegen/sortieren/löschen, Gesamt-Wochenstatistik ein/aus |
 | **PV** | Sensoren konfigurieren, Widget-Felder per Checkbox, Statistiken, Energiefluss |
+| **Strom** | Verbrauchssensoren (Waschmaschine etc.), Gesamt-Netzbezugssensor, Tarife |
 | **Design → Farben** | Theme-Farben anpassen, 6 Presets (inkl. Light Theme) |
-| **Design → Zeitabhängiges Design** *(Plus)* | Automatischer Tag/Nacht-Theme-Wechsel mit eigenem Nacht-Theme und Uhrzeiten |
+| **Design → Zeitabhängiges Design** *(Plus)* | Automatischer Tag/Nacht-Theme-Wechsel |
 | **Design → Layout** | Widgets auf linkes/rechtes Panel verteilen, Größe & Reihenfolge |
 | **System → Standort** | Koordinaten manuell oder via "Von HA übernehmen" (zone.home) |
 | **System → Cloud-Backup** | Verschlüsseltes Backup erstellen oder wiederherstellen |
@@ -539,11 +582,11 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 | **Kalender** | Kalender auswählen, Farben, Schreibkalender |
 | **Wetter** | Anzeige-Optionen, Anbieter (Open-Meteo / Yr.no / OpenWeatherMap) |
 | **Abfall → Push-Benachrichtigung** | Müllabfuhr-Benachrichtigung aktivieren, Uhrzeit einstellen |
-| **Nachrichten** | RSS-Quellen auswählen, eigene RSS/Atom-Feeds hinzufügen |
+| **Nachrichten** | RSS-Quellen auswählen, eigene RSS/Atom-Feeds hinzufügen, Stichwort-Filter |
 | **Zeitpläne** | Aktive Erinnerungen und zeitgesteuerte Lichtbefehle einsehen/löschen |
 | **Benachrichtigungen** | Proaktive Regeln (HA-Entitäten) |
 | **Licht** | Szenen verwalten |
-| **Protokoll** | Vollständiger Verlauf aller Systemereignisse. Filterbar nach Level (Info / Warnung / Fehler), Aktionstyp und Anzahl der Einträge. Level-Badges farbcodiert: grün = info, gelb = warning, rot = error. |
+| **Protokoll** | Vollständiger Verlauf aller Systemereignisse. Filterbar nach Level (Info / Warnung / Fehler), Aktionstyp und Anzahl. Level-Badges: grün = info, gelb = warning, rot = error. |
 
 ---
 
@@ -553,3 +596,4 @@ Das Admin-Panel ist erreichbar unter: `https://[erika-ip]:8000/local-admin`
 - **Kontext**: Erika kennt den aktuellen Gesprächskontext und versteht Folgefragen (z. B. "Und morgen?" nach einer Wetterfrage).
 - **Personen**: Wenn Erika dich erkennt (Gesichtserkennung oder Auswahl über das Personen-Dropdown), werden Antworten, Notizen und Kalendereinträge personalisiert.
 - **Stichwort "Erika"**: Du brauchst nicht jedes Mal das Wake Word — beim aktiven Gespräch hört Erika nach Erikas TTS-Antwort auch kurze Zeit ohne Wake Word zu (Follow-Up Listening).
+- **Strom-Modul**: Unter **⚡ Strom** im Display lässt sich der Energieverbrauch aller konfigurierten Geräte einsehen (Heute / 7 Tage / Monat / Jahr).

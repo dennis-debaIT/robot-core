@@ -2,6 +2,11 @@
 
 Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank, Docker-Deployment (Raspberry Pi / VM), vollständige Web-Oberfläche und lokaler Mock-LLM-Fallback.
 
+**Dokumentation:**
+- [`ANLEITUNG.md`](ANLEITUNG.md) — Benutzeranleitung (Sprachbefehle, Display, Companion App)
+- [`ADMIN_ANLEITUNG.md`](ADMIN_ANLEITUNG.md) — Admin-Guide (Setup, Konfiguration, Auth, Sync Server)
+- [`INSTALL_MANUAL.md`](INSTALL_MANUAL.md) — Schritt-für-Schritt-Installation
+
 ---
 
 ## Was Erika kann
@@ -10,15 +15,18 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 - **LLM-Begrüßung** — KI-generierte, kontextuelle Begrüßung bei Gesichtserkennung (Tageszeit, Kalender, PV, Themen); konfigurierbarer Kontext, Template-Fallback
 - **Gesichtserkennung** — automatische Begrüßung, personenbezogener Kontext
 - **Smart Home** — Lichtsteuerung, Szenen, Zeitpläne, Staubsauger- und Mährobotersteuerung via Home Assistant
-- **Anpassbares Design** — 12 konfigurierbare Theme-Farben, 6 Presets inkl. Light Theme; im Admin (Design) editierbar
+- **Anpassbares Design** — 12 konfigurierbare Theme-Farben, 6 Presets inkl. Light Theme; zeitabhängiger Tag/Nacht-Wechsel (Plus)
 - **Konfigurierbares Layout** — linkes/rechtes Panel aus frei wählbaren Widgets (Wetter, Kalender, Kameras, Kraftstoff, PV, Fahrzeug) mit Größengewicht
 - **Kameras** — Live-Stream, Snapshots, Ereignisliste (Bewegung/Person/Klingel), Türklingel-Overlay mit automatischem Livebild
 - **TTS** — Edge TTS (Microsoft, Online) und Sherpa ONNX (lokal, Offline-Fallback)
 - **Gedächtnis** — Langzeit-Memory mit Freigabe-Queue, Personenprofile, tägliche Zusammenfassungen, Wochensummaries
 - **Persönlichkeit** — Freundlichkeit, Humor, Direktheit u.a. — konfigurierbar und im Gespräch anpassbar
 - **Stimmung & Beziehung** — Erika entwickelt eine eigene Stimmung und Beziehungsdynamik zu Personen
-- **Fahrzeugabfragen** — Akku, Reichweite, Ladestatus per Sprache
-- **PV-Anlage** — Leistung, Hausverbrauch, Netz-Ein-/Einspeiseverfolgung, Batterieladung; konfigurierbare Widget-Felder; Echtzeit-Update alle 5 s; animiertes Energiefluss-Diagramm; Tages-/Wochen-/Monatsstatistik für Einspeisung und Netzbezug
+- **Hausaufgaben** *(Plus/Family)* — Aufgabenverwaltung mit Wochen-/Monats-/Jahresstatistik pro Person, Wochensieger, Erledigungen per Klick am Display
+- **Einkaufsliste** — Spracheingabe + Display-Widget + bidirektionaler Sync mit Companion App; `reconcile_items()` stellt Daten nach Server-Verlust automatisch wieder her
+- **Fahrzeugabfragen** — Akku, Reichweite, Ladestatus per Sprache; Lade- und Standortverlauf (Plus)
+- **PV-Anlage** — Leistung, Hausverbrauch, Netz-Ein-/Einspeiseverfolgung, Batterieladung; Echtzeit 5 s; animiertes Energiefluss-Diagramm; Langzeit-Statistik via HA WebSocket; Kosten & Saldo (Plus)
+- **Strom-Modul** — Verbrauchssensoren (Waschmaschine etc.) konfigurierbar; Kostenauswertung per Gerät (Plus)
 - **Timer & Erinnerungen** — Labels, mehrere gleichzeitig, per Sprache verwalten; Push-Notification auf Smartphone bei Fälligkeit
 - **Kalender** — Einträge per Sprache, Tagesübersicht, CalDAV-ready via Home Assistant
 - **Mülltonnen-Erinnerung** — Push-Notification am Vorabend wenn morgen Müllabfuhr ist; Uhrzeit frei konfigurierbar
@@ -27,6 +35,7 @@ Software-Core für einen sozialen KI-Roboter. FastAPI-Backend, SQLite-Datenbank,
 - **Websuche** — Wikipedia-Provider, erweiterbar
 - **Standort via zone.home** — Koordinaten direkt aus Home Assistant übernehmen, kein mehrdeutiges Geocoding
 - **LLM-Router** — OpenAI-kompatibel (LM Studio, Ollama, OpenAI), Mock-Fallback wenn offline
+- **Sync Server Auth v3.0** — E-Mail/Passwort statt statischem Token; JWT-Rotation (Access 1h / Refresh 30d); Activation-based Licensing; Multi-User pro Tenant (Family); Admin-Endpoints mit `X-Admin-Key`
 - **CI/CD** — GitHub Actions: automatischer Build + Test-Run bei jedem Push
 
 ---
@@ -86,9 +95,19 @@ robot-core/
     app/
       main.py              # FastAPI-App, Background-Loops
       api/                 # REST-Endpoints (chat, memory, people, HA-Devices, …)
+        routers/
+          chores.py        # Hausaufgaben (Plus — Community-Build entfernt)
+          sync.py          # Einkaufslisten-Sync
+          content.py       # /display/state (modules-Dict)
       brain/               # LLM-Client, Decision-Engine, Memory-System
       integrations/        # RobotCore — Haupt-Orchestrierung
-      services/            # Home Assistant, Fahrzeuge, PV, TTS, Wetter, …
+      services/
+        chore_service.py   # Hausaufgaben-Logik (Plus)
+        sync_service.py    # Einkaufslisten-Sync incl. reconcile_items()
+        feature_service.py # Feature-Flags (community/plus/family)
+        push_service.py    # FCM Push-Notifications
+        backup_service.py  # Cloud-Backup via Sync Server
+        ...
       search/              # Such-Provider (Wikipedia, HA, Wetter, …)
       database/            # SQLite-Schema, Verbindung, State-Helpers
       hardware/            # Fake-Adapter (Kamera, Mikrofon, Akku)
@@ -97,11 +116,15 @@ robot-core/
   frontend/
     local-admin.html       # Admin-Panel
     display.html           # Display-Panel
+    display-chores.js      # Hausaufgaben-Modul (Plus — Community-Build entfernt)
   docker-compose.yml
   VERSION
   install.sh
   update.sh
+  license.json             # Sync-Credentials (sync_email, sync_password, sync_url)
   INSTALL_MANUAL.md
+  ANLEITUNG.md             # Benutzeranleitung
+  ADMIN_ANLEITUNG.md       # Admin-Guide (Setup, Konfiguration, Auth)
 ```
 
 **Kernprinzipien:**

@@ -91,6 +91,7 @@ def trigger_sync() -> dict[str, Any]:
     if modules.get("shopping", True):
         try:
             pushed += svc.push_unsynced()
+            svc.reconcile_items()
             since   = svc.get_last_sync_time()
             pulled += svc.pull_and_merge(since)
         except Exception as exc:

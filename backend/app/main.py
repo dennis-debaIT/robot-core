@@ -330,8 +330,8 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
         await asyncio.sleep(interval_seconds)
 
 
-async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
-    """Pusht PV-Echtzeitdaten alle 10 Sekunden — unabhängig vom 60s-Sync-Loop."""
+async def _pv_fast_sync_loop(interval_seconds: int = 5) -> None:
+    """Pusht PV-Echtzeitdaten alle 5 Sekunden — unabhängig vom 60s-Sync-Loop."""
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
     await asyncio.sleep(35)
@@ -348,8 +348,8 @@ async def _pv_fast_sync_loop(interval_seconds: int = 10) -> None:
         await asyncio.sleep(interval_seconds)
 
 
-async def _light_command_poll_loop(interval_seconds: int = 3) -> None:
-    """Pollt Licht-Befehle alle 3 Sekunden für schnelle Reaktion auf App-Befehle."""
+async def _light_command_poll_loop(interval_seconds: int = 1) -> None:
+    """Pollt Licht-Befehle jede Sekunde für schnelle Reaktion auf App-Befehle."""
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
     await asyncio.sleep(38)
@@ -359,7 +359,11 @@ async def _light_command_poll_loop(interval_seconds: int = 3) -> None:
             if url and tok:
                 cfg = _ICS().get_config()
                 if (cfg.get("sync") or {}).get("modules", {}).get("lights", False):
-                    _sync.poll_light_commands()
+                    executed = _sync.poll_light_commands()
+                    if executed:
+                        # Sofort nach Befehlsausführung Status pushen — nicht auf HA-WS warten
+                        await asyncio.sleep(0.3)
+                        _sync.push_lights()
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
