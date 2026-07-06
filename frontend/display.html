@@ -3717,6 +3717,7 @@
   let _msgPollTimer = null;
   let _msgDismissTimer = null;
   let _msgUnread = 0;
+  let _msgShownIds = new Set();
 
   function _startMsgPolling() {
     if (_msgPollTimer) return;
@@ -3734,11 +3735,12 @@
       const r = await fetch(`/messages/inbox?since=${encodeURIComponent(_msgPollSince)}&limit=10`, { cache: 'no-store' });
       if (!r.ok) return;
       const d = await r.json();
-      const msgs = (d.messages || []).filter(m => m.sender_type !== 'erika');
+      // Only show notifications for messages from other devices (not our own sent messages)
+      const msgs = (d.messages || []).filter(m => !_msgShownIds.has(m.id));
       if (!msgs.length) return;
       msgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
       _msgPollSince = msgs[msgs.length - 1].created_at;
-      msgs.forEach(m => _showIncomingMsg(m));
+      msgs.forEach(m => { _msgShownIds.add(m.id); _showIncomingMsg(m); });
     } catch {}
   }
 
@@ -3773,6 +3775,7 @@
 
   let _msgSelectedSender = null;
   let _msgAllMessages    = [];
+  let _msgShowBroadcast  = false;
 
   function _openMessagesView() {
     _msgUnread = 0;
@@ -3780,6 +3783,7 @@
     if (badge) badge.hidden = true;
     _dismissIncomingMsg();
     _msgSelectedSender = null;
+    _msgShowBroadcast  = false;
     document.getElementById('left-label').textContent = 'Nachrichten';
     const lc = document.getElementById('left-content');
     if (lc) {
@@ -3787,17 +3791,28 @@
       lc.style.display   = 'flex';
       lc.style.flexDirection = 'column';
       lc.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 4px;border-bottom:1px solid rgba(255,255,255,0.07);">
+          <span style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Kontakte</span>
+          <button onclick="_toggleBroadcast()" title="Neue Nachricht"
+            style="background:rgba(255,255,255,0.08);border:none;color:var(--text);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:0.85rem;">+ Neu</button>
+        </div>
+        <div id="msg-broadcast-wrap" style="display:none;padding:8px;border-bottom:1px solid rgba(255,255,255,0.07);">
+          <div class="msg-compose-bar">
+            <input id="msg-broadcast-input" type="text" placeholder="Broadcast senden…"
+              onkeydown="if(event.key==='Enter')_sendBroadcast()">
+            <button onclick="_sendBroadcast()">➤</button>
+          </div>
+        </div>
         <div id="msg-contact-scroll" style="flex:1;overflow-y:auto;">
           <div class="loading-dots" style="color:var(--muted);font-size:0.85rem;padding:12px;">Lade…</div>
-        </div>
-        <div class="msg-compose-bar" style="border-top:1px solid rgba(255,255,255,0.08);">
-          <input id="msg-broadcast-input" type="text" placeholder="Broadcast senden…"
-            onkeydown="if(event.key==='Enter')_sendBroadcast()">
-          <button onclick="_sendBroadcast()">➤</button>
         </div>`;
     }
-    const center = document.getElementById('center-content');
-    if (center) center.innerHTML = '<div class="msg-empty-state"><span style="font-size:2rem;">💬</span><span>Chat auswählen</span></div>';
+    // Center: empty state using cal-overlay
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) {
+      overlay.innerHTML = '<div class="msg-empty-state"><span style="font-size:2rem;">💬</span><span>Kontakt auswählen</span></div>';
+      overlay.classList.add('active');
+    }
     _loadMsgContacts();
   }
 
@@ -3805,31 +3820,60 @@
     if (_navMode === 'messages') return;
     _msgSelectedSender = null;
     _msgAllMessages    = [];
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
+  }
+
+  function _toggleBroadcast() {
+    _msgShowBroadcast = !_msgShowBroadcast;
+    const wrap = document.getElementById('msg-broadcast-wrap');
+    if (wrap) wrap.style.display = _msgShowBroadcast ? 'block' : 'none';
+    if (_msgShowBroadcast) document.getElementById('msg-broadcast-input')?.focus();
   }
 
   async function _loadMsgContacts() {
     const scroll = document.getElementById('msg-contact-scroll');
     try {
-      const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
-      if (!r.ok) throw new Error();
-      const d = await r.json();
+      // Load inbox + known contacts in parallel
+      const [inboxRes, contactsRes] = await Promise.all([
+        fetch('/messages/inbox?limit=100', { cache: 'no-store' }),
+        fetch('/messages/contacts', { cache: 'no-store' }).catch(() => null),
+      ]);
+      if (!inboxRes.ok) throw new Error();
+      const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
+
+      // Build map of sender → last message
       const map = new Map();
       for (const m of _msgAllMessages) {
         const key = m.sender_label || 'Unbekannt';
         if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
       }
-      const contacts = [...map.entries()].sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
+
+      // Add known devices that haven't messaged yet
+      if (contactsRes?.ok) {
+        const cd = await contactsRes.json();
+        for (const name of (cd.contacts || [])) {
+          if (!map.has(name)) map.set(name, null);
+        }
+      }
+
       if (!scroll) return;
-      if (!contacts.length) {
-        scroll.innerHTML = '<div style="padding:16px;color:#718096;font-size:0.82rem;">Noch keine Nachrichten.<br><span style="font-size:0.75rem;color:#4a5568;">Sende unten eine Broadcast-Nachricht um die Verbindung zu starten.</span></div>';
+      if (!map.size) {
+        scroll.innerHTML = '<div style="padding:16px;color:#718096;font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;color:#4a5568;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
         return;
       }
+
+      // Sort: contacts with messages first (by time), then known-only contacts
+      const withMsgs  = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
+      const noMsgs    = [...map.entries()].filter(([,v]) => !v);
+      const contacts  = [...withMsgs, ...noMsgs];
+
       scroll.innerHTML = contacts.map(([sender, last]) => `
         <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" onclick="_openConversation(${JSON.stringify(sender)})">
           <div class="msg-contact-name">${escapeHTML(sender)}</div>
-          <div class="msg-contact-preview">${escapeHTML((last.content || '').slice(0, 38))}</div>
-          <div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>
+          <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="color:#4a5568;">Noch keine Nachrichten</em>'}</div>
+          ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
         </div>`).join('');
     } catch {
       if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
@@ -3841,12 +3885,17 @@
     if (!inp || !inp.value.trim()) return;
     const content = inp.value.trim();
     inp.value = '';
+    _toggleBroadcast();
     try {
-      await fetch('/messages', {
+      const resp = await fetch('/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, recipient_type: 'broadcast' }),
       });
+      if (resp.ok) {
+        const sent = await resp.json();
+        if (sent?.id) _msgShownIds.add(sent.id);
+      }
       const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
       if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
       await _loadMsgContacts();
@@ -3855,17 +3904,17 @@
 
   function _openConversation(senderLabel) {
     _msgSelectedSender = senderLabel;
-    // Re-render left panel to update selection highlight
-    const lc = document.getElementById('left-content');
-    if (lc) lc.querySelectorAll('.msg-contact-item').forEach(el => {
+    // Update selection highlight in left panel
+    document.querySelectorAll('.msg-contact-item').forEach(el => {
       el.classList.toggle('selected', el.querySelector('.msg-contact-name')?.textContent === senderLabel);
     });
     // Filter messages for this sender
     const msgs = _msgAllMessages.filter(m => (m.sender_label || 'Unbekannt') === senderLabel)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    const center = document.getElementById('center-content');
-    if (!center) return;
-    center.innerHTML = `
+    // Render into cal-overlay
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = `
       <div class="msg-conv-wrap">
         <div class="msg-conv-header">💬 ${escapeHTML(senderLabel)}</div>
         <div class="msg-conv-messages" id="msg-conv-messages">
@@ -3873,7 +3922,7 @@
             <div style="display:flex;flex-direction:column;align-items:flex-start;">
               <div class="msg-bubble incoming">${escapeHTML(m.content)}</div>
               <div class="msg-bubble-meta">${_fmtMsgTime(m.created_at)}</div>
-            </div>`).join('') : '<div style="color:#718096;font-size:0.82rem;padding:8px 0;">Keine weiteren Nachrichten.</div>'}
+            </div>`).join('') : '<div style="color:#718096;font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
         </div>
         <div class="msg-compose-bar">
           <input id="msg-compose" type="text" placeholder="Nachricht schreiben…"
@@ -3881,6 +3930,7 @@
           <button onclick="_sendMsgFromView()">Senden</button>
         </div>
       </div>`;
+    overlay.classList.add('active');
     // Scroll to bottom
     const convEl = document.getElementById('msg-conv-messages');
     if (convEl) convEl.scrollTop = convEl.scrollHeight;
@@ -3892,12 +3942,15 @@
     const content = inp.value.trim();
     inp.value = '';
     try {
-      await fetch('/messages', {
+      const resp = await fetch('/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content, recipient_type: 'broadcast' }),
       });
-      // Reload contacts + reopen conversation
+      if (resp.ok) {
+        const sent = await resp.json();
+        if (sent?.id) _msgShownIds.add(sent.id);
+      }
       const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
       if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
       await _loadMsgContacts();

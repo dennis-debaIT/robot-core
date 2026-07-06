@@ -57,3 +57,11 @@ def mark_read(message_id: str) -> dict[str, Any]:
     if result is None:
         raise HTTPException(status_code=503, detail="Sync-Server nicht erreichbar")
     return result
+
+
+@router.get("/contacts")
+def get_contacts() -> dict[str, Any]:
+    result = _sync._sync_request("GET", "/messages/contacts")
+    if result is None:
+        return {"contacts": []}
+    return result
