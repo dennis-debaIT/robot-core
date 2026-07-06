@@ -3737,14 +3737,27 @@
       if (!r.ok) return;
       const d = await r.json();
       if (d.self_label) _msgSelfLabel = d.self_label;
-      // Only show notifications for messages from others (not own sent messages)
-      const msgs = (d.messages || []).filter(m =>
+      const newMsgs = d.messages || [];
+      if (!newMsgs.length) return;
+      newMsgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      _msgPollSince = newMsgs[newMsgs.length - 1].created_at;
+
+      // Append new messages to local cache
+      for (const m of newMsgs) {
+        if (!_msgAllMessages.find(x => x.id === m.id)) _msgAllMessages.push(m);
+      }
+
+      // Show overlay for incoming (non-own, not yet shown)
+      const incoming = newMsgs.filter(m =>
         !_msgShownIds.has(m.id) && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)
       );
-      if (!msgs.length) return;
-      msgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
-      _msgPollSince = msgs[msgs.length - 1].created_at;
-      msgs.forEach(m => { _msgShownIds.add(m.id); _showIncomingMsg(m); });
+      incoming.forEach(m => { _msgShownIds.add(m.id); _showIncomingMsg(m); });
+
+      // If messages view is open, refresh the chat immediately
+      if (_navMode === 'messages') {
+        _loadMsgContacts();
+        if (_msgSelectedSender) _openConversation(_msgSelectedSender);
+      }
     } catch {}
   }
 
