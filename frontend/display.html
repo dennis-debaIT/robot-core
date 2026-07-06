@@ -3713,36 +3713,25 @@
   }
 
   // ── NACHRICHTEN ────────────────────────────────────────
-  let _msgPollSince = new Date().toISOString();
-  let _msgPollTimer = null;
   let _msgDismissTimer = null;
   let _msgUnread = 0;
   let _msgShownIds = new Set();
-  let _msgSelfLabel = '';   // display's own name — loaded from /messages/inbox self_label
+  let _msgSelfLabel = '';   // display's own name — from SSE self_label
+  let _msgEventSource = null;
 
   function _startMsgPolling() {
-    if (_msgPollTimer) return;
-    _pollMessages();
-    _msgPollTimer = setInterval(_pollMessages, 5000);
-  }
-
-  function _stopMsgPolling() {
-    if (_msgPollTimer) { clearInterval(_msgPollTimer); _msgPollTimer = null; }
-  }
-
-  async function _pollMessages() {
+    if (_msgEventSource) return;
     if (!_enabledModules.messages) return;
-    try {
-      const r = await fetch(`/messages/inbox?since=${encodeURIComponent(_msgPollSince)}&limit=10`, { cache: 'no-store' });
-      if (!r.ok) return;
-      const d = await r.json();
+    _msgEventSource = new EventSource('/messages/stream');
+
+    _msgEventSource.onmessage = (e) => {
+      let d;
+      try { d = JSON.parse(e.data); } catch { return; }
       if (d.self_label) _msgSelfLabel = d.self_label;
       const newMsgs = d.messages || [];
       if (!newMsgs.length) return;
-      newMsgs.sort((a, b) => a.created_at.localeCompare(b.created_at));
-      _msgPollSince = newMsgs[newMsgs.length - 1].created_at;
 
-      // Append new messages to local cache
+      // Merge into local cache (initial event: bulk; subsequent events: incremental)
       for (const m of newMsgs) {
         if (!_msgAllMessages.find(x => x.id === m.id)) _msgAllMessages.push(m);
       }
@@ -3753,12 +3742,20 @@
       );
       incoming.forEach(m => { _msgShownIds.add(m.id); _showIncomingMsg(m); });
 
-      // If messages view is open, refresh the chat immediately
+      // If messages view is open: refresh contact list + open conversation
       if (_navMode === 'messages') {
         _loadMsgContacts();
         if (_msgSelectedSender) _openConversation(_msgSelectedSender);
       }
-    } catch {}
+    };
+
+    _msgEventSource.onerror = () => {
+      // Browser reconnects automatically after ~3s; no action needed
+    };
+  }
+
+  function _stopMsgPolling() {
+    if (_msgEventSource) { _msgEventSource.close(); _msgEventSource = null; }
   }
 
   function _showIncomingMsg(msg) {

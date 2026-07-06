@@ -1,9 +1,12 @@
 """Nachrichten-Proxy: Display ↔ Sync-Server."""
 from __future__ import annotations
 
+import asyncio
+import json
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.services import sync_service as _sync
@@ -73,3 +76,31 @@ def get_contacts() -> dict[str, Any]:
     if result is None:
         return {"contacts": []}
     return result
+
+
+@router.get("/stream")
+async def stream_messages_display(request: Request) -> StreamingResponse:
+    """SSE-Proxy für das Display: pollt Sync-Server sekündlich und streamt neue Nachrichten."""
+
+    async def generate():
+        self_label = _display_name()
+        # Initial snapshot
+        result = await asyncio.to_thread(_sync._sync_request, "GET", "/messages/inbox?limit=50")
+        msgs = (result or {}).get("messages", [])
+        last_ts = msgs[-1]["created_at"] if msgs else None
+        yield f"data: {json.dumps({'messages': msgs, 'self_label': self_label})}\n\n"
+
+        while not await request.is_disconnected():
+            await asyncio.sleep(1.0)
+            path = f"/messages/inbox?since={last_ts}&limit=20" if last_ts else "/messages/inbox?limit=20"
+            result = await asyncio.to_thread(_sync._sync_request, "GET", path)
+            new_msgs = (result or {}).get("messages", [])
+            if new_msgs:
+                last_ts = new_msgs[-1]["created_at"]
+                yield f"data: {json.dumps({'messages': new_msgs, 'self_label': self_label})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
