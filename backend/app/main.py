@@ -633,3 +633,10 @@ except ImportError:
 
 from app.api.routers import sync
 app.include_router(sync.router)
+
+try:
+    from app.api.routers import admin_members
+    app.include_router(admin_members.router)
+    app.include_router(admin_members.auth_router)
+except ImportError:
+    pass
