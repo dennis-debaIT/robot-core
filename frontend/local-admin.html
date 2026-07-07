@@ -236,6 +236,7 @@
           <div class="sidebar-group-label">App &amp; Sync</div>
           <div class="sg-body">
             <button type="button" class="tab-button sidebar-item" data-tab-target="tab-sync"><span class="si-icon">📱</span><span>Companion-App</span></button>
+            <button type="button" class="tab-button sidebar-item" id="btn-tab-members" data-tab-target="tab-members" style="display:none;"><span class="si-icon">👥</span><span>Mitglieder</span></button>
           </div>
         </div>
 
@@ -1492,6 +1493,57 @@
 
           <div id="persons-list" style="display:flex;flex-direction:column;gap:12px;margin-top:4px;">
             <div style="color:var(--muted);font-size:0.82rem;">Lade Personen…</div>
+          </div>
+        </article>
+
+        <!-- ── MITGLIEDER (Family) ───────────────────────────── -->
+        <article id="tab-members" class="panel-card tab-panel">
+          <header class="panel-header">
+            <div>
+              <div class="panel-kicker">Erika Family</div>
+              <h2>Mitglieder verwalten</h2>
+            </div>
+            <button type="button" onclick="showInviteMemberForm()" style="padding:7px 16px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.82rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">
+              + Mitglied einladen
+            </button>
+          </header>
+
+          <section class="module-card">
+            <div class="section-copy">
+              <div class="section-title">Haushalt-ID</div>
+              <p>Diese ID teilst du mit anderen Personen, damit sie deinem Haushalt beitreten können.</p>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <code id="household-id-display" style="font-size:1.1rem;letter-spacing:0.12em;padding:8px 16px;background:var(--panel-soft);border:1px solid var(--border);border-radius:10px;font-weight:700;">–</code>
+              <button type="button" onclick="copyHouseholdId()" style="padding:7px 14px;border-radius:10px;font-size:0.8rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">Kopieren</button>
+            </div>
+          </section>
+
+          <section class="module-card" id="invite-member-form" style="display:none;">
+            <div class="section-copy"><div class="section-title">Neues Mitglied einladen</div></div>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Name</span>
+                <input id="invite-display-name" class="field-input" type="text" placeholder="z.B. Maria">
+              </label>
+              <label class="field-block">
+                <span class="field-label">E-Mail</span>
+                <input id="invite-email" class="field-input" type="email" placeholder="maria@example.com">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Passwort</span>
+                <input id="invite-password" class="field-input" type="password" placeholder="Temporäres Passwort">
+              </label>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:10px;">
+              <button type="button" onclick="inviteMember()" style="padding:8px 18px;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.84rem;background:rgba(0,200,255,0.1);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;">Einladen</button>
+              <button type="button" onclick="document.getElementById('invite-member-form').style.display='none'" style="padding:8px 14px;border-radius:10px;font-size:0.84rem;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);">Abbrechen</button>
+            </div>
+            <div id="invite-member-status" style="font-size:0.8rem;margin-top:8px;color:var(--muted);"></div>
+          </section>
+
+          <div id="members-list" style="display:flex;flex-direction:column;gap:12px;margin-top:4px;">
+            <div style="color:var(--muted);font-size:0.82rem;">Lade Mitglieder…</div>
           </div>
         </article>
 
@@ -4003,6 +4055,9 @@
         if (choresBtn) choresBtn.style.display = feats.chores ? '' : 'none';
         const syncBtn = document.querySelector('[data-tab-target="tab-sync"]');
         if (syncBtn) syncBtn.style.display = feats.sync ? '' : 'none';
+        const membersBtn = document.getElementById('btn-tab-members');
+        if (membersBtn) membersBtn.style.display = feats.admin_members ? '' : 'none';
+        window._adminMembersEnabled = !!feats.admin_members;
         const scheduleCard = document.getElementById('theme-schedule-card');
         if (scheduleCard) scheduleCard.style.display = feats.theme_schedule ? '' : 'none';
       } catch {}
@@ -5756,6 +5811,137 @@
     }
 
     document.querySelector('[data-tab-target="tab-persons"]')?.addEventListener('click', loadPersons);
+    document.querySelector('[data-tab-target="tab-members"]')?.addEventListener('click', loadMembers);
+
+    // ── Mitglieder (Family) ───────────────────────────────────
+    let _membersData = [];
+
+    async function loadMembers() {
+      const el = document.getElementById('members-list');
+      if (!el) return;
+      el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">Lade…</div>';
+      try {
+        const d = await fetch('/admin/members').then(r => r.json());
+        _membersData = d.users || [];
+        const hid = d.household_id;
+        const hidEl = document.getElementById('household-id-display');
+        if (hidEl && hid) hidEl.textContent = hid;
+        // load persons for link dropdown
+        const pd = await fetch('/profiles').then(r => r.json());
+        const persons = pd.persons || [];
+        renderMembersList(_membersData, persons);
+      } catch(e) {
+        el.innerHTML = `<div style="color:var(--danger);font-size:0.82rem;">Fehler: ${e.message}</div>`;
+      }
+    }
+
+    function renderMembersList(users, persons) {
+      const el = document.getElementById('members-list');
+      if (!el) return;
+      if (!users.length) {
+        el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">Noch keine Mitglieder.</div>';
+        return;
+      }
+      el.innerHTML = users.map(u => {
+        const linked = u.linked_person;
+        const opts = persons.map(p =>
+          `<option value="${p.id}" ${linked && linked.id === p.id ? 'selected' : ''}>${p.name}</option>`
+        ).join('');
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--panel-soft);border:1px solid var(--border);border-radius:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:160px;">
+            <div style="font-weight:600;">${u.display_name || u.email}</div>
+            <div style="font-size:0.75rem;color:var(--muted);">${u.email} · ${u.role === 'master' ? '👑 Admin' : 'Mitglied'}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <select onchange="linkPersonToUser('${u.id}', this.value)"
+              style="padding:5px 10px;border-radius:8px;font-size:0.8rem;background:var(--panel-soft);border:1px solid var(--border);color:var(--text);">
+              <option value="">– Person verknüpfen –</option>
+              ${opts}
+            </select>
+            ${u.role !== 'master' ? `<button type="button" onclick="removeMember('${u.id}', '${(u.display_name || u.email).replace(/'/g,"\\'")}'"
+              style="padding:5px 12px;border-radius:8px;font-size:0.78rem;cursor:pointer;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.3);color:#ff5555;">
+              Entfernen</button>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function showInviteMemberForm() {
+      document.getElementById('invite-member-form').style.display = '';
+      document.getElementById('invite-display-name').focus();
+    }
+
+    async function inviteMember() {
+      const displayName = document.getElementById('invite-display-name').value.trim();
+      const email = document.getElementById('invite-email').value.trim();
+      const password = document.getElementById('invite-password').value.trim();
+      const status = document.getElementById('invite-member-status');
+      if (!displayName || !email || !password) { status.textContent = 'Alle Felder ausfüllen.'; return; }
+      try {
+        const r = await fetch('/admin/members/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: displayName, email, password }),
+        });
+        if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+        document.getElementById('invite-member-form').style.display = 'none';
+        document.getElementById('invite-display-name').value = '';
+        document.getElementById('invite-email').value = '';
+        document.getElementById('invite-password').value = '';
+        status.textContent = '';
+        await loadMembers();
+      } catch(e) {
+        status.textContent = '✗ ' + e.message;
+      }
+    }
+
+    async function removeMember(userId, name) {
+      if (!confirm(`Mitglied "${name}" wirklich entfernen?`)) return;
+      try {
+        const r = await fetch(`/admin/members/${userId}`, { method: 'DELETE' });
+        if (!r.ok) throw new Error((await r.json()).detail || `HTTP ${r.status}`);
+        await loadMembers();
+      } catch(e) {
+        alert('Fehler: ' + e.message);
+      }
+    }
+
+    async function linkPersonToUser(userId, personId) {
+      try {
+        if (!personId) {
+          // Verknüpfung aufheben: person finden und null setzen
+          const u = _membersData.find(m => m.id === userId);
+          if (u?.linked_person?.id) {
+            await fetch(`/admin/persons/${u.linked_person.id}/link-user`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sync_user_id: null }),
+            });
+          }
+        } else {
+          await fetch(`/admin/persons/${personId}/link-user`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sync_user_id: userId }),
+          });
+        }
+        await loadMembers();
+      } catch(e) {
+        alert('Fehler: ' + e.message);
+      }
+    }
+
+    function copyHouseholdId() {
+      const text = document.getElementById('household-id-display')?.textContent || '';
+      if (text && text !== '–') {
+        navigator.clipboard.writeText(text).then(() => {
+          const btn = event.target;
+          const orig = btn.textContent;
+          btn.textContent = '✓ Kopiert';
+          setTimeout(() => btn.textContent = orig, 1500);
+        });
+      }
+    }
 
     // ── Benachrichtigungsregeln ────────────────────────────────
     const CONDITION_TYPES = [

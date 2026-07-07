@@ -36,6 +36,7 @@ FEATURES: dict[str, str] = {
     "chores":          "plus",   # Hausaufgaben-Modul (Aufgabenverwaltung + Statistik)
     "liga_plus":       "plus",   # Liga-Modul Plus: Marktwerte, Spielerprofile, letzte Spiele, Mini-Tabelle
     "sync":            "plus",   # Companion-App & Einkaufslisten-Sync (Erika Plus)
+    "admin_members":   "family", # Mitgliederverwaltung (Erika Family)
 }
 
 _TIER_RANK = {"community": 0, "plus": 1, "family": 2}
