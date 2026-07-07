@@ -82,21 +82,9 @@ def mark_read(message_id: str) -> dict[str, Any]:
 @router.get("/contacts")
 def get_contacts() -> dict[str, Any]:
     result = _sync._sync_request("GET", "/messages/contacts")
-    contacts: list[str] = list((result or {}).get("contacts") or [])
-    # Verbundene Haushalte (Family): gegenseitig bestätigte Mitglieder als Kontakte ergänzen
-    try:
-        from app.services.feature_service import FeatureService
-        if FeatureService().has_feature("admin_members"):
-            hc = _sync._sync_request("GET", "/households/contacts")
-            for entry in (hc or {}).get("contacts", []):
-                if entry.get("status") == "mutual":
-                    for member in (entry.get("members") or []):
-                        name = member.get("display_name") or ""
-                        if name and name not in contacts:
-                            contacts.append(name)
-    except Exception:
-        pass
-    return {"contacts": contacts}
+    if result is None:
+        return {"contacts": []}
+    return result
 
 
 @router.get("/stream")
