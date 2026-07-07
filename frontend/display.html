@@ -3805,10 +3805,12 @@
     if (overlay) overlay.style.display = 'none';
   }
 
-  let _msgSelectedSender = null;
-  let _msgAllMessages    = [];
-  let _msgShowBroadcast  = false;
-  let _msgExtraContacts  = [];
+  let _msgSelectedSender      = null;
+  let _msgSelectedHouseholdId = null;
+  let _msgAllMessages         = [];
+  let _msgShowBroadcast       = false;
+  let _msgExtraContacts       = [];
+  let _msgHouseholdMap        = {};
 
   function _updateMsgBadge() {
     const badge = document.getElementById('msg-badge');
@@ -3862,8 +3864,9 @@
 
   function clearMessagesView() {
     if (_navMode === 'messages') return;
-    _msgSelectedSender = null;
-    _msgAllMessages    = [];
+    _msgSelectedSender      = null;
+    _msgSelectedHouseholdId = null;
+    _msgAllMessages         = [];
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }
@@ -3886,14 +3889,16 @@
       const key = m.sender_label || 'Unbekannt';
       if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
     }
-    // Check if own messages are more recent than the last incoming per contact
+    // For each contact: check if outgoing messages addressed to them are more recent
     if (_msgSelfLabel) {
-      const ownMsgs = _msgAllMessages.filter(m => m.sender_label === _msgSelfLabel);
-      if (ownMsgs.length) {
-        const lastOwn = ownMsgs.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b);
-        for (const [contact, lastIncoming] of map.entries()) {
-          if (lastIncoming && new Date(lastOwn.created_at) > new Date(lastIncoming.created_at)) {
-            map.set(contact, lastOwn);
+      for (const [contact, lastIncoming] of map.entries()) {
+        const outToContact = _msgAllMessages.filter(
+          m => m.sender_label === _msgSelfLabel && m.recipient_id === contact
+        );
+        if (outToContact.length) {
+          const lastOut = outToContact.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b);
+          if (!lastIncoming || new Date(lastOut.created_at) > new Date(lastIncoming.created_at)) {
+            map.set(contact, lastOut);
           }
         }
       }
@@ -3941,7 +3946,14 @@
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
       if (d.self_label) _msgSelfLabel = d.self_label;
-      _msgExtraContacts = contactsRes?.ok ? ((await contactsRes.json()).contacts || []) : [];
+      if (contactsRes?.ok) {
+        const cd = await contactsRes.json();
+        _msgExtraContacts = cd.contacts || [];
+        _msgHouseholdMap  = cd.household_map || {};
+      } else {
+        _msgExtraContacts = [];
+        _msgHouseholdMap  = {};
+      }
       _renderMsgContactsFromCache(_msgExtraContacts);
     } catch {
       if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
@@ -3975,8 +3987,11 @@
     const convEl = document.getElementById('msg-conv-messages');
     if (!convEl || !_msgSelectedSender) return;
     const msgs = _msgAllMessages.filter(m => {
-      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
-      const isTheirs = (m.sender_label || 'Unbekannt') === _msgSelectedSender;
+      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel
+        && m.recipient_id === _msgSelectedSender;
+      const isTheirs = _msgSelectedHouseholdId
+        ? m.sender_id === _msgSelectedHouseholdId
+        : (m.sender_label || 'Unbekannt') === _msgSelectedSender;
       return isMine || isTheirs;
     }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     const wasAtBottom = convEl.scrollHeight - convEl.scrollTop - convEl.clientHeight < 60;
@@ -3993,10 +4008,14 @@
   }
 
   function _openConversation(senderLabel) {
-    _msgSelectedSender = senderLabel;
+    _msgSelectedSender      = senderLabel;
+    _msgSelectedHouseholdId = _msgHouseholdMap[senderLabel] || null;
     // Mark all unread messages from this sender as read
     for (const m of _msgAllMessages) {
-      if (!m.read && m.sender_label === senderLabel) {
+      const isTheirs = _msgSelectedHouseholdId
+        ? m.sender_id === _msgSelectedHouseholdId
+        : (m.sender_label || 'Unbekannt') === senderLabel;
+      if (!m.read && isTheirs) {
         m.read = true;
         fetch(`/messages/${m.id}/read`, { method: 'PATCH' }).catch(() => {});
       }
@@ -4007,10 +4026,13 @@
     document.querySelectorAll('.msg-contact-item').forEach(el => {
       el.classList.toggle('selected', el.querySelector('.msg-contact-name')?.textContent === senderLabel);
     });
-    // All messages in this thread: incoming from senderLabel + outgoing from self
+    // All messages in this thread: incoming from senderLabel/household + outgoing addressed to them
     const msgs = _msgAllMessages.filter(m => {
-      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
-      const isTheirs = (m.sender_label || 'Unbekannt') === senderLabel;
+      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel
+        && m.recipient_id === senderLabel;
+      const isTheirs = _msgSelectedHouseholdId
+        ? m.sender_id === _msgSelectedHouseholdId
+        : (m.sender_label || 'Unbekannt') === senderLabel;
       return isMine || isTheirs;
     }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     // Render into cal-overlay
@@ -4045,17 +4067,36 @@
     const content = inp.value.trim();
     inp.value = '';
     try {
+      const payload = { content, recipient_type: 'broadcast' };
+      if (_msgSelectedHouseholdId) {
+        payload.recipient_household_id = _msgSelectedHouseholdId;
+      } else if (_msgSelectedSender) {
+        payload.recipient_id = _msgSelectedSender;
+      }
       const resp = await fetch('/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, recipient_type: 'broadcast' }),
+        body: JSON.stringify(payload),
       });
       if (resp.ok) {
         const sent = await resp.json();
-        if (sent?.id) _msgShownIds.add(sent.id);
+        const echoId = sent?.message_id || `local-${Date.now()}`;
+        if (sent?.message_id) _msgShownIds.add(sent.message_id);
+        // Optimistic echo — keeps sent message visible regardless of tenant routing
+        if (!_msgAllMessages.find(m => m.id === echoId)) {
+          _msgAllMessages = [..._msgAllMessages, {
+            id: echoId, sender_label: _msgSelfLabel || 'Erika',
+            sender_type: 'erika', recipient_type: 'broadcast',
+            recipient_id: _msgSelectedSender, content,
+            message_type: 'text', created_at: new Date().toISOString(), read: true,
+          }];
+        }
       }
-      const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
-      if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
+      // For cross-household: message is in remote tenant, won't appear in own inbox
+      if (!_msgSelectedHouseholdId) {
+        const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
+        if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
+      }
       await _loadMsgContacts();
       if (_msgSelectedSender) _openConversation(_msgSelectedSender);
     } catch {}

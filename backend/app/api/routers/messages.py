@@ -46,6 +46,7 @@ class SendRequest(BaseModel):
     content: str
     recipient_type: str = "broadcast"
     recipient_id: str | None = None
+    recipient_household_id: str | None = None
     message_type: str = "text"
 
 
@@ -59,6 +60,8 @@ def send_message(body: SendRequest) -> dict[str, Any]:
     }
     if body.recipient_id:
         payload["recipient_id"] = body.recipient_id
+    if body.recipient_household_id:
+        payload["recipient_household_id"] = body.recipient_household_id
     result = _sync._sync_request("POST", "/messages", payload)
     if result is None:
         raise HTTPException(status_code=503, detail="Sync-Server nicht erreichbar")
@@ -93,11 +96,11 @@ async def stream_messages_display(request: Request) -> StreamingResponse:
 
     async def generate():
         self_label = _display_name()
-        # Initial snapshot
+        # Initial snapshot (messages returned DESC — msgs[0] is newest)
         result = await asyncio.to_thread(_sync._sync_request, "GET", "/messages/inbox?limit=50")
         msgs = (result or {}).get("messages", [])
         _normalize_messages(msgs)
-        last_ts = msgs[-1]["created_at"] if msgs else None
+        last_ts = msgs[0]["created_at"] if msgs else None
         yield f"data: {json.dumps({'messages': msgs, 'self_label': self_label})}\n\n"
 
         while not await request.is_disconnected():
