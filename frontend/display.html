@@ -3808,6 +3808,7 @@
   let _msgSelectedSender      = null;
   let _msgSelectedHouseholdId = null;
   let _msgAllMessages         = [];
+  let _msgLocalEchoes         = [];   // cross-household echoes, survive inbox refreshes
   let _msgShowBroadcast       = false;
   let _msgExtraContacts       = [];
   let _msgHouseholdMap        = {};
@@ -3867,6 +3868,7 @@
     _msgSelectedSender      = null;
     _msgSelectedHouseholdId = null;
     _msgAllMessages         = [];
+    _msgLocalEchoes         = [];
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }
@@ -3946,6 +3948,10 @@
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
       if (d.self_label) _msgSelfLabel = d.self_label;
+      // Re-inject cross-household echoes that aren't in the inbox (remote tenant)
+      for (const e of _msgLocalEchoes) {
+        if (!_msgAllMessages.find(m => m.id === e.id)) _msgAllMessages.push(e);
+      }
       if (contactsRes?.ok) {
         const cd = await contactsRes.json();
         _msgExtraContacts = cd.contacts || [];
@@ -4083,13 +4089,18 @@
         const echoId = sent?.message_id || `local-${Date.now()}`;
         if (sent?.message_id) _msgShownIds.add(sent.message_id);
         // Optimistic echo — keeps sent message visible regardless of tenant routing
-        if (!_msgAllMessages.find(m => m.id === echoId)) {
-          _msgAllMessages = [..._msgAllMessages, {
-            id: echoId, sender_label: _msgSelfLabel || 'Erika',
-            sender_type: 'erika', recipient_type: 'broadcast',
-            recipient_id: _msgSelectedSender, content,
-            message_type: 'text', created_at: new Date().toISOString(), read: true,
-          }];
+        const echo = {
+          id: echoId, sender_label: _msgSelfLabel || 'Erika',
+          sender_type: 'erika', recipient_type: 'broadcast',
+          recipient_id: _msgSelectedSender, content,
+          message_type: 'text', created_at: new Date().toISOString(), read: true,
+        };
+        if (!_msgAllMessages.find(m => m.id === echo.id)) {
+          _msgAllMessages = [..._msgAllMessages, echo];
+        }
+        // Cross-household: echo won't appear in own inbox → persist across refreshes
+        if (_msgSelectedHouseholdId && !_msgLocalEchoes.find(e => e.id === echo.id)) {
+          _msgLocalEchoes.push(echo);
         }
       }
       // For cross-household: message is in remote tenant, won't appear in own inbox
