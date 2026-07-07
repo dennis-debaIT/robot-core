@@ -127,6 +127,33 @@ def link_user_to_person(
     return {"ok": True, "person_id": person_id, "sync_user_id": sync_user_id}
 
 
+@router.get("/households/contacts")
+def list_household_contacts() -> dict[str, Any]:
+    """Verknüpfte Haushalte mit Status (mutual/pending) und Mitgliedern."""
+    _require_family()
+    _, token = svc.get_credentials()
+    return _sync_request("GET", "/households/contacts", token)
+
+
+@router.post("/households/connect")
+def add_household_contact(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Haushalt per Erika-ID verknüpfen (master only)."""
+    _require_family()
+    household_id = str(payload.get("household_id") or "").strip()
+    if not household_id:
+        raise HTTPException(status_code=400, detail="household_id erforderlich")
+    _, token = svc.get_credentials()
+    return _sync_request("POST", "/households/connect", token, {"household_id": household_id})
+
+
+@router.delete("/households/connect/{household_id}")
+def remove_household_contact(household_id: str) -> dict[str, Any]:
+    """Haushalt-Verbindung entfernen (master only)."""
+    _require_family()
+    _, token = svc.get_credentials()
+    return _sync_request("DELETE", f"/households/connect/{household_id}", token)
+
+
 @auth_router.get("/auth/whoami")
 def whoami(authorization: str = Header(default="")) -> dict[str, Any]:
     """

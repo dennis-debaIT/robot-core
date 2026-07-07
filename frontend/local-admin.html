@@ -1291,27 +1291,17 @@
               <p>Als Absendername wird der unter <strong>System → Gerätename</strong> eingetragene Name verwendet.</p>
             </div>
           </section>
-          <section class="module-card">
+          <section class="module-card" id="household-contacts-section" style="display:none;">
             <div class="section-copy">
-              <div class="section-title">Nachrichten zwischen Haushalten <span style="font-size:0.72rem;color:var(--muted);font-weight:400;margin-left:8px;">(Demnächst)</span></div>
-              <p>Ermöglicht das Senden von Nachrichten zwischen verschiedenen Erika-Installationen, z.&nbsp;B. zwischen Familienmitgliedern in unterschiedlichen Haushalten.</p>
+              <div class="section-title">Verbundene Haushalte</div>
+              <p>Trage die Haushalt-ID einer anderen Erika-Installation ein. Sobald <strong>beide Seiten</strong> sich gegenseitig eingetragen haben, gilt die Verbindung als aktiv und Nachrichten können ausgetauscht werden.</p>
             </div>
-            <label class="switch-card" style="opacity:0.5;pointer-events:none;">
-              <input id="messages-cross-tenant-enabled" type="checkbox" disabled>
-              <span class="switch-slider" aria-hidden="true"></span>
-              <span class="switch-copy">
-                <span class="switch-title">Haushalt-übergreifende Nachrichten aktivieren</span>
-                <span class="switch-text">Noch nicht verfügbar – kommt in einer späteren Version</span>
-              </span>
-            </label>
-            <div style="margin-top:14px;opacity:0.5;">
-              <div class="section-title" style="font-size:0.78rem;margin-bottom:8px;">Vertrauenswürdige Haushalte</div>
-              <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px;">E-Mail-Adresse des Master-Accounts eines anderen Erika-Haushalts eingeben, um Nachrichten austauschen zu können.</p>
-              <div style="display:flex;gap:8px;align-items:center;">
-                <input id="messages-trusted-email" class="field-input" type="email" placeholder="familie@example.com" style="flex:1;" disabled>
-                <button type="button" class="btn btn-secondary" disabled>Hinzufügen</button>
-              </div>
-              <div id="messages-trusted-list" style="margin-top:10px;font-size:0.8rem;color:var(--muted);">Noch keine vertrauenswürdigen Haushalte konfiguriert.</div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+              <input id="household-connect-id" class="field-input" type="text" placeholder="ERIKA-XXXXXX" style="flex:1;text-transform:uppercase;letter-spacing:0.05em;" maxlength="12" oninput="this.value=this.value.toUpperCase()">
+              <button type="button" class="btn btn-secondary" onclick="addHouseholdContact()">Hinzufügen</button>
+            </div>
+            <div id="household-contacts-list">
+              <p style="font-size:0.8rem;color:var(--muted);">Wird geladen…</p>
             </div>
           </section>
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
@@ -4628,6 +4618,95 @@
         const enabledEl = document.getElementById('messages-enabled');
         if (enabledEl) enabledEl.checked = m.enabled === true;
       } catch {}
+      // Haushalt-Verbindungen nur bei Family anzeigen
+      const sec = document.getElementById('household-contacts-section');
+      if (sec) {
+        if (window._adminMembersEnabled) {
+          sec.style.display = '';
+          _loadHouseholdContacts();
+        } else {
+          sec.style.display = 'none';
+        }
+      }
+    }
+
+    async function _loadHouseholdContacts() {
+      const listEl = document.getElementById('household-contacts-list');
+      if (!listEl) return;
+      try {
+        const data = await fetch('/admin/households/contacts').then(r => r.json());
+        _renderHouseholdContacts(data.contacts || []);
+      } catch (e) {
+        listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--muted);">Fehler beim Laden.</p>';
+      }
+    }
+
+    function _renderHouseholdContacts(contacts) {
+      const listEl = document.getElementById('household-contacts-list');
+      if (!listEl) return;
+      if (!contacts.length) {
+        listEl.innerHTML = '<p style="font-size:0.8rem;color:var(--muted);">Noch keine Verbindungen eingetragen.</p>';
+        return;
+      }
+      listEl.innerHTML = contacts.map(c => {
+        const isMutual = c.status === 'mutual';
+        const isNotFound = c.status === 'not_found';
+        const statusLabel = isMutual ? '<span style="color:#22c55e;font-weight:600;">● Verbunden</span>'
+          : isNotFound ? '<span style="color:#ef4444;">● Nicht gefunden</span>'
+          : '<span style="color:#f59e0b;">⏳ Ausstehend</span>';
+        const members = (c.members || []).map(m =>
+          `<span style="display:inline-block;background:var(--surface2,#f3f4f6);border-radius:4px;padding:1px 7px;font-size:0.73rem;margin:2px 3px 2px 0;">${_esc(m.display_name)}</span>`
+        ).join('');
+        const membersRow = isMutual && members
+          ? `<div style="margin-top:6px;">${members}</div>` : '';
+        return `<div style="display:flex;align-items:flex-start;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border,#e5e7eb);">
+          <div>
+            <span style="font-family:monospace;font-size:0.88rem;font-weight:600;letter-spacing:0.04em;">${_esc(c.household_id)}</span>
+            <span style="margin-left:10px;font-size:0.8rem;">${statusLabel}</span>
+            ${membersRow}
+          </div>
+          <button type="button" class="btn btn-icon" title="Entfernen" onclick="removeHouseholdContact('${_esc(c.household_id)}')" style="flex-shrink:0;margin-left:10px;">✕</button>
+        </div>`;
+      }).join('');
+    }
+
+    function _esc(s) {
+      return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function addHouseholdContact() {
+      const inp = document.getElementById('household-connect-id');
+      const hid = (inp?.value || '').trim().toUpperCase();
+      if (!hid || !hid.startsWith('ERIKA-') || hid.length !== 12) {
+        alert('Bitte eine gültige Haushalt-ID im Format ERIKA-XXXXXX eingeben.');
+        return;
+      }
+      try {
+        const r = await fetch('/admin/households/connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ household_id: hid }),
+        });
+        if (!r.ok) {
+          const d = await r.json();
+          alert(d.detail || 'Fehler beim Hinzufügen.');
+          return;
+        }
+        if (inp) inp.value = '';
+        _loadHouseholdContacts();
+      } catch (e) {
+        alert('Fehler: ' + e.message);
+      }
+    }
+
+    async function removeHouseholdContact(hid) {
+      if (!confirm(`Verbindung zu ${hid} wirklich entfernen?`)) return;
+      try {
+        await fetch(`/admin/households/connect/${encodeURIComponent(hid)}`, { method: 'DELETE' });
+        _loadHouseholdContacts();
+      } catch (e) {
+        alert('Fehler: ' + e.message);
+      }
     }
 
     async function _loadTournamentConfig() {
