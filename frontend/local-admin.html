@@ -5828,7 +5828,7 @@
         if (hidEl && hid) hidEl.textContent = hid;
         // load persons for link dropdown
         const pd = await fetch('/profiles').then(r => r.json());
-        const persons = pd.persons || [];
+        const persons = pd.items || [];
         renderMembersList(_membersData, persons);
       } catch(e) {
         el.innerHTML = `<div style="color:var(--danger);font-size:0.82rem;">Fehler: ${e.message}</div>`;
