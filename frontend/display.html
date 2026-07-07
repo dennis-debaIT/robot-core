@@ -3878,11 +3878,24 @@
   function _renderMsgContactsFromCache(extraContacts = []) {
     const scroll = document.getElementById('msg-contact-scroll');
     if (!scroll) return;
+    // Build contact map: key = other party, value = most recent message in thread (any direction)
     const map = new Map();
     for (const m of _msgAllMessages) {
-      if (_msgSelfLabel && m.sender_label === _msgSelfLabel) continue;
+      if (_msgSelfLabel && m.sender_label === _msgSelfLabel) continue; // own → skip as contact key
       const key = m.sender_label || 'Unbekannt';
       if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
+    }
+    // Check if own messages are more recent than the last incoming per contact
+    if (_msgSelfLabel) {
+      const ownMsgs = _msgAllMessages.filter(m => m.sender_label === _msgSelfLabel);
+      if (ownMsgs.length) {
+        const lastOwn = ownMsgs.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b);
+        for (const [contact, lastIncoming] of map.entries()) {
+          if (lastIncoming && new Date(lastOwn.created_at) > new Date(lastIncoming.created_at)) {
+            map.set(contact, lastOwn);
+          }
+        }
+      }
     }
     for (const name of extraContacts) {
       if (name !== _msgSelfLabel && !map.has(name)) map.set(name, null);

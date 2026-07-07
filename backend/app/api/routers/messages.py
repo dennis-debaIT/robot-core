@@ -21,6 +21,14 @@ def _display_name() -> str:
     return (cfg.get("system") or {}).get("device", {}).get("name") or "Erika"
 
 
+def _normalize_messages(msgs: list) -> list:
+    """Sync-Server gibt read_at zurück; Display/App erwarten read: bool."""
+    for m in msgs:
+        if "read" not in m:
+            m["read"] = bool(m.get("read_at"))
+    return msgs
+
+
 @router.get("/inbox")
 def get_inbox(since: str | None = None, limit: int = 50) -> dict[str, Any]:
     path = f"/messages/inbox?limit={min(limit, 200)}"
@@ -30,6 +38,7 @@ def get_inbox(since: str | None = None, limit: int = 50) -> dict[str, Any]:
     if result is None:
         return {"messages": [], "self_label": _display_name()}
     result["self_label"] = _display_name()
+    _normalize_messages(result.get("messages", []))
     return result
 
 
@@ -87,6 +96,7 @@ async def stream_messages_display(request: Request) -> StreamingResponse:
         # Initial snapshot
         result = await asyncio.to_thread(_sync._sync_request, "GET", "/messages/inbox?limit=50")
         msgs = (result or {}).get("messages", [])
+        _normalize_messages(msgs)
         last_ts = msgs[-1]["created_at"] if msgs else None
         yield f"data: {json.dumps({'messages': msgs, 'self_label': self_label})}\n\n"
 
@@ -96,6 +106,7 @@ async def stream_messages_display(request: Request) -> StreamingResponse:
             result = await asyncio.to_thread(_sync._sync_request, "GET", path)
             new_msgs = (result or {}).get("messages", [])
             if new_msgs:
+                _normalize_messages(new_msgs)
                 last_ts = new_msgs[-1]["created_at"]
                 yield f"data: {json.dumps({'messages': new_msgs, 'self_label': self_label})}\n\n"
 
