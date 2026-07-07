@@ -3764,7 +3764,7 @@
 
       // If messages view is open: render instantly from cache (no REST fetch)
       if (_navMode === 'messages') {
-        _renderMsgContactsFromCache();
+        _renderMsgContactsFromCache(_msgExtraContacts);
         // Only refresh message list — _openConversation would rebuild compose bar and kill input focus
         if (_msgSelectedSender) _refreshConvMessages();
       }
@@ -3808,6 +3808,7 @@
   let _msgSelectedSender = null;
   let _msgAllMessages    = [];
   let _msgShowBroadcast  = false;
+  let _msgExtraContacts  = [];
 
   function _updateMsgBadge() {
     const badge = document.getElementById('msg-badge');
@@ -3940,8 +3941,8 @@
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
       if (d.self_label) _msgSelfLabel = d.self_label;
-      const extraContacts = contactsRes?.ok ? ((await contactsRes.json()).contacts || []) : [];
-      _renderMsgContactsFromCache(extraContacts);
+      _msgExtraContacts = contactsRes?.ok ? ((await contactsRes.json()).contacts || []) : [];
+      _renderMsgContactsFromCache(_msgExtraContacts);
     } catch {
       if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
     }
@@ -4001,7 +4002,7 @@
       }
     }
     _updateMsgBadge();
-    _renderMsgContactsFromCache(); // refresh contact badges
+    _renderMsgContactsFromCache(_msgExtraContacts); // refresh contact badges
     // Update selection highlight in left panel
     document.querySelectorAll('.msg-contact-item').forEach(el => {
       el.classList.toggle('selected', el.querySelector('.msg-contact-name')?.textContent === senderLabel);
