@@ -3880,15 +3880,25 @@
     if (_msgShowBroadcast) document.getElementById('msg-broadcast-input')?.focus();
   }
 
+  // Kanonischer Kontaktname für eine Nachricht: bei Haushalt-Nachrichten den User-Namen aus
+  // household_map bevorzugen statt des Gerätenamens (sender_label).
+  function _msgContactKey(m) {
+    if (m.sender_type === 'household' && m.sender_id) {
+      const found = Object.entries(_msgHouseholdMap).find(([, hid]) => hid === m.sender_id);
+      if (found) return found[0];
+    }
+    return m.sender_label || 'Unbekannt';
+  }
+
   // Render contact list purely from in-memory cache — called by SSE (instant, no fetch)
   function _renderMsgContactsFromCache(extraContacts = []) {
     const scroll = document.getElementById('msg-contact-scroll');
     if (!scroll) return;
-    // Build contact map: key = other party, value = most recent message in thread (any direction)
+    // Build contact map: key = canonical contact name (resolves household device labels → person names)
     const map = new Map();
     for (const m of _msgAllMessages) {
       if (_msgSelfLabel && m.sender_label === _msgSelfLabel) continue; // own → skip as contact key
-      const key = m.sender_label || 'Unbekannt';
+      const key = _msgContactKey(m);
       if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
     }
     // For each contact: check if outgoing messages addressed to them are more recent
@@ -3912,11 +3922,12 @@
       scroll.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;opacity:0.6;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
       return;
     }
-    // Unread count per sender
+    // Unread count per contact (using canonical key, same as conversation map)
     const unreadMap = new Map();
     for (const m of _msgAllMessages) {
       if (!m.read && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)) {
-        unreadMap.set(m.sender_label, (unreadMap.get(m.sender_label) || 0) + 1);
+        const k = _msgContactKey(m);
+        unreadMap.set(k, (unreadMap.get(k) || 0) + 1);
       }
     }
     const withMsgs = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
