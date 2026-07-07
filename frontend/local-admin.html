@@ -5900,13 +5900,20 @@
       if (!el) return;
       el.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;">Lade…</div>';
       try {
-        const d = await fetch('/admin/members').then(r => r.json());
+        const mr = await fetch('/admin/members');
+        if (!mr.ok) {
+          let msg = `HTTP ${mr.status}`;
+          try { msg = (await mr.json()).detail || msg; } catch {}
+          throw new Error(msg);
+        }
+        const d = await mr.json();
         _membersData = d.users || [];
         const hid = d.household_id;
         const hidEl = document.getElementById('household-id-display');
         if (hidEl && hid) hidEl.textContent = hid;
         // load persons for link dropdown
-        const pd = await fetch('/profiles').then(r => r.json());
+        const pr = await fetch('/profiles');
+        const pd = pr.ok ? await pr.json() : { items: [] };
         const persons = pd.items || [];
         renderMembersList(_membersData, persons);
       } catch(e) {

@@ -443,6 +443,8 @@ def init_db() -> None:
             conn.execute("ALTER TABLE persons ADD COLUMN role TEXT")
         if "emoji" not in person_columns:
             conn.execute("ALTER TABLE persons ADD COLUMN emoji TEXT")
+        if "sync_user_id" not in person_columns:
+            conn.execute("ALTER TABLE persons ADD COLUMN sync_user_id TEXT")
 
         chore_task_columns = {row["name"] for row in conn.execute("PRAGMA table_info(chore_tasks)").fetchall()}
         if "points" not in chore_task_columns:
