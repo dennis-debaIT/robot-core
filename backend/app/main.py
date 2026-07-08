@@ -188,6 +188,11 @@ async def _waste_push_loop() -> None:
             from app.services.integration_config_service import IntegrationConfigService
             from app.services.waste_service import WasteService
             from app.services.push_service import send_notification
+            from app.services.feature_service import FeatureService
+
+            if not FeatureService().has_feature("waste"):
+                await asyncio.sleep(60)
+                continue
 
             cfg         = IntegrationConfigService().get_config()
             waste_cfg   = cfg.get("waste") or {}

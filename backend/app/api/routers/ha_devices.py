@@ -53,6 +53,10 @@ def geocode_single(lat: float, lon: float) -> dict:
 
 @router.get("/vehicles/{vehicle_id}/charging-history")
 def get_vehicle_charging_history(vehicle_id: str, period: str = "7days") -> dict[str, Any]:
+    from app.services.feature_service import FeatureService
+    if not FeatureService().has_feature("vehicle_history"):
+        raise HTTPException(status_code=403, detail="Ladeverlauf erfordert Erika Plus")
+
     config = IntegrationConfigService().get_config()
     svc = VehicleService()
     # battery_entity aus Config ermitteln

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.services.integration_config_service import IntegrationConfigService
 from app.services.waste_service import WasteService
@@ -11,6 +11,12 @@ from app.services.waste_service import WasteService
 router = APIRouter()
 
 _WEEKDAYS_DE = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+
+
+def _require_waste() -> None:
+    from app.services.feature_service import FeatureService
+    if not FeatureService().has_feature("waste"):
+        raise HTTPException(status_code=403, detail="Abfallkalender erfordert Erika Plus")
 
 
 def format_waste_date(date_str: str) -> str:
@@ -21,6 +27,7 @@ def format_waste_date(date_str: str) -> str:
 
 @router.get("/ha/waste")
 def get_waste() -> dict[str, Any]:
+    _require_waste()
     config = IntegrationConfigService().get_config()
     return WasteService().get_display_data(config)
 
