@@ -887,14 +887,22 @@
           if (fee === 0) return 'Ablösefrei';
           return _fmtMv(fee);
         };
-        const _renderTransferRows = list => list.map(p => {
+        // direction: 'in' = Zugang (from_club, ←) | 'out' = Abgang (to_club, →)
+        const _renderTransferRows = (list, direction) => list.map(p => {
           const mv    = _fmtMv(p.market_value);
           const fee   = _fmtFee(p.fee, p.fee_text);
           const posDe = _posLabel(p.position);
-          const club  = p.from_club || '';
-          const meta  = [posDe, club ? `← ${_esc(club)}` : ''].filter(Boolean).join(' · ');
-          const right = fee ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(fee)}</span>`
-                       : mv && mv !== '–' ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;">${_esc(mv)}</span>` : '';
+          const club  = direction === 'out' ? (p.to_club || '') : (p.from_club || '');
+          const arrow = direction === 'out' ? '→' : '←';
+          const meta  = [posDe, club ? `${arrow} ${_esc(club)}` : ''].filter(Boolean).join(' · ');
+          // Orange = tatsächliche Ablösesumme (bekannt). Grün = Marktwert-Schätzung,
+          // nur gezeigt wenn die echte Ablöse unbekannt ist — Text-Präfix "MW" macht
+          // den Unterschied auch ohne Farbwahrnehmung eindeutig.
+          const right = fee
+            ? `<span style="color:var(--warning,#f5a623);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Ablösesumme">${_esc(fee)}</span>`
+            : mv && mv !== '–'
+              ? `<span style="color:var(--success);font-weight:700;font-size:0.65rem;flex-shrink:0;" title="Marktwert — echte Ablöse unbekannt">MW ${_esc(mv)}</span>`
+              : '';
           return `<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-size:0.72rem;">
             <span style="color:var(--muted);min-width:50px;flex-shrink:0;">${_fmtDateISO(p.date)}</span>
             <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
@@ -903,12 +911,17 @@
             ${right}
           </div>`;
         }).join('');
-        const arrivals = (tmTransfers || {}).arrivals || [];
+        const arrivals   = (tmTransfers || {}).arrivals   || [];
+        const departures = (tmTransfers || {}).departures || [];
         const transfersHtml = `<div class="liga-td-divider"></div>
              <div class="liga-td-section-label" style="margin-bottom:3px;">🔁 Zugänge ${_esc(season)}</div>
              ${arrivals.length
-               ? `<div>${_renderTransferRows(arrivals)}</div>`
-               : `<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Zugänge in dieser Saison.</div>`}`;
+               ? `<div>${_renderTransferRows(arrivals, 'in')}</div>`
+               : `<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Zugänge in dieser Saison.</div>`}
+             <div class="liga-td-section-label" style="margin:8px 0 3px;">🔁 Abgänge ${_esc(season)}</div>
+             ${departures.length
+               ? `<div>${_renderTransferRows(departures, 'out')}</div>`
+               : `<div style="color:var(--muted);font-size:0.72rem;padding:4px 0;">Keine Abgänge in dieser Saison.</div>`}`;
         _tdHtmlCache[`${teamId}:transfers`] = { html: transfersHtml, ts: Date.now() };
         _setSect('td-transfers-sect', transfersHtml);
       })
