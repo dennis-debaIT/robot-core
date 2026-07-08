@@ -6985,6 +6985,14 @@
   }
 
   async function showLightsView() {
+    // navTo() ruft vor showLightsView() blind die clear*View()-Funktionen ALLER
+    // anderen Module auf (auch bei erneutem Tap auf "Lichter", ohne dass wir die
+    // Ansicht verlassen hätten) — u.a. clearChoresView()/clearVehiclesView()
+    // leeren dabei die geteilten Container left-content/cal-overlay. Ohne diesen
+    // Reset würde das Fingerprint-Gate in renderLightsView() bei unveränderten
+    // Lichtdaten den Rebuild überspringen und die gerade geleerten Container
+    // blieben leer stehen.
+    _lightsLastFingerprint = null;
     const lights = await loadLightsData();
     // Navigation kann während des Fetches weitergegangen sein (z.B. sofort
     // wieder auf Start getippt) — sonst schreibt diese verspätete Antwort
