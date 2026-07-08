@@ -2168,9 +2168,9 @@
             </div>
           </section>
 
-          <section class="module-card">
+          <section class="module-card" id="backup-card">
             <div class="section-copy">
-              <div class="section-title">Cloud-Backup</div>
+              <div class="section-title">Cloud-Backup <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
               <p>Erstellt ein verschlüsseltes Backup (Datenbank + Einstellungen) und speichert es sicher in der Cloud. Bei einem Gerätedefekt einfach neu aufsetzen, Sync-Token eintragen und wiederherstellen — alles ist sofort wie vorher.</p>
             </div>
             <div id="backup-info-box" style="margin-bottom:14px;padding:10px 14px;border-radius:10px;background:var(--surface-2);font-size:0.84rem;color:var(--muted);">
@@ -4050,6 +4050,8 @@
         window._adminMembersEnabled = !!feats.admin_members;
         const scheduleCard = document.getElementById('theme-schedule-card');
         if (scheduleCard) scheduleCard.style.display = feats.theme_schedule ? '' : 'none';
+        const backupCard = document.getElementById('backup-card');
+        if (backupCard) backupCard.style.display = feats.backup ? '' : 'none';
       } catch {}
     }
 

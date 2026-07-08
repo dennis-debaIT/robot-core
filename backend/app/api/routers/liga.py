@@ -17,14 +17,6 @@ router = APIRouter()
 
 _ALLOWED_CODES = {"BL1", "BL2", "BL3"}
 
-
-def _require_liga_plus() -> None:
-    """Marktwerte, Spielerprofile, Kader-Browsing anderer Vereine, letzte Spiele
-    fremder Teams — die eigentliche Tabelle/Live-Spieltag/eigener Favorit bleibt frei."""
-    from app.services.feature_service import FeatureService
-    if not FeatureService().has_feature("liga_plus"):
-        raise HTTPException(status_code=403, detail="Diese Liga-Ansicht erfordert Erika Plus")
-
 # ── Disk-Cache für TM-Bilder ───────────────────────────────────────────────────
 _IMG_CACHE_DIR = pathlib.Path("/data/tm_cache/img")
 
@@ -92,7 +84,6 @@ def get_liga_teams() -> dict[str, Any]:
 
 @router.get("/liga/tm/profile")
 def get_tm_profile(team_name: str = Query("")) -> dict[str, Any]:
-    _require_liga_plus()
     from app.services.transfermarkt_service import TransfermarktService
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
@@ -104,7 +95,6 @@ def get_tm_profile(team_name: str = Query("")) -> dict[str, Any]:
 
 @router.get("/liga/tm/players")
 def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
-    _require_liga_plus()
     from app.services.transfermarkt_service import TransfermarktService
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
@@ -117,7 +107,6 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
 @router.get("/liga/person/{person_id}")
 def get_person_profile(person_id: int) -> dict[str, Any]:
     """Erweitertes Spielerprofil via football-data.org /v4/persons/{id} — aktueller Verein + Vertrag."""
-    _require_liga_plus()
     cfg = _get_cfg()
     api_key = _get_api_key(cfg)
     if not api_key:
@@ -131,7 +120,6 @@ def get_person_profile(person_id: int) -> dict[str, Any]:
 @router.get("/liga/tm/club-transfers")
 def get_club_transfers(team_name: str = Query("")) -> dict[str, Any]:
     """Zugänge + Abgänge der laufenden Saison mit echten Ablösesummen."""
-    _require_liga_plus()
     from app.services.transfermarkt_service import TransfermarktService
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
@@ -144,7 +132,6 @@ def get_club_transfers(team_name: str = Query("")) -> dict[str, Any]:
 @router.get("/liga/tm/player-search")
 def search_tm_player(name: str = Query("")) -> dict[str, Any]:
     """Spieler per Name auf TM suchen — liefert tm_id, marketValue, club, position, age, nationalities."""
-    _require_liga_plus()
     from app.services.transfermarkt_service import TransfermarktService
     if not name.strip():
         raise HTTPException(400, "name fehlt")
@@ -157,7 +144,6 @@ def search_tm_player(name: str = Query("")) -> dict[str, Any]:
 @router.get("/liga/tm/player/{player_id}")
 def get_tm_player_profile(player_id: str) -> dict[str, Any]:
     """Einzelnes Spieler-Profil — 30-Tage-Disk-Cache, lazy auf Profilaufruf."""
-    _require_liga_plus()
     from app.services.transfermarkt_service import TransfermarktService
     profile = TransfermarktService().get_player_profile(player_id)
     if not profile:
@@ -173,7 +159,6 @@ def get_full_kader(team_id: int = Query(0), team_name: str = Query("")) -> dict[
     Vollständige TM-Profil-Anreicherung läuft im Daemon-Thread im Hintergrund
     und schreibt das Ergebnis persistent auf Disk (7-Tage-Stale-Schwelle).
     """
-    _require_liga_plus()
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
     cfg = _get_cfg()
@@ -183,15 +168,8 @@ def get_full_kader(team_id: int = Query(0), team_name: str = Query("")) -> dict[
 
 @router.get("/liga/team-detail")
 def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
-    """Team-Fokus (letzte 5 Spiele + nächstes Spiel) für beliebigen Verein.
-
-    Für den eigenen Favoriten-Verein bleibt das frei — /liga/state liefert
-    dieselben Daten (team_focus) für ihn bereits ungegated; nur das Anschauen
-    FREMDER Vereine ("Vereinsseite" anderer Teams) ist die Plus-Tiefe."""
+    """Team-Fokus (letzte 5 Spiele + nächstes Spiel) für beliebigen Verein."""
     cfg = _get_cfg()
-    fav_id = cfg.get("favorite_team_id")
-    if not (fav_id and int(fav_id) == team_id):
-        _require_liga_plus()
     api_key = _get_api_key(cfg)
     if not api_key:
         raise HTTPException(400, "Liga nicht konfiguriert")
@@ -201,7 +179,6 @@ def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
 @router.get("/liga/team-squad")
 def get_team_squad(team_id: int = Query(...)) -> dict[str, Any]:
     """Kader eines Teams inkl. Trikotnummern — funktioniert für National- und Vereinsmannschaften."""
-    _require_liga_plus()
     cfg = _get_cfg()
     api_key = _get_api_key(cfg)
     if not api_key:

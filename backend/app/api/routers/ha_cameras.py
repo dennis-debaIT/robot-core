@@ -205,10 +205,6 @@ def stop_all_camera_streams() -> dict[str, Any]:
 
 @router.get("/ha/cameras/events")
 def get_ha_camera_events() -> dict[str, Any]:
-    from app.services.feature_service import FeatureService
-    if not FeatureService().has_feature("camera_events"):
-        raise HTTPException(status_code=403, detail="Kamera-Ereignisliste erfordert Erika Plus")
-
     from app.search.providers.homeassistant import HomeAssistantProvider
 
     return {"events": HomeAssistantProvider().get_camera_events()}

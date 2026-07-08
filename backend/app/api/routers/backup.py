@@ -5,8 +5,15 @@ from fastapi import APIRouter, HTTPException
 router = APIRouter(prefix="/admin/backup", tags=["backup"])
 
 
+def _require_backup() -> None:
+    from app.services.feature_service import FeatureService
+    if not FeatureService().has_feature("backup"):
+        raise HTTPException(status_code=403, detail="Cloud-Backup erfordert Erika Plus")
+
+
 @router.get("/info")
 def get_backup_info() -> dict:
+    _require_backup()
     from app.services.backup_service import backup_info
     try:
         return backup_info()
@@ -16,6 +23,7 @@ def get_backup_info() -> dict:
 
 @router.post("/create")
 def create_backup() -> dict:
+    _require_backup()
     from app.services.backup_service import create_backup as _create
     try:
         size = _create()
@@ -26,6 +34,7 @@ def create_backup() -> dict:
 
 @router.post("/restore")
 def restore_backup() -> dict:
+    _require_backup()
     from app.services.backup_service import restore_backup as _restore
     try:
         _restore()
