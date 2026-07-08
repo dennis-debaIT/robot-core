@@ -3512,6 +3512,7 @@
   let _lightsShowScenes = false;
   let _lightsLiveInterval = null;
   let _lightsLastFingerprint = null;
+  let _lightsVisitToken = 0;
   let _vehiclesData = [];
   let _selectedVehicle = null;
   let _vehiclesInterval = null;
@@ -6993,11 +6994,17 @@
     // Lichtdaten den Rebuild überspringen und die gerade geleerten Container
     // blieben leer stehen.
     _lightsLastFingerprint = null;
+    // Besuchs-Zähler: verlässt man die Ansicht und kehrt schnell zurück, ist
+    // _navMode danach wieder 'lights' — reicht also allein nicht, um eine noch
+    // von VOR dem Verlassen laufende Anfrage (z.B. vom 3s-Live-Poll) als
+    // veraltet zu erkennen. Der Token macht "gehört diese Antwort noch zum
+    // aktuellen Besuch" explizit.
+    const myToken = ++_lightsVisitToken;
     const lights = await loadLightsData();
     // Navigation kann während des Fetches weitergegangen sein (z.B. sofort
     // wieder auf Start getippt) — sonst schreibt diese verspätete Antwort
     // noch Lichter-Inhalt in ein Panel, das inzwischen eine andere Ansicht zeigt.
-    if (!lights || _navMode !== 'lights') return;
+    if (!lights || _navMode !== 'lights' || myToken !== _lightsVisitToken) return;
     // Start immer mit Alle-Gruppen-Übersicht
     _selectedGroup = null;
     renderLightsView(lights);
@@ -7177,13 +7184,14 @@
 
   async function refreshLightsView() {
     if (_navMode !== 'lights') return;
+    const myToken = _lightsVisitToken;
     const lights = await loadLightsData();
     // Erneut prüfen: während des Fetches kann die Navigation weitergegangen
-    // sein (clearLightsView() hat dann bereits _lightsLastFingerprint
-    // zurückgesetzt) — eine verspätete Antwort darf das nicht überschreiben,
-    // sonst bleibt das Fingerprint-Gate beim nächsten Öffnen fälschlich auf
-    // "unverändert" stehen und das Panel bleibt leer.
-    if (_navMode !== 'lights') return;
+    // sein. _navMode allein reicht nicht — verlässt man die Ansicht und
+    // kehrt vor Ablauf dieses Fetches zurück, steht es wieder auf 'lights',
+    // obwohl diese Antwort noch zum VORHERIGEN Besuch gehört. Der
+    // Token-Vergleich erkennt das zusätzlich.
+    if (_navMode !== 'lights' || myToken !== _lightsVisitToken) return;
     renderLightsView(lights);
   }
 
