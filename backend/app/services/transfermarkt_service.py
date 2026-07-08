@@ -36,7 +36,7 @@ _CLUB_CACHE_DIR      = pathlib.Path("/data/tm_cache/clubs")
 _TRANSFERS_CACHE_DIR = pathlib.Path("/data/tm_cache/player_transfers")
 _TMDE_CACHE_DIR      = pathlib.Path("/data/tm_cache/tmde")
 
-# Max. 2 gleichzeitige Profil-API-Calls — verhindert Rate-Limiting, halbiert Ladezeit
+# Max. 5 gleichzeitige Profil-API-Calls — verhindert Burst-Rate-Limiting bei der Anreicherung
 _PROFILE_API_SEM = threading.BoundedSemaphore(5)
 
 _TM_DE_HEADERS = {
@@ -690,7 +690,7 @@ class TransfermarktService:
                 _club_disk_write(api_cache, result, None)
                 return result
 
-        # ── 3. TM.de Scraping live (oft blockiert, aber als letzter Ausweg) ──────
+        # ── 4. TM.de Scraping live (oft blockiert, aber als letzter Ausweg) ──────
         if not slug or not de_id:
             return None
         result = self._scrape_club_transfers(slug, de_id, team_name)

@@ -25,6 +25,20 @@ def _get_cfg() -> dict[str, Any]:
     return (IntegrationConfigService().get_config().get("liga") or {})
 
 
+def _get_api_key(cfg: dict[str, Any]) -> str:
+    """football-data.org nutzt einen einzigen Account-Key für alle Wettbewerbe
+    (Bundesliga wie WM/EM) — die Admin-UI lässt ihn aber getrennt fürs Liga- und
+    fürs Turnier-Modul eintragen. Fällt auf den Turnier-Key zurück, wenn im
+    Liga-Modul keiner hinterlegt ist (z.B. Haushalt nutzt nur WM/EM und hat das
+    Liga-Modul nie eingerichtet) — sonst schlägt Kader-Browsing für National-
+    mannschaften aus der Turnier-Ansicht heraus mangels Key fehl."""
+    key = cfg.get("api_key")
+    if key:
+        return key
+    tournament_cfg = IntegrationConfigService().get_config().get("tournament") or {}
+    return tournament_cfg.get("api_key") or ""
+
+
 @router.get("/liga/state")
 def get_liga_state() -> dict[str, Any]:
     cfg = _get_cfg()
@@ -94,9 +108,10 @@ def get_tm_players(team_name: str = Query("")) -> dict[str, Any]:
 def get_person_profile(person_id: int) -> dict[str, Any]:
     """Erweitertes Spielerprofil via football-data.org /v4/persons/{id} — aktueller Verein + Vertrag."""
     cfg = _get_cfg()
-    if not cfg.get("api_key"):
+    api_key = _get_api_key(cfg)
+    if not api_key:
         raise HTTPException(400, "Liga nicht konfiguriert")
-    data = LigaService(cfg["api_key"]).get_person_profile(person_id)
+    data = LigaService(api_key).get_person_profile(person_id)
     if not data:
         raise HTTPException(404, "Spielerprofil nicht verfügbar")
     return data
@@ -147,7 +162,7 @@ def get_full_kader(team_id: int = Query(0), team_name: str = Query("")) -> dict[
     if not team_name.strip():
         raise HTTPException(400, "team_name fehlt")
     cfg = _get_cfg()
-    svc = LigaService(cfg.get("api_key", ""))
+    svc = LigaService(_get_api_key(cfg))
     return svc.get_full_kader(team_id or None, team_name.strip())
 
 
@@ -155,18 +170,20 @@ def get_full_kader(team_id: int = Query(0), team_name: str = Query("")) -> dict[
 def get_team_detail(team_id: int = Query(...)) -> dict[str, Any]:
     """Team-Fokus (letzte 5 Spiele + nächstes Spiel) für beliebigen Verein."""
     cfg = _get_cfg()
-    if not cfg.get("api_key"):
+    api_key = _get_api_key(cfg)
+    if not api_key:
         raise HTTPException(400, "Liga nicht konfiguriert")
-    return LigaService(cfg["api_key"]).get_team_focus(team_id)
+    return LigaService(api_key).get_team_focus(team_id)
 
 
 @router.get("/liga/team-squad")
 def get_team_squad(team_id: int = Query(...)) -> dict[str, Any]:
     """Kader eines Teams inkl. Trikotnummern — funktioniert für National- und Vereinsmannschaften."""
     cfg = _get_cfg()
-    if not cfg.get("api_key"):
+    api_key = _get_api_key(cfg)
+    if not api_key:
         raise HTTPException(400, "Liga nicht konfiguriert")
-    data = LigaService(cfg["api_key"]).get_team_squad(team_id)
+    data = LigaService(api_key).get_team_squad(team_id)
     if not data:
         raise HTTPException(404, "Team nicht gefunden oder kein Kader verfügbar")
     return data
