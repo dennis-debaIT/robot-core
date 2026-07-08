@@ -10,7 +10,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.services import sync_service as _sync
-from app.services import push_service as _push
 from app.services.integration_config_service import IntegrationConfigService
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -65,12 +64,10 @@ def send_message(body: SendRequest) -> dict[str, Any]:
     result = _sync._sync_request("POST", "/messages", payload)
     if result is None:
         raise HTTPException(status_code=503, detail="Sync-Server nicht erreichbar")
-    # Push notification to all registered app devices
-    _push.send_notification(
-        title=_display_name(),
-        body=body.content[:200],
-        channel="messages",
-    )
+    # Push-Benachrichtigung übernimmt der Sync Server (er kennt sowohl lokale
+    # als auch Haushalt-übergreifende Empfänger-Tokens); ein zusätzlicher Push
+    # von hier würde lokale Nachrichten doppelt zustellen und würde bei
+    # Haushalt-übergreifenden Nachrichten den Absender statt den Empfänger pushen.
     return result
 
 
@@ -110,7 +107,11 @@ async def stream_messages_display(request: Request) -> StreamingResponse:
             new_msgs = (result or {}).get("messages", [])
             if new_msgs:
                 _normalize_messages(new_msgs)
-                last_ts = new_msgs[-1]["created_at"]
+                # Antwort ist DESC sortiert — Cursor auf das späteste created_at
+                # ODER read_at über den ganzen Batch vorrücken (Lesebestätigungen
+                # können auf ältere Nachrichten mit neuerem read_at zeigen).
+                for m in new_msgs:
+                    last_ts = max(last_ts or "", m["created_at"], m.get("read_at") or "")
                 yield f"data: {json.dumps({'messages': new_msgs, 'self_label': self_label})}\n\n"
 
     return StreamingResponse(

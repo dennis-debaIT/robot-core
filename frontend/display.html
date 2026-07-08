@@ -3738,9 +3738,12 @@
       const newMsgs = d.messages || [];
       if (!newMsgs.length) return;
 
-      // Merge into local cache (initial event: bulk; subsequent events: incremental)
+      // Merge into local cache — update existing entries (z.B. Lesebestätigung
+      // auf einer bereits geladenen Nachricht) statt sie zu ignorieren.
       for (const m of newMsgs) {
-        if (!_msgAllMessages.find(x => x.id === m.id)) _msgAllMessages.push(m);
+        const idx = _msgAllMessages.findIndex(x => x.id === m.id);
+        if (idx === -1) _msgAllMessages.push(m);
+        else _msgAllMessages[idx] = m;
       }
 
       // Show overlay for incoming (non-own, unread, not yet shown)
@@ -3808,7 +3811,6 @@
   let _msgSelectedSender      = null;
   let _msgSelectedHouseholdId = null;
   let _msgAllMessages         = [];
-  let _msgLocalEchoes         = [];   // cross-household echoes, survive inbox refreshes
   let _msgShowBroadcast       = false;
   let _msgExtraContacts       = [];
   let _msgHouseholdMap        = {};
@@ -3816,9 +3818,15 @@
   function _updateMsgBadge() {
     const badge = document.getElementById('msg-badge');
     if (!badge) return;
-    const count = _msgAllMessages.filter(m =>
-      !m.read && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)
-    ).length;
+    // Zählt Kontakte mit ungelesenen Nachrichten (nicht einzelne Nachrichten) —
+    // konsistent mit der Android-App.
+    const contacts = new Set();
+    for (const m of _msgAllMessages) {
+      if (!m.read && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)) {
+        contacts.add(_msgContactKey(m));
+      }
+    }
+    const count = contacts.size;
     if (count > 0) {
       badge.textContent = count > 99 ? '99+' : String(count);
       badge.style.display = 'flex';
@@ -3868,7 +3876,6 @@
     _msgSelectedSender      = null;
     _msgSelectedHouseholdId = null;
     _msgAllMessages         = [];
-    _msgLocalEchoes         = [];
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }
@@ -3959,10 +3966,6 @@
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
       if (d.self_label) _msgSelfLabel = d.self_label;
-      // Re-inject cross-household echoes that aren't in the inbox (remote tenant)
-      for (const e of _msgLocalEchoes) {
-        if (!_msgAllMessages.find(m => m.id === e.id)) _msgAllMessages.push(e);
-      }
       if (contactsRes?.ok) {
         const cd = await contactsRes.json();
         _msgExtraContacts = cd.contacts || [];
@@ -3999,6 +4002,13 @@
     } catch {}
   }
 
+  // Meta-Zeile unter einer Bubble: Zeit + bei eigenen Nachrichten Lesebestätigung
+  function _msgBubbleMeta(m, isMine) {
+    const time = _fmtMsgTime(m.created_at);
+    if (!isMine) return time;
+    return `${time} · ${m.read ? '✓ Gelesen' : 'Gesendet'}`;
+  }
+
   // Update only the message list — called by SSE to avoid rebuilding compose bar
   function _refreshConvMessages() {
     const convEl = document.getElementById('msg-conv-messages');
@@ -4017,7 +4027,7 @@
           const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
           return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
             <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
-            <div class="msg-bubble-meta">${_fmtMsgTime(m.created_at)}</div>
+            <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
           </div>`;
         }).join('')
       : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>';
@@ -4063,7 +4073,7 @@
             const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
             return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
               <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
-              <div class="msg-bubble-meta">${_fmtMsgTime(m.created_at)}</div>
+              <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
             </div>`;
           }).join('') : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
         </div>
@@ -4097,28 +4107,11 @@
       });
       if (resp.ok) {
         const sent = await resp.json();
-        const echoId = sent?.message_id || `local-${Date.now()}`;
         if (sent?.message_id) _msgShownIds.add(sent.message_id);
-        // Optimistic echo — keeps sent message visible regardless of tenant routing
-        const echo = {
-          id: echoId, sender_label: _msgSelfLabel || 'Erika',
-          sender_type: 'erika', recipient_type: 'broadcast',
-          recipient_id: _msgSelectedSender, content,
-          message_type: 'text', created_at: new Date().toISOString(), read: true,
-        };
-        if (!_msgAllMessages.find(m => m.id === echo.id)) {
-          _msgAllMessages = [..._msgAllMessages, echo];
-        }
-        // Cross-household: echo won't appear in own inbox → persist across refreshes
-        if (_msgSelectedHouseholdId && !_msgLocalEchoes.find(e => e.id === echo.id)) {
-          _msgLocalEchoes.push(echo);
-        }
       }
-      // For cross-household: message is in remote tenant, won't appear in own inbox
-      if (!_msgSelectedHouseholdId) {
-        const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
-        if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
-      }
+      // Server legt bei Haushalt-übergreifenden Nachrichten eine eigene Kopie im
+      // Sender-Tenant an — ein normaler Inbox-Reload zeigt die gesendete Nachricht
+      // daher in jedem Fall an, kein clientseitiges Echo mehr nötig.
       await _loadMsgContacts();
       if (_msgSelectedSender) _openConversation(_msgSelectedSender);
     } catch {}
