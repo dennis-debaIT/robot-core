@@ -3750,7 +3750,7 @@
       incoming.forEach(m => {
         _msgShownIds.add(m.id);
         // Suppress overlay if this exact conversation is already open — user sees it live
-        const isActiveConv = _navMode === 'messages' && _msgSelectedSender === m.sender_label;
+        const isActiveConv = _navMode === 'messages' && _msgSelectedSender === _msgContactKey(m);
         if (isActiveConv) {
           // Mark read silently
           m.read = true;
@@ -3783,7 +3783,7 @@
     const overlay = document.getElementById('msg-incoming-overlay');
     if (!overlay) return;
     if (_msgDismissTimer) { clearTimeout(_msgDismissTimer); _msgDismissTimer = null; }
-    document.getElementById('msg-incoming-sender').textContent = msg.sender_label || 'Erika';
+    document.getElementById('msg-incoming-sender').textContent = _msgContactKey(msg) || 'Erika';
     document.getElementById('msg-incoming-content').textContent = msg.content;
     overlay.style.display = 'block';
     const bar = document.getElementById('msg-incoming-bar');
