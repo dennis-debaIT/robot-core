@@ -125,7 +125,9 @@
   const _POS_GROUP_LABEL = ['Tor', 'Abwehr', 'Mittelfeld', 'Sturm'];
 
   function _posEntry(pos) {
-    const key = (typeof pos === 'object' ? (pos.main || '') : (pos || ''));
+    // Achtung: typeof null === 'object' — ohne den truthy-Check würde pos.main
+    // bei null (z.B. Abgänge haben immer position:null) mit TypeError abstürzen.
+    const key = (pos && typeof pos === 'object' ? (pos.main || '') : (pos || ''));
     return _TM_POS[key] || null;
   }
   function _posShort(pos)  { const e = _posEntry(pos); return e ? e.short : (pos ? String(typeof pos === 'object' ? pos.main || '' : pos).slice(0, 3) : '–') || '–'; }
