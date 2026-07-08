@@ -452,9 +452,12 @@
                 </div>
               </div>
             </div>
-            <button type="button" class="btn-primary" onclick="saveKeywords()" style="margin-top:16px;">Stichwörter speichern</button>
-            <div id="keywords-status" class="save-status" style="margin-top:8px;display:none;"></div>
           </section>
+
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveNewsConfig()">Speichern</button>
+            <span id="news-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
 
         </article>
 
@@ -530,6 +533,10 @@
               <label class="field-block checkbox-block"><span class="field-label">Wind</span><label class="mini-check"><input id="weather-hourly-wind" type="checkbox"><span>Windgeschwindigkeit</span></label></label>
             </div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveWeatherConfig()">Speichern</button>
+            <span id="weather-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <article id="tab-vehicles" class="panel-card tab-panel">
@@ -558,6 +565,10 @@
             </div>
             <div id="ev-vehicle-list" class="vehicle-stack"></div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveVehiclesConfig()">Speichern</button>
+            <span id="vehicles-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <article id="tab-lights" class="panel-card tab-panel">
@@ -587,6 +598,10 @@
             </div>
             <div id="light-entity-grid" class="entity-grid"></div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveLightsConfig()">Speichern</button>
+            <span id="lights-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <article id="tab-fuel" class="panel-card tab-panel">
@@ -628,6 +643,10 @@
             </div>
             <div id="fuel-assignment-grid" class="assignment-grid"></div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveFuelConfig()">Speichern</button>
+            <span id="fuel-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <article id="tab-robots" class="panel-card tab-panel">
@@ -673,6 +692,10 @@
             </div>
             <div id="vacuum-config-grid"></div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveRobotsConfig()">Speichern</button>
+            <span id="robots-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <article id="tab-cameras" class="panel-card tab-panel">
@@ -709,6 +732,10 @@
             <div id="camera-go2rtc-hint" style="display:none;font-size:12px;color:var(--muted);padding:8px 0 4px;"></div>
             <div id="camera-entity-grid"></div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveCamerasConfig()">Speichern</button>
+            <span id="cameras-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <!-- ── KALENDER ─────────────────────────────────────── -->
@@ -778,10 +805,11 @@
                 </select>
               </label>
             </div>
-            <div class="stack-actions" style="margin-top:10px;">
-              <button type="button" class="primary" onclick="saveDefaultWriteCalendar()">Speichern</button>
-            </div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveCalendarConfig()">Speichern</button>
+            <span id="calendar-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <!-- ── PV-ANLAGE ─────────────────────────────────────── -->
@@ -1363,6 +1391,10 @@
               Beispiel: Prefix <code>anycubic_kobra_s1</code> → <code>sensor.anycubic_kobra_s1_printer_state</code>, <code>sensor.anycubic_kobra_s1_nozzle_temperature</code> usw.
             </div>
           </section>
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="savePrinterConfig()">Speichern</button>
+            <span id="printer-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
         </article>
 
         <!-- ── ZEITPLÄNE ─────────────────────────────── -->
@@ -2121,6 +2153,11 @@
             </div>
           </section>
 
+          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
+            <button type="button" class="primary" onclick="saveSystemConfig()">Speichern</button>
+            <span id="system-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+          </div>
+
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Updates</div>
@@ -2279,7 +2316,6 @@
         </article>
 
         <div class="action-bar">
-          <button id="save-btn" type="button">Speichern</button>
           <button id="reload-btn" class="secondary" type="button">Neu laden</button>
           <div id="status" class="status"></div>
         </div>
@@ -2292,7 +2328,6 @@
   <script>
     const rangeEl = document.getElementById('news-count-range');
     const pillEl = document.getElementById('news-count-pill');
-    const saveBtn = document.getElementById('save-btn');
     const reloadBtn = document.getElementById('reload-btn');
     const statusEl = document.getElementById('status');
     const moduleOverviewGridEl = document.getElementById('module-overview-grid');
@@ -2569,23 +2604,6 @@
       renderKeywordChips(type);
     }
 
-    async function saveKeywords() {
-      const statusEl = document.getElementById('keywords-status');
-      if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = 'Speichere…'; statusEl.style.color = ''; }
-      try {
-        const r = await fetch('/news/keywords', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ highlight: _highlightKeywords, hide: _hideKeywords })
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        if (statusEl) { statusEl.textContent = '✓ Gespeichert'; statusEl.style.color = 'var(--color-success, #4caf50)'; }
-      } catch (e) {
-        if (statusEl) { statusEl.textContent = 'Fehler beim Speichern'; statusEl.style.color = 'var(--color-danger, #f44)'; }
-      }
-      if (statusEl) setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-    }
-
     // Enter key submits keyword inputs
     ['highlight', 'hide'].forEach(type => {
       document.getElementById(`${type}-input`)?.addEventListener('keydown', e => {
@@ -2629,7 +2647,7 @@
       btn.disabled = true;
       status.textContent = 'Starte…';
       try {
-        await saveConfig();
+        await savePrinterConfig();
         const r = await fetch('/system/printer/start', { method: 'POST' });
         status.textContent = r.ok ? 'Bridge gestartet' : 'Fehler beim Starten';
         status.style.color = r.ok ? 'var(--color-success, #4caf50)' : 'var(--color-danger, #f44)';
@@ -3820,131 +3838,177 @@
       renderPreview(data.items || []);
     }
 
-    async function saveConfig() {
-      saveBtn.disabled = true;
-      setStatus('Speichere Konfiguration...');
+    // Gemeinsamer PATCH-Helfer für alle Tab-eigenen Speichern-Buttons — jeder
+    // Tab schreibt nur seine eigene(n) Config-Schlüssel, /local-admin/integrations/config
+    // merged serverseitig (integration_config_service.update_config), andere Tabs
+    // bleiben unberührt.
+    async function _saveConfigSlice(payload, statusElId) {
+      const statusEl = document.getElementById(statusElId);
+      if (statusEl) { statusEl.textContent = 'Speichere…'; statusEl.style.color = 'var(--muted)'; }
       try {
         const response = await fetch('/local-admin/integrations/config', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            news: {
-              lookback_hours: Number(rangeEl.value),
-              selected_sources: getSelectedSourceIds(),
-              default_collapsed: newsDefaultCollapsedEl.checked,
-              collapsed_count: Number(newsCollapsedCountEl.value),
-              custom_feeds: getCustomFeeds(),
-              highlight_keywords: _highlightKeywords,
-              hide_keywords: _hideKeywords,
-            },
-            lights: {
-              enabled: lightsEnabledEl.checked,
-              selected_entities: getSelectedLightEntityIds(),
-            },
-            robots: {
-              enabled: robotsEnabledEl.checked,
-              selected_entities: getSelectedRobotEntityIds(),
-              state_mappings: getRobotStateMappingsFromDom(),
-              vacuum_configs: vacuumConfigs,
-            },
-            cameras: {
-              enabled: camerasEnabledEl.checked,
-              selected_entities: getSelectedCameraEntityIds(),
-              camera_configs: (() => {
-                syncCameraConfigsFromDom();
-                const result = {};
-                getSelectedCameraEntityIds().forEach((eid) => {
-                  const cfg = cameraConfigs[eid] || {};
-                  result[eid] = {
-                    name: cfg.name || '',
-                    ring_device_id: cfg.ring_device_id || '',
-                    has_live_stream: cfg.has_live_stream !== false,
-                    doorbell_sensor: cfg.doorbell_sensor || '',
-                    doorbell_duration: cfg.doorbell_duration ?? 30,
-                  };
-                });
-                return result;
-              })(),
-            },
-            ev: {
-              enabled: evEnabledEl.checked,
-              vehicles: evVehicles.filter((vehicle) => vehicle.ev_profile_enabled),
-            },
-            vehicles: {
-              enabled: evEnabledEl.checked,
-              location_history_days: 14,
-              poll_seconds: 30,
-              items: evVehicles,
-            },
-            fuel_prices: {
-              enabled: fuelEnabledEl.checked,
-              fuel_types: getSelectedFuelTypeIds(),
-              selected_station_id: getSelectedFuelStationId(),
-              fuel_assignments: getFuelAssignmentsFromDom(),
-            },
-            weather: {
-              enabled: weatherEnabledEl.checked,
-              provider: weatherProviderEl.value,
-              api_key: weatherApiKeyEl.value,
-              hourly_past_hours: Number(weatherPastHoursEl.value),
-              hourly_future_hours: Number(weatherFutureHoursEl.value),
-              show_feels_like: weatherShowFeelsEl.checked,
-              show_wind: weatherShowWindEl.checked,
-              show_humidity: weatherShowHumidityEl.checked,
-              show_precipitation: weatherShowPrecipEl.checked,
-              show_minmax: weatherShowMinmaxEl.checked,
-              show_hourly: weatherShowHourlyEl.checked,
-              show_hourly_temperature: weatherHourlyTempEl.checked,
-              show_hourly_precip_probability: weatherHourlyPopEl.checked,
-              show_hourly_precipitation: weatherHourlyRainEl.checked,
-              show_hourly_wind: weatherHourlyWindEl.checked,
-            },
-            calendar: {
-              enabled: calendarEnabledEl.checked,
-              days_count: Math.max(1, Math.min(30, Number(calendarDaysEl.value) || 7)),
-              selected_calendars: getSelectedCalendarIds(),
-              colors: getCalendarColors(),
-              open_trigger: calendarOpenTriggerEl?.value || 'both',
-            },
-            printer: {
-              enabled:        printerEnabledEl.checked,
-              printer_ip:     printerIpEl.value.trim(),
-              mqtt_user:      document.getElementById('printer-mqtt-user').value.trim(),
-              mqtt_pass:      document.getElementById('printer-mqtt-pass').value,
-              entity_prefix:  document.getElementById('printer-entity-prefix').value.trim() || 'anycubic_kobra_s1',
-            },
-            system: {
-              home_assistant: {
-                scheme: haSchemeEl.value,
-                host: haHostEl.value.trim(),
-                port: Number(haPortEl.value),
-                token: haTokenEl.value.trim(),
-                username: haUsernameEl.value.trim(),
-                password: haPasswordEl.value,
-              },
-              site: (() => {
-                const s = { location: siteLocationEl.value.trim() };
-                const lat = parseFloat(document.getElementById('site-latitude')?.value);
-                const lon = parseFloat(document.getElementById('site-longitude')?.value);
-                if (!isNaN(lat) && !isNaN(lon)) { s.latitude = lat; s.longitude = lon; }
-                return s;
-              })(),
-            },
-          }),
+          body: JSON.stringify(payload),
         });
-        if (!response.ok) {
-          throw new Error('Speichern fehlgeschlagen.');
-        }
-        try {
-          localStorage.setItem('local_admin_saved_at', String(Date.now()));
-        } catch {}
-        await loadConfig();
-        setStatus('Gespeichert.');
+        if (!response.ok) throw new Error('Speichern fehlgeschlagen.');
+        try { localStorage.setItem('local_admin_saved_at', String(Date.now())); } catch {}
+        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => { if (statusEl.textContent === 'Gespeichert ✓') statusEl.textContent = ''; }, 2500); }
       } catch (error) {
-        setStatus(error.message || 'Speichern fehlgeschlagen.', true);
-      } finally {
-        saveBtn.disabled = false;
+        if (statusEl) { statusEl.textContent = error.message || 'Fehler beim Speichern'; statusEl.style.color = 'var(--danger, #f44)'; }
+        throw error;
       }
+    }
+
+    async function saveNewsConfig() {
+      await _saveConfigSlice({
+        news: {
+          lookback_hours: Number(rangeEl.value),
+          selected_sources: getSelectedSourceIds(),
+          default_collapsed: newsDefaultCollapsedEl.checked,
+          collapsed_count: Number(newsCollapsedCountEl.value),
+          custom_feeds: getCustomFeeds(),
+          highlight_keywords: _highlightKeywords,
+          hide_keywords: _hideKeywords,
+        },
+      }, 'news-status');
+    }
+
+    async function saveLightsConfig() {
+      await _saveConfigSlice({
+        lights: {
+          enabled: lightsEnabledEl.checked,
+          selected_entities: getSelectedLightEntityIds(),
+        },
+      }, 'lights-status');
+    }
+
+    async function saveRobotsConfig() {
+      await _saveConfigSlice({
+        robots: {
+          enabled: robotsEnabledEl.checked,
+          selected_entities: getSelectedRobotEntityIds(),
+          state_mappings: getRobotStateMappingsFromDom(),
+          vacuum_configs: vacuumConfigs,
+        },
+      }, 'robots-status');
+    }
+
+    async function saveCamerasConfig() {
+      syncCameraConfigsFromDom();
+      const camera_configs = {};
+      getSelectedCameraEntityIds().forEach((eid) => {
+        const cfg = cameraConfigs[eid] || {};
+        camera_configs[eid] = {
+          name: cfg.name || '',
+          ring_device_id: cfg.ring_device_id || '',
+          has_live_stream: cfg.has_live_stream !== false,
+          doorbell_sensor: cfg.doorbell_sensor || '',
+          doorbell_duration: cfg.doorbell_duration ?? 30,
+        };
+      });
+      await _saveConfigSlice({
+        cameras: {
+          enabled: camerasEnabledEl.checked,
+          selected_entities: getSelectedCameraEntityIds(),
+          camera_configs,
+        },
+      }, 'cameras-status');
+    }
+
+    async function saveVehiclesConfig() {
+      await _saveConfigSlice({
+        ev: {
+          enabled: evEnabledEl.checked,
+          vehicles: evVehicles.filter((vehicle) => vehicle.ev_profile_enabled),
+        },
+        vehicles: {
+          enabled: evEnabledEl.checked,
+          location_history_days: 14,
+          poll_seconds: 30,
+          items: evVehicles,
+        },
+      }, 'vehicles-status');
+    }
+
+    async function saveFuelConfig() {
+      await _saveConfigSlice({
+        fuel_prices: {
+          enabled: fuelEnabledEl.checked,
+          fuel_types: getSelectedFuelTypeIds(),
+          selected_station_id: getSelectedFuelStationId(),
+          fuel_assignments: getFuelAssignmentsFromDom(),
+        },
+      }, 'fuel-status');
+    }
+
+    async function saveWeatherConfig() {
+      await _saveConfigSlice({
+        weather: {
+          enabled: weatherEnabledEl.checked,
+          provider: weatherProviderEl.value,
+          api_key: weatherApiKeyEl.value,
+          hourly_past_hours: Number(weatherPastHoursEl.value),
+          hourly_future_hours: Number(weatherFutureHoursEl.value),
+          show_feels_like: weatherShowFeelsEl.checked,
+          show_wind: weatherShowWindEl.checked,
+          show_humidity: weatherShowHumidityEl.checked,
+          show_precipitation: weatherShowPrecipEl.checked,
+          show_minmax: weatherShowMinmaxEl.checked,
+          show_hourly: weatherShowHourlyEl.checked,
+          show_hourly_temperature: weatherHourlyTempEl.checked,
+          show_hourly_precip_probability: weatherHourlyPopEl.checked,
+          show_hourly_precipitation: weatherHourlyRainEl.checked,
+          show_hourly_wind: weatherHourlyWindEl.checked,
+        },
+      }, 'weather-status');
+    }
+
+    async function saveCalendarConfig() {
+      await _saveConfigSlice({
+        calendar: {
+          enabled: calendarEnabledEl.checked,
+          days_count: Math.max(1, Math.min(30, Number(calendarDaysEl.value) || 7)),
+          selected_calendars: getSelectedCalendarIds(),
+          colors: getCalendarColors(),
+          open_trigger: calendarOpenTriggerEl?.value || 'both',
+          default_write_entity: document.getElementById('calendar-default-write')?.value || null,
+        },
+      }, 'calendar-status');
+    }
+
+    async function savePrinterConfig() {
+      await _saveConfigSlice({
+        printer: {
+          enabled:        printerEnabledEl.checked,
+          printer_ip:     printerIpEl.value.trim(),
+          mqtt_user:      document.getElementById('printer-mqtt-user').value.trim(),
+          mqtt_pass:      document.getElementById('printer-mqtt-pass').value,
+          entity_prefix:  document.getElementById('printer-entity-prefix').value.trim() || 'anycubic_kobra_s1',
+        },
+      }, 'printer-status');
+    }
+
+    async function saveSystemConfig() {
+      await _saveConfigSlice({
+        system: {
+          home_assistant: {
+            scheme: haSchemeEl.value,
+            host: haHostEl.value.trim(),
+            port: Number(haPortEl.value),
+            token: haTokenEl.value.trim(),
+            username: haUsernameEl.value.trim(),
+            password: haPasswordEl.value,
+          },
+          site: (() => {
+            const s = { location: siteLocationEl.value.trim() };
+            const lat = parseFloat(document.getElementById('site-latitude')?.value);
+            const lon = parseFloat(document.getElementById('site-longitude')?.value);
+            if (!isNaN(lat) && !isNaN(lon)) { s.latitude = lat; s.longitude = lon; }
+            return s;
+          })(),
+        },
+      }, 'system-status');
     }
 
     async function testHaConnection() {
@@ -4121,17 +4185,6 @@
           sel.appendChild(opt);
         });
         if (current && !sel.value) sel.value = '';
-      } catch {}
-    }
-
-    async function saveDefaultWriteCalendar() {
-      const val = document.getElementById('calendar-default-write')?.value || '';
-      try {
-        await fetch('/local-admin/integrations/config', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ calendar: { default_write_entity: val || null } }),
-        });
       } catch {}
     }
 
@@ -4950,7 +5003,6 @@
     document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
-    saveBtn.addEventListener('click', saveConfig);
     reloadBtn.addEventListener('click', boot);
 
     boot().then(() => { loadAttentionSettings(); loadTtsSettings(); });
