@@ -3511,6 +3511,7 @@
   let _selectedGroup = null;
   let _lightsShowScenes = false;
   let _lightsLiveInterval = null;
+  let _lightsLastFingerprint = null;
   let _vehiclesData = [];
   let _selectedVehicle = null;
   let _vehiclesInterval = null;
@@ -4196,8 +4197,10 @@
   async function _renderVehiclesView(vehicles) {
     document.getElementById('left-label').textContent = 'Fahrzeuge';
     const lc = document.getElementById('left-content');
+    const _scrollTop = lc.scrollTop;
     lc.style.overflowY = 'auto';
     lc.innerHTML = renderVehicleList(vehicles || []);
+    lc.scrollTop = _scrollTop;
 
     const vehicle = (vehicles || []).find(v => v.id === _selectedVehicle) || (vehicles || [])[0] || null;
     if (vehicle && !_selectedVehicle) _selectedVehicle = vehicle.id;
@@ -6339,8 +6342,10 @@
     // Linkes Panel: immer aktualisieren (nur Text, kein Flash)
     document.getElementById('left-label').textContent = 'Roboter';
     const lc = document.getElementById('left-content');
+    const _scrollTop = lc.scrollTop;
     lc.style.overflowY = 'auto';
     lc.innerHTML = renderRobotList(robots || []);
+    lc.scrollTop = _scrollTop;
 
     const robot = (robots || []).find(r => r.entity_id === _selectedRobot) || (robots || [])[0] || null;
     if (robot && !_selectedRobot) _selectedRobot = robot.entity_id;
@@ -6987,8 +6992,22 @@
     renderLightsView(lights);
   }
 
+  // Fingerprint aus allem, was die Lichter-Ansicht sichtbar beeinflusst. Bei
+  // jedem 3s-Live-Poll unverändert → kompletter innerHTML-Rebuild (inkl. des
+  // Helligkeits-Sliders, der dabei eine laufende Drag-Geste des Nutzers
+  // abbricht und das ganze Panel sichtbar aufflackern lässt) wird übersprungen.
+  function _lightsFingerprint(lights, selectedId, showScenes) {
+    const dataFp = (lights || []).map(l =>
+      `${l.entity_id}:${l.state}:${l.brightness_pct||0}:${l.color_mode||''}:${l.color_temp_kelvin||''}:${(l.hs_color||[]).join(',')}:${(l.rgb_color||[]).join(',')}`
+    ).join('|');
+    return `${showScenes?'S':''}${selectedId||''}::${dataFp}`;
+  }
+
   function renderLightsView(lights) {
     if (!lights) return;
+    const fp = _lightsFingerprint(lights, _selectedGroup, _lightsShowScenes);
+    if (fp === _lightsLastFingerprint) return;
+    _lightsLastFingerprint = fp;
     // Alle Entities, die Kinder anderer Gruppen sind, ausblenden auf Top-Level
     const memberIds = new Set(lights.flatMap(l => l.members || []));
     // Top-Level: Gruppen + ausgewählte Einzelentitäten, die nicht Mitglied einer Gruppe sind.
@@ -7154,6 +7173,7 @@
   function clearLightsView() {
     _stopLightsPolling();
     _lightsShowScenes = false;
+    _lightsLastFingerprint = null;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     document.getElementById('left-content').style.overflowY = '';
@@ -7741,7 +7761,12 @@
     if (currentMode === 'idle' && _isHome()) { showWeatherLeft(); showCalendarRight(); }
   }, TTL_15M);
 
-  // PV-Slot alle 5 Sekunden aktualisieren
+  // PV-Slot alle 5 Sekunden aktualisieren — nur wenn sich am Inhalt wirklich
+  // etwas geändert hat. Vergleich gegen die aktuelle DOM-innerHTML statt eine
+  // eigene "zuletzt gerendert"-Variable, damit ein unabhängiger Rebuild des
+  // Panels (z.B. durch showPanel() bei Layout-/Theme-Änderungen) nie übersehen
+  // wird — vermeidet das Aufflackern bei unverändertem PV-Wert, ohne Gefahr
+  // veralteter Anzeige.
   setInterval(async () => {
     if (!_enabledModules.pv || currentMode !== 'idle' || !_isHome()) return;
     const pvResp = await loadPvData();
@@ -7749,7 +7774,8 @@
     if (!pvSlot) return;
     const size = [...(_panelConfig.left || []), ...(_panelConfig.right || [])]
       .find(s => s.widget === 'pv')?.size || 1;
-    pvSlot.innerHTML = _renderPvSlot(pvResp, size);
+    const html = _renderPvSlot(pvResp, size);
+    if (html !== pvSlot.innerHTML) pvSlot.innerHTML = html;
   }, 5000);
 
   // Abfall-Slot alle 60s aktualisieren — fängt ab, dass /ha/waste direkt nach

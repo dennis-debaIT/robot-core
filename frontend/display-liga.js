@@ -32,6 +32,15 @@
   let _kaderStack      = [];         // Stapel vorheriger Kader-Zustände für Club-Navigation
   let _kaderSearch     = '';         // aktueller Suchbegriff in der Kaderliste
 
+  // Fingerprints der zuletzt gerenderten Eingabedaten je Panel — bei jedem
+  // 10s-Poll unverändert → kein innerHTML-Rebuild (verhindert Aufflackern von
+  // Live-Banner/Tabelle/Spieltag-Karten, wenn sich seit dem letzten Tick
+  // nichts geändert hat).
+  let _lastOverlayFp  = null;
+  let _lastLeftFp     = null;
+  let _lastCenterFp   = null;
+  let _lastRightFp    = null;
+
   // Kader-Profil-Cache: Team-Key → {players, crest, fdoNames, ts}
   // Überleben Navigation weg + zurück ohne erneuten Prefetch (1h TTL)
 
@@ -938,6 +947,9 @@
     _teamViewOpen   = false;
     _teamDetailId   = null;
     _teamDetailName = null;
+    // cal-overlay zeigte gerade Team-Detail-Inhalt, nicht die Spieltag-Karten
+    // — Fingerprint-Gate darf den Rebuild hier nie überspringen.
+    _lastCenterFp = null;
     _renderCenter();
   }
 
@@ -987,6 +999,9 @@
       window._tournament?._refresh();
     } else {
       _teamViewOpen = false;
+      // cal-overlay zeigte gerade den Kader, nicht die Spieltag-Karten —
+      // Fingerprint-Gate darf den Rebuild hier nie überspringen.
+      _lastCenterFp = null;
       _renderCenter();
     }
   }
@@ -1094,11 +1109,19 @@
   function _renderOverlay(data) {
     const overlay = document.getElementById('liga-overlay');
     if (!overlay) return;
+    const tournamentActive = !!document.getElementById('tournament-overlay')?.children.length;
+    // Minuten-Bucket statt reinem Daten-Vergleich: Live-Minuten-Anzeige und
+    // Countdown bis zum nächsten Spiel runden ohnehin auf ganze Minuten, sind
+    // also bei unverändertem Bucket optisch identisch — Rebuild trotzdem nie
+    // länger als 1 Minute unterdrückt, damit beide nie "einfrieren".
+    const fp = JSON.stringify(data?.leagues || null) + '|' + (tournamentActive ? 'T' : '') + '|' + Math.floor(Date.now() / 60000);
+    if (fp === _lastOverlayFp) return;
+    _lastOverlayFp = fp;
     if (!data?.leagues?.length) { overlay.innerHTML = ''; return; }
 
     const allLive = data.leagues.flatMap(l => (l.live || []).map(m => ({ ...m, _league: l })));
 
-    if (document.getElementById('tournament-overlay')?.children.length) {
+    if (tournamentActive) {
       overlay.innerHTML = '';
       return;
     }
@@ -1126,7 +1149,7 @@
       const ft = (m.score || {}).fullTime || {};
       overlay.innerHTML = `<div class="liga-overlay-single">
         <div class="liga-overlay-league-name">${_esc(m._league?.name || '')}</div>
-        <div class="liga-live-badge">&#128308; LIVE ${_minute(m.score)}</div>
+        <div class="liga-live-badge">&#128308; LIVE ${_liveMinute(m.utcDate)}</div>
         <div class="liga-big-match">
           <span class="liga-big-team">${_esc(m.homeTeam?.shortName || '?')}</span>
           <span class="liga-big-score">${ft.home ?? '–'}${_suffix(m.score)} : ${ft.away ?? '–'}</span>
@@ -1160,6 +1183,10 @@
 
   function _renderLeft() {
     const leagues = _ligaData?.leagues || [];
+    const fp = JSON.stringify([leagues, _ligaData?.team_focus, _ligaData?.favorite_team_name,
+      _ligaData?.favorite_team_id, _selectedCode, _standingsCache[_selectedCode]?.table]);
+    if (fp === _lastLeftFp) return;
+    _lastLeftFp = fp;
     const lc = document.getElementById('left-content');
     const ll = document.getElementById('left-label');
     if (!lc) return;
@@ -1208,6 +1235,12 @@
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     const cur = _curLeague();
+    // Minuten-Bucket mit im Fingerprint: Spielkarten zeigen bei laufenden
+    // Spielen eine Live-Minute (_matchCard → _liveMinute), die trotz
+    // unveränderter Rohdaten jede Minute weiterzählen muss.
+    const fp = JSON.stringify(cur) + '|' + Math.floor(Date.now() / 60000);
+    if (fp === _lastCenterFp) return;
+    _lastCenterFp = fp;
     if (!cur) {
       overlay.innerHTML = '<div style="color:var(--muted);text-align:center;padding:60px 0;">Keine Liga-Daten verfügbar</div>';
       overlay.classList.add('active');
@@ -1241,6 +1274,9 @@
     if (typeof setPanel !== 'function') return;
     const cur       = _curLeague();
     const standings = _standingsCache[cur?.code];
+    const fp = JSON.stringify([cur?.code, standings]);
+    if (fp === _lastRightFp) return;
+    _lastRightFp = fp;
     const title     = cur ? `Tabelle ${cur.name}` : 'Tabelle';
 
     let html = '';
@@ -1329,6 +1365,7 @@
     clearInterval(_interval);
     _interval = null;
     _clearOverlay();
+    _lastOverlayFp = null;
   }
 
   function openFullView() {
@@ -1336,6 +1373,9 @@
     if (!_selectedCode && _ligaData?.leagues?.length) {
       _selectedCode = _ligaData.leagues[0].code;
     }
+    // Links/Mitte/Rechts zeigten zuletzt eine andere Ansicht (Home-Screen o.ä.)
+    // — Fingerprint-Gates dürfen den ersten Rebuild beim Öffnen nie überspringen.
+    _lastLeftFp = _lastCenterFp = _lastRightFp = null;
     _renderLeft();
     _renderCenter();
     _renderRight();

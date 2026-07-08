@@ -462,8 +462,15 @@
     await _renderCenter();
   }
 
+  const _choresLoggingInFlight = new Set();
+
   async function logCompletion(personId) {
     if (!state.selectedTaskId) return;
+    // Doppel-Tap auf dem Touchscreen ignorieren, solange die vorherige
+    // Anfrage für diese Person noch läuft — sonst wird eine Aufgabe doppelt
+    // geloggt und verfälscht Punkte/Wochensieger.
+    if (_choresLoggingInFlight.has(personId)) return;
+    _choresLoggingInFlight.add(personId);
     const el = document.getElementById(`chore-person-${personId}`);
     if (el) {
       el.classList.add('chore-person-flash');
@@ -477,6 +484,8 @@
       });
     } catch {
       return;
+    } finally {
+      _choresLoggingInFlight.delete(personId);
     }
     await _renderCenter();
   }
