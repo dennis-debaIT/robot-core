@@ -94,8 +94,9 @@
     </svg>`;
   }
 
-  function _renderPvFlowDiagram(pv) {
-    if (!pv) return '<div class="cal-placeholder">PV-Daten nicht verf&uuml;gbar</div>';
+  // Geometrie + abgeleitete Werte — von Render UND Update gemeinsam genutzt, damit
+  // beide garantiert dieselben Koordinaten/Farben berechnen.
+  function _pvFlowCompute(pv) {
     const pvW    = parseFloat(pv.power?.value)            || 0;
     const houseW = parseFloat(pv.house_consumption?.value) || 0;
     const gridW  = parseFloat(pv.grid?.value)             || 0;
@@ -103,21 +104,13 @@
     const hasBatt = battPct !== null && !isNaN(battPct);
     const battW   = pvW - houseW - gridW;
 
-    const fmtW = w => {
-      const a = Math.abs(w);
-      return a >= 1000 ? (a/1000).toFixed(2).replace('.',',') + ' kW' : Math.round(a) + ' W';
-    };
-    const spd = w => Math.max(1.5, 6 / (Math.abs(w) / 400 + 1)).toFixed(2);
-
-    // Farben
-    const C_PV   = '#f59e0b';  // amber — Solar
-    const C_BATT = '#10b981';  // grün — Batterie
-    const C_FEED = '#10b981';  // grün — Einspeisung
-    const C_DRAW = '#f59e0b';  // amber — Netzbezug
-    const C_HOUSE = '#6366f1'; // indigo — Verbrauch
+    const C_PV    = '#f59e0b';  // amber — Solar
+    const C_BATT  = '#10b981';  // grün — Batterie
+    const C_FEED  = '#10b981';  // grün — Einspeisung
+    const C_DRAW  = '#f59e0b';  // amber — Netzbezug
+    const C_HOUSE = '#6366f1';  // indigo — Verbrauch
     const gColor  = gridW >= 0 ? C_FEED : C_DRAW;
 
-    // Knotenpositionen (cx, cy, r)
     const VW = 370, VH = hasBatt ? 330 : 300;
     const cx = VW / 2;
     const nPV    = { x: cx,  y: 56,  r: 40 };
@@ -125,35 +118,67 @@
     const nBatt  = hasBatt ? { x: 62,  y: 168, r: 34 } : null;
     const nGrid  = { x: hasBatt ? 308 : cx+70, y: 168, r: 34 };
 
-    // Kantenpunkt: vom Kreis-Rand in Richtung Ziel
-    const ep = (ax, ay, bx, by, r) => {
-      const dx = bx-ax, dy = by-ay, d = Math.sqrt(dx*dx+dy*dy);
-      return [+(ax+dx/d*r).toFixed(1), +(ay+dy/d*r).toFixed(1)];
-    };
+    const gridLabel = gridW >  5 ? _pvFmtW(gridW)+' ↑' : gridW < -5 ? _pvFmtW(Math.abs(gridW))+' ↓' : '~0';
+    const gridSub   = gridW >= 0 ? 'Einspeisung' : 'Netzbezug';
+    const battSub   = Math.abs(battW) > 5
+      ? (battW > 0 ? '+'+_pvFmtW(battW)+' lädt' : _pvFmtW(Math.abs(battW))+' entlädt')
+      : 'Standby';
+    const battFill  = Math.max(0, Math.min(100, battPct||0));
 
-    // Linie mit animierten Strichen
-    const flowLine = (n1, n2, color, power, fwd) => {
-      const [x1,y1] = ep(n1.x, n1.y, n2.x, n2.y, n1.r+2);
-      const [x2,y2] = ep(n2.x, n2.y, n1.x, n1.y, n2.r+2);
+    return {
+      pvW, houseW, gridW, battPct, hasBatt, battW,
+      C_PV, C_BATT, C_FEED, C_DRAW, C_HOUSE, gColor,
+      VW, VH, nPV, nHouse, nBatt, nGrid,
+      gridLabel, gridSub, battSub, battFill,
+    };
+  }
+
+  const _pvFmtW = w => {
+    const a = Math.abs(w);
+    return a >= 1000 ? (a/1000).toFixed(2).replace('.',',') + ' kW' : Math.round(a) + ' W';
+  };
+  const _pvFlowSpeed = w => Math.max(1.5, 6 / (Math.abs(w) / 400 + 1)).toFixed(2);
+
+  // Kantenpunkt: vom Kreis-Rand in Richtung Ziel
+  const _pvEdgePoint = (ax, ay, bx, by, r) => {
+    const dx = bx-ax, dy = by-ay, d = Math.sqrt(dx*dx+dy*dy);
+    return [+(ax+dx/d*r).toFixed(1), +(ay+dy/d*r).toFixed(1)];
+  };
+
+  let _pvFlowHasBatt = null; // Struktur der zuletzt GEBAUTEN (nicht nur aktualisierten) Ansicht
+
+  function _renderPvFlowDiagram(pv) {
+    if (!pv) return '<div class="cal-placeholder">PV-Daten nicht verf&uuml;gbar</div>';
+    const c = _pvFlowCompute(pv);
+    const { pvW, houseW, battPct, hasBatt, battW, C_PV, C_BATT, C_HOUSE, gColor,
+      VW, VH, nPV, nHouse, nBatt, nGrid, gridLabel, gridSub, battSub, battFill } = c;
+    _pvFlowHasBatt = hasBatt;
+
+    // Linie mit animierten Strichen (id nur auf dem animierten Overlay — die Basislinie
+    // bleibt immer stehen und muss nie ersetzt werden)
+    const flowLine = (id, n1, n2, color, power, fwd) => {
+      const [x1,y1] = _pvEdgePoint(n1.x, n1.y, n2.x, n2.y, n1.r+2);
+      const [x2,y2] = _pvEdgePoint(n2.x, n2.y, n1.x, n1.y, n2.r+2);
       const base = `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" style="stroke:var(--border);stroke-width:5;stroke-linecap:round;"/>`;
       if (Math.abs(power) < 5) return base;
-      const s = spd(power), dir = fwd ? 'pv-flow-fwd' : 'pv-flow-rev';
-      return base + `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-dasharray="8 10"
+      const s = _pvFlowSpeed(power), dir = fwd ? 'pv-flow-fwd' : 'pv-flow-rev';
+      return base + `<line id="${id}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-dasharray="8 10"
         style="stroke:${color};stroke-width:3.5;stroke-linecap:round;animation:${dir} ${s}s linear infinite;"/>`;
     };
 
-    // Kreisknoten mit Glow, Ikone, Wert, Label
-    const circleNode = (n, icon, val, lbl, color, sub) => {
+    // Kreisknoten mit Glow, Ikone, Wert, Label — value/sub/glow/stroke-Elemente bekommen
+    // eine id, damit spätere Updates nur diese anfassen statt den ganzen Knoten neu zu bauen.
+    const circleNode = (key, n, icon, val, lbl, color, sub) => {
       const glow = `drop-shadow(0 0 8px ${color}99)`;
       return `
-        <circle cx="${n.x}" cy="${n.y}" r="${n.r+10}" style="fill:${color};opacity:0.10;"/>
-        <circle cx="${n.x}" cy="${n.y}" r="${n.r+5}"  style="fill:${color};opacity:0.15;"/>
-        <circle cx="${n.x}" cy="${n.y}" r="${n.r}"     style="fill:var(--surface);stroke:${color};stroke-width:2.5;filter:${glow};"/>
-        <g transform="translate(${n.x},${n.y-10})" style="fill:${color};">${icon}</g>
-        <text x="${n.x}" y="${n.y+13}" text-anchor="middle" font-size="11" font-weight="800" font-family="monospace"
+        <circle id="pvflow-glow1-${key}" cx="${n.x}" cy="${n.y}" r="${n.r+10}" style="fill:${color};opacity:0.10;"/>
+        <circle id="pvflow-glow2-${key}" cx="${n.x}" cy="${n.y}" r="${n.r+5}"  style="fill:${color};opacity:0.15;"/>
+        <circle id="pvflow-circle-${key}" cx="${n.x}" cy="${n.y}" r="${n.r}"     style="fill:var(--surface);stroke:${color};stroke-width:2.5;filter:${glow};"/>
+        <g id="pvflow-icon-${key}" transform="translate(${n.x},${n.y-10})" style="fill:${color};">${icon}</g>
+        <text id="pvflow-val-${key}" x="${n.x}" y="${n.y+13}" text-anchor="middle" font-size="11" font-weight="800" font-family="monospace"
           style="fill:${color};">${val}</text>
         <text x="${n.x}" y="${n.y+n.r+14}" text-anchor="middle" font-size="9" style="fill:var(--muted);">${lbl}</text>
-        ${sub ? `<text x="${n.x}" y="${n.y+n.r+24}" text-anchor="middle" font-size="8" style="fill:var(--muted);">${sub}</text>` : ''}`;
+        <text id="pvflow-sub-${key}" x="${n.x}" y="${n.y+n.r+24}" text-anchor="middle" font-size="8" style="fill:var(--muted);${sub ? '' : 'display:none;'}">${sub||''}</text>`;
     };
 
     // SVG-Ikonen (zentriert bei 0,0)
@@ -167,42 +192,121 @@
         style="fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;"/>
       <rect x="-4" y="3" width="8" height="9" style="fill:currentColor;"/>`;
 
-    const battFill = Math.max(0, Math.min(100, battPct||0));
     const iconBatt = `<rect x="-10" y="-7" width="18" height="13" rx="2" style="fill:none;stroke:currentColor;stroke-width:1.5;"/>
       <rect x="8" y="-4.5" width="3.5" height="7" rx="1" style="fill:currentColor;"/>
-      <rect x="-8.5" y="-5.5" width="${(battFill*0.155).toFixed(1)}" height="10" rx="1" style="fill:currentColor;opacity:0.8;"/>`;
+      <rect id="pvflow-battfill" x="-8.5" y="-5.5" width="${(battFill*0.155).toFixed(1)}" height="10" rx="1" style="fill:currentColor;opacity:0.8;"/>`;
 
     const iconGrid = `<line x1="0" y1="-13" x2="-9" y2="13" style="stroke:currentColor;stroke-width:1.5;stroke-linecap:round;fill:none;"/>
       <line x1="0" y1="-13" x2="9"  y2="13" style="stroke:currentColor;stroke-width:1.5;stroke-linecap:round;fill:none;"/>
       <line x1="-7" y1="-2" x2="7"  y2="-2" style="stroke:currentColor;stroke-width:1.5;stroke-linecap:round;fill:none;"/>
       <line x1="-5" y1="6"  x2="5"  y2="6"  style="stroke:currentColor;stroke-width:1.5;stroke-linecap:round;fill:none;"/>`;
 
-    const gridLabel = gridW >  5 ? fmtW(gridW)+' ↑' : gridW < -5 ? fmtW(Math.abs(gridW))+' ↓' : '~0';
-    const gridSub   = gridW >= 0 ? 'Einspeisung' : 'Netzbezug';
-    const battSub   = Math.abs(battW) > 5
-      ? (battW > 0 ? '+'+fmtW(battW)+' lädt' : fmtW(Math.abs(battW))+' entlädt')
-      : 'Standby';
-
     // Richtungslogik: immer fwd=true, bei Gegenrichtung power=0 → nur Basislinie
-    const linePvHouse = flowLine(nPV,   nHouse, C_PV,   Math.max(0, pvW),    true);
-    const linePvBatt  = nBatt ? flowLine(nPV,   nBatt,  C_BATT, Math.max(0,  battW), true) : '';
-    const lineBattH   = nBatt ? flowLine(nBatt, nHouse, C_BATT, Math.max(0, -battW), true) : '';
-    const linePvGrid  = flowLine(nPV,   nGrid,  gColor, Math.max(0,  gridW), true);
-    const lineGridH   = flowLine(nGrid, nHouse, gColor, Math.max(0, -gridW), true);
+    const linePvHouse = flowLine('pvflow-line-pv-house',   nPV,   nHouse, C_PV,   Math.max(0, c.pvW),    true);
+    const linePvBatt  = nBatt ? flowLine('pvflow-line-pv-batt',  nPV,   nBatt,  C_BATT, Math.max(0,  battW), true) : '';
+    const lineBattH   = nBatt ? flowLine('pvflow-line-batt-house', nBatt, nHouse, C_BATT, Math.max(0, -battW), true) : '';
+    const linePvGrid  = flowLine('pvflow-line-pv-grid',  nPV,   nGrid,  gColor, Math.max(0,  c.gridW), true);
+    const lineGridH   = flowLine('pvflow-line-grid-house', nGrid, nHouse, gColor, Math.max(0, -c.gridW), true);
 
     return `<div style="display:flex;justify-content:center;padding:8px 0 0;">
-      <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:480px;display:block;">
+      <svg id="pvflow-svg" viewBox="0 0 ${VW} ${VH}" style="width:100%;max-width:480px;display:block;">
         <defs><style>
           @keyframes pv-flow-fwd { from{stroke-dashoffset:36;} to{stroke-dashoffset:0;} }
           @keyframes pv-flow-rev { from{stroke-dashoffset:0;} to{stroke-dashoffset:36;} }
         </style></defs>
         ${linePvHouse}${linePvBatt}${linePvGrid}${lineBattH}${lineGridH}
-        ${circleNode(nPV,    iconSun,  fmtW(pvW),    'PV-Anlage',  C_PV,    pvW > 5 ? 'produziert' : 'inaktiv')}
-        ${circleNode(nHouse, iconHouse,fmtW(houseW), 'Verbrauch',  C_HOUSE, '')}
-        ${circleNode(nGrid,  iconGrid, gridLabel,    'Netz',       gColor,  gridSub)}
-        ${nBatt ? circleNode(nBatt, iconBatt, (battPct||0)+'%', 'Batterie', C_BATT, battSub) : ''}
+        ${circleNode('pv',    nPV,    iconSun,   _pvFmtW(pvW),    'PV-Anlage', C_PV,    pvW > 5 ? 'produziert' : 'inaktiv')}
+        ${circleNode('house', nHouse, iconHouse, _pvFmtW(houseW), 'Verbrauch', C_HOUSE, '')}
+        ${circleNode('grid',  nGrid,  iconGrid,  gridLabel,       'Netz',      gColor,  gridSub)}
+        ${nBatt ? circleNode('batt', nBatt, iconBatt, (battPct||0)+'%', 'Batterie', C_BATT, battSub) : ''}
       </svg>
     </div>`;
+  }
+
+  // Aktualisiert eine bereits gebaute Live-Ansicht in-place (Werte, Farben, Fluss-
+  // Geschwindigkeit) statt das SVG komplett neu aufzubauen. Kein Flackern, keine
+  // abgerissene/neu gestartete Strich-Animation. Gibt false zurück wenn kein
+  // Patch möglich ist (z.B. Struktur hat sich geändert, Batterie kam dazu/fiel weg) —
+  // der Aufrufer soll dann per _renderPvFlowDiagram komplett neu bauen.
+  function _updatePvFlowDiagram(pv) {
+    if (!pv) return false;
+    const svg = document.getElementById('pvflow-svg');
+    if (!svg) return false;
+    const c = _pvFlowCompute(pv);
+    if (c.hasBatt !== _pvFlowHasBatt) return false; // Struktur geändert → Rebuild nötig
+    const { pvW, houseW, gridW, battPct, hasBatt, battW, C_PV, C_BATT, C_HOUSE, gColor,
+      nPV, nHouse, nBatt, nGrid, gridLabel, gridSub, battSub, battFill } = c;
+
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const setSub = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = val || '';
+      el.style.display = val ? '' : 'none';
+    };
+    const setColor = (key, color) => {
+      const glow = `drop-shadow(0 0 8px ${color}99)`;
+      const g1 = document.getElementById(`pvflow-glow1-${key}`); if (g1) g1.style.fill = color;
+      const g2 = document.getElementById(`pvflow-glow2-${key}`); if (g2) g2.style.fill = color;
+      const ci = document.getElementById(`pvflow-circle-${key}`);
+      if (ci) { ci.style.stroke = color; ci.style.filter = glow; }
+      const ic = document.getElementById(`pvflow-icon-${key}`); if (ic) ic.style.fill = color;
+      const vt = document.getElementById(`pvflow-val-${key}`);  if (vt) vt.style.fill = color;
+    };
+
+    setText('pvflow-val-pv',    _pvFmtW(pvW));
+    setSub ('pvflow-sub-pv',    pvW > 5 ? 'produziert' : 'inaktiv');
+    setText('pvflow-val-house', _pvFmtW(houseW));
+    setText('pvflow-val-grid',  gridLabel);
+    setSub ('pvflow-sub-grid',  gridSub);
+    setColor('grid', gColor); // einzige Farbe die sich je nach Fluss-Richtung ändert
+    if (hasBatt) {
+      setText('pvflow-val-batt', (battPct||0)+'%');
+      setSub ('pvflow-sub-batt', battSub);
+      const bf = document.getElementById('pvflow-battfill');
+      if (bf) bf.setAttribute('width', (battFill*0.155).toFixed(1));
+    }
+
+    // Fluss-Linien: Farbe/Geschwindigkeit aktualisieren wenn schon animiert, sonst
+    // Overlay-Linie neu einfügen (Fluss hat gerade erst eingesetzt) bzw. entfernen
+    // (Fluss ist gerade zum Stillstand gekommen).
+    const updateLine = (id, n1, n2, color, power, fwd) => {
+      const active = Math.abs(power) >= 5;
+      const el = document.getElementById(id);
+      if (active) {
+        const s = _pvFlowSpeed(power), dir = fwd ? 'pv-flow-fwd' : 'pv-flow-rev';
+        if (el) {
+          // Nur Farbe/Dauer ändern — laufende Animation macht keinen Sprung/Reset.
+          el.style.stroke = color;
+          el.style.animationName = dir;
+          el.style.animationDuration = s + 's';
+        } else {
+          const [x1,y1] = _pvEdgePoint(n1.x, n1.y, n2.x, n2.y, n1.r+2);
+          const [x2,y2] = _pvEdgePoint(n2.x, n2.y, n1.x, n1.y, n2.r+2);
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('id', id);
+          line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+          line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+          line.setAttribute('stroke-dasharray', '8 10');
+          line.style.stroke = color;
+          line.style.strokeWidth = '3.5';
+          line.style.strokeLinecap = 'round';
+          line.style.animation = `${dir} ${s}s linear infinite`;
+          svg.appendChild(line);
+        }
+      } else if (el) {
+        el.remove(); // Fluss gestoppt → nur Overlay weg, Basislinie bleibt sichtbar stehen
+      }
+    };
+    updateLine('pvflow-line-pv-house',   nPV,   nHouse, C_PV,   Math.max(0, pvW),    true);
+    if (nBatt) {
+      updateLine('pvflow-line-pv-batt',    nPV,   nBatt,  C_BATT, Math.max(0,  battW), true);
+      updateLine('pvflow-line-batt-house', nBatt, nHouse, C_BATT, Math.max(0, -battW), true);
+    }
+    updateLine('pvflow-line-pv-grid',    nPV,   nGrid,  gColor, Math.max(0,  gridW), true);
+    updateLine('pvflow-line-grid-house', nGrid, nHouse, gColor, Math.max(0, -gridW), true);
+
+    return true;
   }
 
   async function loadPvStatsView(view) {
@@ -221,12 +325,20 @@
     });
     const content = document.getElementById('pv-stats-content');
     if (!content) return;
-    content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>';
+
+    // Live-Ansicht bereits aufgebaut (vorheriger Tick oder Tab-Wechsel)? → nur die Werte
+    // aktualisieren, kein Lade-Platzhalter, kein SVG-Neuaufbau. Verhindert das Flackern
+    // und den Neustart der Fluss-Animationen bei jedem 5s-Refresh.
+    const isLiveRefresh = view === 'flow' && !!document.getElementById('pvflow-svg');
+    if (!isLiveRefresh) {
+      content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Lade…</div>';
+    }
     try {
       if (view === 'flow') {
         const r = await fetch('/ha/pv/state', { cache: 'no-store' });
         if (!r.ok) throw new Error(await r.text());
         const d = await r.json();
+        if (isLiveRefresh && _updatePvFlowDiagram(d.state)) return;
         content.innerHTML = _renderPvFlowDiagram(d.state);
         return;
       }
