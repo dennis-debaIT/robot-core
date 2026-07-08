@@ -6,11 +6,15 @@
   <title>Erika Display</title>
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="stylesheet" href="/display.css?v=77">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css">
-  <!-- HLS.js für go2rtc Live-Streams -->
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- leaflet.css/flag-icons.css werden erst für Fahrzeugkarte bzw. Liga-Flaggen gebraucht,
+       nie beim initialen Home-Rendering — async laden statt First Paint zu blockieren. -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.2.3/css/flag-icons.min.css" media="print" onload="this.media='all'">
+  <!-- HLS.js (Kamera-Live-Stream) und Leaflet (Fahrzeugkarte) — beide erst nach expliziter
+       Nutzer-Navigation gebraucht (nav-vehicles/Kamera-Ansicht), nie beim Boot. defer statt
+       synchron blockierend, damit langsames/gestörtes CDN nicht das First Paint verzögert. -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js" defer></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 </head>
 <body>
 
@@ -634,6 +638,11 @@
   const _WEATHER_ERROR = { _error: true, enabled: true };
   async function loadWeather() {
     const cached = cacheGet('weather');
+    // Cache-first (wie loadFuel/loadCalendar) — vermeidet unnötigen Netzwerk-Roundtrip
+    // bei jedem Zurückkehren zur Home-Ansicht innerhalb der 15-Minuten-TTL. Vorher wurde
+    // immer zuerst das Netzwerk gefragt, wodurch der 60s-Kraftstoff-Intervall (der
+    // showWeatherLeft() mit auslöst) das Wetter faktisch alle 60s statt alle 15min neu holte.
+    if (cached) return cached;
     try {
       const resp = await fetch('/weather?_=' + Date.now(), { cache: 'no-store' });
       if (!resp.ok) return cached || _lastWeatherData || _WEATHER_ERROR;
@@ -1052,6 +1061,16 @@
       }
       return _WIDGET_DEFS[s.widget]?.label || s.widget;
     }).join(' &middot; ');
+
+    if (_panelFirstRender[side]) {
+      // Erstes Rendern dieses Panels (Boot) — direkt anzeigen statt 300ms zu warten,
+      // es gibt noch nichts Sichtbares zum "Wegfaden".
+      _panelFirstRender[side] = false;
+      labelEl.innerHTML = label || side;
+      contentEl.innerHTML = printerHtml
+        + `<div class="widget-grid">${gridRows}</div>`;
+      return;
+    }
 
     contentEl.classList.add('fade-out');
     setTimeout(() => {
@@ -7648,6 +7667,7 @@
     right: [{ widget: 'calendar', size: 3 }, { widget: 'pv', size: 1 }],
   };
   const _panelRenderSeq = { left: 0, right: 0 };
+  const _panelFirstRender = { left: true, right: true }; // Boot-Render braucht kein Fade — nichts Sichtbares wird "weggefadet"
   let _lastLayoutJson = '';
   function _applyLayout(d) {
     if (!d) return;
@@ -7689,6 +7709,10 @@
 
   // ── INIT ──────────────────────────────────────────────────
   applyMode('idle');
+  // Sofort aufrufen statt auf den ersten 2s-Intervall-Tick zu warten — nach jedem
+  // Update (localStorage von applyAppHash() geleert) zeigte Home sonst kurz den
+  // falschen Modul-Zustand (_enabledModules-Defaults) bis der erste Poll eintraf.
+  pollDisplayState();
   setInterval(pollDisplayState, 2000);
   setInterval(pollReplyText, 400);
   setInterval(pollDoorbellState, 3000);
@@ -7755,15 +7779,8 @@
     }
   }, 30000);
 
-  // ── VIEWPORT SCALING (10"-Display = scale 1, iPad/Desktop skaliert proportional) ──
-  function _scaleToFit() {
-    const s = Math.min(window.innerWidth / 1280, window.innerHeight / 800);
-    document.body.style.transform = `scale(${s})`;
-    document.body.style.marginLeft = ((window.innerWidth  - 1280 * s) / 2) + 'px';
-    document.body.style.marginTop  = ((window.innerHeight - 800  * s) / 2) + 'px';
-  }
-  _scaleToFit();
-  window.addEventListener('resize', _scaleToFit);
+  // Viewport-Scaling (10"-Display = scale 1, iPad/Desktop skaliert proportional) läuft
+  // bereits über applyScale() im <head> (identische Logik, ein resize-Listener reicht).
 </script>
 <!-- Erika Plus — Paid-Module (fehlt im Community-Build → 404, Upgrade-Box greift) -->
 <script src="/display-plus.js" defer onerror="console.info('Community Edition: Plus-Module nicht geladen')"></script>
