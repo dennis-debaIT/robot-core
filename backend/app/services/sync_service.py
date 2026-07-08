@@ -263,14 +263,17 @@ def push_item(item: dict[str, Any]) -> None:
     if item.get("deleted"):
         _sync_request("DELETE", f"/items/{item['id']}")
     else:
+        # checked in derselben Anfrage mitschicken statt in einem separaten
+        # PATCH hinterher — vermeidet ein Zeitfenster mit falschem Status auf
+        # dem Server und eine dauerhafte Divergenz falls der zweite Aufruf
+        # fehlschlägt, während der erste bereits durchging.
         _sync_request("POST", "/items", {
             "id":         item["id"],
             "text":       item["text"],
             "sort_order": item["sort_order"],
             "created_at": item["created_at"],
+            "checked":    bool(item.get("checked")),
         })
-        if item.get("checked") is not None:
-            _sync_request("PATCH", f"/items/{item['id']}", {"checked": item["checked"]})
     _mark_synced(item["id"])
 
 
