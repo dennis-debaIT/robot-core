@@ -429,7 +429,7 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">Stichwort-Filter</div>
-              <p>Artikel deren Titel eines der eingetragenen Wörter enthält werden auf dem Display farblich <strong>hervorgehoben</strong> oder komplett <strong>ausgeblendet</strong>. Groß- und Kleinschreibung wird nicht unterschieden.</p>
+              <p>Wirkt auf den Artikel-Titel, Groß- und Kleinschreibung wird nicht unterschieden.</p>
             </div>
 
             <div class="field-grid" style="gap:20px;">
@@ -947,6 +947,14 @@
               <div class="panel-kicker">Abfall <span style="font-size:0.6rem;background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;margin-left:6px;">PLUS</span></div>
               <h2>Abfallkalender</h2>
             </div>
+            <label class="switch-card">
+              <input id="waste-enabled" type="checkbox">
+              <span class="switch-slider" aria-hidden="true"></span>
+              <span class="switch-copy">
+                <span class="switch-title">Modul aktiv</span>
+                <span class="switch-text">Abfall-Widget im Display anzeigen</span>
+              </span>
+            </label>
           </header>
           <section class="module-card">
             <div class="section-copy">
@@ -1204,7 +1212,7 @@
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">API-Schl&uuml;ssel</div>
-              <p>Gleicher kostenloser API-Key wie beim Turnier-Modul (<strong>football-data.org</strong>). Du kannst denselben Key eintragen.</p>
+              <p>Gleicher kostenloser API-Key wie beim Turnier-Modul (<strong>football-data.org</strong>) — ist dort schon einer hinterlegt, wird er automatisch vorausgef&uuml;llt.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
@@ -2220,42 +2228,6 @@
             <textarea id="diag-report-text" style="display:none;" readonly></textarea>
           </section>
 
-          <section class="module-card weather-legacy-hidden">
-            <div class="section-copy">
-              <div class="section-title">Wetteranzeige</div>
-              <p>Dein aktueller Aufbau ist der Standard. Du kannst aber festlegen, welche Kennzahlen und wie viele Stunden Vergangenheit/Zukunft im linken Displaybereich erscheinen.</p>
-            </div>
-            <div class="field-grid">
-              <label class="field-block checkbox-block">
-                <span class="field-label">Modul</span>
-                <label class="mini-check">
-                  <input id="weather-enabled" type="checkbox">
-                  <span>Wetter anzeigen</span>
-                </label>
-              </label>
-              <label class="field-block">
-                <span class="field-label">Vergangene Stunden</span>
-                <input id="weather-past-hours" class="field-input" type="number" min="0" max="12" step="1">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Zukünftige Stunden</span>
-                <input id="weather-future-hours" class="field-input" type="number" min="1" max="24" step="1">
-              </label>
-              <label class="field-block checkbox-block"><span class="field-label">Gefühlt</span><label class="mini-check"><input id="weather-show-feels" type="checkbox"><span>Gefühlt wie</span></label></label>
-              <label class="field-block checkbox-block"><span class="field-label">Wind</span><label class="mini-check"><input id="weather-show-wind" type="checkbox"><span>Wind</span></label></label>
-              <label class="field-block checkbox-block"><span class="field-label">Feuchte</span><label class="mini-check"><input id="weather-show-humidity" type="checkbox"><span>Luftfeuchtigkeit</span></label></label>
-              <label class="field-block checkbox-block"><span class="field-label">Regen</span><label class="mini-check"><input id="weather-show-precip" type="checkbox"><span>Niederschlag</span></label></label>
-              <label class="field-block checkbox-block"><span class="field-label">Min/Max</span><label class="mini-check"><input id="weather-show-minmax" type="checkbox"><span>Tageswerte</span></label></label>
-              <label class="field-block checkbox-block"><span class="field-label">Stunden</span><label class="mini-check"><input id="weather-show-hourly" type="checkbox"><span>Stundenleiste</span></label></label>
-            </div>
-          </section>
-
-          <section class="module-card">
-            <div class="section-copy">
-              <div class="section-title">Aktueller Stand</div>
-              <p>Die lokale Admin-Oberfläche läuft separat unter <code>/local-admin</code> und ersetzt die bestehende Console nicht. Weitere Module wie Lichter, Roboter und Kameras können auf derselben Struktur folgen. Benutzername und Passwort werden bereits gespeichert, die API-Anbindung nutzt aktuell aber stabil den Token-Pfad.</p>
-            </div>
-          </section>
         </article>
 
         <!-- ── PROTOKOLL / AUDIT-LOG ─────────────────────────── -->
@@ -4202,6 +4174,8 @@
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
         const waste = (cfg.config || cfg).waste || {};
+        const enabledEl = document.getElementById('waste-enabled');
+        if (enabledEl) enabledEl.checked = waste.enabled === true;
         const el = document.getElementById('waste-calendar');
         if (el) el.value = waste.calendar_entity || 'calendar.abfallkalender';
         _wasteBins = Array.isArray(waste.bins) ? waste.bins.map(b => ({ ...b })) : [];
@@ -4225,7 +4199,7 @@
         await fetch('/local-admin/integrations/config', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ waste: { enabled: true, calendar_entity: val, bins, push_notifications: {
+          body: JSON.stringify({ waste: { enabled: !!document.getElementById('waste-enabled')?.checked, calendar_entity: val, bins, push_notifications: {
             enabled: document.getElementById('waste-push-enabled')?.checked !== false,
             notify_time: document.getElementById('waste-push-time')?.value || '18:00',
           }}}),
@@ -4729,11 +4703,15 @@
     async function _loadLigaConfig() {
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
-        const l = (cfg.config || cfg).liga || {};
+        const c = cfg.config || cfg;
+        const l = c.liga || {};
         const enabledEl = document.getElementById('liga-enabled');
         const keyEl     = document.getElementById('liga-api-key');
         if (enabledEl) enabledEl.checked = l.enabled === true;
-        if (keyEl)     keyEl.value        = l.api_key || '';
+        // Eigener Liga-Key hat Vorrang; ist noch keiner gesetzt, den Turnier-Key
+        // als Vorschlag übernehmen — football-data.org nutzt für beide Module
+        // ohnehin denselben Account, muss also nicht doppelt eingetippt werden.
+        if (keyEl) keyEl.value = l.api_key || (c.tournament || {}).api_key || '';
         const leagues = l.leagues || [];
         const bl1El = document.getElementById('liga-bl1');
         const bl2El = document.getElementById('liga-bl2');

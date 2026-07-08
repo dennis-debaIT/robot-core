@@ -279,6 +279,7 @@ def get_display_state() -> dict[str, Any]:
         "cameras":  bool((config.get("cameras")  or {}).get("enabled", True)) and _has_entities("cameras"),
         "calendar": bool((config.get("calendar") or {}).get("enabled", True)),
         "pv":       bool((config.get("pv")       or {}).get("enabled", False)),
+        "waste":    bool((config.get("waste")    or {}).get("enabled", False)),
         "printer":  bool((config.get("printer")  or {}).get("enabled", False)),
         "energy":   bool((config.get("energy")   or {}).get("enabled", False)) and bool((config.get("energy") or {}).get("sensors")),
         "chores":      bool((config.get("chores")      or {}).get("enabled", False)),

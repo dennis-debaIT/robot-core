@@ -1020,7 +1020,7 @@
     if (widgetId === 'ev')       return _enabledModules.vehicles === true;
     if (widgetId === 'calendar') return _enabledModules.calendar !== false;
     if (widgetId === 'cameras')  return _enabledModules.cameras === true;
-    if (widgetId === 'waste')    return _hasFeature('waste');
+    if (widgetId === 'waste')    return _enabledModules.waste === true && _hasFeature('waste');
     return true;
   }
 
@@ -3547,6 +3547,7 @@
       pv:       modules?.pv       === true,
       printer:  modules?.printer  === true,
       energy:   modules?.energy   === true,
+      waste:    modules?.waste    === true,
       chores:      modules?.chores      === true,
       tournament:  modules?.tournament  === true,
       liga:        modules?.liga        === true,
@@ -7807,7 +7808,7 @@
   // einem Backend-Neustart kurzzeitig leer antwortet ("Kein Abfalltermin"),
   // ohne auf den 15-Minuten-Kalender-Refresh warten zu müssen.
   setInterval(async () => {
-    if (!_hasFeature('waste') || currentMode !== 'idle' || !_isHome()) return;
+    if (!_enabledModules.waste || currentMode !== 'idle' || !_isHome()) return;
     const wasteSlot = document.querySelector('[data-widget="waste"]');
     if (!wasteSlot) return;
     const data = await loadWasteData();

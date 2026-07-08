@@ -401,10 +401,6 @@ button.module-overview-card.is-disabled .module-overview-status {
   background: var(--panel-soft);
 }
 
-.weather-legacy-hidden {
-  display: none;
-}
-
 .section-copy {
   margin-bottom: 14px;
 }
