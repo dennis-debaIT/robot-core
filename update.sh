@@ -1,5 +1,8 @@
 #!/bin/bash
 set -e
+# Fehler in einer Pipe (z.B. "docker compose ... | tail -4") sollen das Skript
+# stoppen wenn der ERSTE Befehl scheitert, nicht nur wenn tail scheitert.
+set -o pipefail
 
 # HOME und PATH sicherstellen (cron liefert oft minimales Environment)
 export HOME=${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}
@@ -22,13 +25,20 @@ trap "rmdir '$LOCKFILE' 2>/dev/null || true" EXIT
 exec 1>>"$LOG" 2>&1
 
 echo "[update] Starte Update: $(date)"
-# SSH-Fetch (falls Key vorhanden), Fallback auf HTTPS (Public Repo, kein Token nötig)
-if git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1; then
+# SSH-Fetch (falls Key vorhanden), Fallback auf HTTPS (Public Repo, kein Token nötig).
+# timeout schützt vor unbegrenztem Haengen bei Netzwerkproblemen (z.B. TLS-Handshake-
+# Timeout beim GitHub-Zugriff) — ohne das konnte ein einzelner haengender Lauf die
+# Admin-Oberflaeche weit ueber ihr 5-Minuten-Warten hinaus blockieren, ohne jede
+# Fehlermeldung im Log.
+if timeout 60 git -c safe.directory=. fetch git@github.com:dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1; then
     echo "[update] Fetch via SSH"
 else
     echo "[update] SSH nicht verfügbar, versuche HTTPS..."
-    GIT_TERMINAL_PROMPT=0 git -c safe.directory=. -c credential.helper= \
-        fetch https://github.com/dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1
+    if ! GIT_TERMINAL_PROMPT=0 timeout 60 git -c safe.directory=. -c credential.helper= \
+        fetch https://github.com/dennis-debaIT/robot-core.git main:refs/remotes/origin/main 2>&1; then
+        echo "[update] FEHLER: git fetch (HTTPS) fehlgeschlagen oder Timeout nach 60s — Update abgebrochen: $(date)"
+        exit 1
+    fi
 fi
 git -c safe.directory=. reset --hard origin/main 2>&1
 
@@ -76,23 +86,42 @@ EDITION=$(cat "$INSTALL_DIR/edition" 2>/dev/null | tr -d '[:space:]')
 [ -z "$EDITION" ] && EDITION=community
 export EDITION
 echo "[update] Build startet (GIT_HASH=$GIT_HASH, EDITION=$EDITION)..."
-docker compose up -d --build robot-core 2>&1 | tail -4
+# timeout schützt vor unbegrenztem Haengen (z.B. Registry-Pull mit TLS-Handshake-Timeout —
+# schon selbst erlebt). 600s sind grosszuegig fuer einen echten Rebuild mit neuen
+# Abhaengigkeiten; ein reiner Cache-Hit (haeufigster Fall) dauert nur Sekunden.
+if ! timeout 600 docker compose up -d --build robot-core 2>&1 | tail -4; then
+    echo "[update] FEHLER: docker build/up fehlgeschlagen oder Timeout nach 600s — Update abgebrochen: $(date)"
+    exit 1
+fi
 
 # Watcher neu starten falls nicht aktiv
 chmod +x "$INSTALL_DIR/reboot-watcher.sh" "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
 pgrep -f reboot-watcher.sh  > /dev/null || nohup bash "$INSTALL_DIR/reboot-watcher.sh"  >> "$INSTALL_DIR/reboot.log"  2>&1 &
 pgrep -f setup-watcher.sh   > /dev/null || nohup bash "$INSTALL_DIR/setup-watcher.sh"   >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
 
+# Auf tatsächliche Erreichbarkeit warten statt sofort "fertig" zu melden — der Container-
+# Prozess läuft laut docker compose zwar schon, aber die FastAPI-App braucht danach noch
+# ein paar Sekunden zum Hochfahren (App-Init, DB-Verbindung). Die Admin-Oberfläche wartet
+# auf "Abgeschlossen" im Log, das soll erst erscheinen wenn die API wirklich antwortet.
+_health_ok=0
+for _i in $(seq 1 60); do
+    if curl -sk -o /dev/null --max-time 2 https://localhost:8000/status 2>/dev/null; then
+        _health_ok=1
+        break
+    fi
+    sleep 1
+done
+if [ "$_health_ok" = "1" ]; then
+    echo "[update] Container erreichbar: $(date)"
+    echo "[update] Abgeschlossen: $(date)"
+else
+    echo "[update] WARNUNG: Container nach 60s immer noch nicht erreichbar — moeglicher Startfehler, bitte Logs prüfen: $(date)"
+fi
+
+# ── Ab hier reine Hintergrund-Wartung — läuft absichtlich NACH "Abgeschlossen",
+# damit sie den von der Admin-Oberfläche sichtbaren Update-Status nicht mehr blockiert. ──
+
 # Verwaiste Images + Build-Cache aufräumen
 docker image prune -f
 docker builder prune --reserved-space=1GB -f 2>/dev/null || true
 docker system df 2>/dev/null || true
-
-# Monatlichen Cron-Job für Build-Cache-Bereinigung einrichten (einmalig, idempotent)
-CRON_JOB="0 3 1 * * docker builder prune --reserved-space=1GB -f >> $INSTALL_DIR/update.log 2>&1"
-if ! crontab -l 2>/dev/null | grep -qF "docker builder prune"; then
-    (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
-    echo "[update] Monatlicher Docker-Cache-Cron eingerichtet"
-fi
-
-echo "[update] Abgeschlossen: $(date)"
