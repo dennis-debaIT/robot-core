@@ -31,6 +31,7 @@ from urllib import request as _req
 from app.database.db import get_connection
 
 _LICENSE_FILE = Path("/data/license.json")
+_ITEMS_WATERMARK_FILE = Path("/data/sync_items_watermark.txt")
 
 _SSL_CTX = ssl.create_default_context()
 _SSL_CTX.check_hostname = False
@@ -305,13 +306,27 @@ def pull_and_merge(since: str | None = None) -> int:
                 ),
             )
             merged += 1
+    # Server-Watermark aus der Antwort persistieren — NICHT lokale synced_at-Zeiten
+    # verwenden. Ein lokaler Push (push_unsynced) darf den "since"-Cursor für den
+    # NÄCHSTEN Pull nicht künstlich auf "jetzt" vorziehen, sonst werden zeitgleiche
+    # Änderungen anderer Geräte (z.B. der App), die noch nicht abgeholt wurden,
+    # dauerhaft übersprungen.
+    server_time = result.get("server_time")
+    if server_time:
+        _save_last_sync_time(server_time)
     return merged
 
 
 def get_last_sync_time() -> str | None:
-    with get_connection() as conn:
-        row = conn.execute("SELECT MAX(synced_at) AS t FROM sync_items").fetchone()
-    return row["t"] if row else None
+    try:
+        return _ITEMS_WATERMARK_FILE.read_text(encoding="utf-8").strip() or None
+    except FileNotFoundError:
+        return None
+
+
+def _save_last_sync_time(server_time: str) -> None:
+    _ITEMS_WATERMARK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _ITEMS_WATERMARK_FILE.write_text(server_time, encoding="utf-8")
 
 
 def _mark_synced(item_id: str) -> None:
