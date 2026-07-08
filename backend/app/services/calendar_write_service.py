@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.services.homeassistant_service import HomeAssistantService
 from app.services.integration_config_service import IntegrationConfigService
+
+logger = logging.getLogger(__name__)
 
 
 class CalendarWriteService:
@@ -31,7 +34,13 @@ class CalendarWriteService:
                 if row:
                     return str(row["value"]).strip() or None
         except Exception:
-            pass
+            # Bewusst weiter mit None/Fallback auf default_write_entity() statt
+            # den Termin-Erstellungs-Flow abzubrechen — aber geloggt, damit ein
+            # echter DB-Fehler nicht wie "keine Präferenz gesetzt" aussieht und
+            # der Termin lautlos im falschen (Default-)Kalender landet.
+            logger.error(
+                "Konnte Kalender-Präferenz für Person '%s' nicht laden", person_name, exc_info=True
+            )
         return None
 
     def resolve_entity(self, person_name: str | None) -> str | None:
@@ -67,4 +76,8 @@ class CalendarWriteService:
                 if s.get("entity_id", "").startswith("calendar.")
             ]
         except Exception:
+            # Fallback bleibt leere Liste (Admin-Dropdown zeigt dann "keine
+            # Kalender") — aber geloggt, damit ein HA-Ausfall nicht wie eine
+            # echte "keine Kalender konfiguriert"-Situation aussieht.
+            logger.error("Konnte Kalender-Entities von Home Assistant nicht laden", exc_info=True)
             return []
