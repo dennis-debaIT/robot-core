@@ -231,14 +231,29 @@ def _get(path: str) -> dict | None:
         return None
 
 
+def _name_candidates(name: str) -> list[str]:
+    """Alternative Suchbegriffe falls der exakte Vereinsname keine Treffer liefert:
+    1. Original ("1. FC Heidenheim 1846")
+    2. Ohne führende "N. " ("FC Heidenheim 1846")
+    3. Ohne abschließende Jahreszahl ("FC Heidenheim")
+    """
+    base = name.strip()
+    candidates: list[str] = [base]
+    c1 = re.sub(r'^\d+\.\s+', '', base)
+    if c1 != base:
+        candidates.append(c1)
+    c2 = re.sub(r'\s+\d{4}$', '', candidates[-1])
+    if c2 != candidates[-1]:
+        candidates.append(c2)
+    return candidates
+
+
 class TransfermarktService:
     def search_club_id(self, name: str) -> str | None:
         """TM-ID per Namenssuche — 7 Tage Disk-Cache (überlebt Restarts).
 
-        Probiert mehrere Suchbegriffe falls der exakte Name keine Treffer liefert:
-        1. Original ("1. FC Heidenheim 1846")
-        2. Ohne führende "N. " ("FC Heidenheim 1846")
-        3. Ohne abschließende Jahreszahl ("FC Heidenheim")
+        Probiert mehrere Suchbegriffe falls der exakte Name keine Treffer liefert
+        (siehe _name_candidates).
         """
         key = f"tm_search:{name.lower().strip()}"
         cached = _cached(key, _SEARCH_TTL)
@@ -257,15 +272,7 @@ class TransfermarktService:
             except Exception:
                 pass
 
-        base = name.strip()
-        candidates: list[str] = [base]
-        c1 = re.sub(r'^\d+\.\s+', '', base)
-        if c1 != base:
-            candidates.append(c1)
-        c2 = re.sub(r'\s+\d{4}$', '', candidates[-1])
-        if c2 != candidates[-1]:
-            candidates.append(c2)
-
+        candidates = _name_candidates(name)
         tm_id = None
         for candidate in candidates:
             data = _get(f"/clubs/search/{urllib.parse.quote(candidate)}")
@@ -518,7 +525,12 @@ class TransfermarktService:
         return transfers or None
 
     def _tmde_search_club(self, name: str) -> tuple[str, str] | None:
-        """TM.de Vereins-Slug + ID via Schnellsuche — 7-Tage Disk-Cache."""
+        """TM.de Vereins-Slug + ID via Schnellsuche — 7-Tage Disk-Cache.
+
+        Probiert mehrere Suchbegriffe falls der exakte Name keine Treffer liefert
+        (siehe _name_candidates) — z.B. findet die Schnellsuche "1. FC Heidenheim
+        1846" oft nicht, "FC Heidenheim 1846" aber schon.
+        """
         slug_key = re.sub(r"[^a-z0-9]", "_", name.lower().strip())
         cache_path = _TMDE_CACHE_DIR / f"search_{slug_key}.json"
         if cache_path.exists():
@@ -528,12 +540,17 @@ class TransfermarktService:
                     return d["slug"], d["de_id"]
             except Exception:
                 pass
-        page = _tmde_get(
-            f"https://www.transfermarkt.de/schnellsuche/ergebnis/schnellsuche?query={urllib.parse.quote(name)}"
-        )
-        if not page:
-            return None
-        m = re.search(r"/([a-z0-9-]+)/startseite/verein/(\d+)", page)
+
+        m = None
+        for candidate in _name_candidates(name):
+            page = _tmde_get(
+                f"https://www.transfermarkt.de/schnellsuche/ergebnis/schnellsuche?query={urllib.parse.quote(candidate)}"
+            )
+            if not page:
+                continue
+            m = re.search(r"/([a-z0-9-]+)/startseite/verein/(\d+)", page)
+            if m:
+                break
         if not m:
             return None
         slug, de_id = m.group(1), m.group(2)
@@ -656,12 +673,19 @@ class TransfermarktService:
         return {"season": season_label, "arrivals": arrivals, "departures": []}
 
     def get_club_transfers(self, team_name: str) -> dict | None:
-        """Zugänge + Abgänge — Reihenfolge optimiert für erika-IP-Beschränkung.
+        """Zugänge + Abgänge.
 
         1. TM.de Disk-Cache (tmde/ — überlebt DELETE /liga/cache, schnell)
-        2. Kader-Disk-Cache (joinedOn aus TM-Profil-Enrichment — kein API-Call)
-        3. Community API fly.io — kein IP-Block, synchron wenn kein Disk-Cache
-        4. TM.de Scraping live — Fallback, auf erika oft von Cloudflare blockiert
+        2. TM.de Scraping live — beste Datenqualität (echte Ablösesummen + Abgänge)
+        3. Kader-Disk-Cache — Fallback nur wenn Scraping fehlschlägt (nur Zugänge,
+           keine Ablösesummen, keine Abgänge — die Kaderliste enthält nur wer
+           aktuell da ist, nicht wer gegangen ist)
+        4. Community API fly.io — letzter Ausweg, gleiche Einschränkung wie 3
+
+        Scraping zuerst statt zuletzt: die günstigeren Quellen (3+4) liefern nur
+        eine Teilmenge (Zugänge ohne Ablöse, nie Abgänge) und würden — kämen sie
+        zuerst dran — den vollständigeren Scrape-Treffer permanent verdecken,
+        sobald sie irgendein (auch unvollständiges) Ergebnis finden.
         """
         # ── 1. TM.de Disk-Cache (sofortiger Treffer wenn Daten vom letzten Scrape da) ──
         slug: str | None = None
@@ -676,12 +700,21 @@ class TransfermarktService:
                 if age < _CLUB_CHECK_INTERVAL:
                     return disk["data"]
 
-        # ── 2. Kader-Disk-Cache (daemon hat ihn vorgewärmt — kein API-Call) ──────
+            # ── 2. TM.de Scraping live ────────────────────────────────────────
+            result = self._scrape_club_transfers(slug, de_id, team_name)
+            if result:
+                _club_disk_write(tmde_cache, result, None)
+                return result
+
+        # Scraping nicht möglich (kein Slug gefunden) oder fehlgeschlagen
+        # (Cloudflare-Block o.ä.) → auf unvollständigere Quellen ausweichen.
+
+        # ── 3. Kader-Disk-Cache (daemon hat ihn vorgewärmt — kein API-Call) ──────
         kader_result = self._transfers_from_kader_cache(team_name)
         if kader_result:
             return kader_result
 
-        # ── 3. Community API (fly.io) — synchron laden, in Clubs-Cache speichern ──
+        # ── 4. Community API (fly.io) — synchron laden, in Clubs-Cache speichern ──
         tm_id = self.search_club_id(team_name)
         if tm_id:
             api_cache = _CLUB_CACHE_DIR / f"transfers_{tm_id}.json"
@@ -690,24 +723,12 @@ class TransfermarktService:
                 age = time.time() - api_disk.get("ts", 0)
                 if age < _CLUB_CHECK_INTERVAL:
                     return api_disk["data"]
-                def _bg_api(tid: str, p: pathlib.Path) -> None:
-                    fresh = self._get_club_transfers_by_id(tid)
-                    if fresh:
-                        _club_disk_write(p, fresh, None)
-                threading.Thread(target=_bg_api, args=(tm_id, api_cache), daemon=True).start()
-                return api_disk["data"]
             result = self._get_club_transfers_by_id(tm_id)
             if result:
                 _club_disk_write(api_cache, result, None)
                 return result
 
-        # ── 4. TM.de Scraping live (oft blockiert, aber als letzter Ausweg) ──────
-        if not slug or not de_id:
-            return None
-        result = self._scrape_club_transfers(slug, de_id, team_name)
-        if result:
-            _club_disk_write(_TMDE_CACHE_DIR / f"transfers_{de_id}.json", result, None)
-        return result
+        return None
 
     def _scrape_club_transfers(self, slug: str, de_id: str, team_name: str) -> dict | None:
         """Scrapt TM.de /alletransfers/, gibt aktuelle Saison zurück.
