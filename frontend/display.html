@@ -6986,7 +6986,10 @@
 
   async function showLightsView() {
     const lights = await loadLightsData();
-    if (!lights) return;
+    // Navigation kann während des Fetches weitergegangen sein (z.B. sofort
+    // wieder auf Start getippt) — sonst schreibt diese verspätete Antwort
+    // noch Lichter-Inhalt in ein Panel, das inzwischen eine andere Ansicht zeigt.
+    if (!lights || _navMode !== 'lights') return;
     // Start immer mit Alle-Gruppen-Übersicht
     _selectedGroup = null;
     renderLightsView(lights);
@@ -7167,6 +7170,12 @@
   async function refreshLightsView() {
     if (_navMode !== 'lights') return;
     const lights = await loadLightsData();
+    // Erneut prüfen: während des Fetches kann die Navigation weitergegangen
+    // sein (clearLightsView() hat dann bereits _lightsLastFingerprint
+    // zurückgesetzt) — eine verspätete Antwort darf das nicht überschreiben,
+    // sonst bleibt das Fingerprint-Gate beim nächsten Öffnen fälschlich auf
+    // "unverändert" stehen und das Panel bleibt leer.
+    if (_navMode !== 'lights') return;
     renderLightsView(lights);
   }
 
