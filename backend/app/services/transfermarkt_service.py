@@ -109,6 +109,15 @@ class _TMTransferParser(html.parser.HTMLParser):
                 self._season = m.group(2)
                 if self._season not in self.seasons:
                     self.seasons[self._season] = {"arrivals": [], "departures": []}
+            # Tbody-Tracking pro Saison-Abschnitt neu anfangen: ein irgendwo
+            # weiter oben auf der (sehr langen) Seite nicht sauber geschlossenes
+            # <tbody> (z.B. in einem Werbe-/Empfehlungs-Widget) verschiebt sonst
+            # den globalen Tiefenzähler dauerhaft — jede nachfolgende Tabelle
+            # (inkl. aktueller Saisons!) würde dann still als leer geparst.
+            self._tbody_depth = 0
+            self._in_tbody = False
+            self._in_tr = False
+            self._cells = []
         elif tag == "tbody":
             self._tbody_depth -= 1
             if self._tbody_depth == 0:
@@ -592,6 +601,8 @@ class TransfermarktService:
                 "date":         joined_str,
             })
 
+        if not arrivals:
+            return None  # Keine Evidenz für Transfers -> TM.de-Scraping als nächste Stufe versuchen
         arrivals.sort(key=lambda x: x.get("date") or "", reverse=True)
         return {"season": season_label, "arrivals": arrivals, "departures": []}
 
@@ -704,6 +715,8 @@ class TransfermarktService:
         Enrichment ohne extra API-Calls: Zugänge werden per Name mit der
         gecachten Kaderliste abgeglichen (Position + Marktwert).
         """
+        import datetime
+
         page = _tmde_get(f"https://www.transfermarkt.de/{slug}/alletransfers/verein/{de_id}")
         if not page:
             return None
@@ -716,11 +729,17 @@ class TransfermarktService:
         kader_by_name = {p["name"]: p for p in (self.get_club_players(team_name) or [])}
 
         def _season_year(s: str) -> int:
+            # Jahrhundert-Grenze relativ zum aktuellen Jahr statt fest verdrahtet:
+            # TM listet die kommende Saison bereits (z.B. "27/28" im Jahr 2026), daher
+            # +1 Jahr Puffer. Ohne das würde z.B. "49/50" als 2049 statt 1949 einsortiert
+            # (fixe Grenze "yy < 50" behandelt 49 fälschlich als 2000er) und beim
+            # Rückwärts-Sortieren vor der echten aktuellen Saison landen.
             m = re.match(r"(\d{2})/", s)
             if not m:
                 return 0
             yy = int(m.group(1))
-            return (2000 + yy) if yy < 50 else (1900 + yy)
+            current_yy = datetime.date.today().year % 100
+            return (2000 + yy) if yy <= current_yy + 1 else (1900 + yy)
 
         for season in sorted(parser.seasons, key=_season_year, reverse=True):
             data = parser.seasons[season]
