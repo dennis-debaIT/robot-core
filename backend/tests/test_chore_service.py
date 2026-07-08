@@ -147,12 +147,14 @@ def test_delete_completion(temp_db):
     entry = svc.log_completion(task["id"], dennis)
     assert svc.task_stats(task["id"], "week")["persons"][0]["count"] == 1
 
-    assert svc.delete_completion(entry["id"]) is True
+    ok, _sync_id = svc.delete_completion(entry["id"])
+    assert ok is True
     stats = svc.task_stats(task["id"], "week")
     assert stats["persons"] == []
     assert stats["leader"] is None
 
-    assert svc.delete_completion(entry["id"]) is False
+    ok, _sync_id = svc.delete_completion(entry["id"])
+    assert ok is False
 
 
 def test_list_completions_filters_and_delete(temp_db):

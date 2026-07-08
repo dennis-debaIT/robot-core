@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import uuid
 from datetime import date
 from pathlib import Path
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────
 # Lizenz-Verifizierung (offline, fälschungssicher)
@@ -94,13 +97,20 @@ class LicenseService:
         try:
             return json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
         except Exception:
+            logger.error("Lizenzdatei %s ist beschädigt oder nicht lesbar", _LICENSE_FILE, exc_info=True)
             return None
 
     def status(self) -> dict:
         """Aktueller Lizenzstatus für Admin/Integration."""
-        lic = self.load()
-        if not lic:
+        if not _LICENSE_FILE.exists():
             return {"valid": False, "plan": "community", "reason": "no_license"}
+        lic = self.load()
+        if lic is None:
+            # Datei existiert, ist aber nicht lesbar/kein valides JSON — von
+            # "keine Lizenz installiert" unterscheiden, damit ein durch Absturz/
+            # Disk-Fehler beschädigter Lizenzstand nicht lautlos als Community
+            # erscheint (Plan-Downgrade ohne jede Fehlermeldung).
+            return {"valid": False, "plan": "community", "reason": "license_file_corrupt"}
         return self.verify(lic)
 
     def current_edition(self) -> str:

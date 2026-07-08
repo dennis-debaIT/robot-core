@@ -6,7 +6,17 @@ from app.core.settings import SettingsService
 from app.integrations.robot_core import RobotCore
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+_CANDIDATE_BASE_DIR = Path(__file__).resolve().parents[2]
+# Im Docker-Image liegen app/ und frontend/ als Geschwister direkt unter /app
+# (parents[2] passt). Im normalen Repo-Checkout liegt zwischen app/ und
+# frontend/ zusätzlich ein backend/-Ordner, d.h. parents[2] zeigt dann auf
+# backend/ statt auf den Repo-Root. Fallback eine Ebene höher, falls dort
+# kein frontend/ existiert.
+BASE_DIR = (
+    _CANDIDATE_BASE_DIR
+    if (_CANDIDATE_BASE_DIR / "frontend").is_dir()
+    else _CANDIDATE_BASE_DIR.parent
+)
 FRONTEND_INDEX = BASE_DIR / "frontend" / "index.html"
 DISPLAY_INDEX = BASE_DIR / "frontend" / "display.html"
 DISPLAY_CSS = BASE_DIR / "frontend" / "display.css"

@@ -7475,7 +7475,8 @@
           </div></div>`;
       } else {
         const reason = { no_license:'Keine Lizenz installiert', expired:'Lizenz abgelaufen',
-          bad_signature:'Lizenz ungültig', wrong_device:'Lizenz für anderes Gerät' }[d.reason] || 'Community';
+          bad_signature:'Lizenz ungültig', wrong_device:'Lizenz für anderes Gerät',
+          license_file_corrupt:'⚠️ Lizenzdatei beschädigt — bitte Lizenz neu installieren' }[d.reason] || 'Community';
         box.innerHTML = `<div style="font-size:0.82rem;color:var(--muted);">${reason}
           <span style="opacity:0.6;"> · Geräte-ID: ${d.device_id || '–'}</span></div>`;
       }
