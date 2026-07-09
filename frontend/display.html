@@ -3742,11 +3742,20 @@
   }
 
   // ── NACHRICHTEN ────────────────────────────────────────
+  // Kontakte tragen jetzt echte user_ids (eigener Haushalt + gegenseitig
+  // verbundene Haushalte, siehe GET /messages/contacts). Senden ist entweder
+  // gezielt an einen Kontakt (recipient_type=user, + recipient_household_id
+  // bei fremdem Haushalt) oder ein expliziter Broadcast an den eigenen
+  // Haushalt — nie beides gemischt, Broadcast geht nie in einen fremden
+  // Haushalt (das erzwingt bereits der Server).
   let _msgDismissTimer = null;
-  let _msgUnread = 0;
   let _msgShownIds = new Set();
   let _msgSelfLabel = '';   // display's own name — from SSE self_label
   let _msgEventSource = null;
+  let _msgSelectedContact = null;  // {user_id, name, own_household, household_id} | null
+  let _msgAllMessages     = [];
+  let _msgShowBroadcast   = false;
+  let _msgContacts        = [];    // [{user_id, name, own_household, household_id}]
 
   function _startMsgPolling() {
     if (_msgEventSource) return;
@@ -3774,8 +3783,10 @@
       );
       incoming.forEach(m => {
         _msgShownIds.add(m.id);
+        const contact = _msgContactForMessage(m);
         // Suppress overlay if this exact conversation is already open — user sees it live
-        const isActiveConv = _navMode === 'messages' && _msgSelectedSender === _msgContactKey(m);
+        const isActiveConv = _navMode === 'messages' && contact && _msgSelectedContact
+          && contact.user_id === _msgSelectedContact.user_id;
         if (isActiveConv) {
           // Mark read silently
           m.read = true;
@@ -3789,9 +3800,9 @@
 
       // If messages view is open: render instantly from cache (no REST fetch)
       if (_navMode === 'messages') {
-        _renderMsgContactsFromCache(_msgExtraContacts);
+        _renderMsgContactsFromCache();
         // Only refresh message list — _openConversation would rebuild compose bar and kill input focus
-        if (_msgSelectedSender) _refreshConvMessages();
+        if (_msgSelectedContact) _refreshConvMessages();
       }
     };
 
@@ -3804,11 +3815,28 @@
     if (_msgEventSource) { _msgEventSource.close(); _msgEventSource = null; }
   }
 
+  // Löst zu einer Nachricht den passenden Kontakt auf (per user_id).
+  function _msgContactForMessage(m) {
+    if (!m.sender_id) return null;
+    return _msgContacts.find(c => c.user_id === m.sender_id) || null;
+  }
+  function _msgDisplayName(m) {
+    return _msgContactForMessage(m)?.name || m.sender_label || 'Unbekannt';
+  }
+  // Gehört eine Nachricht zum 1:1-Verlauf mit diesem Kontakt? Entweder von ihm
+  // empfangen (sender_id) oder von mir gezielt an ihn gesendet — dank der
+  // sender_id-Klausel in get_inbox landet auch mein eigener gezielter Versand
+  // in meiner Inbox, daher genügt der reine recipient_id-Abgleich hier.
+  function _msgBelongsToContact(m, contact) {
+    return m.sender_id === contact.user_id
+      || (m.recipient_type === 'user' && m.recipient_id === contact.user_id);
+  }
+
   function _showIncomingMsg(msg) {
     const overlay = document.getElementById('msg-incoming-overlay');
     if (!overlay) return;
     if (_msgDismissTimer) { clearTimeout(_msgDismissTimer); _msgDismissTimer = null; }
-    document.getElementById('msg-incoming-sender').textContent = _msgContactKey(msg) || 'Erika';
+    document.getElementById('msg-incoming-sender').textContent = _msgDisplayName(msg);
     document.getElementById('msg-incoming-content').textContent = msg.content;
     overlay.style.display = 'block';
     const bar = document.getElementById('msg-incoming-bar');
@@ -3830,13 +3858,6 @@
     if (overlay) overlay.style.display = 'none';
   }
 
-  let _msgSelectedSender      = null;
-  let _msgSelectedHouseholdId = null;
-  let _msgAllMessages         = [];
-  let _msgShowBroadcast       = false;
-  let _msgExtraContacts       = [];
-  let _msgHouseholdMap        = {};
-
   function _updateMsgBadge() {
     const badge = document.getElementById('msg-badge');
     if (!badge) return;
@@ -3845,7 +3866,8 @@
     const contacts = new Set();
     for (const m of _msgAllMessages) {
       if (!m.read && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)) {
-        contacts.add(_msgContactKey(m));
+        const c = _msgContactForMessage(m);
+        contacts.add(c ? c.user_id : (m.sender_label || 'Unbekannt'));
       }
     }
     const count = contacts.size;
@@ -3859,8 +3881,8 @@
 
   function _openMessagesView() {
     _dismissIncomingMsg();
-    _msgSelectedSender = null;
-    _msgShowBroadcast  = false;
+    _msgSelectedContact = null;
+    _msgShowBroadcast   = false;
     document.getElementById('left-label').textContent = 'Nachrichten';
     const lc = document.getElementById('left-content');
     if (lc) {
@@ -3870,12 +3892,12 @@
       lc.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px 4px;border-bottom:1px solid rgba(255,255,255,0.07);">
           <span style="font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;">Kontakte</span>
-          <button onclick="_toggleBroadcast()" title="Neue Nachricht"
-            style="background:rgba(255,255,255,0.08);border:none;color:var(--text);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:0.85rem;">+ Neu</button>
+          <button onclick="_toggleBroadcast()" title="Broadcast an meinen Haushalt"
+            style="background:rgba(255,255,255,0.08);border:none;color:var(--text);border-radius:6px;padding:3px 9px;cursor:pointer;font-size:0.85rem;">📢 Broadcast</button>
         </div>
         <div id="msg-broadcast-wrap" style="display:none;padding:8px;border-bottom:1px solid rgba(255,255,255,0.07);">
           <div class="msg-compose-bar">
-            <input id="msg-broadcast-input" type="text" placeholder="Broadcast senden…"
+            <input id="msg-broadcast-input" type="text" placeholder="An meinen ganzen Haushalt…"
               onkeydown="if(event.key==='Enter')_sendBroadcast()">
             <button onclick="_sendBroadcast()">➤</button>
           </div>
@@ -3895,9 +3917,8 @@
 
   function clearMessagesView() {
     if (_navMode === 'messages') return;
-    _msgSelectedSender      = null;
-    _msgSelectedHouseholdId = null;
-    _msgAllMessages         = [];
+    _msgSelectedContact = null;
+    _msgAllMessages     = [];
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }
@@ -3909,70 +3930,48 @@
     if (_msgShowBroadcast) document.getElementById('msg-broadcast-input')?.focus();
   }
 
-  // Kanonischer Kontaktname für eine Nachricht: bei Haushalt-Nachrichten den User-Namen aus
-  // household_map bevorzugen statt des Gerätenamens (sender_label).
-  function _msgContactKey(m) {
-    if (m.sender_type === 'household' && m.sender_id) {
-      const found = Object.entries(_msgHouseholdMap).find(([, hid]) => hid === m.sender_id);
-      if (found) return found[0];
-    }
-    return m.sender_label || 'Unbekannt';
-  }
-
   // Render contact list purely from in-memory cache — called by SSE (instant, no fetch)
-  function _renderMsgContactsFromCache(extraContacts = []) {
+  function _renderMsgContactsFromCache() {
     const scroll = document.getElementById('msg-contact-scroll');
     if (!scroll) return;
-    // Build contact map: key = canonical contact name (resolves household device labels → person names)
-    const map = new Map();
-    for (const m of _msgAllMessages) {
-      if (_msgSelfLabel && m.sender_label === _msgSelfLabel) continue; // own → skip as contact key
-      const key = _msgContactKey(m);
-      if (!map.has(key) || new Date(m.created_at) > new Date(map.get(key).created_at)) map.set(key, m);
+    if (!_msgContacts.length) {
+      scroll.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;opacity:0.6;">Eigene Haushaltsmitglieder erscheinen automatisch, verbundene Haushalte nach gegenseitiger Bestätigung.</span></div>';
+      return;
     }
-    // For each contact: check if outgoing messages addressed to them are more recent
-    if (_msgSelfLabel) {
-      for (const [contact, lastIncoming] of map.entries()) {
-        const outToContact = _msgAllMessages.filter(
-          m => m.sender_label === _msgSelfLabel && m.recipient_id === contact
-        );
-        if (outToContact.length) {
-          const lastOut = outToContact.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b);
-          if (!lastIncoming || new Date(lastOut.created_at) > new Date(lastIncoming.created_at)) {
-            map.set(contact, lastOut);
-          }
+    const lastMsgByContact = new Map();
+    const unreadByContact  = new Map();
+    for (const c of _msgContacts) {
+      for (const m of _msgAllMessages) {
+        if (!_msgBelongsToContact(m, c)) continue;
+        const prev = lastMsgByContact.get(c.user_id);
+        if (!prev || new Date(m.created_at) > new Date(prev.created_at)) lastMsgByContact.set(c.user_id, m);
+        if (!m.read && m.sender_id === c.user_id) {
+          unreadByContact.set(c.user_id, (unreadByContact.get(c.user_id) || 0) + 1);
         }
       }
     }
-    for (const name of extraContacts) {
-      if (name !== _msgSelfLabel && !map.has(name)) map.set(name, null);
-    }
-    if (!map.size) {
-      scroll.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem;">Noch keine Kontakte.<br><span style="font-size:0.75rem;opacity:0.6;">Nutze "+ Neu" um eine Broadcast-Nachricht zu senden.</span></div>';
-      return;
-    }
-    // Unread count per contact (using canonical key, same as conversation map)
-    const unreadMap = new Map();
-    for (const m of _msgAllMessages) {
-      if (!m.read && (!_msgSelfLabel || m.sender_label !== _msgSelfLabel)) {
-        const k = _msgContactKey(m);
-        unreadMap.set(k, (unreadMap.get(k) || 0) + 1);
-      }
-    }
-    const withMsgs = [...map.entries()].filter(([,v]) => v).sort((a, b) => new Date(b[1].created_at) - new Date(a[1].created_at));
-    const noMsgs   = [...map.entries()].filter(([,v]) => !v);
-    scroll.innerHTML = [...withMsgs, ...noMsgs].map(([sender, last]) => {
-      const unread = unreadMap.get(sender) || 0;
+    const sorted = [..._msgContacts].sort((a, b) => {
+      const la = lastMsgByContact.get(a.user_id), lb = lastMsgByContact.get(b.user_id);
+      if (la && lb) return new Date(lb.created_at) - new Date(la.created_at);
+      if (la) return -1;
+      if (lb) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    scroll.innerHTML = sorted.map(c => {
+      const last = lastMsgByContact.get(c.user_id);
+      const unread = unreadByContact.get(c.user_id) || 0;
+      const selected = _msgSelectedContact && _msgSelectedContact.user_id === c.user_id;
+      const householdTag = !c.own_household ? ` <span style="opacity:0.5;font-size:0.75em;">· ${escapeHTML(c.household_id || '')}</span>` : '';
       return `
-      <div class="msg-contact-item${sender === _msgSelectedSender ? ' selected' : ''}" data-sender="${escapeAttr(sender)}">
-        <div class="msg-contact-name">${escapeHTML(sender)}</div>
+      <div class="msg-contact-item${selected ? ' selected' : ''}" data-user-id="${escapeAttr(c.user_id)}">
+        <div class="msg-contact-name">${escapeHTML(c.name)}${householdTag}</div>
         <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="opacity:0.5;">Noch keine Nachrichten</em>'}</div>
         ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
         ${unread > 0 ? `<span class="msg-contact-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
       </div>`;
     }).join('');
     scroll.querySelectorAll('.msg-contact-item').forEach(el => {
-      el.addEventListener('click', () => _openConversation(el.dataset.sender));
+      el.addEventListener('click', () => _openConversation(el.dataset.userId));
     });
   }
 
@@ -3988,15 +3987,8 @@
       const d = await inboxRes.json();
       _msgAllMessages = d.messages || [];
       if (d.self_label) _msgSelfLabel = d.self_label;
-      if (contactsRes?.ok) {
-        const cd = await contactsRes.json();
-        _msgExtraContacts = cd.contacts || [];
-        _msgHouseholdMap  = cd.household_map || {};
-      } else {
-        _msgExtraContacts = [];
-        _msgHouseholdMap  = {};
-      }
-      _renderMsgContactsFromCache(_msgExtraContacts);
+      _msgContacts = contactsRes?.ok ? ((await contactsRes.json()).contacts || []) : [];
+      _renderMsgContactsFromCache();
     } catch {
       if (scroll) scroll.innerHTML = '<div style="padding:16px;color:#f87171;font-size:0.82rem;">Fehler beim Laden.</div>';
     }
@@ -4016,11 +4008,12 @@
       });
       if (resp.ok) {
         const sent = await resp.json();
-        if (sent?.id) _msgShownIds.add(sent.id);
+        if (sent?.message_id) _msgShownIds.add(sent.message_id);
       }
       const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
       if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
-      await _loadMsgContacts();
+      _renderMsgContactsFromCache();
+      if (_msgSelectedContact) _refreshConvMessages();
     } catch {}
   }
 
@@ -4031,22 +4024,21 @@
     return `${time} · ${m.read ? '✓ Gelesen' : 'Gesendet'}`;
   }
 
+  function _msgIsMineTo(m, contact) {
+    return m.recipient_type === 'user' && m.recipient_id === contact.user_id;
+  }
+
   // Update only the message list — called by SSE to avoid rebuilding compose bar
   function _refreshConvMessages() {
     const convEl = document.getElementById('msg-conv-messages');
-    if (!convEl || !_msgSelectedSender) return;
-    const msgs = _msgAllMessages.filter(m => {
-      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel
-        && m.recipient_id === _msgSelectedSender;
-      const isTheirs = _msgSelectedHouseholdId
-        ? m.sender_id === _msgSelectedHouseholdId
-        : (m.sender_label || 'Unbekannt') === _msgSelectedSender;
-      return isMine || isTheirs;
-    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    if (!convEl || !_msgSelectedContact) return;
+    const msgs = _msgAllMessages
+      .filter(m => _msgBelongsToContact(m, _msgSelectedContact))
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     const wasAtBottom = convEl.scrollHeight - convEl.scrollTop - convEl.clientHeight < 60;
     convEl.innerHTML = msgs.length
       ? msgs.map(m => {
-          const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+          const isMine = _msgIsMineTo(m, _msgSelectedContact);
           return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
             <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
             <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
@@ -4056,43 +4048,36 @@
     if (wasAtBottom) convEl.scrollTop = convEl.scrollHeight;
   }
 
-  function _openConversation(senderLabel) {
-    _msgSelectedSender      = senderLabel;
-    _msgSelectedHouseholdId = _msgHouseholdMap[senderLabel] || null;
-    // Mark all unread messages from this sender as read
+  function _openConversation(userId) {
+    const contact = _msgContacts.find(c => c.user_id === userId);
+    if (!contact) return;
+    _msgSelectedContact = contact;
+
+    // Mark all unread messages from this contact as read
     for (const m of _msgAllMessages) {
-      const isTheirs = _msgSelectedHouseholdId
-        ? m.sender_id === _msgSelectedHouseholdId
-        : (m.sender_label || 'Unbekannt') === senderLabel;
-      if (!m.read && isTheirs) {
+      if (!m.read && m.sender_id === contact.user_id) {
         m.read = true;
         fetch(`/messages/${m.id}/read`, { method: 'PATCH' }).catch(() => {});
       }
     }
     _updateMsgBadge();
-    _renderMsgContactsFromCache(_msgExtraContacts); // refresh contact badges
-    // Update selection highlight in left panel
-    document.querySelectorAll('.msg-contact-item').forEach(el => {
-      el.classList.toggle('selected', el.querySelector('.msg-contact-name')?.textContent === senderLabel);
-    });
-    // All messages in this thread: incoming from senderLabel/household + outgoing addressed to them
-    const msgs = _msgAllMessages.filter(m => {
-      const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel
-        && m.recipient_id === senderLabel;
-      const isTheirs = _msgSelectedHouseholdId
-        ? m.sender_id === _msgSelectedHouseholdId
-        : (m.sender_label || 'Unbekannt') === senderLabel;
-      return isMine || isTheirs;
-    }).sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    // Render into cal-overlay
+    _renderMsgContactsFromCache(); // refresh contact badges + selection highlight
+
+    const msgs = _msgAllMessages
+      .filter(m => _msgBelongsToContact(m, contact))
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
+    const householdTag = !contact.own_household
+      ? ` <span style="opacity:0.55;font-size:0.7em;font-weight:400;">· ${escapeHTML(contact.household_id || '')}</span>`
+      : '';
     overlay.innerHTML = `
       <div class="msg-conv-wrap">
-        <div class="msg-conv-header">💬 ${escapeHTML(senderLabel)}</div>
+        <div class="msg-conv-header">💬 ${escapeHTML(contact.name)}${householdTag}</div>
         <div class="msg-conv-messages" id="msg-conv-messages">
           ${msgs.length ? msgs.map(m => {
-            const isMine = _msgSelfLabel && m.sender_label === _msgSelfLabel;
+            const isMine = _msgIsMineTo(m, contact);
             return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
               <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
               <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
@@ -4100,7 +4085,7 @@
           }).join('') : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
         </div>
         <div class="msg-compose-bar">
-          <input id="msg-compose" type="text" placeholder="Nachricht schreiben…"
+          <input id="msg-compose" type="text" placeholder="Nachricht an ${escapeAttr(contact.name)}…"
             onkeydown="if(event.key==='Enter')_sendMsgFromView()">
           <button onclick="_sendMsgFromView()">Senden</button>
         </div>
@@ -4112,15 +4097,13 @@
 
   async function _sendMsgFromView() {
     const inp = document.getElementById('msg-compose');
-    if (!inp || !inp.value.trim()) return;
+    if (!inp || !inp.value.trim() || !_msgSelectedContact) return;
     const content = inp.value.trim();
     inp.value = '';
     try {
-      const payload = { content, recipient_type: 'broadcast' };
-      if (_msgSelectedHouseholdId) {
-        payload.recipient_household_id = _msgSelectedHouseholdId;
-      } else if (_msgSelectedSender) {
-        payload.recipient_id = _msgSelectedSender;
+      const payload = { content, recipient_type: 'user', recipient_id: _msgSelectedContact.user_id };
+      if (!_msgSelectedContact.own_household) {
+        payload.recipient_household_id = _msgSelectedContact.household_id;
       }
       const resp = await fetch('/messages', {
         method: 'POST',
@@ -4131,11 +4114,10 @@
         const sent = await resp.json();
         if (sent?.message_id) _msgShownIds.add(sent.message_id);
       }
-      // Server legt bei Haushalt-übergreifenden Nachrichten eine eigene Kopie im
-      // Sender-Tenant an — ein normaler Inbox-Reload zeigt die gesendete Nachricht
-      // daher in jedem Fall an, kein clientseitiges Echo mehr nötig.
-      await _loadMsgContacts();
-      if (_msgSelectedSender) _openConversation(_msgSelectedSender);
+      const r = await fetch('/messages/inbox?limit=100', { cache: 'no-store' });
+      if (r.ok) { const d = await r.json(); _msgAllMessages = d.messages || []; }
+      _renderMsgContactsFromCache();
+      _refreshConvMessages();
     } catch {}
   }
 
