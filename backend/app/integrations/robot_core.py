@@ -57,6 +57,13 @@ class RobotCore:
         r"|\b(wie viel|wieviel|wie hoch)\b.*\b(akku|batterie|ladestand)\b",
         re.IGNORECASE,
     )
+    # Schließt Fahrzeug-Akkufragen ("Wie viel Akku hat das Auto?") von der
+    # Erika-Eigenstatus-Antwort aus — die übernimmt _try_vehicle_query weiter
+    # unten in der Kette, sonst gewinnt hier immer Erikas eigener Akkustand.
+    _VEHICLE_CONTEXT_PATTERN = re.compile(
+        r"\b(auto|fahrzeug|dacia|spring|wagen|elektroauto)\b",
+        re.IGNORECASE,
+    )
     UPDATE_QUESTION_PATTERN = re.compile(
         r"\b(update|updates|aktualisierung|aktualisierungen)\b",
         re.IGNORECASE,
@@ -1313,7 +1320,7 @@ class RobotCore:
 
     def _try_answer_runtime_question(self, message: str) -> str | None:
         status = self.get_status()
-        if self.BATTERY_QUESTION_PATTERN.search(message):
+        if self.BATTERY_QUESTION_PATTERN.search(message) and not self._VEHICLE_CONTEXT_PATTERN.search(message):
             return f"Mein Akkustand liegt gerade bei {status['battery_level']} %."
         if self.UPDATE_QUESTION_PATTERN.search(message):
             update_status = status["device"]["update_status"]
