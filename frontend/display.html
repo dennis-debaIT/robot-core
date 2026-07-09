@@ -5901,8 +5901,22 @@
                                .sort((a, b) => a.num - b.num);
   }
 
-  let _vacuumMode   = null; // aktuell gewählter Modus-Schlüssel
-  let _vacuumCycles = 1;   // Reinigungszyklen: 1, 2 oder 3
+  let _vacuumMode    = null; // aktuell gewählter Modus-Schlüssel
+  let _vacuumCycles  = 1;    // Reinigungszyklen: 1, 2 oder 3
+  let _vacuumSuction = null; // 0-3, Override der im Modus hinterlegten Saugleistung
+  let _vacuumWater   = null; // 0-3, Override der im Modus hinterlegten Wassermenge
+
+  // Welche Modi Saugleistung/Wassermenge überhaupt anbieten (z.B. "Nur wischen"
+  // hat keine Saugleistung) — gleiche Zuordnung wie in local-admin.html.
+  const _VAC_MODE_CAPS = {
+    sweeping:               { hasSuction: true,  hasWater: false },
+    mopping:                { hasSuction: false, hasWater: true  },
+    sweeping_and_mopping:   { hasSuction: true,  hasWater: true  },
+    mopping_after_sweeping: { hasSuction: true,  hasWater: true  },
+    sweeping_then_mopping:  { hasSuction: true,  hasWater: true  },
+  };
+  const _VAC_SUCTION_LABELS = ['Leise', 'Normal', 'Stark', 'Turbo'];
+  const _VAC_WATER_LABELS   = ['Kein Wasser', 'Leicht', 'Feucht', 'Nass'];
 
   // ── Vacuum-Konfiguration: Fallback-Defaults ──────────────
   // Werden durch robot.config aus der Admin-Datenbank überschrieben.
@@ -5936,8 +5950,28 @@
 
   function setVacuumMode(key) {
     _vacuumMode = key;
-    document.querySelectorAll('.vac-mode-btn').forEach(b =>
-      b.classList.toggle('selected', b.dataset.mode === key));
+    // Saugleistung/Wassermenge auf die im Modus hinterlegten Standardwerte
+    // zurücksetzen — komplettes Neu-Rendern, da sich je nach Modus auch
+    // zeigt/versteckt, ob die Regler überhaupt angeboten werden.
+    const robot = (_robotsData || []).find(r => r.entity_id === _selectedRobot);
+    const vcfg = _robotVacuumCfg(robot);
+    const mode = vcfg.modes.find(m => m.key === key) || vcfg.modes[0];
+    _vacuumSuction = mode?.suction_level ?? null;
+    _vacuumWater   = mode?.water_volume  ?? null;
+    const overlay = document.getElementById('cal-overlay');
+    if (overlay && robot) overlay.innerHTML = renderRobotDetail(robot, null);
+  }
+
+  function setVacuumSuction(n) {
+    _vacuumSuction = n;
+    document.querySelectorAll('.vac-suction-btn').forEach(b =>
+      b.classList.toggle('selected', parseInt(b.dataset.suction) === n));
+  }
+
+  function setVacuumWater(n) {
+    _vacuumWater = n;
+    document.querySelectorAll('.vac-water-btn').forEach(b =>
+      b.classList.toggle('selected', parseInt(b.dataset.water) === n));
   }
 
   function setVacuumCycles(n) {
@@ -5950,10 +5984,32 @@
     const slug = _robotNameSlug(robot.entity_id);
     const vcfg = _robotVacuumCfg(robot);
     const curMode = _vacuumMode || vcfg.defaultMode;
+    const modeObj = vcfg.modes.find(m => m.key === curMode) || vcfg.modes[0];
+    const caps = _VAC_MODE_CAPS[modeObj?.cleaning_mode_option] || { hasSuction: true, hasWater: true };
+    // Erststart (noch kein Override gesetzt) → Modus-Vorgabe übernehmen.
+    if (_vacuumSuction === null) _vacuumSuction = modeObj?.suction_level ?? 1;
+    if (_vacuumWater   === null) _vacuumWater   = modeObj?.water_volume  ?? 0;
+
     const modeBtns = vcfg.modes.map(m =>
       `<button class="room-btn vac-mode-btn${curMode === m.key ? ' selected' : ''}"
         data-mode="${m.key}" onclick="setVacuumMode('${m.key}')">${m.label}</button>`
     ).join('');
+
+    const suctionHtml = !caps.hasSuction ? '' : `
+        <div class="panel-label" style="margin-bottom:8px;">Saugleistung</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+          ${_VAC_SUCTION_LABELS.map((label, n) =>
+            `<button class="room-btn vac-suction-btn${_vacuumSuction===n?' selected':''}" data-suction="${n}" onclick="setVacuumSuction(${n})">${label}</button>`
+          ).join('')}
+        </div>`;
+
+    const waterHtml = !caps.hasWater ? '' : `
+        <div class="panel-label" style="margin-bottom:8px;">Wassermenge</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+          ${_VAC_WATER_LABELS.map((label, n) =>
+            `<button class="room-btn vac-water-btn${_vacuumWater===n?' selected':''}" data-water="${n}" onclick="setVacuumWater(${n})">${label}</button>`
+          ).join('')}
+        </div>`;
 
     // Räume: aus robot.config wenn vorhanden, sonst Defaults
     let roomsHtml = '';
@@ -5972,6 +6028,8 @@
       <div>
         <div class="panel-label" style="margin-bottom:8px;">Modus</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">${modeBtns}</div>
+        ${suctionHtml}
+        ${waterHtml}
         <div class="panel-label" style="margin-bottom:8px;">Zyklen</div>
         <div style="display:flex;gap:8px;margin-bottom:14px;">
           ${[1,2,3].map(n => `<button class="room-btn vac-cycle-btn${_vacuumCycles===n?' selected':''}" data-cycles="${n}" onclick="setVacuumCycles(${n})">${n}×</button>`).join('')}
@@ -6275,8 +6333,8 @@
             entity_id: entityId,
             segments: segmentIds,
             cleaning_mode_option: mode.cleaning_mode_option,
-            suction_level: mode.suction_level,
-            water_volume: mode.water_volume,
+            suction_level: _vacuumSuction ?? mode.suction_level,
+            water_volume: _vacuumWater ?? mode.water_volume,
             cleaning_times: _vacuumCycles,
           }),
         });

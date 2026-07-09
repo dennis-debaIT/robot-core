@@ -79,3 +79,66 @@ def test_clean_segments_without_mode_option_skips_both_selects():
 
     assert not any(c[0] == "select" for c in ha.calls)
     assert any(c[0] == "dreame_vacuum" for c in ha.calls)
+
+
+def test_clean_segments_applies_suction_and_water_level():
+    ha = FakeHA([
+        _state("sensor.krumel_knecht_battery_level", "99"),
+        _state("select.krumel_knecht_cleaning_mode", "sweeping_and_mopping", ["sweeping_and_mopping"]),
+        _state("select.krumel_knecht_suction_level", "standard", ["quiet", "standard", "strong", "turbo"]),
+        _state("select.krumel_knecht_mop_pad_humidity", "moist", ["slightly_dry", "moist", "wet"]),
+    ])
+    svc = RobotService(ha=ha)
+
+    svc.clean_segments({
+        "entity_id": "vacuum.krumel_knecht",
+        "segments": [6],
+        "cleaning_mode_option": "sweeping_and_mopping",
+        "suction_level": 2,   # -> "strong"
+        "water_volume": 3,    # -> "wet"
+    })
+
+    select_calls = [c for c in ha.calls if c[0] == "select"]
+    assert ("select", "select_option", {"entity_id": "select.krumel_knecht_suction_level", "option": "strong"}) in select_calls
+    assert ("select", "select_option", {"entity_id": "select.krumel_knecht_mop_pad_humidity", "option": "wet"}) in select_calls
+
+
+def test_clean_segments_water_volume_zero_is_not_sent():
+    ha = FakeHA([
+        _state("sensor.krumel_knecht_battery_level", "99"),
+        _state("select.krumel_knecht_cleaning_mode", "sweeping", ["sweeping"]),
+        _state("select.krumel_knecht_suction_level", "turbo", ["quiet", "standard", "strong", "turbo"]),
+        _state("select.krumel_knecht_mop_pad_humidity", "moist", ["slightly_dry", "moist", "wet"]),
+    ])
+    svc = RobotService(ha=ha)
+
+    svc.clean_segments({
+        "entity_id": "vacuum.krumel_knecht",
+        "segments": [3],
+        "cleaning_mode_option": "sweeping",
+        "suction_level": 3,   # -> "turbo"
+        "water_volume": 0,    # -> kein Wasser, keine HA-Anfrage
+    })
+
+    select_calls = [c for c in ha.calls if c[0] == "select"]
+    assert ("select", "select_option", {"entity_id": "select.krumel_knecht_suction_level", "option": "turbo"}) in select_calls
+    assert not any(c[2].get("entity_id") == "select.krumel_knecht_mop_pad_humidity" for c in select_calls)
+
+
+def test_clean_segments_skips_suction_water_when_entities_absent():
+    ha = FakeHA([
+        _state("sensor.carsten_carsten_battery_level", "80"),
+        _state("select.carsten_carsten_cleaning_mode", "sweeping", ["sweeping"]),
+    ])
+    svc = RobotService(ha=ha)
+
+    svc.clean_segments({
+        "entity_id": "vacuum.carsten_carsten",
+        "segments": [1],
+        "cleaning_mode_option": "sweeping",
+        "suction_level": 2,
+        "water_volume": 2,
+    })
+
+    select_calls = [c for c in ha.calls if c[0] == "select"]
+    assert select_calls == [("select", "select_option", {"entity_id": "select.carsten_carsten_cleaning_mode", "option": "sweeping"})]

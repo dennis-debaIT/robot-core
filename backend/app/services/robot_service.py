@@ -355,10 +355,22 @@ class RobotService:
         ok = self.ha.call_service(domain, command, {"entity_id": entity_id})
         return {"ok": ok, "entity_id": entity_id, "command": command}
 
+    # Admin/Display bilden Saugleistung & Wassermenge als 0-3-Skala ab (Labels
+    # "Leise/Normal/Stark/Turbo" bzw. "Kein Wasser/Leicht trocken/Feucht/Nass").
+    # Direkte Index-Zuordnung auf die tatsächlichen Dreame-HA-Optionen:
+    # select.{slug}_suction_level: quiet/standard/strong/turbo (4 Stufen, 1:1).
+    # select.{slug}_mop_pad_humidity: slightly_dry/moist/wet (nur 3 Stufen) —
+    # 0 heißt "kein Wasser" (Modus nutzt den Wischmopp gar nicht) und wird
+    # bewusst nicht gesendet, nicht auf "slightly_dry" verfälscht.
+    _SUCTION_OPTIONS = ["quiet", "standard", "strong", "turbo"]
+    _WATER_OPTIONS = [None, "slightly_dry", "moist", "wet"]
+
     def clean_segments(self, body: dict[str, Any]) -> dict[str, Any]:
         entity_id = body.get("entity_id", "vacuum.krumel_knecht")
         segments = body.get("segments", [])
         mode_option    = body.get("cleaning_mode_option", "")
+        suction_level  = body.get("suction_level")
+        water_volume   = body.get("water_volume")
         cleaning_times = int(body.get("cleaning_times") or 1)
         if not segments:
             raise ValueError("Keine Räume ausgewählt")
@@ -390,6 +402,33 @@ class RobotService:
                 {"entity_id": f"select.{slug}_cleaning_mode", "option": mode_option},
             )
             time.sleep(2)
+
+        try:
+            suction_idx = int(suction_level) if suction_level is not None else None
+        except (TypeError, ValueError):
+            suction_idx = None
+        if suction_idx is not None and 0 <= suction_idx < len(self._SUCTION_OPTIONS):
+            suction_entity = f"select.{slug}_suction_level"
+            if suction_entity in state_map:
+                self.ha.call_service(
+                    "select",
+                    "select_option",
+                    {"entity_id": suction_entity, "option": self._SUCTION_OPTIONS[suction_idx]},
+                )
+
+        try:
+            water_idx = int(water_volume) if water_volume is not None else None
+        except (TypeError, ValueError):
+            water_idx = None
+        if water_idx is not None and 0 <= water_idx < len(self._WATER_OPTIONS):
+            water_option = self._WATER_OPTIONS[water_idx]
+            water_entity = f"select.{slug}_mop_pad_humidity"
+            if water_option and water_entity in state_map:
+                self.ha.call_service(
+                    "select",
+                    "select_option",
+                    {"entity_id": water_entity, "option": water_option},
+                )
 
         service_data: dict[str, Any] = {
             "entity_id": entity_id,
