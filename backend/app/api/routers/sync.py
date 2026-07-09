@@ -1,13 +1,15 @@
 """Sync-Endpunkte — Einkaufsliste (lokal + Sync-Trigger). Erika Plus."""
 from __future__ import annotations
 
+import asyncio
 import json
 import ssl
 import urllib.request as _ureq
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from app.services import sync_service as svc
 
@@ -31,6 +33,30 @@ def _require_sync() -> None:
 def get_items() -> dict[str, Any]:
     _require_sync()
     return {"items": svc.list_items()}
+
+
+@router.get("/sync/items/stream")
+async def stream_items(request: Request) -> StreamingResponse:
+    """SSE-Stream fürs Display: sendet die aktuelle Liste sofort bei jeder
+    lokalen Änderung (200ms Poll auf die lokale DB, kein Cloud-Roundtrip
+    nötig — der läuft unabhängig im 3s-Fast-Sync-Loop)."""
+    _require_sync()
+
+    async def generate():
+        last = svc.items_max_updated_at()
+        yield f"data: {json.dumps({'items': svc.list_items()})}\n\n"
+        while not await request.is_disconnected():
+            await asyncio.sleep(0.2)
+            current = svc.items_max_updated_at()
+            if current != last:
+                last = current
+                yield f"data: {json.dumps({'items': svc.list_items()})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/sync/items")

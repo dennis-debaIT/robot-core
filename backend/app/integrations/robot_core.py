@@ -1557,6 +1557,10 @@ class RobotCore:
             if vehicle_reply:
                 direct_reply = vehicle_reply
         if direct_reply is None:
+            pv_reply = self._try_pv_query(captured)
+            if pv_reply:
+                direct_reply = pv_reply
+        if direct_reply is None:
             conv_summary = self._try_conversation_summary(captured, person_name)
             if conv_summary:
                 direct_reply = conv_summary
@@ -2325,7 +2329,9 @@ class RobotCore:
         # Zustandsfragen mit Fahrzeugnamen
         r"wie\s+(?:ist|viel|weit|hoch|lang|sieht|steht)\b.{0,50}\b(?:akku|ladestand|tank|tankstand|reichweite|laden|ladung|batterie|auto|fahrzeug|dacia|spring|wagen|elektro)"
         r"|(?:akku|ladestand|tank|tankstand|reichweite|ladung|batterie)\b.{0,40}\b(?:auto|fahrzeug|dacia|spring|wagen|vom|des|mein)"
-        r"|\b(?:wie\s+viel|wieviel)\s+(?:akku|reichweite|strom|prozent|kilometer|km)\b"
+        # "strom" bewusst NICHT hier — kollidiert mit PV-Fragen ("wieviel Strom hat
+        # meine PV heute produziert?"), die eigenständig von _try_pv_query behandelt werden.
+        r"|\b(?:wie\s+viel|wieviel)\s+(?:akku|reichweite|prozent|kilometer|km)\b"
         # Ladefragen in verschiedenen Wortstellungen
         r"|wird\b.{0,40}\b(?:auto|fahrzeug|dacia|spring|wagen|es)\b.{0,20}\b(?:geladen|aufgeladen|laden)"
         r"|(?:auto|fahrzeug|dacia|spring|wagen)\b.{0,30}\b(?:gerade\s+)?(?:am\s+laden|geladen|lädt|aufgeladen)"
@@ -2372,6 +2378,46 @@ class RobotCore:
                 target = vehicles[0]
 
             return self._format_vehicle_reply(target)
+        except Exception:
+            return None
+
+    _PV_QUERY_PATTERN = re.compile(
+        r"\b(?:"
+        r"pv[\s-]?anlage|photovoltaik|solaranlage"
+        r"|\bpv\b"
+        r"|(?:wie\s*viel|wieviel)\b.{0,30}\b(?:strom|energie|leistung)\b.{0,30}\b(?:pv|photovoltaik|solar|produziert|erzeugt|eingespeist)"
+        r"|(?:strom|energie|leistung)\b.{0,20}\b(?:produziert|erzeugt)\b.{0,20}\b(?:pv|photovoltaik|solar)"
+        r"|(?:pv|solar)[- ]?(?:ertrag|leistung|produktion|erzeugung)"
+        r")",
+        re.IGNORECASE,
+    )
+
+    def _try_pv_query(self, captured: str) -> str | None:
+        if not self._PV_QUERY_PATTERN.search(captured):
+            return None
+        try:
+            from app.services.pv_service import PvService
+            from app.services.integration_config_service import IntegrationConfigService
+            cfg = IntegrationConfigService().get_config()
+            pv_cfg = cfg.get("pv", {})
+            if not pv_cfg.get("enabled"):
+                return None
+            sensors = pv_cfg.get("sensors", {})
+            if not sensors.get("daily") and not sensors.get("power"):
+                return None
+            state = PvService().get_state(sensors)
+            daily = state.get("daily") or {}
+            power = state.get("power") or {}
+            daily_val = daily.get("value")
+            power_val = power.get("value")
+            parts: list[str] = []
+            if daily_val not in (None, "unavailable", "unknown"):
+                parts.append(f"Heute hat deine PV-Anlage bisher {daily_val} {daily.get('unit') or 'kWh'} produziert.")
+            if power_val not in (None, "unavailable", "unknown"):
+                parts.append(f"Aktuell erzeugt sie {power_val} {power.get('unit') or 'W'}.")
+            if not parts:
+                return "Ich habe gerade keine aktuellen PV-Daten verfügbar."
+            return " ".join(parts)
         except Exception:
             return None
 

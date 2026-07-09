@@ -184,6 +184,14 @@ def list_items() -> list[dict[str, Any]]:
     return [_row(r) for r in rows]
 
 
+def items_max_updated_at() -> str | None:
+    """Für Change-Detection im SSE-Stream — schließt gelöschte Einträge ein,
+    damit eine Löschung ebenfalls ein Update auslöst."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT MAX(updated_at) AS m FROM sync_items").fetchone()
+    return row["m"] if row else None
+
+
 def create_item(text: str) -> dict[str, Any]:
     text = text.strip()
     if not text:

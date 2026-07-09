@@ -224,8 +224,7 @@
             <button type="button" class="tab-button sidebar-item" data-tab-target="tab-pv"><span class="si-icon">☀️</span><span>PV &amp; Strom</span></button>
             <button type="button" class="tab-button sidebar-item" data-tab-target="tab-printer"><span class="si-icon">🖨</span><span>3D-Drucker</span></button>
             <div class="sidebar-sub-label">Sport</div>
-            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball-Liga</span></button>
-            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-tournament"><span class="si-icon">🏆</span><span>Turnier</span></button>
+            <button type="button" class="tab-button sidebar-item" data-tab-target="tab-liga"><span class="si-icon">⚽</span><span>Fu&szlig;ball</span></button>
             <div class="sidebar-sub-label">Kommunikation</div>
             <button type="button" class="tab-button sidebar-item" data-tab-target="tab-messages"><span class="si-icon">💬</span><span>Nachrichten</span></button>
           </div>
@@ -1183,77 +1182,41 @@
         </article>
 
         <!-- ── TURNIER (WM / EM) ──────────────────────────────── -->
-        <article id="tab-tournament" class="panel-card tab-panel">
-          <header class="panel-header">
-            <div>
-              <div class="panel-kicker">Turnier</div>
-              <h2>WM / EM – Live-Spieltag</h2>
-            </div>
-            <label class="switch-card">
-              <input id="tournament-enabled" type="checkbox">
-              <span class="switch-slider" aria-hidden="true"></span>
-              <span class="switch-copy">
-                <span class="switch-title">Modul aktiv</span>
-                <span class="switch-text">WM/EM-Spieltag im Display anzeigen</span>
-              </span>
-            </label>
-          </header>
-          <section class="module-card">
-            <div class="section-copy">
-              <div class="section-title">API-Schlüssel</div>
-              <p>Kostenloser API-Key von <strong>football-data.org</strong>. Wird nur für die Abfrage von Spieldaten verwendet.</p>
-            </div>
-            <div class="field-grid">
-              <label class="field-block">
-                <span class="field-label">API-Key (football-data.org)</span>
-                <input id="tournament-api-key" class="field-input" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-              </label>
-              <label class="field-block">
-                <span class="field-label">Wettbewerbs-Code</span>
-                <input id="tournament-competition-code" class="field-input" type="text" placeholder="WC" style="max-width:120px;">
-                <span style="font-size:0.75rem;color:var(--muted);margin-top:4px;">WC = WM, EC = EM</span>
-              </label>
-            </div>
-          </section>
-          <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 18px;">
-            <button type="button" class="primary" onclick="saveTournamentConfig()">Speichern</button>
-            <span id="tournament-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
-          </div>
-        </article>
-
-        <!-- ── FUSSBALL-LIGA ─────────────────────────────────── -->
+        <!-- ── FUSSBALL (Liga + WM/EM) ──────────────────────── -->
         <article id="tab-liga" class="panel-card tab-panel">
           <header class="panel-header">
             <div>
-              <div class="panel-kicker">Fu&szlig;ball-Liga</div>
-              <h2>Bundesliga &amp; Co. – Live-Spieltag</h2>
+              <div class="panel-kicker">Sport</div>
+              <h2>Fu&szlig;ball</h2>
             </div>
-            <label class="switch-card">
-              <input id="liga-enabled" type="checkbox">
-              <span class="switch-slider" aria-hidden="true"></span>
-              <span class="switch-copy">
-                <span class="switch-title">Modul aktiv</span>
-                <span class="switch-text">Liga-Spieltag automatisch im Display anzeigen</span>
-              </span>
-            </label>
           </header>
           <section class="module-card">
             <div class="section-copy">
               <div class="section-title">API-Schl&uuml;ssel</div>
-              <p>Gleicher kostenloser API-Key wie beim Turnier-Modul (<strong>football-data.org</strong>) — ist dort schon einer hinterlegt, wird er automatisch vorausgef&uuml;llt.</p>
+              <p>Kostenloser API-Key von <strong>football-data.org</strong> — wird f&uuml;r Bundesliga &amp; Co. und WM/EM gemeinsam genutzt.</p>
             </div>
             <div class="field-grid">
               <label class="field-block">
                 <span class="field-label">API-Key (football-data.org)</span>
-                <input id="liga-api-key" class="field-input" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+                <input id="football-api-key" class="field-input" type="text" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
               </label>
             </div>
           </section>
+
           <section class="module-card">
-            <div class="section-copy">
-              <div class="section-title">Ligen</div>
-              <p>W&auml;hle aus, welche Ligen angezeigt werden sollen. Die 3.&nbsp;Bundesliga erfordert m&ouml;glicherweise einen kostenpflichtigen API-Tier. Tabelle, Live-Spieltag und der eigene Lieblingsverein sind immer frei nutzbar — das Anschauen fremder Vereine (Kader, Marktwerte, Spielerprofile, Transfers) ist Teil von <span style="background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;">PLUS</span>.</p>
-            </div>
+            <header class="panel-header" style="margin-bottom:14px;">
+              <div class="section-copy" style="margin:0;">
+                <div class="section-title">Bundesliga &amp; Co. – Live-Spieltag</div>
+              </div>
+              <label class="switch-card">
+                <input id="liga-enabled" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">Aktiv</span>
+                </span>
+              </label>
+            </header>
+            <p style="color:var(--muted);line-height:1.45;margin:0 0 14px;">W&auml;hle aus, welche Ligen angezeigt werden sollen. Die 3.&nbsp;Bundesliga erfordert m&ouml;glicherweise einen kostenpflichtigen API-Tier. Tabelle, Live-Spieltag und der eigene Lieblingsverein sind immer frei nutzbar — das Anschauen fremder Vereine (Kader, Marktwerte, Spielerprofile, Transfers) ist Teil von <span style="background:rgba(0,200,255,0.15);color:var(--accent);padding:2px 8px;border-radius:999px;">PLUS</span>.</p>
             <div style="display:flex;flex-direction:column;gap:10px;padding:4px 0;">
               <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
                 <input id="liga-bl1" type="checkbox">
@@ -1268,9 +1231,7 @@
                 <span class="field-label" style="margin:0;">3. Bundesliga (BL3)</span>
               </label>
             </div>
-          </section>
-          <section class="module-card">
-            <div class="section-copy">
+            <div class="section-copy" style="margin-top:18px;">
               <div class="section-title">Lieblingsverein</div>
               <p>Wird im Display hervorgehoben und in der Team-Fokus-Karte angezeigt. Die Liste l&auml;dt automatisch aus den gew&auml;hlten Ligen — zuerst Ligen und API-Key speichern.</p>
             </div>
@@ -1281,9 +1242,32 @@
               <button type="button" class="secondary" onclick="_loadLigaTeams()">Teams neu laden</button>
             </div>
           </section>
+
+          <section class="module-card">
+            <header class="panel-header" style="margin-bottom:14px;">
+              <div class="section-copy" style="margin:0;">
+                <div class="section-title">WM / EM – Live-Spieltag</div>
+              </div>
+              <label class="switch-card">
+                <input id="tournament-enabled" type="checkbox">
+                <span class="switch-slider" aria-hidden="true"></span>
+                <span class="switch-copy">
+                  <span class="switch-title">Aktiv</span>
+                </span>
+              </label>
+            </header>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Wettbewerbs-Code</span>
+                <input id="tournament-competition-code" class="field-input" type="text" placeholder="WC" style="max-width:120px;">
+                <span style="font-size:0.75rem;color:var(--muted);margin-top:4px;">WC = WM, EC = EM</span>
+              </label>
+            </div>
+          </section>
+
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 12px;">
-            <button type="button" class="primary" onclick="saveLigaConfig()">Speichern</button>
-            <span id="liga-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
+            <button type="button" class="primary" onclick="saveFootballConfig()">Speichern</button>
+            <span id="football-status" style="font-size:0.8rem;color:var(--muted);margin-left:10px;"></span>
           </div>
           <div style="border-top:1px solid var(--border);margin:0 18px;padding:14px 0 18px;">
             <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.08em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;">Cache</div>
@@ -4715,56 +4699,29 @@
       }
     }
 
-    async function _loadTournamentConfig() {
-      try {
-        const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
-        const t = (cfg.config || cfg).tournament || {};
-        const enabledEl = document.getElementById('tournament-enabled');
-        const keyEl = document.getElementById('tournament-api-key');
-        const codeEl = document.getElementById('tournament-competition-code');
-        if (enabledEl) enabledEl.checked = t.enabled === true;
-        if (keyEl) keyEl.value = t.api_key || '';
-        if (codeEl) codeEl.value = t.competition_code || 'WC';
-      } catch {}
-    }
-
-    async function saveTournamentConfig() {
-      const enabledEl = document.getElementById('tournament-enabled');
-      const keyEl = document.getElementById('tournament-api-key');
-      const codeEl = document.getElementById('tournament-competition-code');
-      const statusEl = document.getElementById('tournament-status');
-      if (statusEl) statusEl.textContent = 'Speichere…';
-      try {
-        await fetch('/tournament/config', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            enabled: enabledEl?.checked || false,
-            api_key: (keyEl?.value || '').trim(),
-            competition_code: (codeEl?.value || 'WC').trim() || 'WC',
-          }),
-        });
-        if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
-      } catch (e) {
-        if (statusEl) statusEl.textContent = 'Fehler: ' + e.message;
-      }
-    }
-
     let _ligaFavoriteTeamId   = null;
     let _ligaFavoriteTeamName = '';
 
-    async function _loadLigaConfig() {
+    // Lädt Liga- und Turnier-Konfiguration gemeinsam — beide teilen sich auf
+    // der Fußball-Seite ein einziges API-Key-Feld (football-data.org nutzt für
+    // beide Module denselben Account).
+    async function _loadFootballConfig() {
       try {
         const cfg = await fetch('/local-admin/integrations/config').then(r => r.json());
         const c = cfg.config || cfg;
         const l = c.liga || {};
+        const t = c.tournament || {};
+
+        const keyEl = document.getElementById('football-api-key');
+        if (keyEl) keyEl.value = l.api_key || t.api_key || '';
+
+        const tEnabledEl = document.getElementById('tournament-enabled');
+        const codeEl     = document.getElementById('tournament-competition-code');
+        if (tEnabledEl) tEnabledEl.checked = t.enabled === true;
+        if (codeEl) codeEl.value = t.competition_code || 'WC';
+
         const enabledEl = document.getElementById('liga-enabled');
-        const keyEl     = document.getElementById('liga-api-key');
         if (enabledEl) enabledEl.checked = l.enabled === true;
-        // Eigener Liga-Key hat Vorrang; ist noch keiner gesetzt, den Turnier-Key
-        // als Vorschlag übernehmen — football-data.org nutzt für beide Module
-        // ohnehin denselben Account, muss also nicht doppelt eingetippt werden.
-        if (keyEl) keyEl.value = l.api_key || (c.tournament || {}).api_key || '';
         const leagues = l.leagues || [];
         const bl1El = document.getElementById('liga-bl1');
         const bl2El = document.getElementById('liga-bl2');
@@ -4802,33 +4759,51 @@
       }
     }
 
-    async function saveLigaConfig() {
-      const statusEl  = document.getElementById('liga-status');
+    // Speichert Liga- und Turnier-Konfiguration gemeinsam (ein API-Key für beide).
+    async function saveFootballConfig() {
+      const statusEl  = document.getElementById('football-status');
+      const keyEl     = document.getElementById('football-api-key');
+      const apiKey    = (keyEl?.value || '').trim();
+
       const enabledEl = document.getElementById('liga-enabled');
-      const keyEl     = document.getElementById('liga-api-key');
       const bl1El     = document.getElementById('liga-bl1');
       const bl2El     = document.getElementById('liga-bl2');
       const bl3El     = document.getElementById('liga-bl3');
       const teamSel   = document.getElementById('liga-favorite-team');
-      if (statusEl) statusEl.textContent = 'Speichere…';
       const leagues = [];
       if (bl1El?.checked) leagues.push('BL1');
       if (bl2El?.checked) leagues.push('BL2');
       if (bl3El?.checked) leagues.push('BL3');
       const teamId   = teamSel?.value ? Number(teamSel.value) : null;
       const teamName = teamSel?.selectedOptions[0]?.dataset?.name || '';
+
+      const tEnabledEl = document.getElementById('tournament-enabled');
+      const codeEl      = document.getElementById('tournament-competition-code');
+
+      if (statusEl) statusEl.textContent = 'Speichere…';
       try {
-        await fetch('/liga/config', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            enabled: enabledEl?.checked || false,
-            api_key: (keyEl?.value || '').trim(),
-            leagues,
-            favorite_team_id:   teamId,
-            favorite_team_name: teamName,
+        await Promise.all([
+          fetch('/liga/config', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              enabled: enabledEl?.checked || false,
+              api_key: apiKey,
+              leagues,
+              favorite_team_id:   teamId,
+              favorite_team_name: teamName,
+            }),
           }),
-        });
+          fetch('/tournament/config', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              enabled: tEnabledEl?.checked || false,
+              api_key: apiKey,
+              competition_code: (codeEl?.value || 'WC').trim() || 'WC',
+            }),
+          }),
+        ]);
         _ligaFavoriteTeamId   = teamId;
         _ligaFavoriteTeamName = teamName;
         if (statusEl) { statusEl.textContent = 'Gespeichert ✓'; setTimeout(() => statusEl.textContent = '', 2500); }
@@ -4999,8 +4974,7 @@
     document.getElementById('sync-module-calendar')?.addEventListener('change', saveSyncConfig);
     document.getElementById('sync-module-lights')?.addEventListener('change', saveSyncConfig);
     document.querySelector('[data-tab-target="tab-messages"]')?.addEventListener('click', _loadMessagesConfig);
-    document.querySelector('[data-tab-target="tab-tournament"]')?.addEventListener('click', _loadTournamentConfig);
-    document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadLigaConfig);
+    document.querySelector('[data-tab-target="tab-liga"]')?.addEventListener('click', _loadFootballConfig);
     pvProviderEl.addEventListener('change', applyPvProviderDefaults);
     haTestBtn.addEventListener('click', testHaConnection);
     reloadBtn.addEventListener('click', boot);

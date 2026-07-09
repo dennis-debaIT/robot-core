@@ -1,7 +1,10 @@
 /* Sync-Modul — Einkaufsliste (display.html)
  *
  * Nutzt GET/POST/PATCH/DELETE /sync/items
- * Pollt alle 15 Sekunden wenn geöffnet (Änderungen vom Handy sichtbar).
+ * Live-Updates über SSE (/sync/items/stream) — Änderungen vom Handy landen
+ * über den 3s-Fast-Sync-Loop in robot-core und werden von dort innerhalb von
+ * ~200ms weitergestreamt. Der Browser reconnected den EventSource bei
+ * Verbindungsabbruch automatisch (Standardverhalten, kein eigener Retry nötig).
  * Offene Einträge per Drag & Drop sortierbar (Maus + Touch).
  *
  * Render-Strategie:
@@ -12,9 +15,9 @@
 (function () {
   'use strict';
 
-  let _items     = [];
-  let _pollTimer = null;
-  let _isOpen    = false;
+  let _items       = [];
+  let _eventSource = null;
+  let _isOpen      = false;
 
   // ── Drag-State ──────────────────────────────────────────────────────────────
   let _dragId      = null;
@@ -48,16 +51,6 @@
   function _overlay() { return document.getElementById('cal-overlay'); }
 
   // ── API ─────────────────────────────────────────────────────────────────────
-
-  async function _load() {
-    try {
-      const r = await fetch('/sync/items', { cache: 'no-store' });
-      if (!r.ok) return;
-      const d = await r.json();
-      _items = d.items || [];
-      _renderList();
-    } catch { /* offline — behalte alten Stand */ }
-  }
 
   async function _addItem(text) {
     try {
@@ -260,18 +253,33 @@
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
+  function _connectStream() {
+    if (_eventSource) return;
+    _eventSource = new EventSource('/sync/items/stream');
+    _eventSource.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        _items = data.items || [];
+        _renderList();
+      } catch {}
+    };
+    // EventSource reconnected bei Verbindungsabbruch automatisch (Browser-Standard).
+  }
+
+  function _disconnectStream() {
+    if (_eventSource) { _eventSource.close(); _eventSource = null; }
+  }
+
   function open() {
     _injectStyles();
     _isOpen = true;
     _renderShell();
-    _load();
-    _pollTimer = setInterval(_load, 15000);
+    _connectStream();
   }
 
   function close() {
     _isOpen = false;
-    clearInterval(_pollTimer);
-    _pollTimer = null;
+    _disconnectStream();
     const overlay = _overlay();
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
   }

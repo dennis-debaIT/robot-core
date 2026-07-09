@@ -292,10 +292,8 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
                 cfg     = _ICS().get_config()
                 modules = (cfg.get("sync") or {}).get("modules", {})
 
-                if modules.get("shopping", True):
-                    _sync.push_unsynced()
-                    since = _sync.get_last_sync_time()
-                    _sync.pull_and_merge(since)
+                # Shopping läuft in _shopping_fast_sync_loop() alle paar Sekunden,
+                # nicht hier — sonst bleibt es beim 60s-Takt trotz Fast-Loop hängen.
 
                 if modules.get("notes", False):
                     _sync.push_persons()
@@ -326,6 +324,30 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
 
                 if modules.get("lights", False):
                     _sync.push_light_scenes()
+        except Exception:
+            pass
+        await asyncio.sleep(interval_seconds)
+
+
+async def _shopping_fast_sync_loop(interval_seconds: int = 3) -> None:
+    """Zieht Einkaufslisten-Änderungen von der Cloud alle 3 Sekunden nach —
+    eigener schneller Takt statt der 60s aus _sync_loop, damit sich das
+    Mitschreiben beim Einkaufen live anfühlt. Lokale Änderungen werden schon
+    bei jedem Schreibzugriff sofort gepusht (siehe api/routers/sync.py),
+    push_unsynced() hier ist nur ein Sicherheitsnetz für fehlgeschlagene Pushes."""
+    from app.services import sync_service as _sync
+    from app.services.integration_config_service import IntegrationConfigService as _ICS
+    await asyncio.sleep(20)
+    while True:
+        try:
+            url, tok = _sync.get_credentials()
+            if url and tok:
+                cfg     = _ICS().get_config()
+                modules = (cfg.get("sync") or {}).get("modules", {})
+                if modules.get("shopping", True):
+                    _sync.push_unsynced()
+                    since = _sync.get_last_sync_time()
+                    _sync.pull_and_merge(since)
         except Exception:
             pass
         await asyncio.sleep(interval_seconds)
@@ -511,7 +533,8 @@ async def lifespan(_: FastAPI) -> Any:
     waste_push_task = asyncio.create_task(_waste_push_loop())
     memory_task = asyncio.create_task(_memory_maintenance_loop())
     license_task = asyncio.create_task(_license_renewal_loop())
-    shopping_sync_task = asyncio.create_task(_sync_loop())
+    misc_sync_task = asyncio.create_task(_sync_loop())
+    shopping_fast_sync_task = asyncio.create_task(_shopping_fast_sync_loop())
     pv_fast_sync_task = asyncio.create_task(_pv_fast_sync_loop())
     light_cmd_poll_task = asyncio.create_task(_light_command_poll_loop())
     ha_lights_ws_task = asyncio.create_task(_ha_lights_ws_loop())
@@ -529,7 +552,8 @@ async def lifespan(_: FastAPI) -> Any:
         waste_push_task.cancel()
         memory_task.cancel()
         license_task.cancel()
-        shopping_sync_task.cancel()
+        misc_sync_task.cancel()
+        shopping_fast_sync_task.cancel()
         pv_fast_sync_task.cancel()
         light_cmd_poll_task.cancel()
         ha_lights_ws_task.cancel()
