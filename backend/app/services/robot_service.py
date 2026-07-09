@@ -369,6 +369,21 @@ class RobotService:
         slug = self._resolve_robot_slug(raw_slug, set(state_map.keys()))
 
         if mode_option:
+            # CleanGenius (Dreame-KI-Automatikmodus) übersteuert die manuelle
+            # cleaning_mode-Auswahl, solange es aktiv ist: lief der letzte Auftrag im
+            # CleanGenius-Modus (statt eines manuell gewählten Modus), ignoriert der
+            # Roboter die hier gesetzte Stufe und nutzt weiter seine eigene
+            # KI-Einschätzung — daher "letzte Einstellung" statt der neu gewählten.
+            # Explizit ausschalten, sofern der Roboter die Entity überhaupt hat
+            # (nicht jedes Modell/jede Dreame-Integration bringt CleanGenius mit).
+            cleangenius_entity = f"select.{slug}_cleangenius"
+            if cleangenius_entity in state_map:
+                self.ha.call_service(
+                    "select",
+                    "select_option",
+                    {"entity_id": cleangenius_entity, "option": "off"},
+                )
+                time.sleep(1)
             self.ha.call_service(
                 "select",
                 "select_option",
