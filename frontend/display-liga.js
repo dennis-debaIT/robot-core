@@ -1380,7 +1380,7 @@
     _renderCenter();
     _renderRight();
     if (_selectedCode) {
-      _fetchStandings(_selectedCode).then(_renderRight);
+      _fetchStandings(_selectedCode).then(() => { if (_fullViewOpen) _renderRight(); });
     }
     // Frische Daten sofort holen (nicht auf nächsten Polling-Tick warten)
     _poll();
@@ -1415,7 +1415,7 @@
     _standingsCache[code] = null;
     _renderLeft();
     _renderCenter();
-    _fetchStandings(code).then(_renderRight);
+    _fetchStandings(code).then(() => { if (_fullViewOpen) _renderRight(); });
   }
 
   // ── Liga-Overlay-Container ─────────────────────────────────────

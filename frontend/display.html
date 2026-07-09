@@ -2722,7 +2722,7 @@
             if (_navMode === 'lights') navTo('home');
           }, 10000);
         }
-      } else if (_navMode !== 'lights' && _navMode !== 'cameras' && _navMode !== 'robots' && _navMode !== 'sync' && _navMode !== 'chores' && state.mode !== currentMode) {
+      } else if (_navMode !== 'lights' && _navMode !== 'cameras' && _navMode !== 'robots' && _navMode !== 'sync' && _navMode !== 'chores' && _navMode !== 'vehicles' && _navMode !== 'liga' && _navMode !== 'messages' && state.mode !== currentMode) {
         applyMode(state.mode, state);
       }
     } catch {
@@ -4197,6 +4197,7 @@
   }
 
   async function _renderVehiclesView(vehicles) {
+    if (_navMode !== 'vehicles') return; // während des Ladens wegnavigiert
     document.getElementById('left-label').textContent = 'Fahrzeuge';
     const lc = document.getElementById('left-content');
     const _scrollTop = lc.scrollTop;
@@ -4217,6 +4218,7 @@
     }
 
     const history = await loadVehicleHistory(vehicle.id);
+    if (_navMode !== 'vehicles') return; // während des Ladens wegnavigiert
     if (_vehicleMapExpanded) {
       overlay.innerHTML = renderVehicleMapExpanded(vehicle, history);
       overlay.classList.add('active', 'vehicle-map-expanded');
@@ -5577,6 +5579,7 @@
   async function showCamerasView() {
     _selectedCamera = null;
     const [cameras, events] = await Promise.all([loadCamerasData(), loadCameraEvents()]);
+    if (_navMode !== 'cameras') return; // während des Ladens wegnavigiert
     _camEventsData = events || [];
     _renderCamerasView(cameras, events);
     _initCameraStreams();
@@ -5617,6 +5620,7 @@
     // Nur beim expliziten Kamera-Wechsel aufrufen, nicht beim Polling
     if (_navMode !== 'cameras') return;
     const [cameras, events] = await Promise.all([loadCamerasData(), loadCameraEvents()]);
+    if (_navMode !== 'cameras') return; // während des Ladens wegnavigiert
     _renderCamerasView(cameras, events);
     _initCameraStreams();
     _maybeStartSnapRefresh();
@@ -6388,10 +6392,12 @@
 
   async function showRobotsView() {
     const robots = await loadRobots();
+    if (_navMode !== 'robots') return; // während des Ladens wegnavigiert
     _renderRobotsView(robots);
     _robotsInterval = setInterval(async () => {
       if (_navMode !== 'robots') return;
       const r = await loadRobots();
+      if (_navMode !== 'robots') return;
       _renderRobotsView(r);
     }, 10000);
   }
@@ -6525,7 +6531,10 @@
 
   function refreshRobotsView() {
     if (_navMode !== 'robots') return;
-    loadRobots().then(r => _renderRobotsView(r));
+    loadRobots().then(r => {
+      if (_navMode !== 'robots') return; // während des Ladens wegnavigiert
+      _renderRobotsView(r);
+    });
   }
 
   function clearRobotsView() {

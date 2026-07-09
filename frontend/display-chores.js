@@ -19,6 +19,10 @@
     showingOverall: false,
   };
 
+  // Wird true zwischen open()/close() — verhindert, dass eine spät auflösende
+  // Anfrage nach dem Wegnavigieren noch die (jetzt fremde) Ansicht überschreibt.
+  let _isOpen = false;
+
   const PERIOD_LABEL = { week: 'Woche', month: 'Monat', year: 'Jahr' };
   const PERSON_COLORS = ['#00c8ff', '#ff6b6b', '#ffd166', '#06d6a0', '#a78bfa', '#f472b6', '#fb923c', '#94a3b8'];
   const POINTS_COLORS = ['', '#94a3b8', '#00c8ff', '#06d6a0', '#f59e0b', '#ef4444'];
@@ -268,6 +272,7 @@
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
     const banner = await _renderOverallBanner();
+    if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
     if (!state.selectedTaskId) {
       overlay.innerHTML = `${banner}<div class="cal-placeholder">Aufgabe auswählen, um den Verlauf zu sehen.</div>`;
       overlay.classList.add('active');
@@ -277,12 +282,15 @@
       _fetchStats(state.selectedTaskId, state.period),
       _fetchCompletions(state.selectedTaskId, state.period, state.selectedPersonId),
     ]);
+    if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
     overlay.innerHTML = banner + _renderTaskStats(stats, completions);
     overlay.classList.add('active');
   }
 
   async function open() {
+    _isOpen = true;
     await Promise.all([_loadTasks(), _loadPersons()]);
+    if (!_isOpen) return; // während des Ladens wieder geschlossen
     document.getElementById('left-label').textContent = 'Hausaufgaben';
     const lc = document.getElementById('left-content');
     lc.style.overflowY = 'auto';
@@ -320,6 +328,7 @@
     overlay.classList.add('active');
 
     const overall = await _fetchOverallStats();
+    if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
     const persons = overall?.persons || [];
 
     let rankHtml = '';
@@ -361,6 +370,7 @@
     overlay.classList.add('active');
 
     const data = await _fetchHallOfFame();
+    if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
     if (!data || !data.hall_of_fame.length) {
       overlay.innerHTML = '<div class="cal-placeholder">Noch keine abgeschlossenen Wochen — die Hall of Fame füllt sich ab nächster Woche.</div>';
       return;
@@ -390,6 +400,7 @@
     overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
 
     const data = await _fetchHallOfFame();
+    if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
     if (!data) { overlay.innerHTML = '<div class="cal-placeholder">Fehler beim Laden.</div>'; return; }
 
     const person = data.hall_of_fame.find(p => p.person_id === personId);
@@ -424,6 +435,7 @@
       const r = await fetch(`/chores/persons/${personId}/completions?period=week`, { cache: 'no-store' });
       if (!r.ok) throw new Error();
       const d = await r.json();
+      if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
       const completions = d.completions || [];
       let rowsHtml;
       if (!completions.length) {
@@ -500,6 +512,7 @@
   }
 
   function close() {
+    _isOpen = false;
     state.selectedTaskId = null;
     state.selectedPersonId = null;
     state.showingOverall = false;
