@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from app.services import sync_service as _sync
@@ -77,6 +77,27 @@ def mark_read(message_id: str) -> dict[str, Any]:
     if result is None:
         raise HTTPException(status_code=503, detail="Sync-Server nicht erreichbar")
     return result
+
+
+@router.post("/{message_id}/photo")
+async def upload_message_photo(message_id: str, request: Request) -> dict[str, Any]:
+    data = await request.body()
+    content_type = request.headers.get("content-type") or "image/jpeg"
+    result = await asyncio.to_thread(
+        _sync._sync_request_bytes, "POST", f"/messages/{message_id}/photo", data, content_type
+    )
+    if result is None:
+        raise HTTPException(status_code=503, detail="Sync-Server nicht erreichbar")
+    return {"ok": True}
+
+
+@router.get("/{message_id}/photo")
+async def get_message_photo(message_id: str) -> Response:
+    result = await asyncio.to_thread(_sync._sync_request_bytes, "GET", f"/messages/{message_id}/photo")
+    if result is None:
+        raise HTTPException(status_code=404, detail="Foto nicht gefunden")
+    data, content_type = result
+    return Response(content=data, media_type=content_type)
 
 
 @router.get("/contacts")

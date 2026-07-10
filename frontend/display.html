@@ -326,6 +326,7 @@
 .msg-bubble.incoming { background:var(--surface2);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px; }
 .msg-bubble.outgoing { background:rgba(99,179,237,0.2);color:var(--text);align-self:flex-end;border-bottom-right-radius:4px; }
 .msg-bubble-meta { font-size:0.7rem;color:var(--muted);margin-top:3px; }
+.msg-bubble-photo { max-width:75%;border-radius:14px;cursor:zoom-in;display:block; }
 .msg-compose-bar { display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--border);flex-shrink:0; }
 .msg-compose-bar input { flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--text);font-size:0.88rem;outline:none; }
 .msg-compose-bar input:focus { border-color:var(--accent); }
@@ -3837,7 +3838,7 @@
     if (!overlay) return;
     if (_msgDismissTimer) { clearTimeout(_msgDismissTimer); _msgDismissTimer = null; }
     document.getElementById('msg-incoming-sender').textContent = _msgDisplayName(msg);
-    document.getElementById('msg-incoming-content').textContent = msg.content;
+    document.getElementById('msg-incoming-content').textContent = msg.message_type === 'photo' ? '📷 Foto' : msg.content;
     overlay.style.display = 'block';
     const bar = document.getElementById('msg-incoming-bar');
     if (bar) {
@@ -3965,7 +3966,7 @@
       return `
       <div class="msg-contact-item${selected ? ' selected' : ''}" data-user-id="${escapeAttr(c.user_id)}">
         <div class="msg-contact-name">${escapeHTML(c.name)}${householdTag}</div>
-        <div class="msg-contact-preview">${last ? escapeHTML((last.content || '').slice(0, 38)) : '<em style="opacity:0.5;">Noch keine Nachrichten</em>'}</div>
+        <div class="msg-contact-preview">${last ? (last.message_type === 'photo' ? '📷 Foto' : escapeHTML((last.content || '').slice(0, 38))) : '<em style="opacity:0.5;">Noch keine Nachrichten</em>'}</div>
         ${last ? `<div class="msg-contact-time">${_fmtMsgTime(last.created_at)}</div>` : ''}
         ${unread > 0 ? `<span class="msg-contact-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
       </div>`;
@@ -4029,6 +4030,20 @@
   }
 
   // Update only the message list — called by SSE to avoid rebuilding compose bar
+  // Baut eine einzelne Nachrichten-Bubble (Text oder Foto) — gemeinsam genutzt
+  // von _refreshConvMessages und _openConversation.
+  function _msgBubbleHtml(m, isMine) {
+    const inner = m.message_type === 'photo'
+      ? `<img src="/messages/${m.id}/photo" class="msg-bubble-photo" loading="lazy"
+             onclick="openSnapshotFullscreen('/messages/${m.id}/photo')"
+             onerror="this.style.display='none'">`
+      : `<div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>`;
+    return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
+      ${inner}
+      <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
+    </div>`;
+  }
+
   function _refreshConvMessages() {
     const convEl = document.getElementById('msg-conv-messages');
     if (!convEl || !_msgSelectedContact) return;
@@ -4037,13 +4052,7 @@
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     const wasAtBottom = convEl.scrollHeight - convEl.scrollTop - convEl.clientHeight < 60;
     convEl.innerHTML = msgs.length
-      ? msgs.map(m => {
-          const isMine = _msgIsMineTo(m, _msgSelectedContact);
-          return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
-            <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
-            <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
-          </div>`;
-        }).join('')
+      ? msgs.map(m => _msgBubbleHtml(m, _msgIsMineTo(m, _msgSelectedContact))).join('')
       : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>';
     if (wasAtBottom) convEl.scrollTop = convEl.scrollHeight;
   }
@@ -4076,13 +4085,7 @@
       <div class="msg-conv-wrap">
         <div class="msg-conv-header">💬 ${escapeHTML(contact.name)}${householdTag}</div>
         <div class="msg-conv-messages" id="msg-conv-messages">
-          ${msgs.length ? msgs.map(m => {
-            const isMine = _msgIsMineTo(m, contact);
-            return `<div style="display:flex;flex-direction:column;align-items:${isMine ? 'flex-end' : 'flex-start'};">
-              <div class="msg-bubble ${isMine ? 'outgoing' : 'incoming'}">${escapeHTML(m.content)}</div>
-              <div class="msg-bubble-meta">${_msgBubbleMeta(m, isMine)}</div>
-            </div>`;
-          }).join('') : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
+          ${msgs.length ? msgs.map(m => _msgBubbleHtml(m, _msgIsMineTo(m, contact))).join('') : '<div style="color:var(--muted);font-size:0.82rem;padding:8px 0;">Noch keine Nachrichten.</div>'}
         </div>
         <div class="msg-compose-bar">
           <input id="msg-compose" type="text" placeholder="Nachricht an ${escapeAttr(contact.name)}…"

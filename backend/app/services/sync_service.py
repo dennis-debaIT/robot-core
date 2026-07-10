@@ -267,6 +267,25 @@ def _sync_request(method: str, path: str, body: dict | None = None) -> dict | No
         return None
 
 
+def _sync_request_bytes(
+    method: str, path: str, body: bytes | None = None, content_type: str | None = None
+) -> tuple[bytes, str] | None:
+    """Wie _sync_request, aber für rohe Binärdaten (z.B. Foto-Nachrichten) —
+    liefert (bytes, content_type) statt geparstem JSON."""
+    url_base, token = get_credentials()
+    if not url_base or not token:
+        return None
+    req = _req.Request(f"{url_base}{path}", data=body, method=method)
+    req.add_header("Authorization", f"Bearer {token}")
+    if content_type:
+        req.add_header("Content-Type", content_type)
+    try:
+        with _req.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
+            return resp.read(), resp.headers.get("Content-Type", "image/jpeg")
+    except Exception:
+        return None
+
+
 def push_item(item: dict[str, Any]) -> None:
     if item.get("deleted"):
         _sync_request("DELETE", f"/items/{item['id']}")
