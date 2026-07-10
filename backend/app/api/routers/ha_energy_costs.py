@@ -69,12 +69,29 @@ def _stat_to_local(raw: Any) -> datetime | None:
         return None
 
 
+def _watts_scale(ha: "HomeAssistantProvider", entity_id: str) -> float:
+    """Ermittelt den Umrechnungsfaktor auf Watt für einen Leistungssensor.
+
+    Die Integrationsformel unten rechnet fest in W → kWh; Sensoren, die
+    stattdessen in kW melden (z.B. manche Wallbox-/SDongle-Sensoren, im
+    Unterschied zu den bisherigen W-Sensoren wie dem Netzzähler), würden ohne
+    diese Normalisierung um Faktor 1000 zu niedrig berechnet. Fällt auf 1.0
+    (Watt, bisheriges Verhalten) zurück wenn die Einheit nicht ermittelbar ist."""
+    try:
+        state = ha.get_state(entity_id)
+        unit = ((state or {}).get("attributes") or {}).get("unit_of_measurement", "")
+        return 1000.0 if str(unit).strip().lower() == "kw" else 1.0
+    except Exception:
+        return 1.0
+
+
 def _integrate_power_daily_from_history(
     entity_id: str,
     start_utc: datetime,
     end_utc: datetime,
     ha: "HomeAssistantProvider",
     signed: bool,
+    scale: float = 1.0,
 ) -> dict[str, dict[str, float]]:
     """Trennt einen Leistungssensor (W) in tägliche Einspeisung und Netzbezug (kWh).
 
@@ -82,7 +99,7 @@ def _integrate_power_daily_from_history(
     — Huawei-Konvention (Netzbezugs-Sensor). signed=False: alle Werte gelten
     als Verbrauch/Netzbezug, Einspeisung bleibt 0 (Gerätesensor).
     Greift auf die Rohzustands-History zu (1 API-Aufruf pro 24h-Chunk).
-    """
+    scale normalisiert Sensoren, die nicht in W melden (siehe _watts_scale)."""
     states = ha.get_history(entity_id, start_utc, end_utc, chunk_hours=24)
 
     by_date: dict[str, list[tuple[float, float]]] = defaultdict(list)
@@ -90,6 +107,7 @@ def _integrate_power_daily_from_history(
         v = _safe_float(s.get("state"))
         if v is None:
             continue
+        v *= scale
         if not signed and v < 0:
             continue
         ts_str = s.get("last_changed") or s.get("last_updated") or ""
@@ -131,13 +149,14 @@ async def _integrate_power_daily_from_stats(
     end_utc: datetime,
     ha: "HomeAssistantProvider",
     signed: bool,
+    scale: float = 1.0,
 ) -> dict[str, dict[str, float]]:
     """Wie _integrate_power_daily_from_history, aber aus der HA-Langzeitstatistik
     (stündliche Mittelwerte) — 1 API-Aufruf statt einem pro Tag.
 
     Liefert {} wenn der Sensor keine Langzeitstatistik führt; dann greift der
-    History-Fallback.
-    """
+    History-Fallback. scale normalisiert Sensoren, die nicht in W melden
+    (siehe _watts_scale)."""
     stats = await ha.get_pv_statistics([entity_id], start_utc, end_utc, "hour", ["mean"])
     rows = stats.get(entity_id) or []
     if not rows:
@@ -148,6 +167,7 @@ async def _integrate_power_daily_from_stats(
         mean_w = _safe_float(r.get("mean"))
         if mean_w is None:
             continue
+        mean_w *= scale
         if not signed and mean_w < 0:
             continue
         dt_loc = _stat_to_local(r.get("start"))
@@ -184,16 +204,17 @@ async def _integrate_power_daily(
     """
     now_loc = datetime.now(_LOCAL_TZ)
     today_start_utc = now_loc.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+    scale = _watts_scale(ha, entity_id)
 
     if (end_utc - start_utc) <= timedelta(hours=36):
-        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed)
+        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed, scale)
 
-    result = await _integrate_power_daily_from_stats(entity_id, start_utc, end_utc, ha, signed)
+    result = await _integrate_power_daily_from_stats(entity_id, start_utc, end_utc, ha, signed, scale)
     if not result:
-        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed)
+        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed, scale)
 
     if end_utc > today_start_utc:
-        today = _integrate_power_daily_from_history(entity_id, max(start_utc, today_start_utc), end_utc, ha, signed)
+        today = _integrate_power_daily_from_history(entity_id, max(start_utc, today_start_utc), end_utc, ha, signed, scale)
         result.update(today)
 
     return result
