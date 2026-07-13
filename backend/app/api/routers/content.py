@@ -526,7 +526,7 @@ def get_league_table(league_id: str) -> dict[str, Any]:
     from app.search.providers.football import FootballProvider
 
     fp = FootballProvider()
-    season = fp._season_year()
+    season = fp._resolve_season_year()
     league_names = {"bl1": "1. Bundesliga", "bl2": "2. Bundesliga", "bl3": "3. Liga"}
     league_name = league_names.get(league_id, league_id)
     table = fp._fetch_table(league_id, season)

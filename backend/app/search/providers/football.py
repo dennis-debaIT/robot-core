@@ -32,6 +32,11 @@ class FootballProvider:
         ("bl3", "3. Liga"),
     ]
 
+    # Klassenweiter Cache für das aufgelöste Saisonjahr (siehe _resolve_season_year) —
+    # vermeidet einen zusätzlichen Sondierungs-Request bei jeder Anfrage.
+    _season_cache: dict[str, tuple[float, int]] = {}
+    _SEASON_CACHE_TTL = 3600  # 1h
+
     # Erkennungsmuster für Fußball-Anfragen
     _PATTERN = re.compile(
         r"\b(tabellenplatz|tabellenstand|tabelle|bundesliga|2\.\s*bundesliga"
@@ -61,7 +66,7 @@ class FootballProvider:
         Gibt ein dict mit 'snippet', 'title', 'url', 'is_stable' zurück
         oder None wenn kein Treffer.
         """
-        season_year = self._season_year()
+        season_year = self._resolve_season_year()
         team_words = self._extract_team_words(query)
 
         # Spielergebnis-Anfragen zuerst versuchen
@@ -134,7 +139,7 @@ class FootballProvider:
             from app.database.db import get_connection, read_state
             with get_connection() as conn:
                 raw = read_state(conn, _TEAMS_CACHE_KEY)
-            if not raw or raw.get("season") != self._season_year():
+            if not raw or raw.get("season") != self._resolve_season_year():
                 return None
             age = (datetime.now(timezone.utc) - datetime.fromisoformat(raw["cached_at"])).days
             return raw.get("keywords") if age <= 7 else None
@@ -142,7 +147,7 @@ class FootballProvider:
             return None
 
     def _refresh_teams_cache(self) -> dict:
-        season = self._season_year()
+        season = self._resolve_season_year()
         keywords: dict[str, dict] = {}
         for league_id, league_name in self.LEAGUES:
             table = self._fetch_table(league_id, season)
@@ -188,11 +193,27 @@ class FootballProvider:
 
     # ── Interne Hilfsmethoden ────────────────────────────────────────────────
 
-    @staticmethod
-    def _season_year() -> int:
-        """Aktuelles Saison-Startjahr (August-Juli-Zyklus)."""
-        now = datetime.now()
-        return now.year if now.month >= 8 else now.year - 1
+    def _resolve_season_year(self) -> int:
+        """Aktuelles Saison-Startjahr — probiert das laufende Kalenderjahr und
+        fällt nur zurück aufs Vorjahr, wenn dafür noch keine Tabelle existiert.
+
+        Ersetzt die frühere feste August-Stichtag-Logik (now.month >= 8): die
+        hinkte der Realität hinterher, sobald eine neue Saison schon früher
+        veröffentlicht wurde, und lieferte dann wochenlang noch die fertige
+        Tabelle der abgelaufenen Saison (gleicher Fix wie in
+        openligadb_liga._season_years_to_try, hier dupliziert weil dieser
+        Provider dieselbe API eigenständig anspricht, für konsistente
+        Ergebnisse zwischen Sprachsuche und Display). Ergebnis wird 1h
+        gecacht, um nicht bei jeder Anfrage einen zusätzlichen Sondierungs-
+        Request auszulösen."""
+        import time as _time
+        cached = FootballProvider._season_cache.get("y")
+        if cached and (_time.time() - cached[0]) < FootballProvider._SEASON_CACHE_TTL:
+            return cached[1]
+        candidate = datetime.now().year
+        year = candidate if self._fetch_table(self.LEAGUES[0][0], candidate) else candidate - 1
+        FootballProvider._season_cache["y"] = (_time.time(), year)
+        return year
 
     @staticmethod
     def _extract_team_words(query: str) -> list[str]:
@@ -309,7 +330,7 @@ class FootballProvider:
         Wird vom /football/{team} Endpoint genutzt.
         """
         from datetime import datetime as _dt
-        season_year = self._season_year()
+        season_year = self._resolve_season_year()
         team_words = self._extract_team_words(team_name)
 
         for league_id, league_name in self.LEAGUES:
