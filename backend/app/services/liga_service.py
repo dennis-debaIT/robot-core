@@ -261,18 +261,19 @@ class LigaService:
                     "matchday_nr": m.get("matchday"),
                 })
 
-        # Fallback: OpenLigaDB für BL2/BL3-Teams (fd.o Free Tier gibt keinen Zugriff)
-        if not last5:
-            from app.services.openligadb_liga import get_team_last5 as _oldb_last5
-            team_name_fb, fdorg_fb = "", ""
+        # Team-Name/Liga-Code für die OpenLigaDB-Fallbacks unten (BL2/BL3 —
+        # fd.o Free Tier gibt für diese Ligen generell keinen Team-Zugriff).
+        def _lookup_oldb_team() -> tuple[str, str]:
             for code, entry in LigaService._standings_cache.items():
                 for row in ((entry.get("data") or {}).get("table") or []):
                     if (row.get("team") or {}).get("id") == team_id:
-                        team_name_fb = (row["team"].get("name") or row["team"].get("shortName") or "")
-                        fdorg_fb = code
-                        break
-                if team_name_fb:
-                    break
+                        return (row["team"].get("name") or row["team"].get("shortName") or ""), code
+            return "", ""
+
+        # Fallback: OpenLigaDB für BL2/BL3-Teams (fd.o Free Tier gibt keinen Zugriff)
+        if not last5:
+            from app.services.openligadb_liga import get_team_last5 as _oldb_last5
+            team_name_fb, fdorg_fb = _lookup_oldb_team()
             if team_name_fb and fdorg_fb:
                 state_entry = LigaService._state_cache.get(fdorg_fb) or {}
                 current_md = (state_entry.get("data") or {}).get("matchday_nr")
@@ -293,6 +294,16 @@ class LigaService:
                     "away": (m.get("awayTeam") or {}).get("shortName"),
                     "competition": (m.get("competition") or {}).get("name"),
                 }
+
+        # Fallback: OpenLigaDB für BL2/BL3-Teams — bisher fehlte dieser Fallback
+        # hier komplett (im Unterschied zu last5 oben), wodurch "Nächstes Spiel"
+        # für BL2/BL3-Teams dauerhaft leer blieb, obwohl der Spielplan-Bereich
+        # (der denselben OpenLigaDB-Weg nutzt) die Spiele längst kannte.
+        if not next_match:
+            from app.services.openligadb_liga import get_team_next_match as _oldb_next
+            team_name_fb, fdorg_fb = _lookup_oldb_team()
+            if team_name_fb and fdorg_fb:
+                next_match = _oldb_next(fdorg_fb, team_name_fb)
 
         result: dict[str, Any] = {
             "team_id": team_id,

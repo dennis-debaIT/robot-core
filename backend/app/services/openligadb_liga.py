@@ -67,9 +67,19 @@ def _fetch(url: str) -> Any:
         return None
 
 
-def _season_year() -> int:
+def _season_years_to_try() -> list[int]:
+    """Kandidaten für das OpenLigaDB-Saisonjahr, neueste zuerst.
+
+    Vorher wurde die Saison starr über einen August-Stichtag geraten
+    (now.month >= 8) — das hinkt der Realität hinterher, sobald der Spielplan
+    einer neuen Saison schon früher veröffentlicht wird (z.B. Mitte Juli),
+    und lieferte dann noch wochenlang die fertige Tabelle der abgelaufenen
+    Saison. Stattdessen wird jetzt einfach das aktuelle Kalenderjahr zuerst
+    versucht und nur bei leerem/fehlendem Ergebnis auf das Vorjahr
+    zurückgefallen — das passt sich automatisch an, sobald OpenLigaDB die
+    neue Saison führt, unabhängig vom genauen Veröffentlichungsdatum."""
     now = datetime.now()
-    return now.year if now.month >= 8 else now.year - 1
+    return [now.year, now.year - 1]
 
 
 def _utc_now() -> datetime:
@@ -181,10 +191,12 @@ def _get_current_matches(oldb_code: str) -> list[dict[str, Any]]:
         group = _fetch(f"{BASE}/getcurrentgroup/{oldb_code}")
         if isinstance(group, dict):
             gid = group.get("groupOrderID") or group.get("groupOrderId")
-            season = _season_year()
             if gid is not None:
-                data2 = _fetch(f"{BASE}/getmatchdata/{oldb_code}/{season}/{gid}")
-                matches = data2 if isinstance(data2, list) else []
+                for season in _season_years_to_try():
+                    data2 = _fetch(f"{BASE}/getmatchdata/{oldb_code}/{season}/{gid}")
+                    if isinstance(data2, list) and data2:
+                        matches = data2
+                        break
 
     return matches
 
@@ -255,8 +267,12 @@ def get_standings(fdorg_code: str) -> dict[str, Any] | None:
             "table": cached[1],
         }
 
-    season = _season_year()
-    data = _fetch(f"{BASE}/getbltable/{oldb_code}/{season}")
+    data = None
+    for season in _season_years_to_try():
+        candidate = _fetch(f"{BASE}/getbltable/{oldb_code}/{season}")
+        if isinstance(candidate, list) and candidate:
+            data = candidate
+            break
     if not isinstance(data, list):
         if cached:
             return {"code": fdorg_code, "name": COMPETITION_NAMES.get(fdorg_code, fdorg_code), "table": cached[1]}
@@ -305,7 +321,6 @@ def get_team_last5(fdorg_code: str, team_name: str, current_matchday: int | None
     if cached and (now - cached[0]) < LAST5_TTL:
         return cached[1]
 
-    season = _season_year()
     name_norm = _norm_team(team_name)
     results: list[dict[str, Any]] = []
 
@@ -316,6 +331,16 @@ def get_team_last5(fdorg_code: str, team_name: str, current_matchday: int | None
             start_md = int(group.get("groupOrderID") or group.get("groupOrderId") or 34)
         else:
             start_md = 34
+
+    # Saison für den ersten Spieltag der Rückwärtssuche ermitteln (neueste
+    # zuerst versuchen) und für die restliche Schleife beibehalten — vermeidet
+    # pro Spieltag erneut raten zu müssen.
+    season = _season_years_to_try()[0]
+    for candidate in _season_years_to_try():
+        probe = _fetch(f"{BASE}/getmatchdata/{oldb_code}/{candidate}/{start_md}")
+        if isinstance(probe, list) and probe:
+            season = candidate
+            break
 
     for md in range(start_md, max(0, start_md - 7), -1):
         if len(results) >= 5:
@@ -366,6 +391,37 @@ def get_team_last5(fdorg_code: str, team_name: str, current_matchday: int | None
     return result_final
 
 
+def get_team_next_match(fdorg_code: str, team_name: str) -> dict[str, Any] | None:
+    """Nächstes noch nicht gespieltes Spiel eines Teams — Fallback für BL2/BL3,
+    wo football-data.org (Free Tier) keine Team-Spiele liefert. Sucht im
+    aktuellen Spieltag (saisonlos über _get_current_matches ermittelt, daher
+    von der Saison-Rateproblematik der anderen Funktionen hier unberührt) —
+    dieselbe Quelle, die auch der Spielplan-Bereich im Display nutzt."""
+    oldb_code = _FDORG_TO_OLDB.get(fdorg_code)
+    if not oldb_code:
+        return None
+
+    name_norm = _norm_team(team_name)
+    raw = _get_current_matches(oldb_code)
+    for m in raw:
+        t1 = m.get("team1") or {}
+        t2 = m.get("team2") or {}
+        t1n = _norm_team(t1.get("teamName") or t1.get("shortName") or "")
+        t2n = _norm_team(t2.get("teamName") or t2.get("shortName") or "")
+        if not (_team_matches(name_norm, t1n) or _team_matches(name_norm, t2n)):
+            continue
+        if m.get("matchIsFinished"):
+            continue
+        match = _oldb_to_match(m, fdorg_code)
+        return {
+            "utcDate": match.get("utcDate"),
+            "home": (match.get("homeTeam") or {}).get("shortName"),
+            "away": (match.get("awayTeam") or {}).get("shortName"),
+            "competition": COMPETITION_NAMES.get(fdorg_code, fdorg_code),
+        }
+    return None
+
+
 def get_teams(fdorg_code: str) -> list[dict[str, Any]]:
     """Teams aus getbltable ableiten (getteams-Endpoint existiert nicht bei OpenLigaDB)."""
     oldb_code = _FDORG_TO_OLDB.get(fdorg_code)
@@ -377,8 +433,12 @@ def get_teams(fdorg_code: str) -> list[dict[str, Any]]:
     if cached and (now - cached[0]) < TEAMS_TTL:
         return cached[1]
 
-    season = _season_year()
-    data = _fetch(f"{BASE}/getbltable/{oldb_code}/{season}")
+    data = None
+    for season in _season_years_to_try():
+        candidate = _fetch(f"{BASE}/getbltable/{oldb_code}/{season}")
+        if isinstance(candidate, list) and candidate:
+            data = candidate
+            break
     if not isinstance(data, list):
         return cached[1] if cached else []
 
