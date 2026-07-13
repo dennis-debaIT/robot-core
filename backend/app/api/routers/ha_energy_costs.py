@@ -92,6 +92,7 @@ def _integrate_power_daily_from_history(
     ha: "HomeAssistantProvider",
     signed: bool,
     scale: float = 1.0,
+    min_power_w: float = 0.0,
 ) -> dict[str, dict[str, float]]:
     """Trennt einen Leistungssensor (W) in tägliche Einspeisung und Netzbezug (kWh).
 
@@ -99,7 +100,10 @@ def _integrate_power_daily_from_history(
     — Huawei-Konvention (Netzbezugs-Sensor). signed=False: alle Werte gelten
     als Verbrauch/Netzbezug, Einspeisung bleibt 0 (Gerätesensor).
     Greift auf die Rohzustands-History zu (1 API-Aufruf pro 24h-Chunk).
-    scale normalisiert Sensoren, die nicht in W melden (siehe _watts_scale)."""
+    scale normalisiert Sensoren, die nicht in W melden (siehe _watts_scale).
+    min_power_w (nur bei Gerätesensoren, signed=False): Werte darunter zählen
+    nicht als Verbrauch — trennt z.B. die Standby-Last einer Wallbox
+    (durchgehend ein paar hundert Watt) von echtem Laden."""
     states = ha.get_history(entity_id, start_utc, end_utc, chunk_hours=24)
 
     by_date: dict[str, list[tuple[float, float]]] = defaultdict(list)
@@ -130,7 +134,10 @@ def _integrate_power_daily_from_history(
         for i in range(len(readings) - 1):
             dt_secs = readings[i + 1][0] - readings[i][0]
             if 0 < dt_secs <= 1800:
-                kwh = readings[i][1] * dt_secs / 3_600_000
+                v_i = readings[i][1]
+                if not signed and min_power_w > 0 and v_i < min_power_w:
+                    continue  # Standby/Leerlauf unterhalb der Schwelle zählt nicht
+                kwh = v_i * dt_secs / 3_600_000
                 if signed:
                     if kwh > 0:
                         ein += kwh   # positiv = Einspeisung
@@ -150,13 +157,14 @@ async def _integrate_power_daily_from_stats(
     ha: "HomeAssistantProvider",
     signed: bool,
     scale: float = 1.0,
+    min_power_w: float = 0.0,
 ) -> dict[str, dict[str, float]]:
     """Wie _integrate_power_daily_from_history, aber aus der HA-Langzeitstatistik
     (stündliche Mittelwerte) — 1 API-Aufruf statt einem pro Tag.
 
     Liefert {} wenn der Sensor keine Langzeitstatistik führt; dann greift der
     History-Fallback. scale normalisiert Sensoren, die nicht in W melden
-    (siehe _watts_scale)."""
+    (siehe _watts_scale). min_power_w siehe _integrate_power_daily_from_history."""
     stats = await ha.get_pv_statistics([entity_id], start_utc, end_utc, "hour", ["mean"])
     rows = stats.get(entity_id) or []
     if not rows:
@@ -169,6 +177,8 @@ async def _integrate_power_daily_from_stats(
             continue
         mean_w *= scale
         if not signed and mean_w < 0:
+            continue
+        if not signed and min_power_w > 0 and mean_w < min_power_w:
             continue
         dt_loc = _stat_to_local(r.get("start"))
         if not dt_loc:
@@ -195,6 +205,7 @@ async def _integrate_power_daily(
     end_utc: datetime,
     ha: "HomeAssistantProvider",
     signed: bool,
+    min_power_w: float = 0.0,
 ) -> dict[str, dict[str, float]]:
     """Trennt einen Leistungssensor (W) in tägliche Einspeisung und Netzbezug (kWh).
 
@@ -207,14 +218,14 @@ async def _integrate_power_daily(
     scale = _watts_scale(ha, entity_id)
 
     if (end_utc - start_utc) <= timedelta(hours=36):
-        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed, scale)
+        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed, scale, min_power_w)
 
-    result = await _integrate_power_daily_from_stats(entity_id, start_utc, end_utc, ha, signed, scale)
+    result = await _integrate_power_daily_from_stats(entity_id, start_utc, end_utc, ha, signed, scale, min_power_w)
     if not result:
-        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed, scale)
+        return _integrate_power_daily_from_history(entity_id, start_utc, end_utc, ha, signed, scale, min_power_w)
 
     if end_utc > today_start_utc:
-        today = _integrate_power_daily_from_history(entity_id, max(start_utc, today_start_utc), end_utc, ha, signed, scale)
+        today = _integrate_power_daily_from_history(entity_id, max(start_utc, today_start_utc), end_utc, ha, signed, scale, min_power_w)
         result.update(today)
 
     return result
@@ -307,7 +318,8 @@ async def get_energy_history(view: str = Query("today")) -> dict[str, Any]:
     result_sensors: list[dict[str, Any]] = []
     for sensor in sensors_cfg:
         signed = sensor.get("role") == "grid"
-        daily = await _integrate_power_daily(sensor["entity_id"], period_start_utc, now_utc, ha, signed)
+        min_power_w = _safe_float(sensor.get("min_power_w")) or 0.0
+        daily = await _integrate_power_daily(sensor["entity_id"], period_start_utc, now_utc, ha, signed, min_power_w)
 
         entry: dict[str, Any] = {
             "id": sensor["id"], "label": sensor["label"], "role": sensor.get("role", "device"), "unit": "kWh",

@@ -4867,6 +4867,11 @@
           <select class="field-input" style="width:170px;flex-shrink:0;" onchange="_setEnergySensorRole(${i}, this.value)">
             ${_ENERGY_ROLES.map(([v,l]) => `<option value="${v}" ${s.role===v?'selected':''}>${l}</option>`).join('')}
           </select>
+          ${s.role === 'device' ? `
+          <input class="field-input" type="number" min="0" step="50" style="width:150px;flex-shrink:0;" placeholder="Mindestleistung (W)"
+                 title="Werte unter dieser Leistung zählen nicht als Verbrauch — z.B. um die Standby-Last einer Wallbox von echtem Laden zu trennen"
+                 value="${s.min_power_w || ''}" oninput="_energySensors[${i}].min_power_w=this.value">
+          ` : ''}
           <button type="button" class="layout-remove-btn" onclick="_removeEnergySensor(${i})" title="Entfernen">×</button>
         </div>`).join('');
     }
@@ -4907,7 +4912,10 @@
     async function savePvEnergyConfig() {
       const statusEl = document.getElementById('pv-energy-status');
       const sensors = _energySensors
-        .map(s => ({ entity_id: (s.entity_id||'').trim(), label: (s.label||'').trim(), role: s.role || 'device' }))
+        .map(s => ({
+          entity_id: (s.entity_id||'').trim(), label: (s.label||'').trim(), role: s.role || 'device',
+          min_power_w: s.role === 'device' ? (parseFloat(s.min_power_w) || 0) : 0,
+        }))
         .filter(s => s.entity_id);
       // Gesamt-Netzbezug-Sensor versorgt zusaetzlich pv.sensors.grid (Hausverbrauch-
       // Berechnung in pv_service.py) — ein Feld im UI statt zweier getrennter.

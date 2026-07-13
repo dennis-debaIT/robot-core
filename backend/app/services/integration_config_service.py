@@ -1024,7 +1024,19 @@ class IntegrationConfigService:
                 sensor_id = f"{slug}-{suffix}"
                 suffix += 1
             used_ids.add(sensor_id)
-            sensors.append({"id": sensor_id, "label": label, "entity_id": entity_id, "role": role})
+            # Nur für "device"-Sensoren sinnvoll (z.B. Wallbox-Standby von
+            # echtem Laden trennen) — beim signierten Netzbezugs-Sensor muss
+            # jeder Wert mitgezählt werden, daher dort immer 0.
+            min_power_w = 0.0
+            if role == "device":
+                try:
+                    min_power_w = max(0.0, min(float(item.get("min_power_w") or 0), 50000.0))
+                except (TypeError, ValueError):
+                    min_power_w = 0.0
+            sensors.append({
+                "id": sensor_id, "label": label, "entity_id": entity_id, "role": role,
+                "min_power_w": min_power_w,
+            })
         return sensors
 
     @staticmethod
