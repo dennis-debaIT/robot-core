@@ -263,7 +263,21 @@ class LigaService:
 
         # Team-Name/Liga-Code für die OpenLigaDB-Fallbacks unten (BL2/BL3 —
         # fd.o Free Tier gibt für diese Ligen generell keinen Team-Zugriff).
+        # _state_cache zuerst: wird vom /liga/state-Handler im selben Request
+        # unmittelbar vorher über get_state() befüllt, also garantiert frisch —
+        # im Unterschied zu _standings_cache, das nur gefüllt ist, wenn
+        # irgendwann zuvor zufällig /liga/standings aufgerufen wurde (das kann
+        # je nach Timing/parallelen Anfragen bereits wieder abgelaufen oder
+        # schlicht nie erfolgt sein). _standings_cache bleibt als Fallback für
+        # den eigenständigen /liga/team-detail-Aufruf, der kein vorheriges
+        # get_state() im selben Request hat.
         def _lookup_oldb_team() -> tuple[str, str]:
+            for code, entry in LigaService._state_cache.items():
+                for m in (entry.get("data") or {}).get("matches") or []:
+                    for side in ("homeTeam", "awayTeam"):
+                        t = m.get(side) or {}
+                        if t.get("id") == team_id:
+                            return (t.get("name") or t.get("shortName") or ""), code
             for code, entry in LigaService._standings_cache.items():
                 for row in ((entry.get("data") or {}).get("table") or []):
                     if (row.get("team") or {}).get("id") == team_id:
