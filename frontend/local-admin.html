@@ -2003,9 +2003,11 @@
             </div>
             <div class="stack-actions" style="padding:0;align-items:center;">
               <button type="button" class="primary" onclick="_saveSyncCredentials()">Speichern</button>
+              <button type="button" onclick="_pairAsDevice()">Als eigenständiges Gerät koppeln</button>
               <button type="button" id="sync-cred-remove-btn" style="display:none;" onclick="_removeSyncCredentials()">Entfernen</button>
               <span id="sync-cred-result" style="font-size:.8rem;color:var(--muted);margin-left:6px;"></span>
             </div>
+            <p style="font-size:.78rem;color:var(--muted);margin:8px 0 0;">"Als eigenständiges Gerät koppeln" nutzt E-Mail/Passwort oben nur einmalig, um dieses Erika-Gerät eine eigene Kennung zu geben — danach kann es z.B. Nachrichten an dich senden, ohne "sich selbst" anzuschreiben.</p>
           </section>
 
           <section class="module-card">
@@ -4444,7 +4446,11 @@
         const d = await fetch('/sync/config').then(r => r.json());
         const emailEl = document.getElementById('sync-cred-email');
         if (emailEl) emailEl.value = d.email || '';
-        if (d.configured) {
+        if (d.device_paired) {
+          if (dot) { dot.style.background = '#00c832'; }
+          if (txt) txt.textContent = 'Verbunden als eigenständiges Gerät (Display)';
+          if (rmBtn) rmBtn.style.display = '';
+        } else if (d.configured) {
           if (dot) { dot.style.background = '#00c832'; }
           if (txt) txt.textContent = `Verbunden als ${d.email}`;
           if (rmBtn) rmBtn.style.display = '';
@@ -4479,6 +4485,29 @@
         _loadSyncAccount();
         // Edition-Update läuft im Hintergrund (~1-2s) → danach Feature-Gates neu prüfen
         setTimeout(_applyFeatureGating, 2000);
+      } catch (e) {
+        if (res) res.textContent = 'Fehler: ' + e.message;
+      }
+    }
+
+    async function _pairAsDevice() {
+      const email = (document.getElementById('sync-cred-email') || {}).value?.trim() || '';
+      const pw    = (document.getElementById('sync-cred-pw')    || {}).value?.trim() || '';
+      const res   = document.getElementById('sync-cred-result');
+      if (!email || !pw) {
+        if (res) res.textContent = 'Bitte E-Mail und Passwort ausfüllen.';
+        return;
+      }
+      try {
+        const r = await fetch('/license/pair-device', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pw }),
+        });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.detail || r.status); }
+        document.getElementById('sync-cred-pw').value = '';
+        if (res) { res.textContent = 'Gekoppelt ✓'; setTimeout(() => res.textContent = '', 3000); }
+        _loadSyncCredentials();
       } catch (e) {
         if (res) res.textContent = 'Fehler: ' + e.message;
       }

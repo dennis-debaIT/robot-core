@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException
 from app.audit.service import AuditService
 from app.services.feature_service import FeatureService
 from app.services.license_service import LicenseService, _LICENSE_FILE
+from app.services import sync_service as svc
 
 router = APIRouter()
 
@@ -144,6 +145,52 @@ def install_license(payload: dict) -> dict:
         details={"valid": result.get("valid"), "plan": result.get("plan"), "reason": result.get("reason")},
     )
     return result
+
+
+@router.post("/license/pair-device")
+def pair_device(payload: dict) -> dict:
+    """Koppelt dieses Gerät mit einer eigenständigen Geräte-Identität beim
+    Sync Server, statt sich weiterhin als die Person hinter email/password
+    auszugeben (nötig damit z.B. das Display Nachrichten an die eigenen
+    Haushaltsmitglieder senden kann). email/password werden bewusst aus dem
+    Request gelesen statt aus license.json — erzwingt aktive Bestätigung bei
+    jeder (Re-)Kopplung."""
+    email = str(payload.get("email") or "").strip()
+    password = str(payload.get("password") or "").strip()
+    if not email or not password:
+        raise HTTPException(400, "email und password sind erforderlich")
+
+    lic: dict = {}
+    if _LICENSE_FILE.exists():
+        try:
+            lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    url = str(lic.get("sync_url") or "").rstrip("/")
+    if not url:
+        raise HTTPException(400, "Kein Sync-Server konfiguriert")
+
+    login_result = svc._do_login(url, email, password)
+    if not login_result:
+        raise HTTPException(401, "E-Mail oder Passwort falsch")
+    access_token, _refresh = login_result
+
+    device_token = svc._do_issue_device_token(url, access_token)
+    if not device_token:
+        raise HTTPException(502, "Gerätekopplung beim Sync Server fehlgeschlagen")
+
+    lic["sync_device_token"] = device_token
+    lic.pop("sync_password", None)
+    lic["sync_email"] = email
+    _LICENSE_FILE.write_text(json.dumps(lic, indent=2), encoding="utf-8")
+    svc.reset_token_cache()
+
+    AuditService().log(
+        action="license.device_paired",
+        target_type="license",
+        summary="Gerät wurde mit eigenständiger Geräte-Identität gekoppelt.",
+    )
+    return {"ok": True}
 
 
 @router.delete("/license")

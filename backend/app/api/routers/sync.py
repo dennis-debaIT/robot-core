@@ -177,11 +177,13 @@ def get_sync_config() -> dict[str, Any]:
             url   = str(lic.get("sync_url")      or "").rstrip("/")
             email = str(lic.get("sync_email")    or "").strip()
             has_pw = bool(str(lic.get("sync_password") or "").strip())
+            device_paired = bool(str(lic.get("sync_device_token") or "").strip())
             return {"url": url, "email": email, "has_password": has_pw,
-                    "configured": bool(url and email and has_pw)}
+                    "configured": bool(url and email and has_pw),
+                    "device_paired": device_paired}
     except Exception:
         pass
-    return {"url": "", "email": "", "has_password": False, "configured": False}
+    return {"url": "", "email": "", "has_password": False, "configured": False, "device_paired": False}
 
 
 def _bg_update_edition() -> None:

@@ -5,10 +5,14 @@ Sync-Credentials werden automatisch aus der Lizenz-Datei geladen sobald
 eine Plus/Family-Lizenz installiert ist — kein manuelles .env nötig.
 
 Auth-Pfade (Priorität):
-  1. license.json: sync_email + sync_password → Login via /auth/login (JWT)
-  2. license.json: sync_jwt → statisches Token (Legacy)
-  3. Env-Vars: SYNC_EMAIL + SYNC_PASSWORD → Login via /auth/login
-  4. Env-Vars: SYNC_SERVER_TOKEN → statisches Token (Self-Hosted)
+  1. license.json: sync_device_token → eigenständige Geräte-Identität
+     (siehe POST /auth/device-token, lokale Admin-UI "Als eigenständiges
+     Gerät koppeln") — kein Login, kein Ablauf, bis zur Neu-Kopplung gültig
+  2. license.json: sync_email + sync_password → Login via /auth/login (JWT)
+  3. license.json: sync_jwt → statisches Token (Legacy, license_id-basiert —
+     nur für Single-Tenant-Setups gültig, siehe _resolve_auth in auth.py)
+  4. Env-Vars: SYNC_EMAIL + SYNC_PASSWORD → Login via /auth/login
+  5. Env-Vars: SYNC_SERVER_TOKEN → statisches Token (Self-Hosted)
 
 Sync-Protokoll:
   GET  /items?since=<ISO>  → Delta-Sync (inkl. deleted=1)
@@ -96,6 +100,19 @@ def _do_refresh(url: str, refresh_token: str) -> tuple[str, str] | None:
         return None
 
 
+def _do_issue_device_token(url: str, access_token: str) -> str | None:
+    """Führt POST /auth/device-token aus (authentifiziert mit einem frischen
+    persönlichen Access-Token). Gibt den neuen Geräte-Token zurück oder None."""
+    req = _req.Request(f"{url}/auth/device-token", data=b"", method="POST")
+    req.add_header("Authorization", f"Bearer {access_token}")
+    try:
+        with _req.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
+            data = json.loads(resp.read())
+        return str(data.get("device_token") or "") or None
+    except Exception:
+        return None
+
+
 def _get_token_via_email(url: str, email: str, password: str) -> str:
     """Gibt ein gültiges Access-Token zurück (mit automatischem Refresh)."""
     now = datetime.now(timezone.utc)
@@ -141,6 +158,9 @@ def get_credentials() -> tuple[str, str]:
     try:
         lic = json.loads(_LICENSE_FILE.read_text(encoding="utf-8"))
         url   = str(lic.get("sync_url")      or "").rstrip("/")
+        device_token = str(lic.get("sync_device_token") or "").strip()
+        if url and device_token:
+            return url, device_token
         email = str(lic.get("sync_email")    or "").strip()
         pw    = str(lic.get("sync_password") or "").strip()
         if url and email and pw:
