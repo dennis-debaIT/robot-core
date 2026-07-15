@@ -335,8 +335,12 @@
 
 #vkb { position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:10px 8px 14px;z-index:10000;display:none;user-select:none;box-shadow:0 -8px 32px rgba(0,0,0,0.4); }
 .vkb-row { display:flex;justify-content:center;gap:5px;margin-bottom:5px; }
+.vkb-rowgroup-a { display:flex;justify-content:center;gap:5px;margin-bottom:5px; }
+.vkb-rowgroup-a .vkb-row { flex:0 1 620px;margin-bottom:0; }
 .vkb-tallgroup { display:flex;justify-content:center;gap:5px;margin-bottom:5px; }
-.vkb-tallgroup .vkb-col { display:flex;flex-direction:column;gap:5px;flex:0 1 620px; }
+.vkb-tallgroup .vkb-col { display:flex;flex-direction:column;gap:5px; }
+.vkb-tallgroup .vkb-col-letters { flex:0 1 620px; }
+.vkb-tallgroup .vkb-col-numpad { flex:0 1 220px; }
 .vkb-tallgroup .vkb-row { margin-bottom:0; }
 .vkb-key { min-width:42px;height:46px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:0.9rem;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.1s;flex:1;max-width:52px; }
 .vkb-key:active { background:rgba(99,179,237,0.2);border-color:var(--accent); }
@@ -345,6 +349,7 @@
 .vkb-key.enter { background:var(--accent);color:#0d1117; }
 .vkb-key.enter-tall { max-width:70px;height:auto;align-self:stretch; }
 .vkb-key.shift-wide { max-width:84px;flex:2; }
+.vkb-key.backspace-wide { flex:0 0 104px;max-width:104px; }
 .vkb-close { position:absolute;top:10px;right:12px;width:32px;height:32px;border-radius:8px;background:rgba(255,61,61,0.15);border:1px solid var(--danger);color:var(--danger);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center; }
 </style>
 
@@ -418,15 +423,21 @@
 <!-- ── VIRTUELLE TASTATUR (Touch-Geräte ohne Hardware-Tastatur) ── -->
 <div id="vkb">
   <div class="vkb-close" onclick="_hideVkb()">✕</div>
-  <div class="vkb-row" id="vkb-row-1"></div>
+  <div class="vkb-rowgroup-a">
+    <div class="vkb-row" id="vkb-row-2"></div>
+    <button class="vkb-key backspace-wide" onpointerdown="event.preventDefault();_vkbPress('⌫')">⌫</button>
+  </div>
   <div class="vkb-tallgroup">
-    <div class="vkb-col">
-      <div class="vkb-row" id="vkb-row-2"></div>
+    <div class="vkb-col vkb-col-letters">
       <div class="vkb-row" id="vkb-row-3"></div>
+      <div class="vkb-row" id="vkb-row-4"></div>
+    </div>
+    <div class="vkb-col vkb-col-numpad">
+      <div class="vkb-row" id="vkb-numpad-1"></div>
+      <div class="vkb-row" id="vkb-numpad-2"></div>
     </div>
     <button class="vkb-key enter enter-tall" onpointerdown="event.preventDefault();_vkbPress('⏎')">⏎</button>
   </div>
-  <div class="vkb-row" id="vkb-row-4"></div>
   <div class="vkb-row" id="vkb-row-5"></div>
 </div>
 
@@ -3334,15 +3345,16 @@
   // Ersetzt die native Android-Tastatur (per inputmode="none" unterdrückt)
   // auf Touch-Geräten ohne Hardware-Tastatur. Am Desktop/mit echter
   // Tastatur bleibt alles unverändert (kein Overlay, normales Tippen).
-  // Angelehnt an ein physisches deutsches Keyboard: Enter reicht über
-  // zwei Reihen (ISO-Form), */# neben Enter, <> unten links neben der
-  // Leertaste. Basis-Layout ist immer klein — _vkbChar() liefert die
-  // per Umschalt-Taste großgeschriebene bzw. auf ">" gewechselte Form.
-  const VKB_ROW1 = ['1','2','3','4','5','6','7','8','9','0','_','-','+','"','!','⌫'];
+  // Angelehnt an ein physisches deutsches Keyboard: Zahlenblock rechts
+  // statt oben, Löschen doppelbreit über dem (eine Reihe tiefer sitzenden)
+  // Enter. Basis-Layout ist immer klein — _vkbChar() liefert die per
+  // Umschalt-Taste großgeschriebene Form.
   const VKB_ROW2 = ['q','w','e','r','t','z','u','i','o','p','ü','*'];
-  const VKB_ROW3 = ['a','s','d','f','g','h','j','k','l','ö','ä','#'];
+  const VKB_ROW3 = ['a','s','d','f','g','h','j','k','l','ö','ä','+'];
   const VKB_ROW4 = ['⇧','y','x','c','v','b','n','m'];
-  const VKB_ROW5 = ['<','>',' ',',','.','@'];
+  const VKB_ROW5 = ['<','>',' ',',','.','@','_','-','!'];
+  const VKB_NUMPAD1 = ['1','2','3','4','5'];
+  const VKB_NUMPAD2 = ['6','7','8','9','0'];
   const _isTouchDevice = matchMedia('(pointer: coarse)').matches;
   let _vkbShift = false;
   let _vkbTarget = null;
@@ -3358,8 +3370,9 @@
 
   function _buildVkb() {
     [
-      ['vkb-row-1', VKB_ROW1], ['vkb-row-2', VKB_ROW2], ['vkb-row-3', VKB_ROW3],
+      ['vkb-row-2', VKB_ROW2], ['vkb-row-3', VKB_ROW3],
       ['vkb-row-4', VKB_ROW4], ['vkb-row-5', VKB_ROW5],
+      ['vkb-numpad-1', VKB_NUMPAD1], ['vkb-numpad-2', VKB_NUMPAD2],
     ].forEach(([id, keys]) => {
       const el = document.getElementById(id);
       if (!el) return;
