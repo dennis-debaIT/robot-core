@@ -344,6 +344,7 @@
 .vkb-key.space { max-width:260px;flex:5; }
 .vkb-key.enter { background:var(--accent);color:#0d1117; }
 .vkb-key.enter-tall { max-width:70px;height:auto;align-self:stretch; }
+.vkb-key.shift-wide { max-width:84px;flex:2; }
 .vkb-close { position:absolute;top:10px;right:12px;width:32px;height:32px;border-radius:8px;background:rgba(255,61,61,0.15);border:1px solid var(--danger);color:var(--danger);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center; }
 </style>
 
@@ -3337,22 +3338,21 @@
   // zwei Reihen (ISO-Form), */# neben Enter, <> unten links neben der
   // Leertaste. Basis-Layout ist immer klein — _vkbChar() liefert die
   // per Umschalt-Taste großgeschriebene bzw. auf ">" gewechselte Form.
-  const VKB_ROW1 = ['1','2','3','4','5','6','7','8','9','0','_','-','⌫'];
+  const VKB_ROW1 = ['1','2','3','4','5','6','7','8','9','0','_','-','+','"','!','⌫'];
   const VKB_ROW2 = ['q','w','e','r','t','z','u','i','o','p','ü','*'];
   const VKB_ROW3 = ['a','s','d','f','g','h','j','k','l','ö','ä','#'];
   const VKB_ROW4 = ['⇧','y','x','c','v','b','n','m'];
-  const VKB_ROW5 = ['<',' ',',','.','@'];
+  const VKB_ROW5 = ['<','>',' ',',','.','@'];
   const _isTouchDevice = matchMedia('(pointer: coarse)').matches;
   let _vkbShift = false;
   let _vkbTarget = null;
 
-  // Wandelt eine Basistaste in ihre aktuell aktive Form um (Groß-
-  // schreibung bzw. "<"→">" bei aktiver Umschalt-Taste) — für Anzeige
-  // UND Eingabe genutzt, damit beides immer synchron ist.
+  // Wandelt eine Basistaste in ihre aktuell aktive Form um (Großschreibung
+  // bei aktiver Umschalt-Taste) — für Anzeige UND Eingabe genutzt, damit
+  // beides immer synchron ist.
   function _vkbChar(key) {
     if (!_vkbShift) return key;
     if (/^[a-zäöü]$/.test(key)) return key.toUpperCase();
-    if (key === '<') return '>';
     return key;
   }
 
@@ -3368,7 +3368,7 @@
         const btn = document.createElement('button');
         btn.className = 'vkb-key'
           + (k === ' ' ? ' space' : '')
-          + (k === '⇧' && _vkbShift ? ' shift-active' : '');
+          + (k === '⇧' ? ' shift-wide' + (_vkbShift ? ' shift-active' : '') : '');
         btn.textContent = k === ' ' ? 'Leerzeichen' : _vkbChar(k);
         btn.onpointerdown = (e) => { e.preventDefault(); _vkbPress(k); };
         el.appendChild(btn);
