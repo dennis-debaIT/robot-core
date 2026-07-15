@@ -192,7 +192,7 @@
           <span id="sync-clear-wrap"></span>
         </div>
         <div class="shopping-input-row">
-          <input id="sync-input" class="shopping-input" type="text"
+          <input id="sync-input" class="shopping-input has-vkb" type="text" inputmode="none"
             placeholder="Artikel hinzufügen …"
             onkeydown="if(event.key==='Enter')window._sync._submitInput()"
           />

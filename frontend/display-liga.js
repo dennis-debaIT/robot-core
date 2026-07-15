@@ -310,7 +310,7 @@
           <button class="liga-kader-back" onclick="window._liga._backFromKader()">${backLabel}</button>
         </div>
         ${players.length ? `
-        <input class="liga-kader-search" type="search" placeholder="Spieler suchen…" value="${_esc(_kaderSearch)}" oninput="window._liga._kaderSearchUpdate(this.value)" autocomplete="off">
+        <input class="liga-kader-search has-vkb" type="search" inputmode="none" placeholder="Spieler suchen…" value="${_esc(_kaderSearch)}" oninput="window._liga._kaderSearchUpdate(this.value)" autocomplete="off">
         <div class="liga-kader-hdr">
           <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>${_hasPlus ? 'Marktwert' : ''}</span>
         </div>
