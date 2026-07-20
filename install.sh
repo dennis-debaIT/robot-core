@@ -250,10 +250,23 @@ else
 
     case "$_ha" in
         2)
-            _HA_SUPERVISED=true
-            _ENV_HA_URL="http://localhost:8123"
-            info "HA Supervised wird nach dem Basis-Setup installiert"
-            info "Danach: http://localhost:8123 öffnen, Konto anlegen, Token erstellen"
+            _ha_proceed=true
+            if ! grep -qi "^ID=debian" /etc/os-release 2>/dev/null; then
+                _os_name=$(grep "^PRETTY_NAME=" /etc/os-release 2>/dev/null | cut -d= -f2- | tr -d '"')
+                warn "HA Supervised wird offiziell nur auf Debian unterstützt — erkannt: ${_os_name:-unbekanntes System}"
+                warn "Auf anderen Systemen (auch Ubuntu) lehnt der Supervisor die Installation meist direkt ab."
+                printf "    Trotzdem versuchen? [j/N]: "
+                _confirm=$(_choose)
+                [[ "$_confirm" =~ ^[jJyY]$ ]] || _ha_proceed=false
+            fi
+            if [ "$_ha_proceed" = true ]; then
+                _HA_SUPERVISED=true
+                _ENV_HA_URL="http://localhost:8123"
+                info "HA Supervised wird nach dem Basis-Setup installiert"
+                info "Danach: http://localhost:8123 öffnen, Konto anlegen, Token erstellen"
+            else
+                info "HA Supervised übersprungen — kann jederzeit im Admin-Panel unter System → Home Assistant nachgeholt werden"
+            fi
             ;;
         3)
             info "HA kann jederzeit im Admin-Panel unter System → Home Assistant eingetragen werden"

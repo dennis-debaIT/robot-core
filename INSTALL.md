@@ -19,6 +19,15 @@ Das Script übernimmt automatisch:
 
 **Voraussetzung:** Ubuntu 22.04 LTS / Debian 12 oder neuer, SSH-Zugang aktiv.
 
+> **Home Assistant Supervised (Option „hier installieren" im Skript):**
+> wird von Home Assistant offiziell **nur auf Debian** unterstützt, nicht
+> auf Ubuntu. Auf Ubuntu lehnt der Supervisor die Installation meist direkt
+> ab. Für Erika + HA Supervised in einer VM daher Debian 12/13 wählen —
+> Ubuntu funktioniert für Erika selbst weiterhin problemlos, nur eben nicht
+> für lokal mitinstalliertes HA Supervised. Alternativ: bestehende
+> HA-Instanz per URL verbinden (Option „[1]") oder HAOS in einer separaten
+> VM betreiben.
+
 ---
 
 ## Komplett-Installation (Robot-Core + Display-Kiosk)
