@@ -480,6 +480,25 @@ EOF
         dracut --force > /dev/null 2>&1 || true
     fi
 
+    # VM-Grafiktreiber früh ins Initramfs einbinden, sonst findet Plymouth
+    # keinen Framebuffer und der Splash bleibt schwarz. Welcher Treiber
+    # greift hängt vom Hypervisor/Display-Typ ab — alle einzubinden ist
+    # ungefährlich, ein nicht vorhandenes virtuelles Gerät bleibt inaktiv.
+    if grep -qi "microsoft\|hyper-v" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
+       grep -qi "microsoft\|hypervisor" /proc/cpuinfo 2>/dev/null; then
+        info "Hyper-V erkannt — hyperv_drm ins Initramfs einbinden"
+        grep -q "^hyperv_drm\$" /etc/initramfs-tools/modules 2>/dev/null || \
+            echo "hyperv_drm" >> /etc/initramfs-tools/modules
+    fi
+    if grep -qi "qemu" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
+       grep -qi "qemu\|standard pc" /sys/class/dmi/id/product_name 2>/dev/null; then
+        info "QEMU/KVM erkannt (z.B. Proxmox) — Grafiktreiber ins Initramfs einbinden"
+        for mod in bochs_drm qxl virtio_gpu; do
+            grep -q "^${mod}\$" /etc/initramfs-tools/modules 2>/dev/null || \
+                echo "$mod" >> /etc/initramfs-tools/modules
+        done
+    fi
+
     update-initramfs -u -k all > /dev/null 2>&1 || true
     success "Boot-Screen 'Erika' aktiviert"
 else

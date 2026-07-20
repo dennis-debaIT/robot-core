@@ -501,6 +501,19 @@ if grep -qi "microsoft\|hyper-v" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
         echo "hyperv_drm" | sudo tee -a /etc/initramfs-tools/modules > /dev/null
 fi
 
+# QEMU/KVM (z.B. Proxmox): gleicher Grund wie bei Hyper-V oben. Welcher der
+# drei Treiber greift, hängt vom in Proxmox gewählten Display-Typ ab
+# (Standard VGA/QXL/VirtIO-GPU) — alle drei einzubinden ist ungefährlich,
+# ein nicht vorhandenes virtuelles Gerät lässt den Treiber einfach inaktiv.
+if grep -qi "qemu" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
+   grep -qi "qemu\|standard pc" /sys/class/dmi/id/product_name 2>/dev/null; then
+    info "QEMU/KVM erkannt — Grafiktreiber ins Initramfs einbinden"
+    for mod in bochs_drm qxl virtio_gpu; do
+        grep -q "^${mod}\$" /etc/initramfs-tools/modules 2>/dev/null || \
+            echo "$mod" | sudo tee -a /etc/initramfs-tools/modules > /dev/null
+    done
+fi
+
 sudo update-initramfs -u > /dev/null 2>&1
 success "Plymouth Splash eingerichtet"
 
