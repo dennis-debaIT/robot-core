@@ -13,11 +13,14 @@ class HomeAssistantRuntimeConfigService:
 
     @staticmethod
     def default_config() -> dict[str, Any]:
-        raw_url = os.environ.get("ROBOT_HA_URL", "http://192.168.1.246:8123").strip() or "http://192.168.1.246:8123"
-        parsed = urllib.parse.urlparse(raw_url if "://" in raw_url else f"http://{raw_url}")
-        scheme = parsed.scheme or "http"
-        host = parsed.hostname or "192.168.1.246"
-        port = parsed.port or (443 if scheme == "https" else 8123)
+        raw_url = os.environ.get("ROBOT_HA_URL", "").strip()
+        if raw_url:
+            parsed = urllib.parse.urlparse(raw_url if "://" in raw_url else f"http://{raw_url}")
+            scheme = parsed.scheme or "http"
+            host = parsed.hostname or ""
+            port = parsed.port or (443 if scheme == "https" else 8123)
+        else:
+            scheme, host, port = "http", "", 8123
         return {
             "scheme": scheme,
             "host": host,
