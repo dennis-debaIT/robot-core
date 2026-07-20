@@ -55,6 +55,10 @@ def _restore_env_path() -> Path:
     return Path("/restore.env")
 
 
+def _license_path() -> Path:
+    return Path("/data/license.json")
+
+
 def _audit(action: str, summary: str, details: dict | None = None) -> None:
     try:
         from app.audit.service import AuditService
@@ -77,6 +81,13 @@ def create_backup() -> int:
         env = _env_path()
         if env.exists():
             zf.write(env, ".env")
+        # license.json NUR hier (Cloud-Backup) — verschlüsselt mit dem
+        # Sync-Token, im Gegensatz zum unverschlüsselten lokalen "Backup
+        # herunterladen"-ZIP (system.py), das enthält es bewusst nicht,
+        # da license.json den sync_device_token trägt.
+        lic = _license_path()
+        if lic.exists():
+            zf.write(lic, "license.json")
 
     payload = _encrypt(buf.getvalue(), token)
     try:
@@ -110,6 +121,15 @@ def restore_backup() -> None:
             db_path.write_bytes(zf.read("robot_core.db"))
         if ".env" in names:
             _restore_env_path().write_bytes(zf.read(".env"))
+        # license.json direkt zurückschreiben (kein Rebuild-Umweg nötig wie
+        # bei .env). Funktioniert nahtlos nur auf derselben Hardware — die
+        # device_id-Bindung (license_service.py::install()) lehnt eine
+        # abweichende Hardware ohnehin ab, dann ist eine Neuaktivierung mit
+        # dem Lizenzschlüssel nötig statt diese Datei zu verwenden.
+        if "license.json" in names:
+            lic_path = _license_path()
+            lic_path.parent.mkdir(parents=True, exist_ok=True)
+            lic_path.write_bytes(zf.read("license.json"))
 
     # update.flag setzen → update.sh startet Rebuild mit neuer .env
     flag = Path("/update.flag")

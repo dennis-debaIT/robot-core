@@ -235,16 +235,15 @@ def _db_path() -> str:
 
 
 def _create_backup_zip() -> bytes:
+    from app.services.backup_service import _env_path
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         db = _db_path()
         if os.path.exists(db):
             zf.write(db, "robot_core.db")
-        # .env falls vorhanden
-        for env_path in ("/app/.env", "/.env"):
-            if os.path.exists(env_path):
-                zf.write(env_path, ".env")
-                break
+        env = _env_path()
+        if env.exists():
+            zf.write(env, ".env")
     return buf.getvalue()
 
 
@@ -309,6 +308,15 @@ async def restore_backup(file: UploadFile = File(...)) -> dict[str, Any]:
             # Zip-Slip über Pfadtraversal in anderen Zip-Einträgen.
             with zf.open("robot_core.db") as src, open(db_path, "wb") as dst:
                 shutil.copyfileobj(src, dst)
+            # .env nicht direkt überschreiben — nach /restore.env schreiben,
+            # update.sh übernimmt sie kontrolliert beim nächsten Rebuild
+            # (gleiches Muster wie beim Cloud-Restore in backup_service.py).
+            if ".env" in names:
+                with zf.open(".env") as src:
+                    Path("/restore.env").write_bytes(src.read())
+                flag = Path("/update.flag")
+                if flag.exists():
+                    flag.write_text("restore")
         get_core().audit.log(
             action="system.backup_restored",
             target_type="backup",
