@@ -203,11 +203,18 @@ sudo systemctl enable --now docker > /dev/null 2>&1 || true
 
 # ── 3. Repo klonen ────────────────────────────────────────────
 step "Repository klonen"
+_REPO_OK=false
 if [ -d "$INSTALL_DIR/.git" ]; then
     info "Repo bereits vorhanden — aktualisiere..."
-    cd "$INSTALL_DIR" && git pull --ff-only origin main
-    success "Repository aktualisiert"
-else
+    if (cd "$INSTALL_DIR" && git pull --ff-only origin main); then
+        _REPO_OK=true
+        success "Repository aktualisiert"
+    else
+        warn "Bestehendes Repo lässt sich nicht aktualisieren (unterbrochener Klon o.ä.) — wird neu geklont"
+        rm -rf "$INSTALL_DIR"
+    fi
+fi
+if [ "$_REPO_OK" = false ]; then
     git clone "$REPO" "$INSTALL_DIR"
     success "Repository geklont nach $INSTALL_DIR"
 fi
