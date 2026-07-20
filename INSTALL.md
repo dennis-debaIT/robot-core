@@ -19,14 +19,16 @@ Das Script übernimmt automatisch:
 
 **Voraussetzung:** Ubuntu 22.04 LTS / Debian 12 oder neuer, SSH-Zugang aktiv.
 
-> **Home Assistant Supervised (Option „hier installieren" im Skript):**
-> wird von Home Assistant offiziell **nur auf Debian** unterstützt, nicht
-> auf Ubuntu. Auf Ubuntu lehnt der Supervisor die Installation meist direkt
-> ab. Für Erika + HA Supervised in einer VM daher Debian 12/13 wählen —
-> Ubuntu funktioniert für Erika selbst weiterhin problemlos, nur eben nicht
-> für lokal mitinstalliertes HA Supervised. Alternativ: bestehende
-> HA-Instanz per URL verbinden (Option „[1]") oder HAOS in einer separaten
-> VM betreiben.
+> **Home Assistant (Option „HA + Mosquitto hier als Container installieren"
+> im Skript):** läuft als normaler Docker-Container neben Erika — ohne
+> Supervisor, also ohne Add-on-Store (Home Assistant Supervised ist seit
+> HA-Release 2025.12 offiziell deprecated und wird deshalb hier nicht mehr
+> angeboten). Für Add-ons wie Kamera-/MQTT-Integrationen (z.B. Ring) einen
+> eigenen Container ergänzen, der sich mit dem mitinstallierten
+> Mosquitto-Broker verbindet — siehe INSTALL_MANUAL.md Schritt 8. Wer den
+> vollen Add-on-Store braucht, ist mit HAOS auf eigener Hardware/VM
+> weiterhin besser bedient (Option „[1]" verbindet eine bestehende
+> HA-Instanz per URL).
 
 ---
 

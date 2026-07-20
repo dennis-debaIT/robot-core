@@ -13,12 +13,9 @@ Empfohlen wenn: das Script fehlschlägt, du ein anderes System nutzt, oder du je
 |---|---|
 | **Betriebssystem** | **Debian 12 (Bookworm)** oder Raspberry Pi OS (64-bit, Bookworm-basiert) |
 | **Architektur** | amd64 (x86_64) oder arm64 (Raspberry Pi 3/4/5) |
-| **RAM** | mindestens 1 GB für Erika allein; 2 GB empfohlen; 4 GB wenn HA Supervised mitläuft |
-| **Speicher** | mindestens 8 GB frei; 16 GB empfohlen wenn HA Supervised mitläuft |
+| **RAM** | mindestens 1 GB für Erika allein; 2 GB empfohlen; 4 GB wenn HA zusätzlich als Container mitläuft |
+| **Speicher** | mindestens 8 GB frei; 16 GB empfohlen wenn HA zusätzlich als Container mitläuft |
 | **Netzwerk** | SSH-Zugang aktiv, Internetzugang für Docker Pull / Edge TTS |
-
-> **Warum Debian 12?**  
-> Home Assistant Supervised wird offiziell nur auf Debian 12 unterstützt. Ubuntu funktioniert zwar, HA zeigt aber eine "Unsupported System"-Warnung und kann bei System-Updates instabil werden.
 
 > **Keine Desktop-Umgebung nötig.**  
 > Erika nutzt eine eigene Kiosk-Session (openbox + Chromium). `install.sh` installiert alles Nötige selbst — LightDM, openbox, feh, Chromium. Bei der Debian-Grundinstallation reicht es, nur **SSH server** und **Standard-Systemwerkzeuge** auszuwählen. LXDE, GNOME oder andere Desktop-Umgebungen werden nicht benötigt und verschwenden Ressourcen.
@@ -145,91 +142,44 @@ docker compose logs -f robot-core
 
 ---
 
-## Schritt 8 — Home Assistant Supervised installieren (optional)
+## Schritt 8 — Home Assistant als Container installieren (optional)
 
-Dieser Schritt ist nur nötig wenn **kein eigenes HA** im Netzwerk vorhanden ist.  
-HA Supervised läuft nativ auf dem System — mit vollem Add-on-Store, HACS und automatischen Backups.
+Dieser Schritt ist nur nötig wenn **kein eigenes HA** im Netzwerk vorhanden ist.
+HA läuft dabei als normaler Docker-Container neben robot-core (kein Supervisor,
+kein Add-on-Store — Home Assistant Supervised ist seit HA-Release 2025.12
+offiziell deprecated). Add-ons wie z.B. `ring-mqtt` werden stattdessen als
+eigene Container ergänzt, die sich mit demselben Mosquitto-Broker verbinden.
+Wer den vollen Add-on-Store braucht, ist mit [Home Assistant OS](https://www.home-assistant.io/installation/)
+auf eigener Hardware/VM weiterhin besser bedient.
 
-### 8a — Abhängigkeiten installieren
-
-```bash
-sudo apt-get install -y jq curl avahi-daemon apparmor network-manager udisks2 wget dbus
-```
-
-### 8b — NetworkManager aktivieren
-
-HA Supervised erwartet `network-manager` als Netzwerkverwaltung. Auf Raspberry Pi OS läuft standardmäßig `dhcpcd` — dieser muss deaktiviert werden:
+### 8a — Verzeichnisse und Mosquitto-Konfiguration anlegen
 
 ```bash
-sudo systemctl enable --now NetworkManager
-sudo systemctl disable --now dhcpcd
+cd ~/robot-core
+mkdir -p ha_config mosquitto_config mosquitto_data mosquitto_log
+cat > mosquitto_config/mosquitto.conf << 'EOF'
+listener 1883
+allow_anonymous true
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+EOF
 ```
 
-> **Hinweis:** Nach dem Wechsel auf NetworkManager kann die IP-Adresse kurz neu vergeben werden. SSH-Verbindung danach ggf. neu aufbauen.
-
-### 8c — AppArmor aktivieren
-
-**Raspberry Pi OS / Debian auf Pi** (`/boot/firmware/cmdline.txt` oder `/boot/cmdline.txt`):
+### 8b — Container starten
 
 ```bash
-# Raspberry Pi OS (Bookworm)
-sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/firmware/cmdline.txt
-
-# Ältere Pi-Systeme (falls /boot/firmware nicht existiert)
-sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/cmdline.txt
+docker compose --profile ha up -d homeassistant mosquitto
 ```
 
-**x86 / VM** (`/etc/default/grub`):
-
-```bash
-sudo sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="apparmor=1 security=apparmor /' /etc/default/grub
-sudo update-grub
-```
-
-> AppArmor wird erst nach einem Neustart aktiv. HA Supervised kann trotzdem schon installiert werden, zeigt aber eine Warnung bis zum Neustart.
-
-### 8d — Maschinen-Typ ermitteln
-
-| Hardware | Maschinen-Typ |
-|---|---|
-| Raspberry Pi 5 (64-bit) | `raspberrypi5-64` |
-| Raspberry Pi 4 (64-bit) | `raspberrypi4-64` |
-| Raspberry Pi 3 (64-bit) | `raspberrypi3-64` |
-| x86_64 (NUC, VM, PC) | `generic-x86-64` |
-| Anderes ARM64-Gerät | `generic-aarch64` |
-
-Automatisch erkennen:
-
-```bash
-arch=$(uname -m)
-model=$(cat /proc/device-tree/model 2>/dev/null || echo "")
-echo "Architektur: $arch"
-echo "Modell: $model"
-```
-
-### 8e — HA Supervised Installer ausführen
-
-```bash
-wget -qO /tmp/ha-supervised.sh \
-    https://raw.githubusercontent.com/home-assistant/supervised-installer/main/installer.sh
-sudo bash /tmp/ha-supervised.sh --machine raspberrypi4-64   # Maschinen-Typ anpassen!
-rm /tmp/ha-supervised.sh
-```
-
-### 8f — HA einrichten und Token erstellen
+### 8c — HA einrichten und Token erstellen
 
 1. Browser öffnen: `http://<IP>:8123`
 2. HA-Onboarding abschließen (Konto anlegen, Standort, Zeitzone)
 3. **Profil → Sicherheit → Langlebige Zugriffstoken → Token erstellen**
 4. Token kopieren und im Erika Admin-Panel unter **System → Home Assistant** eintragen
 
-### 8g — Neustart (AppArmor)
-
-```bash
-sudo reboot
-```
-
-Nach dem Neustart ist AppArmor aktiv und HA Supervised läuft ohne Warnung.
+Mosquitto läuft direkt mit auf Port 1883 (z.B. für die Anycubic-Druckerbrücke).
 
 ---
 
@@ -405,11 +355,8 @@ Nach erfolgreichem Start ist Erika erreichbar unter:
 → Bei Edge TTS: Internetzugang erforderlich.  
 → Bei Sherpa ONNX: Modelle lassen sich unter Admin-Panel → Sprachausgabe auswählen — Download und Aktivierung laufen dann automatisch, kein manueller Schritt mehr nötig. Für Modelle, die dort nicht gelistet sind, weiterhin manuell prüfen: Modellpfade in `.env` korrekt? Pfade müssen im Container unter `/models/tts/` erreichbar sein (Volume in `docker-compose.yml` prüfen).
 
-**HA Supervised: "Unsupported System"-Warnung**  
-→ AppArmor noch nicht aktiv. Neustart durchführen: `sudo reboot`. Danach verschwindet die Warnung.
+**HA-Container startet nicht**  
+→ `docker compose --profile ha logs homeassistant` prüfen. Häufigste Ursache: `network_mode: host` kollidiert mit einem bereits belegten Port (z.B. 8123 durch eine andere HA-Instanz im Netzwerk).
 
-**HA Supervised: Installer schlägt fehl wegen NetworkManager**  
-→ `sudo systemctl status NetworkManager` prüfen. Falls `dhcpcd` noch läuft: `sudo systemctl disable --now dhcpcd` und erneut versuchen.
-
-**HA Supervised: Netzwerk nach NetworkManager-Umstellung weg**  
-→ Netzwerk kurz neu konfigurieren: `nmcli device status` zeigt alle Interfaces. `nmcli con show` zeigt Verbindungen. Bei Bedarf: `sudo nmcli device connect eth0`.
+**Mosquitto nimmt keine Verbindungen an**  
+→ `mosquitto_config/mosquitto.conf` muss vor dem ersten Start existieren (siehe Schritt 8a) — ohne eigene Config verweigert das offizielle Image anonyme Verbindungen.

@@ -38,133 +38,6 @@ _choose() {
     echo "$val"
 }
 
-# Detect the HA Supervised machine type from hardware
-_detect_machine() {
-    local arch machine
-    arch=$(uname -m)
-    if [ "$arch" = "aarch64" ]; then
-        local model
-        model=$(cat /proc/device-tree/model 2>/dev/null || echo "")
-        if echo "$model" | grep -qi "raspberry pi 5"; then
-            machine="raspberrypi5-64"
-        elif echo "$model" | grep -qi "raspberry pi 4"; then
-            machine="raspberrypi4-64"
-        elif echo "$model" | grep -qi "raspberry pi 3"; then
-            machine="raspberrypi3-64"
-        else
-            machine="generic-aarch64"
-        fi
-    elif grep -qi "qemu" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
-         grep -qi "qemu\|standard pc" /sys/class/dmi/id/product_name 2>/dev/null; then
-        # QEMU/KVM-VM (z.B. Proxmox) — HA Supervised erwartet dafür den
-        # eigenen Maschinentyp, nicht generic-x86-64 (das ist für echte
-        # x86-64-Hardware)
-        machine="qemux86-64"
-    else
-        machine="generic-x86-64"
-    fi
-    echo "$machine"
-}
-
-# Install Home Assistant Supervised
-# Neue Methode (2024+): OS-Agent .deb + homeassistant-supervised .deb
-# Kein installer.sh mehr — https://github.com/home-assistant/supervised-installer
-_install_ha_supervised() {
-    info "Installiere Home Assistant Supervised..."
-
-    local machine arch
-    machine=$(_detect_machine)
-    arch=$(uname -m)
-    info "Erkannte Maschine: $machine | Architektur: $arch"
-
-    # Abhängigkeiten
-    # udisks2 + dbus: Pflicht für HA Supervised
-    # apparmor-utils: aa-status wird vom HA-Paket geprüft
-    # jq: für OS-Agent Versions-Lookup
-    # nfs-common: liefert nfs-utils.service — das HA-Postinstall-Script startet
-    #             diesen Dienst; ohne das Paket schlägt systemctl start mit Exit 4 fehl
-    # systemd-journal-remote: liefert systemd-journal-gatewayd.socket (HA-Abhängigkeit)
-    sudo apt-get install -y \
-        curl wget jq udisks2 dbus \
-        apparmor apparmor-utils \
-        network-manager avahi-daemon \
-        nfs-common systemd-journal-remote > /dev/null
-
-    # NetworkManager muss das Netzwerk verwalten
-    # Raspberry Pi OS nutzt dhcpcd — muss deaktiviert werden
-    sudo systemctl enable --now NetworkManager > /dev/null 2>&1 || true
-    if systemctl is-active --quiet dhcpcd 2>/dev/null; then
-        warn "Wechsel von dhcpcd auf NetworkManager — kurzer Netzwerk-Unterbruch möglich"
-        sudo systemctl disable --now dhcpcd > /dev/null 2>&1 || true
-        sleep 4
-    fi
-
-    # AppArmor sofort im laufenden Kernel aktivieren (kein Reboot nötig)
-    sudo modprobe apparmor > /dev/null 2>&1 || true
-    sudo systemctl enable --now apparmor > /dev/null 2>&1 || true
-
-    # AppArmor dauerhaft in Boot-Konfiguration eintragen
-    # Raspberry Pi OS (Bookworm): /boot/firmware/cmdline.txt
-    # Ältere Pi-Systeme:          /boot/cmdline.txt
-    # Debian 12/13 x86 / VM:      /etc/default/grub
-    if [ -f /boot/firmware/cmdline.txt ]; then
-        grep -q "apparmor=1" /boot/firmware/cmdline.txt || \
-            sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/firmware/cmdline.txt
-    elif [ -f /boot/cmdline.txt ]; then
-        grep -q "apparmor=1" /boot/cmdline.txt || \
-            sudo sed -i 's/$/ apparmor=1 security=apparmor/' /boot/cmdline.txt
-    elif [ -f /etc/default/grub ]; then
-        if ! grep -q "apparmor=1" /etc/default/grub; then
-            sudo sed -i '/^GRUB_CMDLINE_LINUX_DEFAULT=/ s/"$/ apparmor=1 security=apparmor"/' /etc/default/grub
-            sudo update-grub > /dev/null 2>&1 || true
-            warn "AppArmor zu GRUB hinzugefügt (dauerhaft ab nächstem Neustart)"
-        fi
-    fi
-
-    # ── OS-Agent installieren (Voraussetzung für HA Supervised) ──
-    info "Installiere OS-Agent..."
-    local os_agent_ver
-    os_agent_ver=$(curl -fsSL \
-        https://api.github.com/repos/home-assistant/os-agent/releases/latest \
-        | jq -r '.tag_name' | tr -d 'v')
-
-    if [ -z "$os_agent_ver" ]; then
-        warn "OS-Agent Version nicht ermittelbar — überspringe"
-    else
-        wget -O /tmp/os-agent.deb \
-            "https://github.com/home-assistant/os-agent/releases/download/${os_agent_ver}/os-agent_${os_agent_ver}_linux_${arch}.deb"
-        sudo dpkg -i /tmp/os-agent.deb > /dev/null
-        rm -f /tmp/os-agent.deb
-        success "OS-Agent ${os_agent_ver} installiert"
-    fi
-
-    # ── Home Assistant Supervised .deb installieren ───────────────
-    info "Lade homeassistant-supervised.deb herunter..."
-    wget -O /tmp/homeassistant-supervised.deb \
-        "https://github.com/home-assistant/supervised-installer/releases/latest/download/homeassistant-supervised.deb"
-
-    # Maschinentyp per debconf vorbelegen — verhindert Exit-Code 4 im Postinstall-Script
-    # (das Paket fragt den Maschinentyp interaktiv per debconf; bei -y scheitert das)
-    echo "homeassistant-supervised homeassistant-supervised/machine-type select $machine" \
-        | sudo debconf-set-selections
-
-    set +e
-    sudo apt-get install -y /tmp/homeassistant-supervised.deb
-    _HA_EXIT=$?
-    set -e
-    rm -f /tmp/homeassistant-supervised.deb
-
-    if [ "$_HA_EXIT" -eq 0 ]; then
-        success "Home Assistant Supervised installiert"
-        info "HA startet im Hintergrund — erreichbar unter http://$(hostname -I | awk '{print $1}'):8123"
-        info "Beim ersten Start kann HA 5–10 Minuten zum Initialisieren benötigen"
-    else
-        warn "Installation mit Fehlercode $_HA_EXIT beendet — Log prüfen:"
-        warn "  journalctl -u hassio-supervisor -n 50"
-    fi
-    warn "Neustart empfohlen damit AppArmor dauerhaft aktiv ist (sudo reboot)"
-}
-
 echo -e "${BOLD}"
 echo "  ███████╗██████╗ ██╗██╗  ██╗ █████╗ "
 echo "  ██╔════╝██╔══██╗██║██║ ██╔╝██╔══██╗"
@@ -227,46 +100,33 @@ step "Konfiguration"
 _ENV_HA_URL=""; _ENV_HA_TOKEN=""
 _ENV_LLM_URL=""; _ENV_LLM_KEY=""; _ENV_LLM_PROVIDER="openai_compat"; _ENV_LLM_MODEL="qwen/qwen3-4b-2507"
 _ENV_TTS_PROVIDER="disabled"; _ENV_TTS_VOICE=""
-_HA_SUPERVISED=false
+_HA_CONTAINER=false
 _DO_CONFIG=true
 
-# HA Supervised wird immer separat gefragt — unabhängig von der .env
-# (wird bei Re-Runs nur übersprungen wenn Supervisor bereits läuft)
+# HA-Container wird immer separat gefragt — unabhängig von der .env
+# (wird bei Re-Runs nur übersprungen wenn der Container bereits läuft)
 _HA_ALREADY_INSTALLED=false
-if systemctl is-active --quiet hassio-supervisor 2>/dev/null || \
-   sudo docker ps 2>/dev/null | grep -q "homeassistant/home-assistant"; then
+if sudo docker ps 2>/dev/null | grep -q "homeassistant/home-assistant"; then
     _HA_ALREADY_INSTALLED=true
 fi
 
 echo -e "\n  ${BOLD}Home Assistant${NC}"
 if [ "$_HA_ALREADY_INSTALLED" = true ]; then
-    success "Home Assistant Supervised läuft bereits — wird übersprungen"
+    success "Home Assistant Container läuft bereits — wird übersprungen"
 else
     echo "    [1] Ich habe bereits eine HA-Instanz im Netzwerk  (URL + Token eingeben)"
-    echo "    [2] HA Supervised hier installieren               (Debian 12 / Raspberry Pi OS)"
+    echo "    [2] HA + Mosquitto hier als Container installieren"
     echo "    [3] Später im Admin-Panel konfigurieren"
     printf "    ${CYAN}›${NC} Auswahl [1]: "
     _ha=$(_choose); [ -z "$_ha" ] && _ha=1
 
     case "$_ha" in
         2)
-            _ha_proceed=true
-            if ! grep -qi "^ID=debian" /etc/os-release 2>/dev/null; then
-                _os_name=$(grep "^PRETTY_NAME=" /etc/os-release 2>/dev/null | cut -d= -f2- | tr -d '"')
-                warn "HA Supervised wird offiziell nur auf Debian unterstützt — erkannt: ${_os_name:-unbekanntes System}"
-                warn "Auf anderen Systemen (auch Ubuntu) lehnt der Supervisor die Installation meist direkt ab."
-                printf "    Trotzdem versuchen? [j/N]: "
-                _confirm=$(_choose)
-                [[ "$_confirm" =~ ^[jJyY]$ ]] || _ha_proceed=false
-            fi
-            if [ "$_ha_proceed" = true ]; then
-                _HA_SUPERVISED=true
-                _ENV_HA_URL="http://localhost:8123"
-                info "HA Supervised wird nach dem Basis-Setup installiert"
-                info "Danach: http://localhost:8123 öffnen, Konto anlegen, Token erstellen"
-            else
-                info "HA Supervised übersprungen — kann jederzeit im Admin-Panel unter System → Home Assistant nachgeholt werden"
-            fi
+            _HA_CONTAINER=true
+            _ENV_HA_URL="http://localhost:8123"
+            info "HA + Mosquitto (Container) werden nach dem Basis-Setup gestartet"
+            info "Danach: http://localhost:8123 öffnen, Konto anlegen, Token erstellen"
+            info "Add-ons gibt es dabei nicht (Container statt Supervised) — z.B. Kamera-/MQTT-Integrationen laufen als eigene Container, nicht als HA-Add-on"
             ;;
         3)
             info "HA kann jederzeit im Admin-Panel unter System → Home Assistant eingetragen werden"
@@ -409,7 +269,16 @@ touch update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.f
 [ -f host-ip.txt ] || hostname -I | awk '{print $1}' > host-ip.txt
 # Edition-Markierung (Default community) — Plus wird vom Lizenz-Check gesetzt
 [ -f edition ] && [ ! -d edition ] || { rm -rf edition 2>/dev/null; echo community > edition; }
-mkdir -p ha_config
+mkdir -p ha_config mosquitto_config mosquitto_data mosquitto_log
+if [ ! -f mosquitto_config/mosquitto.conf ]; then
+    cat > mosquitto_config/mosquitto.conf << 'EOF'
+listener 1883
+allow_anonymous true
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+EOF
+fi
 chmod +x update.sh reboot-watcher.sh setup-watcher.sh
 nohup bash "$INSTALL_DIR/reboot-watcher.sh" >> "$INSTALL_DIR/reboot.log" 2>&1 &
 nohup bash "$INSTALL_DIR/setup-watcher.sh" >> "$INSTALL_DIR/setup-watcher.log" 2>&1 &
@@ -453,10 +322,11 @@ success "Container gestartet"
 # ── 8. Autostart sicherstellen ────────────────────────────────
 sudo systemctl enable docker > /dev/null 2>&1 || true
 
-# ── 9. Home Assistant Supervised (falls gewählt) ──────────────
-if [ "$_HA_SUPERVISED" = true ]; then
-    step "Home Assistant Supervised installieren"
-    _install_ha_supervised
+# ── 9. Home Assistant + Mosquitto (falls gewählt) ─────────────
+if [ "$_HA_CONTAINER" = true ]; then
+    step "Home Assistant + Mosquitto starten"
+    $DOCKER compose --profile ha up -d homeassistant mosquitto
+    success "HA + Mosquitto gestartet"
 fi
 
 # Docker-Gruppen-Hinweis am Ende der Session mitgeben
@@ -685,19 +555,20 @@ echo -e "  ${BOLD}${CYAN}  https://${IP}:8000/setup${NC}"
 echo -e ""
 echo -e "  Admin-Panel für später: ${CYAN}https://${IP}:8000/local-admin${NC}"
 echo -e ""
-if [ "$_HA_SUPERVISED" = true ]; then
+if [ "$_HA_CONTAINER" = true ]; then
 echo -e "  ${BOLD}${CYAN}  http://${IP}:8123${NC}  ← Home Assistant (noch nicht fertig)"
 echo -e ""
 fi
 echo -e "  ${BOLD}Hinweis zum SSL-Zertifikat:${NC} Der Browser zeigt eine Warnung —"
 echo -e "  das ist normal (selbstsigniert). Einfach auf 'Weiter' klicken."
 echo -e ""
-if [ "$_HA_SUPERVISED" = true ]; then
+if [ "$_HA_CONTAINER" = true ]; then
 echo -e "  ${YELLOW}──  Home Assistant einrichten  ──────────────────────────────────${NC}"
 echo -e "  1. ${CYAN}http://${IP}:8123${NC} öffnen → Konto anlegen"
 echo -e "  2. Profil → Sicherheit → Langlebiger Token erstellen"
 echo -e "  3. Token im Admin-Panel unter ${BOLD}System → Home Assistant${NC} eintragen"
-echo -e "  4. ${BOLD}sudo reboot${NC}  (AppArmor dauerhaft aktivieren)"
+echo -e "  4. Mosquitto läuft bereits auf Port 1883 — Add-ons wie Kamera-/MQTT-"
+echo -e "     Integrationen (z.B. Ring) als eigene Container ergänzen, siehe INSTALL_MANUAL.md"
 echo -e ""
 fi
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
