@@ -1263,6 +1263,17 @@
                 <span style="font-size:0.75rem;color:var(--muted);margin-top:4px;">WC = WM, EC = EM</span>
               </label>
             </div>
+            <p style="font-size:0.75rem;color:var(--muted);margin:10px 0 6px;">Das Overlay blendet sich 24h nach Abpfiff des Finales automatisch aus. Damit es zum nächsten Turnier automatisch wieder erscheint (2 Wochen vorher), hier einmalig Code + Start eintragen, sobald die Termine feststehen:</p>
+            <div class="field-grid">
+              <label class="field-block">
+                <span class="field-label">Nächstes Turnier — Code</span>
+                <input id="tournament-next-code" class="field-input" type="text" placeholder="EC" style="max-width:120px;">
+              </label>
+              <label class="field-block">
+                <span class="field-label">Nächstes Turnier — Start</span>
+                <input id="tournament-next-start" class="field-input" type="date">
+              </label>
+            </div>
           </section>
 
           <div class="stack-actions" style="margin-top:4px;align-items:center;padding:0 18px 12px;">
@@ -4744,10 +4755,14 @@
         const keyEl = document.getElementById('football-api-key');
         if (keyEl) keyEl.value = l.api_key || t.api_key || '';
 
-        const tEnabledEl = document.getElementById('tournament-enabled');
-        const codeEl     = document.getElementById('tournament-competition-code');
+        const tEnabledEl  = document.getElementById('tournament-enabled');
+        const codeEl      = document.getElementById('tournament-competition-code');
+        const nextCodeEl  = document.getElementById('tournament-next-code');
+        const nextStartEl = document.getElementById('tournament-next-start');
         if (tEnabledEl) tEnabledEl.checked = t.enabled === true;
         if (codeEl) codeEl.value = t.competition_code || 'WC';
+        if (nextCodeEl) nextCodeEl.value = t.next_competition_code || '';
+        if (nextStartEl) nextStartEl.value = t.next_start_date || '';
 
         const enabledEl = document.getElementById('liga-enabled');
         if (enabledEl) enabledEl.checked = l.enabled === true;
@@ -4806,8 +4821,10 @@
       const teamId   = teamSel?.value ? Number(teamSel.value) : null;
       const teamName = teamSel?.selectedOptions[0]?.dataset?.name || '';
 
-      const tEnabledEl = document.getElementById('tournament-enabled');
+      const tEnabledEl  = document.getElementById('tournament-enabled');
       const codeEl      = document.getElementById('tournament-competition-code');
+      const nextCodeEl  = document.getElementById('tournament-next-code');
+      const nextStartEl = document.getElementById('tournament-next-start');
 
       if (statusEl) statusEl.textContent = 'Speichere…';
       try {
@@ -4830,6 +4847,8 @@
               enabled: tEnabledEl?.checked || false,
               api_key: apiKey,
               competition_code: (codeEl?.value || 'WC').trim() || 'WC',
+              next_competition_code: (nextCodeEl?.value || '').trim(),
+              next_start_date: nextStartEl?.value || '',
             }),
           }),
         ]);

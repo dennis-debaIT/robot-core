@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import date
 from typing import Any
 
 from app.database.db import get_connection, read_state, write_state
@@ -162,6 +163,8 @@ class IntegrationConfigService:
                 "enabled": False,
                 "api_key": "",
                 "competition_code": "WC",
+                "next_competition_code": "",
+                "next_start_date": "",
             },
             "liga": {
                 "enabled": False,
@@ -326,6 +329,13 @@ class IntegrationConfigService:
         tournament["enabled"] = bool(tournament.get("enabled", False))
         tournament["api_key"] = str(tournament.get("api_key") or "").strip()
         tournament["competition_code"] = str(tournament.get("competition_code") or "WC").strip() or "WC"
+        tournament["next_competition_code"] = str(tournament.get("next_competition_code") or "").strip()
+        next_start = str(tournament.get("next_start_date") or "").strip()
+        try:
+            date.fromisoformat(next_start)
+        except ValueError:
+            next_start = ""
+        tournament["next_start_date"] = next_start
         liga = merged.setdefault("liga", {})
         liga["enabled"] = bool(liga.get("enabled", False))
         liga["api_key"] = str(liga.get("api_key") or "").strip()
