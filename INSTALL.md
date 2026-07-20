@@ -21,6 +21,51 @@ Das Script übernimmt automatisch:
 
 ---
 
+## Komplett-Installation (Robot-Core + Display-Kiosk)
+
+Für ein einzelnes Gerät, das sowohl das Backend als auch das Touch-Display im
+Kiosk-Modus betreiben soll (z.B. ein Tablet oder Mini-PC direkt am Einsatzort):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dennis-debaIT/robot-core/main/install-complete.sh | bash
+```
+
+Zusätzlich zur Schnellinstallation richtet dieses Script einen eigenen
+X11/Openbox-Kiosk mit Autologin auf TTY1 ein, der Chromium im Vollbild auf
+das Display-Panel startet.
+
+**Voraussetzung: Ubuntu Server** (nicht Desktop) 22.04 LTS oder neuer. Das
+Script baut seinen eigenen minimalen Kiosk-Stack auf und deaktiviert dafür
+nur `lightdm` — bei der Desktop-Edition ist stattdessen `gdm3` als
+Display-Manager aktiv, der mit dem eigenen Autostart kollidiert. Die
+Server-Edition hat von Haus aus keinen Display-Manager installiert, daher
+gibt es dort keine Konflikte.
+
+Setup danach im Browser unter `https://<IP>:8000/setup` — der Assistent
+führt durch Netzwerk, Zeitzone, Home Assistant und Komponenten. Beim
+allerersten Aufruf bietet er zusätzlich die Wahl zwischen Neueinrichtung und
+Wiederherstellung eines bestehenden Backups (siehe nächster Abschnitt).
+
+---
+
+## Migration auf neue Hardware
+
+Beim Umzug auf ein neues Gerät bietet der Setup-Assistent (`/setup`) direkt
+beim ersten Aufruf einen geführten Restore-Einstieg: entweder eine lokal
+heruntergeladene Backup-ZIP-Datei hochladen, oder mit Lizenzschlüssel und
+Erika-Konto automatisch das letzte Cloud-Backup wiederherstellen
+(Plus/Family). Die Konfiguration (Netzwerk, Zeitzone, Home Assistant,
+Komponenten) ist danach sofort da — die einzelnen Einrichtungsschritte
+entfallen.
+
+> **Hinweis:** War das alte Gerät zuvor unter Admin-Panel → Erika-Konto als
+> eigenständiges Gerät gekoppelt (für die Nachrichten-Funktion am Display),
+> muss diese Kopplung nach der Wiederherstellung auf der neuen Hardware
+> einmalig erneut hergestellt werden — sie ist an die alte Geräte-ID
+> gebunden.
+
+---
+
 ## Nach der Installation
 
 Nach dem Start ist Erika erreichbar unter:

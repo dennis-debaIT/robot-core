@@ -403,7 +403,7 @@ Nach erfolgreichem Start ist Erika erreichbar unter:
 
 **TTS funktioniert nicht**  
 → Bei Edge TTS: Internetzugang erforderlich.  
-→ Bei Sherpa ONNX: Modellpfade in `.env` korrekt? Pfade müssen im Container unter `/models/tts/` erreichbar sein (Volume in `docker-compose.yml` prüfen).
+→ Bei Sherpa ONNX: Modelle lassen sich unter Admin-Panel → Sprachausgabe auswählen — Download und Aktivierung laufen dann automatisch, kein manueller Schritt mehr nötig. Für Modelle, die dort nicht gelistet sind, weiterhin manuell prüfen: Modellpfade in `.env` korrekt? Pfade müssen im Container unter `/models/tts/` erreichbar sein (Volume in `docker-compose.yml` prüfen).
 
 **HA Supervised: "Unsupported System"-Warnung**  
 → AppArmor noch nicht aktiv. Neustart durchführen: `sudo reboot`. Danach verschwindet die Warnung.
