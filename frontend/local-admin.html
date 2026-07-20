@@ -1816,6 +1816,19 @@
             <div id="tts-sherpa-fields" style="display:none;">
               <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:14px 0 8px;text-transform:uppercase;">Sherpa ONNX Einstellungen</div>
               <div id="tts-sherpa-status" style="font-size:0.8rem;color:var(--muted);padding:8px 0;"></div>
+              <div class="field-grid">
+                <label class="field-block">
+                  <span class="field-label">Stimme</span>
+                  <select class="field-select" id="tts-sherpa-model">
+                    <option value="">wird geladen…</option>
+                  </select>
+                </label>
+              </div>
+              <p style="font-size:0.75rem;color:var(--muted);margin:6px 0 10px;">Lädt das Modell herunter und aktiviert es — das Gerät startet dabei kurz neu (ca. 1-2 Minuten, je nach Modellgröße und Internetverbindung).</p>
+              <div class="stack-actions" style="padding:0;">
+                <button type="button" class="secondary" onclick="installTtsModel()">Herunterladen &amp; aktivieren</button>
+                <span id="tts-sherpa-install-status" style="font-size:0.76rem;color:var(--muted);margin-left:10px;"></span>
+              </div>
             </div>
 
             <div class="stack-actions" style="margin-top:14px;">
@@ -6537,8 +6550,57 @@
             statusEl.textContent = ready;
             statusEl.style.color = d.ready ? 'var(--success)' : 'var(--danger)';
           }
+          await loadTtsModelOptions(d.voice_label);
         }
       } catch {}
+    }
+
+    async function loadTtsModelOptions(currentVoiceLabel) {
+      const sel = document.getElementById('tts-sherpa-model');
+      if (!sel) return;
+      try {
+        const d = await fetch('/system/tts/available-models').then(r => r.json());
+        const models = d.models || [];
+        const norm = (s) => (s || '').toLowerCase().replace(/[^a-z]/g, '');
+        const currentId = models.find(m => norm(m.label) === norm(currentVoiceLabel))?.id;
+        sel.innerHTML = models.map(m => {
+          const size = m.size_mb ? `, ${m.size_mb}MB` : '';
+          return `<option value="${m.id}"${m.id === currentId ? ' selected' : ''}>${m.label} — ${m.gender}, ${m.quality}${size}</option>`;
+        }).join('');
+      } catch {
+        sel.innerHTML = '<option value="">Fehler beim Laden</option>';
+      }
+    }
+
+    async function installTtsModel() {
+      const modelId = document.getElementById('tts-sherpa-model')?.value;
+      const s = document.getElementById('tts-sherpa-install-status');
+      if (!modelId) return;
+      if (s) s.textContent = 'Wird heruntergeladen…';
+      try {
+        const r = await fetch('/system/tts/install-model', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model_id: modelId }),
+        });
+        if (!r.ok) { const e = await r.json(); throw new Error(e.detail || String(r.status)); }
+        if (s) s.textContent = 'Wird aktiviert — Gerät startet kurz neu…';
+        // Download + Entpacken + Neustart brauchen etwas Vorlauf, bevor der
+        // Health-Check überhaupt Sinn ergibt.
+        await new Promise(res => setTimeout(res, 8000));
+        let backUp = false;
+        for (let i = 0; i < 60; i++) {
+          try {
+            const hr = await fetch('/status', { cache: 'no-store' });
+            if (hr.ok) { backUp = true; break; }
+          } catch {}
+          await new Promise(res => setTimeout(res, 2000));
+        }
+        if (s) { s.textContent = backUp ? '✓ Aktiviert' : 'Neustart dauert ungewöhnlich lange — bitte Status prüfen'; setTimeout(() => s.textContent = '', 5000); }
+        loadTtsSettings();
+      } catch (e) {
+        if (s) s.textContent = 'Fehler: ' + e.message;
+      }
     }
 
     async function saveTtsSettings() {

@@ -170,5 +170,69 @@ while true; do
         fi
     fi
 
+    # Sherpa-ONNX TTS-Modell herunterladen und aktivieren (Download muss auf
+    # dem Host laufen, /models ist read-only in den Container gemountet)
+    if grep -q '"model_id"' "$INSTALL_DIR/tts-model.flag" 2>/dev/null; then
+        _model_id=$(python3 -c "import sys,json; print(json.load(sys.stdin).get('model_id',''))" < "$INSTALL_DIR/tts-model.flag" 2>/dev/null || true)
+        echo '{}' > "$INSTALL_DIR/tts-model.flag"
+        case "$_model_id" in
+            kerstin-low)               _tts_label="Kerstin" ;;
+            thorsten_emotional-medium) _tts_label="Thorsten_Emotional" ;;
+            thorsten-high)             _tts_label="Thorsten" ;;
+            eva_k-x_low)               _tts_label="Eva" ;;
+            ramona-low)                _tts_label="Ramona" ;;
+            *)                         _tts_label="" ;;
+        esac
+        if [ -z "$_tts_label" ]; then
+            [ -n "$_model_id" ] && log "TTS-Modell unbekannt: $_model_id"
+        else
+            log "Lade TTS-Modell: $_model_id..."
+            _set_env_tts() {
+                local key="$1" val="$2"
+                if grep -q "^${key}=" "$INSTALL_DIR/.env" 2>/dev/null; then
+                    sed -i "s|^${key}=.*|${key}=${val}|" "$INSTALL_DIR/.env"
+                else
+                    echo "${key}=${val}" >> "$INSTALL_DIR/.env"
+                fi
+            }
+            _tts_dir="$INSTALL_DIR/models/tts"
+            _tmp_tar="/tmp/tts-${_model_id}.tar.bz2"
+            _extract_dir="/tmp/tts-extract-${_model_id}"
+            mkdir -p "$_tts_dir"
+            if curl -sfSL -o "$_tmp_tar" \
+                "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-de_DE-${_model_id}.tar.bz2"; then
+                rm -rf "$_extract_dir"; mkdir -p "$_extract_dir"
+                if tar xjf "$_tmp_tar" --strip-components=1 -C "$_extract_dir" 2>/dev/null; then
+                    # Vorheriges Modell sichern statt überschreiben (Sicherheitsnetz)
+                    if [ -f "$_tts_dir/model.onnx" ]; then
+                        _prev_dir="$_tts_dir/_previous_$(date +%s)"
+                        mkdir -p "$_prev_dir"
+                        mv "$_tts_dir"/model.onnx "$_tts_dir"/model.onnx.json "$_tts_dir"/tokens.txt "$_prev_dir/" 2>/dev/null || true
+                    fi
+                    cp "$_extract_dir"/de_DE-*.onnx.json "$_tts_dir/model.onnx.json" 2>/dev/null
+                    for _f in "$_extract_dir"/de_DE-*.onnx; do
+                        [[ "$_f" == *.onnx.json ]] && continue
+                        cp "$_f" "$_tts_dir/model.onnx" 2>/dev/null
+                    done
+                    [ -f "$_extract_dir/tokens.txt" ] && cp "$_extract_dir/tokens.txt" "$_tts_dir/tokens.txt"
+                    [ -d "$_extract_dir/espeak-ng-data" ] && cp -r "$_extract_dir/espeak-ng-data" "$_tts_dir/"
+                    _set_env_tts "ROBOT_TTS_PROVIDER"    "sherpa_onnx"
+                    _set_env_tts "ROBOT_TTS_VOICE_LABEL" "$_tts_label"
+                    _set_env_tts "ROBOT_TTS_VITS_MODEL"  "/models/tts/model.onnx"
+                    _set_env_tts "ROBOT_TTS_TOKENS"      "/models/tts/tokens.txt"
+                    _set_env_tts "ROBOT_TTS_DATA_DIR"    "/models/tts/espeak-ng-data"
+                    cd "$INSTALL_DIR"
+                    docker compose up -d robot-core >> "$INSTALL_DIR/setup-watcher.log" 2>&1 \
+                        && log "TTS-Modell aktiviert: $_model_id" || log "TTS-Neustart fehlgeschlagen"
+                else
+                    log "TTS-Modell entpacken fehlgeschlagen: $_model_id"
+                fi
+                rm -rf "$_extract_dir" "$_tmp_tar"
+            else
+                log "TTS-Modell-Download fehlgeschlagen: $_model_id"
+            fi
+        fi
+    fi
+
     sleep 3
 done

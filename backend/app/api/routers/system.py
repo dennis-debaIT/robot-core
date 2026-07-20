@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Body, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.api.deps import FRONTEND_INDEX, get_core, get_settings_service
@@ -350,6 +350,40 @@ def start_printer_bridge() -> dict[str, Any]:
         }
         flag_path = Path("/printer-start.flag")
         flag_path.write_text(json.dumps(payload))
+        return {"ok": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+# Bereits getestete deutsche Piper/Sherpa-ONNX-Stimmen (siehe Memory
+# project_tts_deployment.md) — URL-Muster bei k2-fsa/sherpa-onnx GitHub
+# Releases: vits-piper-de_DE-{id}.tar.bz2. Erweiterbar durch neue Einträge,
+# solange dort ein passendes Release existiert.
+_TTS_MODELS: dict[str, dict[str, Any]] = {
+    "kerstin-low": {"label": "Kerstin", "gender": "weiblich", "quality": "niedrig", "size_mb": 61},
+    "thorsten_emotional-medium": {"label": "Thorsten Emotional", "gender": "männlich", "quality": "mittel", "size_mb": 74},
+    "thorsten-high": {"label": "Thorsten", "gender": "männlich", "quality": "hoch", "size_mb": 109},
+    "eva_k-x_low": {"label": "Eva K", "gender": "weiblich", "quality": "niedrig", "size_mb": 28},
+    "ramona-low": {"label": "Ramona", "gender": "weiblich", "quality": "niedrig", "size_mb": None},
+}
+
+
+@router.get("/system/tts/available-models")
+def get_available_tts_models() -> dict[str, Any]:
+    return {"models": [{"id": model_id, **info} for model_id, info in _TTS_MODELS.items()]}
+
+
+@router.post("/system/tts/install-model")
+def install_tts_model(payload: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    """Stößt Download + Aktivierung eines Sherpa-ONNX-Modells an. Läuft über
+    setup-watcher.sh auf dem Host, da /models read-only in den Container
+    gemountet ist (siehe tts-model.flag-Block dort)."""
+    model_id = str(payload.get("model_id") or "").strip()
+    if model_id not in _TTS_MODELS:
+        raise HTTPException(status_code=400, detail="Unbekanntes Modell")
+    try:
+        flag_payload = {"model_id": model_id, "requested_at": datetime.now(timezone.utc).isoformat()}
+        Path("/tts-model.flag").write_text(json.dumps(flag_payload))
         return {"ok": True}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

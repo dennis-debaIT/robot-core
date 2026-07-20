@@ -145,7 +145,7 @@ cd "$INSTALL_DIR"
 chmod +x update.sh reboot-watcher.sh setup-watcher.sh 2>/dev/null || true
 
 # Falsch angelegte Verzeichnisse (Docker-Artefakte) entfernen
-for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json update.log; do
+for _f in update.flag reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag tts-model.flag host-ip.txt wifi-scan.json update.log; do
     [ -d "$INSTALL_DIR/$_f" ] && rm -rf "$INSTALL_DIR/$_f" || true
 done
 # Flag-Dateien und Logs als REAL_USER anlegen (nicht als root)
@@ -153,11 +153,16 @@ sudo -u "$REAL_USER" touch \
     "$INSTALL_DIR/update.flag" "$INSTALL_DIR/update.log" \
     "$INSTALL_DIR/reboot.flag" "$INSTALL_DIR/timezone.flag" \
     "$INSTALL_DIR/hostname.flag" "$INSTALL_DIR/wlan.flag" \
-    "$INSTALL_DIR/ha-install.flag" "$INSTALL_DIR/components.flag"
+    "$INSTALL_DIR/ha-install.flag" "$INSTALL_DIR/components.flag" \
+    "$INSTALL_DIR/printer-start.flag" "$INSTALL_DIR/tts-model.flag"
 [ -s "$INSTALL_DIR/wifi-scan.json" ] || \
     sudo -u "$REAL_USER" bash -c 'echo '"'"'{"networks":[]}'"'"' > '"\"$INSTALL_DIR/wifi-scan.json\""
 sudo -u "$REAL_USER" bash -c "hostname -I | awk '{print \$1}' > \"$INSTALL_DIR/host-ip.txt\""
 sudo -u "$REAL_USER" mkdir -p "$INSTALL_DIR/ha_config"
+# Vorab mit korrektem Owner anlegen — sonst legt der erste "docker compose up"
+# (läuft als root) das Verzeichnis an, und setup-watcher.sh (läuft als
+# REAL_USER) kann später keine TTS-Modelle mehr hineinschreiben.
+sudo -u "$REAL_USER" mkdir -p "$INSTALL_DIR/models/tts"
 
 _CRON_PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 CRON_DAILY="0 3 * * * bash $INSTALL_DIR/update.sh >> $INSTALL_DIR/update.log 2>&1"

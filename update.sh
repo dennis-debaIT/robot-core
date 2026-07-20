@@ -51,10 +51,10 @@ chmod +x "$INSTALL_DIR/update.sh" \
          "$INSTALL_DIR/setup-watcher.sh" 2>/dev/null || true
 
 # Flag-Dateien sicherstellen — Verzeichnisse (fälschlich von Docker angelegt) entfernen
-for _f in update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json printer-start.flag; do
+for _f in update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag host-ip.txt wifi-scan.json printer-start.flag tts-model.flag; do
     [ -d "$_f" ] && { rm -rf "$_f" 2>/dev/null || sudo rm -rf "$_f" 2>/dev/null || true; }
 done
-touch update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag
+touch update.flag update.log reboot.flag timezone.flag hostname.flag wlan.flag ha-install.flag components.flag printer-start.flag tts-model.flag
 [ -s wifi-scan.json ]  || echo '{"networks":[]}' > wifi-scan.json
 # edition als Datei sicherstellen (Default community) — Docker mountet sie sonst als Verzeichnis.
 # Bestehenden Wert (z.B. von der Admin-Auswahl/Lizenz) NICHT überschreiben.
