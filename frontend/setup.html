@@ -76,6 +76,8 @@
     /* ── INFO BOX ── */
     .info-box { background: rgba(0,200,255,0.06); border: 1px solid rgba(0,200,255,0.2); border-radius: 10px; padding: 12px 16px; font-size: 0.82rem; color: var(--muted); margin-bottom: 18px; }
     .info-box strong { color: var(--ink); }
+    .info-box.status-ok { background: rgba(0,230,118,0.08); border-color: rgba(0,230,118,0.3); color: var(--success); }
+    .info-box.status-error { background: rgba(255,79,95,0.08); border-color: rgba(255,79,95,0.3); color: var(--danger); }
     .ip-badge { display: inline-block; background: rgba(0,200,255,0.1); border: 1px solid rgba(0,200,255,0.3); border-radius: 8px; padding: 6px 14px; font-family: monospace; font-size: 1rem; color: var(--accent); margin-top: 6px; }
 
     /* ── SUCCESS STEP ── */
@@ -123,7 +125,7 @@
   </div>
 </div>
 
-<div class="progress-bar">
+<div class="progress-bar" id="progress-bar" style="display:none;">
   <div class="steps" id="steps">
     <div class="step-dot active" data-step="1"><div class="step-circle">1</div><div class="step-label">Netzwerk</div></div>
     <div class="step-dot" data-step="2"><div class="step-circle">2</div><div class="step-label">Zeitzone</div></div>
@@ -133,8 +135,88 @@
   </div>
 </div>
 
+<!-- ── STEP 0: NEU EINRICHTEN ODER WIEDERHERSTELLEN ── -->
+<div class="card" id="step-0">
+  <div class="card-title">Willkommen bei Erika</div>
+  <div class="card-sub">Richte Erika neu ein oder übernimm die Einstellungen eines bestehenden Erika-Geräts — z.B. beim Umzug auf neue Hardware.</div>
+
+  <div class="radio-cards" id="step0-choice">
+    <div class="radio-card" onclick="chooseFresh()">
+      <div class="rc-icon">✨</div>
+      <h3>Neu einrichten</h3>
+      <p>Netzwerk, Zeitzone, Home Assistant und Komponenten von Grund auf einrichten.</p>
+    </div>
+    <div class="radio-card" onclick="chooseRestore()">
+      <div class="rc-icon">♻️</div>
+      <h3>Backup wiederherstellen</h3>
+      <p>Ein vorhandenes Backup übernehmen — Einstellungen sind danach sofort da.</p>
+    </div>
+  </div>
+
+  <div class="radio-cards" id="restore-mode-choice" style="display:none;">
+    <div class="radio-card" id="rc-restore-local" onclick="selectRestoreMode('local')">
+      <div class="rc-icon">📁</div>
+      <h3>Lokale Datei</h3>
+      <p>Eine zuvor heruntergeladene Backup-ZIP-Datei hochladen.</p>
+    </div>
+    <div class="radio-card" id="rc-restore-cloud" onclick="selectRestoreMode('cloud')">
+      <div class="rc-icon">☁️</div>
+      <h3>Cloud-Backup</h3>
+      <p>Mit Lizenzschlüssel und Erika-Konto automatisch wiederherstellen (Plus/Family).</p>
+    </div>
+  </div>
+  <div class="btn-row" id="restore-mode-back-row" style="display:none;justify-content:flex-start;">
+    <button class="btn-secondary" onclick="backToChoice()">← Zurück</button>
+  </div>
+
+  <div id="restore-local-fields" style="display:none;">
+    <div class="info-box">
+      <strong>Lokale Datei</strong><br>
+      Enthält Datenbank und Grundeinstellungen. Lizenz und Geräte-Kopplung sind aus
+      Sicherheitsgründen nicht im lokalen Backup enthalten — bei einem Hardware-Wechsel
+      ggf. anschließend unter Admin → Lizenz erneut aktivieren und unter Admin →
+      Erika-Konto neu koppeln.
+    </div>
+    <div class="field">
+      <label>Backup-Datei (.zip)</label>
+      <input type="file" id="restore-file" accept=".zip">
+    </div>
+    <div class="info-box" id="restore-local-status" style="display:none;"></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="backToRestoreModeChoice()">← Zurück</button>
+      <button class="btn-primary" onclick="restoreLocalFile()" id="btn-restore-local">Wiederherstellen →</button>
+    </div>
+  </div>
+
+  <div id="restore-cloud-fields" style="display:none;">
+    <div class="info-box">
+      <strong>Cloud-Backup</strong><br>
+      Die Lizenz wird automatisch an dieses Gerät gebunden. War dieses Gerät zuvor
+      unter Admin → Erika-Konto als eigenständiges Gerät gekoppelt (Nachrichten-Funktion),
+      muss diese Kopplung danach einmalig erneut hergestellt werden.
+    </div>
+    <div class="field">
+      <label>Lizenzschlüssel</label>
+      <input class="has-vkb" id="restore-license-key" type="text" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Erika-Konto E-Mail</label>
+      <input class="has-vkb" id="restore-sync-email" type="text" placeholder="name@beispiel.de" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Passwort</label>
+      <input class="has-vkb" id="restore-sync-password" type="password" placeholder="Passwort">
+    </div>
+    <div class="info-box" id="restore-cloud-status" style="display:none;"></div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="backToRestoreModeChoice()">← Zurück</button>
+      <button class="btn-primary" onclick="restoreCloud()" id="btn-restore-cloud">Wiederherstellen →</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── STEP 1: NETZWERK ── -->
-<div class="card" id="step-1">
+<div class="card" id="step-1" style="display:none;">
   <div class="card-title">Netzwerk</div>
   <div class="card-sub">Richte das Netzwerk und den Gerätenamen ein. Aktuelle IP-Adresse:</div>
   <div class="info-box">
@@ -506,7 +588,7 @@ function toggleComp(el, comp) {
 }
 
 // ── STEP NAVIGATION ───────────────────────────────────────
-let _currentStep = 1;
+let _currentStep = 0;
 
 function goStep(n) {
   document.getElementById(`step-${_currentStep}`).style.display = 'none';
@@ -597,6 +679,152 @@ async function runFinalStep(comps) {
   }, 2000);
 }
 
+// ── STEP 0: NEU EINRICHTEN ODER WIEDERHERSTELLEN ────────────
+function _revealProgress() {
+  document.getElementById('progress-bar').style.display = 'block';
+}
+
+function chooseFresh() {
+  _revealProgress();
+  goStep(1);
+}
+
+function chooseRestore() {
+  document.getElementById('step0-choice').style.display = 'none';
+  document.getElementById('restore-mode-choice').style.display = 'flex';
+  document.getElementById('restore-mode-back-row').style.display = 'flex';
+}
+
+function backToChoice() {
+  document.getElementById('restore-mode-choice').style.display = 'none';
+  document.getElementById('restore-mode-back-row').style.display = 'none';
+  document.getElementById('step0-choice').style.display = 'flex';
+}
+
+function selectRestoreMode(mode) {
+  document.getElementById('rc-restore-local').classList.toggle('active', mode === 'local');
+  document.getElementById('rc-restore-cloud').classList.toggle('active', mode === 'cloud');
+  document.getElementById('restore-mode-choice').style.display = 'none';
+  document.getElementById('restore-mode-back-row').style.display = 'none';
+  document.getElementById('restore-local-fields').style.display = mode === 'local' ? 'block' : 'none';
+  document.getElementById('restore-cloud-fields').style.display = mode === 'cloud' ? 'block' : 'none';
+}
+
+function backToRestoreModeChoice() {
+  document.getElementById('restore-local-fields').style.display = 'none';
+  document.getElementById('restore-cloud-fields').style.display = 'none';
+  document.getElementById('restore-mode-choice').style.display = 'flex';
+  document.getElementById('restore-mode-back-row').style.display = 'flex';
+}
+
+function _restoreStatus(elId, msg, kind) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.className = 'info-box' + (kind ? ' status-' + kind : '');
+  el.style.display = 'block';
+}
+
+async function restoreLocalFile() {
+  const input = document.getElementById('restore-file');
+  const file = input.files[0];
+  if (!file) { _restoreStatus('restore-local-status', 'Bitte eine Backup-Datei auswählen.', 'error'); return; }
+  const btn = document.getElementById('btn-restore-local');
+  btn.disabled = true;
+  _restoreStatus('restore-local-status', 'Backup wird hochgeladen und wiederhergestellt…', '');
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch('/system/backup/restore', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || `Fehler (HTTP ${r.status})`);
+    }
+    await runRestoreFinish();
+  } catch (e) {
+    _restoreStatus('restore-local-status', 'Fehler: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+async function restoreCloud() {
+  const key   = document.getElementById('restore-license-key').value.trim();
+  const email = document.getElementById('restore-sync-email').value.trim();
+  const pw    = document.getElementById('restore-sync-password').value;
+  if (!key || !email || !pw) {
+    _restoreStatus('restore-cloud-status', 'Bitte Lizenzschlüssel, E-Mail und Passwort ausfüllen.', 'error');
+    return;
+  }
+  const btn = document.getElementById('btn-restore-cloud');
+  btn.disabled = true;
+  try {
+    _restoreStatus('restore-cloud-status', 'Lizenz wird aktiviert…', '');
+    let r = await fetch('/license/activate', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ code: key }),
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Lizenzaktivierung fehlgeschlagen'); }
+
+    _restoreStatus('restore-cloud-status', 'Erika-Konto wird verbunden…', '');
+    r = await fetch('/sync/config', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, password: pw }),
+    });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Anmeldung fehlgeschlagen'); }
+
+    _restoreStatus('restore-cloud-status', 'Backup wird geladen und wiederhergestellt…', '');
+    r = await fetch('/admin/backup/restore', { method: 'POST' });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Wiederherstellung fehlgeschlagen'); }
+
+    await runRestoreFinish();
+  } catch (e) {
+    _restoreStatus('restore-cloud-status', 'Fehler: ' + e.message, 'error');
+    btn.disabled = false;
+  }
+}
+
+async function runRestoreFinish() {
+  _revealProgress();
+  const list = document.getElementById('check-list');
+  list.innerHTML = `
+    <div class="check-item pending">
+      <span class="ci-icon">⚙️</span>
+      <span>Erika wird neu gestartet…</span>
+    </div>`;
+  document.getElementById('final-icon').textContent = '⚙️';
+  document.getElementById('final-title').textContent = 'Wiederherstellung läuft…';
+  document.getElementById('final-sub').textContent = 'Erika startet mit den wiederhergestellten Daten neu. Das kann eine Minute dauern.';
+  document.getElementById('final-btn-row').style.display = 'none';
+  goStep(5);
+
+  // Kurze Pause, bevor auf Erreichbarkeit gepollt wird — ein Neustart/Rebuild
+  // braucht einen Moment zum Anlaufen, sonst trifft der erste Poll noch den
+  // alten, gleich verschwindenden Container.
+  await new Promise(res => setTimeout(res, 4000));
+
+  const deadline = Date.now() + 180000;
+  while (Date.now() < deadline) {
+    try {
+      const r = await fetch('/setup/status', { cache: 'no-store' });
+      if (r.ok) {
+        list.innerHTML = `
+          <div class="check-item">
+            <span class="ci-icon">✅</span>
+            <span>Erika ist wieder erreichbar</span>
+          </div>`;
+        document.getElementById('final-icon').textContent = '✅';
+        document.getElementById('final-title').textContent = 'Wiederherstellung abgeschlossen!';
+        document.getElementById('final-sub').textContent = 'Erika läuft mit den wiederhergestellten Daten. War dieses Gerät zuvor als eigenständiges Gerät gekoppelt (Nachrichten-Funktion), sollte das unter Admin → Erika-Konto einmalig erneuert werden.';
+        document.getElementById('final-btn-row').style.display = 'flex';
+        return;
+      }
+    } catch (e) { /* Container startet gerade neu — weiter pollen */ }
+    await new Promise(res => setTimeout(res, 3000));
+  }
+  document.getElementById('final-icon').textContent = '⚠️';
+  document.getElementById('final-title').textContent = 'Erika antwortet noch nicht';
+  document.getElementById('final-sub').textContent = 'Die Wiederherstellung wurde ausgelöst, aber Erika ist noch nicht erreichbar. Bitte die Seite in Kürze neu laden.';
+}
+
 // ── INIT ──────────────────────────────────────────────────
 async function init() {
   const r = await fetch('/setup/status');
@@ -608,7 +836,7 @@ async function init() {
   if (d.timezone) {
     _selectedTz = d.timezone;
   }
-  if (d.step && d.step > 1) goStep(d.step);
+  if (d.step && d.step > 1) { _revealProgress(); goStep(d.step); }
 }
 
 init();
