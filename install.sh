@@ -54,6 +54,12 @@ _detect_machine() {
         else
             machine="generic-aarch64"
         fi
+    elif grep -qi "qemu" /sys/class/dmi/id/sys_vendor 2>/dev/null || \
+         grep -qi "qemu\|standard pc" /sys/class/dmi/id/product_name 2>/dev/null; then
+        # QEMU/KVM-VM (z.B. Proxmox) — HA Supervised erwartet dafür den
+        # eigenen Maschinentyp, nicht generic-x86-64 (das ist für echte
+        # x86-64-Hardware)
+        machine="qemux86-64"
     else
         machine="generic-x86-64"
     fi
