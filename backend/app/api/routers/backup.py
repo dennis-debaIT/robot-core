@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import traceback
+
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter(prefix="/admin/backup", tags=["backup"])
@@ -18,6 +20,8 @@ def get_backup_info() -> dict:
     try:
         return backup_info()
     except Exception as exc:
+        print(f"[BACKUP] info fehlgeschlagen: {exc}")
+        traceback.print_exc()
         raise HTTPException(status_code=502, detail=str(exc))
 
 
@@ -29,6 +33,8 @@ def create_backup() -> dict:
         size = _create()
         return {"ok": True, "size_bytes": size}
     except Exception as exc:
+        print(f"[BACKUP] create fehlgeschlagen: {exc}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
 
 
@@ -40,4 +46,6 @@ def restore_backup() -> dict:
         _restore()
         return {"ok": True, "message": "Backup wiederhergestellt. Erika startet neu."}
     except Exception as exc:
+        print(f"[BACKUP] restore fehlgeschlagen: {exc}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(exc))
