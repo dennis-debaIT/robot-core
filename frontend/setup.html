@@ -757,23 +757,29 @@ async function restoreCloud() {
   const btn = document.getElementById('btn-restore-cloud');
   btn.disabled = true;
   try {
-    _restoreStatus('restore-cloud-status', 'Lizenz wird aktiviert…', '');
-    let r = await fetch('/license/activate', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ code: key }),
-    });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Lizenzaktivierung fehlgeschlagen'); }
+    // Bei einem Retry (z.B. weil nur der Restore-Schritt zuvor fehlschlug)
+    // Lizenz + Sync-Login nicht blind erneut versuchen — ein Gerät kann
+    // denselben Lizenzcode kein zweites Mal aktivieren (409 vom Lizenzserver).
+    const already = await fetch('/sync/config').then(r => r.ok ? r.json() : null).catch(() => null);
+    if (!already || !already.configured) {
+      _restoreStatus('restore-cloud-status', 'Lizenz wird aktiviert…', '');
+      let r = await fetch('/license/activate', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ code: key }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Lizenzaktivierung fehlgeschlagen'); }
 
-    _restoreStatus('restore-cloud-status', 'Erika-Konto wird verbunden…', '');
-    r = await fetch('/sync/config', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ email, password: pw }),
-    });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Anmeldung fehlgeschlagen'); }
+      _restoreStatus('restore-cloud-status', 'Erika-Konto wird verbunden…', '');
+      r = await fetch('/sync/config', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email, password: pw }),
+      });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Anmeldung fehlgeschlagen'); }
+    }
 
     _restoreStatus('restore-cloud-status', 'Backup wird geladen und wiederhergestellt…', '');
-    r = await fetch('/admin/backup/restore', { method: 'POST' });
-    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Wiederherstellung fehlgeschlagen'); }
+    const r2 = await fetch('/admin/backup/restore', { method: 'POST' });
+    if (!r2.ok) { const d = await r2.json().catch(() => ({})); throw new Error(d.detail || 'Wiederherstellung fehlgeschlagen'); }
 
     await runRestoreFinish();
   } catch (e) {
