@@ -962,7 +962,8 @@
 
   function _renderCalendarSlot(cal, size) {
     if (size === 1) {
-      if (!cal?.next_event) return '<div class="cal-placeholder">Kein Termin</div>';
+      if (cal?._error) return _widgetPlaceholder(true, 'Kalender gerade nicht abrufbar.');
+      if (!cal?.next_event) return _widgetPlaceholder(false, 'Kein Termin.');
       const ne = cal.next_event;
       return `<div style="background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.25);border-radius:10px;padding:10px 12px;">
         <div style="font-size:0.62rem;color:var(--accent);letter-spacing:0.11em;margin-bottom:4px;">N&Auml;CHSTER TERMIN</div>
@@ -1292,23 +1293,26 @@
     if (cached?.days) return cached;  // nur nutzen wenn neues Format
     try {
       const resp = await fetch('/calendar', { cache: 'no-store' });
-      if (!resp.ok) return null;
+      if (!resp.ok) return _widgetLoadError();
       const d = await resp.json();
       if (d?.days !== undefined) {
         localStorage.removeItem('calendar');
         cacheSet('calendar_v2', d, TTL_5M);
         return d;
       }
-      return null;
-    } catch { return null; }
+      return _widgetLoadError();
+    } catch { return _widgetLoadError(); }
   }
 
   function renderCalendarData(cal) {
+    if (cal?._error) {
+      return _widgetPlaceholder(true, 'Kalender gerade nicht abrufbar.');
+    }
     if (!cal) {
-      return `<div class="cal-placeholder">📅<br><br>Kalender nicht verfügbar.</div>`;
+      return _widgetPlaceholder(false, '📅<br><br>Kalender nicht verfügbar.');
     }
     if (!cal.days || cal.days.length === 0) {
-      return `<div class="cal-placeholder">📅<br><br>Keine Termine in den nächsten 7 Tagen.</div>`;
+      return _widgetPlaceholder(false, '📅<br><br>Keine Termine in den nächsten 7 Tagen.');
     }
 
     let html = '';
