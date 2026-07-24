@@ -998,13 +998,15 @@
 
   async function _loadCameraWidgetData() {
     const [cams, events] = await Promise.all([loadCamerasData(), loadCameraEvents()]);
-    return { cameras: cams || [], events: events || [] };
+    if (cams === null) return _widgetLoadError();
+    return { cameras: cams, events: events || [] };
   }
 
   function _renderCamerasWidget(data, size) {
+    if (data?._error) return _widgetPlaceholder(true, 'Kameras gerade nicht erreichbar.');
     const cameras = data?.cameras || [];
     const events  = data?.events  || [];
-    if (!cameras.length) return '<div class="cal-placeholder">Keine Kameras konfiguriert</div>';
+    if (!cameras.length) return _widgetPlaceholder(false, 'Keine Kameras konfiguriert.');
 
     const cam  = cameras[0];
     const snap = `<div onclick="navTo('cameras')" style="cursor:pointer;position:relative;border-radius:8px;overflow:hidden;margin-bottom:8px;">
