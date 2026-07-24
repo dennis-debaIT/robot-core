@@ -3984,7 +3984,6 @@
       });
     }
     _msgDismissTimer = setTimeout(_dismissIncomingMsg, 15000);
-    fetch(`/messages/${msg.id}/read`, { method: 'PATCH' }).catch(() => {});
   }
 
   function _dismissIncomingMsg() {
