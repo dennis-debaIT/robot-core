@@ -27,6 +27,7 @@ _TM_BASE = "https://transfermarkt-api.fly.dev"
 _SEARCH_TTL      = 7 * 86_400   # TM-IDs: 7 Tage
 _PLAYER_DISK_TTL = 30 * 86_400  # Spieler-Einzel-Profil: 30 Tage
 _CLUB_CHECK_INTERVAL = 24 * 3_600  # Vereinsdaten: nach 24h im Hintergrund prüfen ob lastUpdate neu
+_STALE_RETRY_BACKOFF = 3_600     # Nach Rückfall auf abgelaufenen Cache: 1h Pause vor erneutem Netzwerkversuch
 
 _cache: dict[str, dict[str, Any]] = {}
 
@@ -263,14 +264,22 @@ class TransfermarktService:
         # Disk-Cache
         slug = re.sub(r'[^a-z0-9]', '_', name.lower().strip())
         cache_path = _SEARCH_CACHE_DIR / f"club_{slug}.json"
+        stale_id: str | None = None
         if cache_path.exists():
             try:
+                stale_id = json.loads(cache_path.read_text(encoding="utf-8"))
                 if time.time() - cache_path.stat().st_mtime < _SEARCH_TTL:
-                    tm_id = json.loads(cache_path.read_text(encoding="utf-8"))
-                    _store(key, tm_id)
-                    return tm_id
+                    _store(key, stale_id)
+                    return stale_id
             except Exception:
-                pass
+                stale_id = None
+
+        # War der letzte Rückfall auf den Stale-Wert erst vor Kurzem (externer
+        # Dienst vermutlich weiterhin down) → nicht bei jedem Aufruf erneut
+        # anfragen, sondern direkt den Stale-Wert liefern.
+        backoff_key = f"{key}:stale_backoff"
+        if stale_id is not None and _cached(backoff_key, _STALE_RETRY_BACKOFF) is not None:
+            return stale_id
 
         candidates = _name_candidates(name)
         tm_id = None
@@ -293,7 +302,16 @@ class TransfermarktService:
                 cache_path.write_text(json.dumps(tm_id, ensure_ascii=False), encoding="utf-8")
             except Exception:
                 pass
-        return tm_id
+            return tm_id
+
+        # Frische Suche fehlgeschlagen (z.B. externer Dienst down) — abgelaufenen
+        # Cache-Wert weiterverwenden statt komplett auszufallen. Weder Datei-
+        # Zeitstempel noch der reguläre Cache-Key (7 Tage) werden aufgefrischt,
+        # nur der kurze Backoff-Marker — damit ein Wiederanlaufen des externen
+        # Diensts innerhalb einer Stunde wieder einen echten Refresh versucht.
+        if stale_id:
+            _store(backoff_key, True)
+        return stale_id
 
     def get_club_image_by_id(self, tm_club_id: str) -> str | None:
         """Club-Wappen-URL direkt per TM-Club-ID."""
