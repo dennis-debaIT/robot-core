@@ -709,14 +709,14 @@
     if (cached) return cached;
     try {
       const resp = await fetch('/fuel');
-      if (!resp.ok) return null;
+      if (!resp.ok) return _widgetLoadError();
       const d = await resp.json();
       if (d?.cards?.length || d?.cheapest_diesel || d?.grouped) {
         cacheSet('fuel', d, TTL_1M);
         return d;
       }
       return null;
-    } catch { return null; }
+    } catch { return _widgetLoadError(); }
   }
 
   function fuelPriceHtml(priceNum, large = false) {
@@ -774,8 +774,8 @@
   }
 
   async function loadEV() {
-    try { const r = await fetch('/vehicles', { cache: 'no-store' }); return r.ok ? r.json() : null; }
-    catch { return null; }
+    try { const r = await fetch('/vehicles', { cache: 'no-store' }); return r.ok ? r.json() : _widgetLoadError(); }
+    catch { return _widgetLoadError(); }
   }
 
   function formatChargeTime(minutesRaw) {
@@ -974,8 +974,9 @@
   }
 
   function _renderFuelSlot(fuel, size) {
+    if (fuel?._error) return _widgetPlaceholder(true, 'Kraftstoffpreise gerade nicht abrufbar.');
     const html = renderFuelPrice(fuel);
-    if (!html) return '<div class="cal-placeholder">Keine Kraftstoffpreise</div>';
+    if (!html) return _widgetPlaceholder(false, 'Keine Kraftstoffpreise konfiguriert.');
     return html;
   }
 
@@ -987,8 +988,9 @@
   }
 
   function _renderEvSlot(data, size) {
+    if (data?._error) return _widgetPlaceholder(true, 'Fahrzeugdaten gerade nicht abrufbar.');
     const html = renderEV(data);
-    if (!html) return '<div class="cal-placeholder">Kein Fahrzeug konfiguriert</div>';
+    if (!html) return _widgetPlaceholder(false, 'Kein Fahrzeug konfiguriert.');
     return html;
   }
 
@@ -1026,8 +1028,8 @@
   }
 
   async function loadWasteData() {
-    try { const r = await fetch('/ha/waste', { cache: 'no-store' }); return r.ok ? r.json() : null; }
-    catch { return null; }
+    try { const r = await fetch('/ha/waste', { cache: 'no-store' }); return r.ok ? r.json() : _widgetLoadError(); }
+    catch { return _widgetLoadError(); }
   }
 
   function _fmtWasteDays(d) {
@@ -1035,8 +1037,9 @@
   }
 
   function _renderWasteSlot(data, size) {
+    if (data?._error) return _widgetPlaceholder(true, 'Abfalltermine gerade nicht abrufbar.');
     const bins = data?.bins || [];
-    if (!bins.length) return '<div class="cal-placeholder">Kein Abfalltermin</div>';
+    if (!bins.length) return _widgetPlaceholder(false, 'Keine Abfalltermine vorhanden.');
     const items = bins.map(b => `
       <div style="flex:1;text-align:center;min-width:0;">
         <img src="/assets/waste/${b.color}.png" alt="${b.label}" title="${b.label} · ${b.date}"
