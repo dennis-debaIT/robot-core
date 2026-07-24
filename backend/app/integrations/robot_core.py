@@ -3169,7 +3169,17 @@ class RobotCore:
                 if team_info:
                     team_name = team_info.get("name", "")
 
-            # 3. Kein Team im Query → Lieblingsverein aus Nutzerprofil
+            # 3. Kein Team im Query → Lieblingsverein aus Liga-Modul-Konfiguration
+            #    (dieselbe Quelle, die auch die Liga-Seite selbst verwendet)
+            if not team_name:
+                try:
+                    from app.services.integration_config_service import IntegrationConfigService
+                    liga_cfg = IntegrationConfigService().get_config().get("liga") or {}
+                    team_name = str(liga_cfg.get("favorite_team_name") or "").strip()
+                except Exception:
+                    pass
+
+            # 4. Immer noch kein Team → Interessen im Nutzerprofil als Fallback
             if not team_name and person_name:
                 try:
                     facts = self.profile.get_facts(person_name)
