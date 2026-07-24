@@ -1097,7 +1097,11 @@
     let printerHtml = '';
     if (side === 'right' && _enabledModules.printer) {
       const printer = await loadPrinterData();
-      if (printer?.printing) printerHtml = `<div id="right-printer">${renderPrinterWidget(printer)}</div>`;
+      if (printer?._error) {
+        printerHtml = `<div id="right-printer" class="widget-error" style="margin-bottom:10px;"><span class="widget-error-icon">⚠</span>Drucker-Status gerade nicht abrufbar.</div>`;
+      } else if (printer?.printing) {
+        printerHtml = `<div id="right-printer">${renderPrinterWidget(printer)}</div>`;
+      }
     }
 
     const gridRows = slots.map((s, i) => {
@@ -1372,10 +1376,10 @@
     if (!_enabledModules.printer) return null;
     try {
       const r = await fetch('/ha/printer/state', { cache: 'no-store' });
-      if (!r.ok) return null;
+      if (!r.ok) return _widgetLoadError();
       _printerData = await r.json();
       return _printerData;
-    } catch { return null; }
+    } catch { return _widgetLoadError(); }
   }
 
   function _fmtTime(val) {
