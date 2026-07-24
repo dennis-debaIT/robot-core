@@ -1047,6 +1047,17 @@
     return `<div style="display:flex;gap:6px;align-items:flex-end;justify-content:space-around;padding:4px 0;">${items}</div>`;
   }
 
+  // Sentinel, den load() statt null/[] zurückgibt, wenn der Abruf fehlschlägt
+  // (verallgemeinert das bisher weather-only _WEATHER_ERROR-Muster).
+  function _widgetLoadError() { return { _error: true }; }
+
+  // Erzeugt einheitliches Markup für Fehler- bzw. Leer-Zustand.
+  function _widgetPlaceholder(isError, text) {
+    return isError
+      ? `<div class="widget-error"><span class="widget-error-icon">⚠</span><span>${text}</span></div>`
+      : `<div class="cal-placeholder">${text}</div>`;
+  }
+
   const _WIDGET_DEFS = {
     weather:  { label: 'Wetter',     load: () => loadWeather(),           render: _renderWeatherSlot,   compact: false },
     calendar: { label: 'Kalender',   load: () => loadCalendar(),          render: _renderCalendarSlot,  compact: false },
