@@ -19,6 +19,7 @@
   let _standingsCache  = {};
   let _tmProfile       = null;   // gecachtes TM-Vereinsprofil (Lieblingsverein links)
   let _tmLoadedFor     = null;   // team_name für den _tmProfile geladen wurde
+  let _tmLoadFailed    = false;  // letzter Ladeversuch fehlgeschlagen (z.B. externer Dienst down)
   let _teamViewOpen    = false;  // Team-Detail-Overlay aktiv → Poll überspringt Center
   let _teamDetailId    = null;   // team_id der aktuell angezeigten Vereinsdetails
   let _teamDetailName  = null;   // Vereinsname für Team-Detail
@@ -206,19 +207,28 @@
     }
     _tmLoadedFor = teamName;
     _tmProfile = null;
+    _tmLoadFailed = false;
     const el = document.getElementById('liga-tm-card');
     if (el) el.innerHTML = '<div style="font-size:0.72rem;color:var(--muted);">Lade Vereinsinfos…</div>';
     try {
       const r = await fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' });
       if (r.ok) _tmProfile = await r.json();
-    } catch {}
+      else _tmLoadFailed = true;
+    } catch {
+      _tmLoadFailed = true;
+    }
     _renderTmCard();
   }
 
   function _renderTmCard() {
     const el = document.getElementById('liga-tm-card');
     if (!el) return;
-    if (!_tmProfile) { el.innerHTML = ''; return; }
+    if (!_tmProfile) {
+      el.innerHTML = _tmLoadFailed
+        ? '<div style="font-size:0.72rem;color:var(--muted);padding:4px 0;">⚠ Vereinsdaten momentan nicht verfügbar — externer Dienst nicht erreichbar.</div>'
+        : '';
+      return;
+    }
     const p = _tmProfile;
 
     // Vereinswappen: TM-Bild (via Proxy) bevorzugt, Fallback aus Tabellen-Cache
