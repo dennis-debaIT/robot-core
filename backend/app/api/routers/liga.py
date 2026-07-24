@@ -248,6 +248,7 @@ def proxy_tm_image(url: str = Query(...)) -> Response:
 def clear_liga_cache() -> dict[str, Any]:
     """Löscht alle TM-Disk-Caches (Kader, Spieler-Profile, Suchen) + In-Memory-Caches."""
     import shutil
+    from app.services.transfermarkt_service import clear_memory_cache
     removed: list[str] = []
     for sub in ("kader", "players", "searches", "clubs", "persons", "player_transfers", "focus"):
         d = pathlib.Path(f"/data/tm_cache/{sub}")
@@ -257,6 +258,7 @@ def clear_liga_cache() -> dict[str, Any]:
                 removed.append(sub)
             except Exception:
                 pass
+    clear_memory_cache()
     LigaService.invalidate_cache()
     return {"cleared": removed}
 

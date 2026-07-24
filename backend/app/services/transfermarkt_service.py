@@ -31,6 +31,14 @@ _STALE_RETRY_BACKOFF = 3_600     # Nach Rückfall auf abgelaufenen Cache: 1h Pau
 
 _cache: dict[str, dict[str, Any]] = {}
 
+
+def clear_memory_cache() -> None:
+    """Leert den In-Memory-Cache (Such-IDs, Vereins-/Spielerdaten) — ergänzt das Löschen
+    der Disk-Caches, ohne das würden bis zum nächsten Container-Neustart weiter die alten
+    Werte aus dem Arbeitsspeicher zurückgegeben."""
+    _cache.clear()
+
+
 _PLAYER_CACHE_DIR    = pathlib.Path("/data/tm_cache/players")
 _SEARCH_CACHE_DIR    = pathlib.Path("/data/tm_cache/searches")
 _CLUB_CACHE_DIR      = pathlib.Path("/data/tm_cache/clubs")
