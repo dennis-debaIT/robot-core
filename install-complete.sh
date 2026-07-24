@@ -194,8 +194,8 @@ success "Cron-Jobs eingerichtet (inkl. Neustart-, Setup- und Update-Trigger)"
 step "Container bauen und starten"
 info "Dies kann einige Minuten dauern..."
 GIT_HASH=$(git rev-parse HEAD)
-docker compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
-docker compose up -d robot-core
+docker compose build --build-arg GIT_HASH="$GIT_HASH" robot-core transfermarkt-api
+docker compose up -d robot-core transfermarkt-api
 success "Container gestartet"
 
 systemctl enable docker > /dev/null 2>&1 || true

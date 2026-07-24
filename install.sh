@@ -315,8 +315,8 @@ if ! docker ps > /dev/null 2>&1; then
 fi
 
 GIT_HASH=$(git rev-parse HEAD)
-$DOCKER compose build --build-arg GIT_HASH="$GIT_HASH" robot-core
-$DOCKER compose up -d robot-core
+$DOCKER compose build --build-arg GIT_HASH="$GIT_HASH" robot-core transfermarkt-api
+$DOCKER compose up -d robot-core transfermarkt-api
 success "Container gestartet"
 
 # ── 8. Autostart sicherstellen ────────────────────────────────

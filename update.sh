@@ -89,7 +89,7 @@ echo "[update] Build startet (GIT_HASH=$GIT_HASH, EDITION=$EDITION)..."
 # timeout schützt vor unbegrenztem Haengen (z.B. Registry-Pull mit TLS-Handshake-Timeout —
 # schon selbst erlebt). 600s sind grosszuegig fuer einen echten Rebuild mit neuen
 # Abhaengigkeiten; ein reiner Cache-Hit (haeufigster Fall) dauert nur Sekunden.
-if ! timeout 600 docker compose up -d --build robot-core 2>&1 | tail -4; then
+if ! timeout 600 docker compose up -d --build robot-core transfermarkt-api 2>&1 | tail -4; then
     echo "[update] FEHLER: docker build/up fehlgeschlagen oder Timeout nach 600s — Update abgebrochen: $(date)"
     exit 1
 fi

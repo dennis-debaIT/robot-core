@@ -22,7 +22,7 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-_TM_BASE = "https://transfermarkt-api.fly.dev"
+_TM_BASE = "http://transfermarkt-api:8000"
 
 _SEARCH_TTL      = 7 * 86_400   # TM-IDs: 7 Tage
 _PLAYER_DISK_TTL = 30 * 86_400  # Spieler-Einzel-Profil: 30 Tage

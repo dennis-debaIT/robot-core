@@ -89,6 +89,12 @@ services:
     restart: unless-stopped
     profiles: ["printer"]
 
+  transfermarkt-api:
+    build:
+      context: https://github.com/felipeall/transfermarkt-api.git#main
+    container_name: transfermarkt-api
+    restart: unless-stopped
+
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
