@@ -981,9 +981,10 @@
   }
 
   function _renderPvSlot(pvResp, size) {
+    if (pvResp?._error) return _widgetPlaceholder(true, 'PV-Daten gerade nicht abrufbar.');
     const pv = pvResp?.state || null;
     const fields = pvResp?.widget_fields || {};
-    if (!pv) return '<div class="cal-placeholder">PV nicht verf&uuml;gbar</div>';
+    if (!pv) return _widgetPlaceholder(false, 'PV-Anlage nicht konfiguriert.');
     return renderPvWidget(pv, fields);
   }
 
@@ -1358,9 +1359,9 @@
     if (!_enabledModules.pv) return null;
     try {
       const r = await fetch('/ha/pv/state', { cache: 'no-store' });
-      if (!r.ok) return null;
+      if (!r.ok) return _widgetLoadError();
       return await r.json();  // { state, widget_fields }
-    } catch { return null; }
+    } catch { return _widgetLoadError(); }
   }
 
   // ── DRUCKER WIDGET + OVERLAY ──────────────────────────────
