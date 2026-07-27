@@ -1138,8 +1138,16 @@
 
     if (!allLive.length) {
       const _MAX_AHEAD_MS = 14 * 24 * 3_600_000;
+      // Nur das nächste Spiel des Lieblingsvereins zeigen — vorher gewann
+      // hier einfach das chronologisch nächste Spiel über ALLE aktivierten
+      // Ligen, unabhängig davon ob es den Nutzer überhaupt interessiert
+      // (z.B. 3. Liga statt der eigentlichen Liga des Lieblingsvereins, nur
+      // weil es zufällig früher terminiert ist). Kein Fallback auf andere
+      // Ligen mehr: ohne anstehendes Spiel des Lieblingsvereins bleibt das
+      // Overlay bewusst leer, statt ein beliebiges fremdes Spiel zu zeigen.
       const nextMatch = data.leagues
         .flatMap(l => (l.matches || []).filter(m => ['SCHEDULED','TIMED'].includes(m.status)).map(m => ({ ...m, _league: l })))
+        .filter(m => _isFav(m))
         .sort((a, b) => (a.utcDate || '') < (b.utcDate || '') ? -1 : 1)[0];
       if (!nextMatch || (new Date(nextMatch.utcDate) - Date.now()) > _MAX_AHEAD_MS) { overlay.innerHTML = ''; return; }
       const cd = _countdown(nextMatch.utcDate);
