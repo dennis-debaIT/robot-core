@@ -74,8 +74,16 @@
     if (!utcDate) return '';
     const diff = new Date(utcDate) - Date.now();
     if (diff <= 0) return '';
-    const h = Math.floor(diff / 3_600_000);
-    const m = Math.floor((diff % 3_600_000) / 60_000);
+    const totalMin = Math.floor(diff / 60_000);
+    // Ab einem Tag Vorlauf nur noch in Tagen anzeigen (z.B. "in 11 Tagen"
+    // statt "in 285h 32min") — Stunden-/Minuten-Genauigkeit ist bei mehr als
+    // einem Tag Vorlauf keine nützliche Information mehr.
+    if (totalMin >= 1440) {
+      const d = Math.floor(totalMin / 1440);
+      return `in ${d} Tag${d === 1 ? '' : 'en'}`;
+    }
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
     return h > 0 ? `in ${h}h ${m}min` : `in ${m}min`;
   }
 
