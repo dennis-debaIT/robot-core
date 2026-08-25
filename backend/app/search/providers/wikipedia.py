@@ -103,7 +103,9 @@ class WikipediaProvider:
                 "url": wiki_url,
                 "is_stable": True,
             }
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="wikipedia", message=f"Wikipedia-Zusammenfassung fehlgeschlagen ({title}): {type(exc).__name__}: {exc}")
             return None
 
     def _opensearch(self, term: str) -> list[str]:
@@ -114,5 +116,7 @@ class WikipediaProvider:
             with urllib.request.urlopen(req, timeout=4) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             return data[1] if len(data) > 1 else []
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="wikipedia", message=f"Wikipedia-Opensearch fehlgeschlagen ({term}): {type(exc).__name__}: {exc}")
             return []

@@ -63,7 +63,9 @@ def _fetch(url: str) -> Any:
         req = Request(url, headers={"User-Agent": "robot-core/1.0"})
         with urlopen(req, timeout=8) as resp:
             return json.loads(resp.read().decode())
-    except (URLError, OSError, json.JSONDecodeError, Exception):
+    except (URLError, OSError, json.JSONDecodeError, Exception) as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="openligadb", message=f"OpenLigaDB-Abruf fehlgeschlagen ({url}): {type(exc).__name__}: {exc}")
         return None
 
 

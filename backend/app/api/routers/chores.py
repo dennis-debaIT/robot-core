@@ -94,8 +94,9 @@ def delete_chore_completion(completion_id: int) -> dict[str, Any]:
     try:
         from app.services import sync_service as _sync
         _sync.push_chore_completion_deletion(completion_id, sync_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="chores", message=f"Löschung der Hausaufgaben-Erledigung (completion_id={completion_id}) konnte nicht an den Sync Server übertragen werden: {type(exc).__name__}: {exc}")
     return {"ok": True}
 
 

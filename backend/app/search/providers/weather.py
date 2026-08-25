@@ -156,7 +156,9 @@ class WeatherProvider:
             with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode())
             mark_success("weather")
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"Open-Meteo Wetterabfrage fehlgeschlagen ({name}): {type(exc).__name__}: {exc}")
             return None
 
         from datetime import datetime as _dt
@@ -397,7 +399,9 @@ class WeatherProvider:
             # 3. Wikimedia Commons URL aufbauen
             filename_encoded = urllib.parse.quote(filename.replace(" ", "_"))
             url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{filename_encoded}?width=120"
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"Stadtwappen-Abruf von Wikidata fehlgeschlagen ({city}): {type(exc).__name__}: {exc}")
             url = None
         self._coat_cache[key] = url
         return url
@@ -472,7 +476,9 @@ class WeatherProvider:
                 return None
             r = results[0]
             return float(r["latitude"]), float(r["longitude"]), r.get("name", location)
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"Geocoding fehlgeschlagen ({location}): {type(exc).__name__}: {exc}")
             return None
 
     def _fetch_weather_forecast(self, lat: float, lon: float, days: int = 8) -> dict | None:
@@ -486,7 +492,9 @@ class WeatherProvider:
             req = urllib.request.Request(url, headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 return json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"Wetter-Vorhersage-Abruf fehlgeschlagen (lat={lat}, lon={lon}): {type(exc).__name__}: {exc}")
             return None
 
     def _fetch_weather_daily(self, lat: float, lon: float) -> dict | None:
@@ -500,7 +508,9 @@ class WeatherProvider:
             req = urllib.request.Request(url, headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=6) as resp:
                 return json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"Wetter-Tagesabruf fehlgeschlagen (lat={lat}, lon={lon}): {type(exc).__name__}: {exc}")
             return None
 
     def _fetch_weather(self, lat: float, lon: float) -> dict | None:
@@ -523,7 +533,9 @@ class WeatherProvider:
             req = urllib.request.Request(url, headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=6) as resp:
                 return json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"Wetterabruf fehlgeschlagen (lat={lat}, lon={lon}): {type(exc).__name__}: {exc}")
             return None
 
 
@@ -573,7 +585,9 @@ class YrNoWeatherProvider:
             req = urllib.request.Request(url, headers={"User-Agent": self.USER_AGENT})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"MET Norway (Yr.no) Wetterabfrage fehlgeschlagen ({name}): {type(exc).__name__}: {exc}")
             return None
 
         timeseries = (data.get("properties") or {}).get("timeseries") or []
@@ -714,14 +728,18 @@ class OpenWeatherMapProvider:
             req = urllib.request.Request(f"{self.CURRENT_URL}?{params}", headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 cur = json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"OpenWeatherMap Wetterabfrage fehlgeschlagen ({name}): {type(exc).__name__}: {exc}")
             return None
 
         try:
             req2 = urllib.request.Request(f"{self.FORECAST_URL}?{params}", headers={"User-Agent": "robot-core/0.2"})
             with urllib.request.urlopen(req2, timeout=8) as resp:
                 fcast = json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="weather", message=f"OpenWeatherMap Vorhersage-Abruf fehlgeschlagen ({name}): {type(exc).__name__}: {exc}")
             fcast = None
 
         main = cur.get("main") or {}

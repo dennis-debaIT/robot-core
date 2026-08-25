@@ -68,8 +68,9 @@ def build_summary(person_id: int, person_name: str) -> str:
             segment = _build_module(mtype, mod, ha, int_cfg, person_name, now, tz)
             if segment:
                 parts.append(segment)
-        except Exception:
-            pass
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="summary", message=f"Zusammenfassungs-Modul '{mtype}' fehlgeschlagen: {type(exc).__name__}: {exc}")
 
     return " ".join(parts)
 
@@ -176,7 +177,9 @@ def _module_weather(int_cfg: dict) -> str | None:
         if temp is not None:
             return f"Das Wetter: {desc}, {round(temp)} Grad."
         return f"Das Wetter: {desc}." if desc else None
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="summary", message=f"Wetter-Abruf für Zusammenfassung fehlgeschlagen: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -199,7 +202,9 @@ def _module_pv(int_cfg: dict, ha: Any) -> str | None:
             daily_unit = ((daily_state or {}).get("attributes") or {}).get("unit_of_measurement", "kWh")
             text += f" Heute wurden {daily} {daily_unit} erzeugt."
         return text
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="summary", message=f"PV-Abruf für Zusammenfassung fehlgeschlagen: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -318,7 +323,9 @@ def _module_robots(int_cfg: dict, ha: Any) -> str | None:
             label = _translate_robot_state(state, state_mappings)
             parts.append(f"{name} {label}.")
         return " ".join(parts) if parts else None
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="summary", message=f"Roboter-Abruf für Zusammenfassung fehlgeschlagen: {type(exc).__name__}: {exc}")
         return None
 
 

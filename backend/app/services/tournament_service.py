@@ -170,7 +170,9 @@ class TournamentService:
             )
             with urlopen(req, timeout=8) as resp:
                 return json.loads(resp.read().decode())
-        except (URLError, OSError, json.JSONDecodeError, Exception):
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="tournament", message=f"football-data.org nicht erreichbar ({path}): {type(exc).__name__}: {exc}")
             return None
 
     def _enrich_with_details(self, live_matches: list[dict[str, Any]], now: float) -> None:

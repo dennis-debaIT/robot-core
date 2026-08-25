@@ -50,9 +50,13 @@ class WebProvider:
                     all_results.extend(raw)
                     if len(all_results) >= 8:
                         break
-                except Exception:
+                except Exception as exc:
+                    from app.audit.service import AuditService
+                    AuditService().log_warn(source="web", message=f"DuckDuckGo-Suche fehlgeschlagen ({q}): {type(exc).__name__}: {exc}")
                     continue
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="web", message=f"DuckDuckGo-Suche fehlgeschlagen ({query}): {type(exc).__name__}: {exc}")
             return None
 
         if not all_results:

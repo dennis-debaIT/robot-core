@@ -48,8 +48,12 @@ def _sync_request(method: str, path: str, token: str, data: dict | None = None) 
             detail = json.loads(exc.read()).get("detail", str(exc))
         except Exception:
             detail = str(exc)
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync_server", message=f"Sync Server antwortete mit Fehler bei {method} {path}: HTTP {exc.code}: {detail}")
         raise HTTPException(status_code=exc.code, detail=detail)
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync_server", message=f"Sync Server nicht erreichbar bei {method} {path}: {type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=f"Sync Server Fehler: {exc}")
 
 
@@ -63,8 +67,9 @@ def list_members() -> dict[str, Any]:
     try:
         me = _sync_request("GET", "/auth/me", token)
         data["household_id"] = me.get("household_id")
-    except Exception:
-        pass
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync_server", message=f"Haushalt-ID konnte nicht vom Sync Server geladen werden: {type(exc).__name__}: {exc}")
     with get_connection() as conn:
         persons = conn.execute(
             "SELECT id, name, sync_user_id FROM persons WHERE sync_user_id IS NOT NULL"
@@ -170,8 +175,12 @@ def whoami(authorization: str = Header(default="")) -> dict[str, Any]:
         with _ureq.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
             me = json.loads(resp.read())
     except urllib.error.HTTPError as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync_server", message=f"Token-Validierung beim Sync Server fehlgeschlagen: HTTP {exc.code}")
         raise HTTPException(status_code=exc.code, detail="Token ungültig")
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync_server", message=f"Sync Server für /auth/whoami nicht erreichbar: {type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=f"Sync Server nicht erreichbar: {exc}")
     user_id = me.get("user_id", "")
     with get_connection() as conn:

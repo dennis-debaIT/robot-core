@@ -104,7 +104,9 @@ def get_tts_voices() -> list[dict[str, Any]]:
                 "gender": v.get("Gender", ""),
             })
         return sorted(result, key=lambda x: (x["locale"], x["label"]))
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="tts", message=f"Edge-TTS-Stimmenliste konnte nicht abgerufen werden, nutze Fallback-Liste: {type(exc).__name__}: {exc}")
         return _edge_voices_fallback()
 
 

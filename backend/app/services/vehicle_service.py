@@ -389,7 +389,9 @@ class VehicleService:
                 )
             time.sleep(1.1)  # Nominatim rate limit: 1 req/s
             return result
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="vehicle", message=f"Reverse-Geocoding fehlgeschlagen (lat={lat}, lon={lon}): {type(exc).__name__}: {exc}")
             return f"{lat:.4f}, {lon:.4f}"
 
     def location_history_clustered(self, vehicle_id: str, days: int = 14) -> dict[str, Any]:

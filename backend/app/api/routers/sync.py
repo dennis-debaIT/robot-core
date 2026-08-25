@@ -258,4 +258,6 @@ def get_sync_account() -> dict[str, Any]:
             data = json.loads(resp.read())
         return {"connected": True, **data}
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Sync-Server /auth/me nicht erreichbar: {type(exc).__name__}: {exc}")
         return {"connected": False, "error": str(exc)}

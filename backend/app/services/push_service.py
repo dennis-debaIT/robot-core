@@ -71,5 +71,7 @@ def send_notification(title: str, body: str, channel: str = "reminders") -> int:
             except Exception:
                 pass
         return sent
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="push", message=f"Push-Benachrichtigung konnte nicht gesendet werden: {type(exc).__name__}: {exc}")
         return 0

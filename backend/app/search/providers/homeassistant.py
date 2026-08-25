@@ -54,7 +54,9 @@ class HomeAssistantProvider:
                 result = json.loads(resp.read().decode())
             mark_success("ha")
             return result
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="homeassistant", message=f"HA-API GET fehlgeschlagen ({path}): {type(exc).__name__}: {exc}")
             return None
 
     def _post(self, path: str, payload: Any) -> Any | None:
@@ -74,7 +76,9 @@ class HomeAssistantProvider:
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read().decode())
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="homeassistant", message=f"HA-API POST fehlgeschlagen ({path}): {type(exc).__name__}: {exc}")
             return None
 
     # ── Lichtsteuerung ───────────────────────────────────────
@@ -327,7 +331,9 @@ class HomeAssistantProvider:
             )
             with urllib.request.urlopen(req, timeout=8) as resp:
                 return resp.status in (200, 201)
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="homeassistant", message=f"HA-Service-Aufruf fehlgeschlagen ({domain}.{service}): {type(exc).__name__}: {exc}")
             return False
 
     # ── Search-Provider Interface ────────────────────────────

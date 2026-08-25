@@ -52,7 +52,9 @@ async def get_statistics_during_period(
                 return {}
             result = result_msg.get("result")
             return result if isinstance(result, dict) else {}
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="homeassistant", message=f"HA-WebSocket Statistikabfrage fehlgeschlagen ({statistic_ids}): {type(exc).__name__}: {exc}")
         return {}
 
 
@@ -105,5 +107,7 @@ async def get_ring_camera_id_map(ha_url: str, token: str) -> dict[str, str]:
                     result[eid] = value
                     break
         return result
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="homeassistant", message=f"HA-WebSocket Ring-Kamera-Abfrage fehlgeschlagen: {type(exc).__name__}: {exc}")
         return {}

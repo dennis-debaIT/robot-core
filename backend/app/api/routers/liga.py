@@ -240,7 +240,9 @@ def proxy_tm_image(url: str = Query(...)) -> Response:
             media_type=ct,
             headers={"Cache-Control": "public, max-age=2592000"},
         )
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="transfermarkt", message=f"Transfermarkt-Bild konnte nicht geladen werden ({url}): {type(exc).__name__}: {exc}")
         raise HTTPException(502, "Bild konnte nicht geladen werden")
 
 

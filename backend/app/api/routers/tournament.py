@@ -132,10 +132,16 @@ def get_tournament_debug() -> dict[str, Any]:
             body = e.read().decode()
         except Exception:
             pass
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="tournament", message=f"football-data.org antwortete mit Fehler ({url}): HTTP {e.code}: {body}")
         return {"error": f"HTTP {e.code}", "url": url, "body": body}
     except URLError as e:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="tournament", message=f"football-data.org nicht erreichbar ({url}): URLError: {e.reason}")
         return {"error": f"URLError: {e.reason}", "url": url}
     except Exception as e:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="tournament", message=f"football-data.org-Abfrage fehlgeschlagen ({url}): {type(e).__name__}: {e}")
         return {"error": str(e), "url": url}
 
 

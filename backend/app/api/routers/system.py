@@ -145,6 +145,8 @@ def check_for_update() -> dict[str, Any]:
             "error": None,
         }
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="system", message=f"Update-Check (git fetch von GitHub) fehlgeschlagen: {type(exc).__name__}: {exc}")
         result = {
             "update_available": False,
             "current_version": _current_version(),
@@ -571,6 +573,8 @@ def get_llm_models() -> dict[str, Any]:
         _models_cache["fetched_at"] = now
         return {"models": models, "cached": False}
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="llm", message=f"LLM-Modellliste konnte nicht von {base} geladen werden: {type(exc).__name__}: {exc}")
         return {"models": _models_cache.get("models", []), "error": str(exc)}
 
 
@@ -592,6 +596,8 @@ def test_llm_config() -> dict[str, Any]:
         }, timeout_seconds=10)
         return {"ok": True, "reply": result.get("reply", ""), "model": client.model}
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="llm", message=f"LLM-Verbindungstest fehlgeschlagen (Modell {client.model}): {type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
@@ -616,8 +622,10 @@ def refresh_llm_usage() -> dict[str, Any]:
             "personality": {"directness": 1.0, "humor": 0.0},
             "llm_max_tokens": 1,
         }, timeout_seconds=8)
-    except Exception:
-        pass  # Headers wurden trotzdem gespeichert
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="llm", message=f"LLM-Minimal-Request für Rate-Limit-Refresh fehlgeschlagen (Modell {client.model}): {type(exc).__name__}: {exc}")
+        # Headers wurden trotzdem gespeichert (falls die Antwort teilweise ankam)
     with get_connection() as conn:
         data = read_state(conn, "llm_rate_limit", {}) or {}
     return data
@@ -708,6 +716,8 @@ def debug_light_schedule() -> dict[str, Any]:
             for l in HomeAssistantProvider().get_lights()
         ]
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="homeassistant", message=f"Licht-Liste von Home Assistant konnte nicht geladen werden (Debug-Ansicht): {type(exc).__name__}: {exc}")
         lights = [{"error": str(exc)}]
     return {
         "server_time_utc": now_iso,
@@ -734,6 +744,8 @@ def get_ha_zone_home() -> dict:
         name = attrs.get("friendly_name") or state.get("state") or "Zuhause"
         return {"ok": True, "latitude": float(lat), "longitude": float(lon), "name": str(name)}
     except Exception as e:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="homeassistant", message=f"zone.home konnte nicht von Home Assistant geladen werden: {type(e).__name__}: {e}")
         return {"ok": False, "error": str(e)}
 
 

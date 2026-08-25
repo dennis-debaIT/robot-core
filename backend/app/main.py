@@ -51,12 +51,14 @@ from app.services.vehicle_service import VehicleService
 
 
 async def _robot_error_history_loop(interval_seconds: int = 15) -> None:
+    from app.audit.service import AuditService
+    _audit = AuditService()
     service = RobotService()
     while True:
         try:
             service.list_robots()
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="robot_error_history_loop", message=f"Roboter-Fehlerhistorie konnte nicht aktualisiert werden: {type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 
@@ -266,6 +268,8 @@ async def _memory_maintenance_loop() -> None:
 
 
 async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
+    from app.audit.service import AuditService
+    _audit = AuditService()
     config_service = IntegrationConfigService()
     vehicle_service = VehicleService()
     while True:
@@ -274,8 +278,8 @@ async def _vehicle_location_history_loop(interval_seconds: int = 30) -> None:
             vehicle_service.record_locations(config)
             vehicle_service.record_charging(config)
             interval_seconds = int((config.get("vehicles") or {}).get("poll_seconds", interval_seconds))
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="vehicle_location_history_loop", message=f"Fahrzeug-Standort/Ladehistorie konnte nicht aktualisiert werden: {type(exc).__name__}: {exc}")
         await asyncio.sleep(max(10, min(interval_seconds, 300)))
 
 
@@ -284,6 +288,8 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
     Läuft still wenn keine Sync-Credentials verfügbar sind."""
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
+    from app.audit.service import AuditService
+    _audit = AuditService()
     await asyncio.sleep(30)
     while True:
         try:
@@ -324,8 +330,8 @@ async def _sync_loop(interval_seconds: int = 60) -> None:
 
                 if modules.get("lights", False):
                     _sync.push_light_scenes()
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="sync_loop", message=f"Sync mit Sync Server fehlgeschlagen: {type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 
@@ -337,6 +343,8 @@ async def _shopping_fast_sync_loop(interval_seconds: int = 3) -> None:
     push_unsynced() hier ist nur ein Sicherheitsnetz für fehlgeschlagene Pushes."""
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
+    from app.audit.service import AuditService
+    _audit = AuditService()
     await asyncio.sleep(20)
     while True:
         try:
@@ -348,8 +356,8 @@ async def _shopping_fast_sync_loop(interval_seconds: int = 3) -> None:
                     _sync.push_unsynced()
                     since = _sync.get_last_sync_time()
                     _sync.pull_and_merge(since)
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="shopping_fast_sync_loop", message=f"Einkaufslisten-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 
@@ -357,6 +365,8 @@ async def _pv_fast_sync_loop(interval_seconds: int = 5) -> None:
     """Pusht PV-Echtzeitdaten alle 5 Sekunden — unabhängig vom 60s-Sync-Loop."""
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
+    from app.audit.service import AuditService
+    _audit = AuditService()
     await asyncio.sleep(35)
     while True:
         try:
@@ -366,8 +376,8 @@ async def _pv_fast_sync_loop(interval_seconds: int = 5) -> None:
                 modules = (cfg.get("sync") or {}).get("modules", {})
                 if modules.get("pv", False):
                     _sync.push_pv()
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="pv_fast_sync_loop", message=f"PV-Schnell-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 
@@ -375,6 +385,8 @@ async def _light_command_poll_loop(interval_seconds: int = 1) -> None:
     """Pollt Licht-Befehle jede Sekunde für schnelle Reaktion auf App-Befehle."""
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
+    from app.audit.service import AuditService
+    _audit = AuditService()
     await asyncio.sleep(38)
     while True:
         try:
@@ -387,8 +399,8 @@ async def _light_command_poll_loop(interval_seconds: int = 1) -> None:
                         # Sofort nach Befehlsausführung Status pushen — nicht auf HA-WS warten
                         await asyncio.sleep(0.3)
                         _sync.push_lights()
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="light_command_poll_loop", message=f"Licht-Befehl-Polling fehlgeschlagen: {type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)
 
 
@@ -398,6 +410,8 @@ async def _ha_lights_ws_loop() -> None:
     import json as _json
     from app.services import sync_service as _sync
     from app.services.integration_config_service import IntegrationConfigService as _ICS
+    from app.audit.service import AuditService
+    _audit = AuditService()
 
     await asyncio.sleep(40)
 
@@ -450,10 +464,10 @@ async def _ha_lights_ws_loop() -> None:
                         if not (entity_id.startswith("light.") or entity_id.startswith("switch.")):
                             continue
                         await asyncio.to_thread(_sync.push_lights)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as exc:
+                        _audit.log_warn(source="ha_lights_ws_loop", message=f"Licht-Event konnte nicht an Sync Server gepusht werden: {type(exc).__name__}: {exc}")
+        except Exception as exc:
+            _audit.log_warn(source="ha_lights_ws_loop", message=f"HA-Lichter-WebSocket-Verbindung fehlgeschlagen: {type(exc).__name__}: {exc}")
         await asyncio.sleep(10)  # Reconnect-Pause bei Verbindungsabbruch
 
 
@@ -461,13 +475,15 @@ async def _license_renewal_loop(interval_hours: int = 24) -> None:
     """Erneuert eine installierte Abo-Lizenz täglich beim Lizenzserver.
     Lifetime-Lizenzen und fehlende Lizenzen werden übersprungen (still)."""
     from app.api.routers.license import renew_license
+    from app.audit.service import AuditService
+    _audit = AuditService()
 
     await asyncio.sleep(120)  # Startup-Verzögerung (Netzwerk/HA erst hochfahren)
     while True:
         try:
             renew_license()
-        except Exception:
-            pass
+        except Exception as exc:
+            _audit.log_warn(source="license_renewal_loop", message=f"Lizenz-Erneuerung fehlgeschlagen: {type(exc).__name__}: {exc}")
         await asyncio.sleep(max(3600, interval_hours * 3600))
 
 
@@ -483,8 +499,9 @@ def _run_liga_cache_warm() -> None:
         if not codes:
             return
         LigaService(cfg["api_key"]).warm_all_league_caches(codes, cfg.get("favorite_team_name", ""))
-    except Exception:
-        pass
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="liga_cache_daemon", message=f"Liga-Cache-Warmup fehlgeschlagen: {type(exc).__name__}: {exc}")
 
 
 async def _liga_cache_daemon(interval_hours: int = 12) -> None:

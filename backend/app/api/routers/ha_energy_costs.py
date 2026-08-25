@@ -81,7 +81,9 @@ def _watts_scale(ha: "HomeAssistantProvider", entity_id: str) -> float:
         state = ha.get_state(entity_id)
         unit = ((state or {}).get("attributes") or {}).get("unit_of_measurement", "")
         return 1000.0 if str(unit).strip().lower() == "kw" else 1.0
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="energy_costs", message=f"Einheit des Energiesensors {entity_id} konnte nicht von Home Assistant ermittelt werden, nutze Watt als Fallback: {type(exc).__name__}: {exc}")
         return 1.0
 
 

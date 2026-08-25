@@ -763,8 +763,8 @@ class RobotCore:
                     if events:
                         ev = events[0]
                         context_lines.append(f"Nächster Termin: {ev.get('summary', '')} um {ev.get('start', '')}")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.audit.log_warn(source="ha", message=f"Kalenderkontext für Begrüßung nicht ladbar: {type(exc).__name__}: {exc}")
 
             if ctx_pv:
                 try:
@@ -782,8 +782,8 @@ class RobotCore:
                                 val = st["state"]
                                 unit = (st.get("attributes") or {}).get("unit_of_measurement", "kWh")
                                 context_lines.append(f"PV-Tagesertrag bisher: {val} {unit}")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    self.audit.log_warn(source="ha", message=f"PV-Kontext für Begrüßung nicht ladbar: {type(exc).__name__}: {exc}")
 
             if topics:
                 context_lines.append(f"Aktive Gesprächsthemen: {', '.join(topics[:2])}")
@@ -827,7 +827,8 @@ class RobotCore:
             )
             text = (result.get("reply") or "").strip()
             return text if text else None
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="llm", message=f"LLM-Begrüßung fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     def list_conversation_messages(self, person_name: str | None = None, limit: int = 40) -> list[dict[str, Any]]:
@@ -1180,8 +1181,8 @@ class RobotCore:
                     search_result = self.search.search(forced)
                     if search_result:
                         search_context = self.search.format_prompt_block(search_result)
-            except Exception:
-                pass
+            except Exception as exc:
+                self.audit.log_warn(source="search", message=f"Bestätigungs-Suchanfrage fehlgeschlagen: {type(exc).__name__}: {exc}")
 
         payload = self.preview_chat_prompt(captured, person_name, search_context=search_context)
         self._log_event("speech_input", {"text": captured, "person_name": person_name})
@@ -1953,7 +1954,8 @@ class RobotCore:
                     meta={k: v for k, v in raw.items() if k not in ("snippet", "title", "url", "is_stable")},
                 )
                 return sr.snippet, sr
-            except Exception:
+            except Exception as exc:
+                self.audit.log_warn(source="search", message=f"Template-Suchanbieter {Provider.__name__} fehlgeschlagen: {type(exc).__name__}: {exc}")
                 continue
         return None, None
 
@@ -2041,7 +2043,8 @@ class RobotCore:
             if not parts:
                 return None
             return ". ".join(parts) + "."
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"Roboter-Statusabfrage fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     def _try_robot_command(self, query: str) -> str | None:
@@ -2148,7 +2151,8 @@ class RobotCore:
             room_names = [r["name"] for r in rooms if r["id"] in selected]
             room_str = " und ".join(room_names)
             return f"{robot['name']} fährt jetzt zum {mode_label} in: {room_str}."
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"Roboter-Befehl fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     _TIMER_PATTERN = re.compile(
@@ -2275,7 +2279,8 @@ class RobotCore:
             # Bestätigung formatieren
             weekday = weekday_de[start_dt.weekday()]
             return f"Termin '{title}' wurde für {weekday}, {start_dt.strftime('%d.%m.%Y')} um {start_dt.strftime('%H:%M')} Uhr eingetragen."
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"Kalendereintrag konnte nicht angelegt werden: {type(exc).__name__}: {exc}")
             return None
 
     def _try_scene_command(self, captured: str) -> str | None:
@@ -2331,7 +2336,8 @@ class RobotCore:
                         cmd["rgb_color"] = light["rgb_color"]
                     svc.control_light(cmd)
             return f"Szene '{best_name}' aktiviert."
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"Lichtszene fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     _VEHICLE_QUERY_PATTERN = re.compile(
@@ -2388,7 +2394,8 @@ class RobotCore:
                 target = vehicles[0]
 
             return self._format_vehicle_reply(target)
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"Fahrzeugabfrage fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     _PV_QUERY_PATTERN = re.compile(
@@ -2428,7 +2435,8 @@ class RobotCore:
             if not parts:
                 return "Ich habe gerade keine aktuellen PV-Daten verfügbar."
             return " ".join(parts)
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"PV-Abfrage fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     @staticmethod
@@ -2550,7 +2558,8 @@ class RobotCore:
             if not any(q == phrase or q.startswith(phrase) for phrase in phrases):
                 return None
             return build_summary(person["id"], person_name)
-        except Exception:
+        except Exception as exc:
+            self.audit.log_warn(source="ha", message=f"Tageszusammenfassung fehlgeschlagen: {type(exc).__name__}: {exc}")
             return None
 
     _CONVERSATION_SUMMARY_PATTERN = re.compile(

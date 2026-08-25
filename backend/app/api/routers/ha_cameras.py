@@ -68,8 +68,9 @@ async def detect_ring_cameras() -> dict[str, Any]:
             name for name in streams
             if re.match(r"^[a-f0-9]{10,16}(_live)?$", name, re.IGNORECASE)
         ]
-    except Exception:
-        pass
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="ha_cameras", message=f"go2rtc-Streamliste ({ha_host}:1984) nicht abrufbar: {type(exc).__name__}: {exc}")
 
     states = ha._get("/states") or []
     cameras: list[dict[str, Any]] = []
@@ -111,6 +112,8 @@ def get_camera_snapshot(entity_id: str) -> Response:
             ctype = resp.headers.get("Content-Type", "image/jpeg")
         return Response(content=data, media_type=ctype, headers={"Cache-Control": "no-store"})
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="ha_cameras", message=f"Kamera-Snapshot ({entity_id}) nicht erreichbar: {type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=f"Snapshot nicht erreichbar: {exc}") from exc
 
 
@@ -137,6 +140,8 @@ def get_camera_mjpeg(entity_id: str) -> StreamingResponse:
 
         return StreamingResponse(_stream(), media_type=ctype, headers={"Cache-Control": "no-store"})
     except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="ha_cameras", message=f"Kamera-MJPEG-Stream ({entity_id}) nicht erreichbar: {type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=f"Stream nicht erreichbar: {exc}") from exc
 
 

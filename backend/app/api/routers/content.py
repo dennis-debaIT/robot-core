@@ -29,7 +29,9 @@ def _fetch_feed(feed: dict[str, Any]) -> list[dict[str, str]]:
         req = _req.Request(feed["url"], headers={"User-Agent": "Mozilla/5.0"})
         with _req.urlopen(req, timeout=10) as resp:
             root = ET.fromstring(resp.read())
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="news", message=f"News-Feed '{feed.get('id', '?')}' konnte nicht geladen werden ({feed.get('url', '')}): {type(exc).__name__}: {exc}")
         return []
 
     _CONTENT_NS = {"content": "http://purl.org/rss/1.0/modules/content/"}
@@ -193,6 +195,8 @@ def get_news_article(url: str) -> dict[str, Any]:
             with _req.urlopen(req, timeout=12) as resp:
                 downloaded = resp.read().decode("utf-8", errors="replace")
         except Exception as fetch_exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="news", message=f"News-Artikel konnte nicht geladen werden ({url}): {type(fetch_exc).__name__}: {fetch_exc}")
             raise HTTPException(status_code=502, detail=f"Seite konnte nicht geladen werden: {fetch_exc}") from fetch_exc
         if not downloaded:
             raise HTTPException(status_code=502, detail="Seite konnte nicht geladen werden")

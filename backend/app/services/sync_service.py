@@ -83,7 +83,9 @@ def _do_login(url: str, email: str, password: str) -> tuple[str, str] | None:
         with _req.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
             data = json.loads(resp.read())
         return data["access_token"], data.get("refresh_token", "")
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Login am Sync Server fehlgeschlagen ({url}): {type(exc).__name__}: {exc}")
         return None
 
 
@@ -96,7 +98,9 @@ def _do_refresh(url: str, refresh_token: str) -> tuple[str, str] | None:
         with _req.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
             data = json.loads(resp.read())
         return data["access_token"], data.get("refresh_token", "")
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Token-Refresh am Sync Server fehlgeschlagen ({url}): {type(exc).__name__}: {exc}")
         return None
 
 
@@ -109,7 +113,9 @@ def _do_issue_device_token(url: str, access_token: str) -> str | None:
         with _req.urlopen(req, timeout=10, context=_SSL_CTX) as resp:
             data = json.loads(resp.read())
         return str(data.get("device_token") or "") or None
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Geräte-Token-Anfrage am Sync Server fehlgeschlagen ({url}): {type(exc).__name__}: {exc}")
         return None
 
 
@@ -283,7 +289,9 @@ def _sync_request(method: str, path: str, body: dict | None = None) -> dict | No
     try:
         with _req.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
             return json.loads(resp.read())
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Sync-Request {method} {path} fehlgeschlagen: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -302,7 +310,9 @@ def _sync_request_bytes(
     try:
         with _req.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
             return resp.read(), resp.headers.get("Content-Type", "image/jpeg")
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Sync-Request (binär) {method} {path} fehlgeschlagen: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -890,7 +900,9 @@ def push_waste() -> bool:
         result_events.sort(key=lambda e: e["date"])
         _sync_request("POST", "/waste", {"events": result_events})
         return True
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Abfallkalender-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -950,7 +962,9 @@ def push_news() -> bool:
                 (_news_push_key, _json.dumps({"t": str(_time.time())})),
             )
         return True
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"News-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -1056,7 +1070,9 @@ def push_pv() -> bool:
         }
         _sync_request("POST", "/pv", {"data": data})
         return True
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"PV-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -1078,7 +1094,9 @@ def push_lights() -> bool:
         top_level = [l for l in lights if l.get("entity_id") not in member_ids]
         _sync_request("POST", "/lights", {"lights": top_level})
         return True
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Lichter-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -1097,7 +1115,9 @@ def push_light_scenes() -> bool:
         scenes = [{"id": r["id"], "name": r["name"]} for r in rows]
         _sync_request("POST", "/lights/scenes", {"scenes": scenes})
         return True
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Lichtszenen-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         return False
 
 
@@ -1144,8 +1164,9 @@ def poll_light_commands() -> int:
                                     elif light.get("color_temp_kelvin"):
                                         payload["color_temp_kelvin"] = light["color_temp_kelvin"]
                                     svc.control_light(payload)
-            except Exception:
-                pass
+            except Exception as exc:
+                from app.audit.service import AuditService
+                AuditService().log_warn(source="sync", message=f"Lichtbefehl {cmd.get('id')} ({cmd.get('type')}) fehlgeschlagen: {type(exc).__name__}: {exc}")
             done_ids.append(cmd["id"])
         if done_ids:
             _sync_request("POST", "/lights/commands/done", {"ids": done_ids})
@@ -1194,5 +1215,7 @@ def push_calendar() -> bool:
 
         _sync_request("POST", "/calendar", {"events": events})
         return True
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Kalender-Sync fehlgeschlagen: {type(exc).__name__}: {exc}")
         return False
