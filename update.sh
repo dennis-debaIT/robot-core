@@ -40,6 +40,21 @@ else
         exit 1
     fi
 fi
+# Sicherung gegen Datenverlust: uncommitted Änderungen (z.B. ein per SFTP/SCP
+# direkt aufgespielter Hotfix, der nie committed wurde) würden von "reset --hard"
+# stillschweigend und unwiederbringlich zerstört. Stattdessen: wegsichern statt
+# wegwerfen — der Stash bleibt erhalten und ist über "git stash list" abrufbar.
+if [ -n "$(git -c safe.directory=. status --porcelain 2>/dev/null)" ]; then
+    _stash_msg="auto-update-safety-$(date +%Y%m%d_%H%M%S)"
+    echo "[update] WARNUNG: uncommitted Änderungen im Arbeitsverzeichnis gefunden — werden vor dem Update gesichert (nicht verworfen):"
+    git -c safe.directory=. status --porcelain 2>&1
+    if git -c safe.directory=. stash push -u -m "$_stash_msg" 2>&1; then
+        echo "[update] WARNUNG: Änderungen gesichert als Stash '$_stash_msg' — mit 'git stash list' / 'git stash show -p' abrufbar, bevor sie verloren gehen."
+    else
+        echo "[update] FEHLER: Stash fehlgeschlagen — Update abgebrochen, um die uncommitted Änderungen nicht zu gefährden: $(date)"
+        exit 1
+    fi
+fi
 git -c safe.directory=. reset --hard origin/main 2>&1
 
 # .git-Verzeichnis dem aktuellen User gehören lassen (verhindert Permission-Fehler bei gemischten sudo/User-Runs)
