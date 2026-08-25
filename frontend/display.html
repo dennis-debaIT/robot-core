@@ -1824,14 +1824,19 @@
   }
 
   async function _fetchMonthData(year, month) {
-    const r = await fetch(`/calendar/month?year=${year}&month=${month}`, { cache: 'no-store' });
-    if (!r.ok) return {};
-    return r.json();
+    try {
+      const r = await fetch(`/calendar/month?year=${year}&month=${month}`, { cache: 'no-store' });
+      return r.ok ? await r.json() : _widgetLoadError();
+    } catch { return _widgetLoadError(); }
   }
 
   async function _renderMonthCal(overlay) {
     overlay.innerHTML = `<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px;">Lade…</div>`;
     _calData = await _fetchMonthData(_calMonth.year, _calMonth.month);
+    if (_calData?._error) {
+      overlay.innerHTML = `<div style="padding:40px;">${_widgetPlaceholder(true, 'Kalender gerade nicht abrufbar.')}</div>`;
+      return;
+    }
     const { year, month, events = {}, legend = [] } = _calData;
     const today = new Date();
     const firstDay = new Date(year, month - 1, 1);
@@ -2170,8 +2175,8 @@
   async function loadNews() {
     try {
       const r = await fetch('/news');
-      return r.ok ? await r.json() : null;
-    } catch { return null; }
+      return r.ok ? await r.json() : _widgetLoadError();
+    } catch { return _widgetLoadError(); }
   }
 
   let _newsFilter = 'all';
@@ -2234,6 +2239,7 @@
   }
 
   function _renderNewsList(data) {
+    if (data?._error) return _widgetPlaceholder(true, 'News gerade nicht abrufbar.');
     _newsClickItems = [];
     const highlightKw = (data.keywords?.highlight || []).map(k => k.toLowerCase());
     const hideKw      = (data.keywords?.hide      || []).map(k => k.toLowerCase());
