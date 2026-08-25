@@ -32,6 +32,7 @@
   let _kaderBackAction = 'matchday'; // 'matchday' | 'team' | 'tournament' | 'kader-back' — wohin zurück aus Kader
   let _kaderStack      = [];         // Stapel vorheriger Kader-Zustände für Club-Navigation
   let _kaderSearch     = '';         // aktueller Suchbegriff in der Kaderliste
+  let _kaderLoadFailed = false;      // letzter Kader-Ladeversuch ist am Netzwerk gescheitert (nicht nur leer)
 
   // Fingerprints der zuletzt gerenderten Eingabedaten je Panel — bei jedem
   // 10s-Poll unverändert → kein innerHTML-Rebuild (verhindert Aufflackern von
@@ -233,7 +234,7 @@
     if (!el) return;
     if (!_tmProfile) {
       el.innerHTML = _tmLoadFailed
-        ? '<div style="font-size:0.72rem;color:var(--muted);padding:4px 0;">⚠ Vereinsdaten momentan nicht verfügbar — externer Dienst nicht erreichbar.</div>'
+        ? _widgetPlaceholder(true, 'Vereinsdaten momentan nicht verfügbar.')
         : '';
       return;
     }
@@ -332,7 +333,9 @@
         <div class="liga-kader-hdr">
           <span>Pos</span><span>#</span><span>Name</span><span>Alt</span><span>Nation</span><span>bis</span><span>${_hasPlus ? 'Marktwert' : ''}</span>
         </div>
-        <div class="liga-kader-grid">${rows || '<div class="cal-placeholder" style="padding:20px 0;">Kein Spieler gefunden.</div>'}</div>` : `<div class="cal-placeholder" style="padding:24px 0;display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div class="liga-kader-grid">${rows || '<div class="cal-placeholder" style="padding:20px 0;">Kein Spieler gefunden.</div>'}</div>` : _kaderLoadFailed
+          ? `<div style="padding:24px 0;">${_widgetPlaceholder(true, 'Kader gerade nicht abrufbar.')}</div>`
+          : `<div class="cal-placeholder" style="padding:24px 0;display:flex;flex-direction:column;align-items:center;gap:8px;">
           <div>Keine Spieler gefunden.</div>
           <div style="font-size:0.68rem;opacity:0.6;max-width:240px;text-align:center;">Veralteter TM-Cache kann dazu führen. Bitte den Liga-Cache leeren und dann erneut versuchen:</div>
           <button onclick="window._liga._clearLigaCache()" style="padding:5px 14px;background:rgba(255,255,255,0.12);color:inherit;border:1px solid rgba(255,255,255,0.25);border-radius:6px;font-size:0.72rem;cursor:pointer;">🗑 Liga-Cache leeren</button>
@@ -438,10 +441,12 @@
     const params = new URLSearchParams({ team_name: teamName });
     if (resolvedTeamId) params.set('team_id', String(resolvedTeamId));
     let fullData = null;
+    _kaderLoadFailed = false;
     try {
       const r = await fetch(`/liga/kader-full?${params}`, { cache: 'no-store' });
       if (r.ok) fullData = await r.json();
-    } catch {}
+      else _kaderLoadFailed = true;
+    } catch { _kaderLoadFailed = true; }
 
     if (!_kaderOpen) return;
 
@@ -855,7 +860,7 @@
 
     // ── 1. Letzte Spiele + Nächstes Spiel ─────────────────────────────────────
     fetch(`/liga/team-detail?team_id=${teamId}`, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
       .then(focus => {
         if (!focus) { _setSect('td-focus-sect', ''); return; }
         const last5Html = (focus.last5 || []).map(r => {
@@ -878,11 +883,15 @@
         _tdHtmlCache[`${teamId}:focus`] = { html: focusHtml, ts: Date.now() };
         _setSect('td-focus-sect', focusHtml);
       })
-      .catch(() => _setSect('td-focus-sect', ''));
+      .catch(() => {
+        // Bei Fehler: gecachten Stand behalten (stale-while-revalidate) — nur
+        // wenn es noch keinen gibt, explizit auf den Fehlschlag hinweisen.
+        if (!_tdHtmlCache[`${teamId}:focus`]) _setSect('td-focus-sect', _widgetPlaceholder(true, 'Spieldaten gerade nicht abrufbar.'));
+      });
 
     // ── 2. TM-Vereinsprofil ────────────────────────────────────────────────────
     fetch(`/liga/tm/profile?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store' })
-      .then(r => r.ok ? r.json() : null)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
       .then(tmProfile => {
         if (!tmProfile) { _setSect('td-tm-sect', ''); return; }
         const mv   = _fmtMv(tmProfile.currentMarketValue);
@@ -900,13 +909,15 @@
         _tdHtmlCache[`${teamId}:profile`] = { html: profileHtml, ts: Date.now() };
         _setSect('td-tm-sect', profileHtml);
       })
-      .catch(() => _setSect('td-tm-sect', ''));
+      .catch(() => {
+        if (!_tdHtmlCache[`${teamId}:profile`]) _setSect('td-tm-sect', _widgetPlaceholder(true, 'Vereinsprofil gerade nicht abrufbar.'));
+      });
 
     // ── 3. Zugänge ────────────────────────────────────────────────
     const _transfersCtrl = new AbortController();
     const _transfersTid  = setTimeout(() => _transfersCtrl.abort(), 45_000);
     fetch(`/liga/tm/club-transfers?team_name=${encodeURIComponent(teamName)}`, { cache: 'no-store', signal: _transfersCtrl.signal })
-      .then(r => { clearTimeout(_transfersTid); return r.ok ? r.json() : null; })
+      .then(r => { clearTimeout(_transfersTid); return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
       .then(tmTransfers => {
         const season = (tmTransfers || {}).season || '';
         const _fmtFee = (fee, feeText) => {
@@ -957,7 +968,7 @@
       .catch(() => {
         clearTimeout(_transfersTid);
         // Bei Fehler: gecachten Stand behalten — nicht löschen
-        if (!_tdHtmlCache[`${teamId}:transfers`]) _setSect('td-transfers-sect', '');
+        if (!_tdHtmlCache[`${teamId}:transfers`]) _setSect('td-transfers-sect', _widgetPlaceholder(true, 'Transferdaten gerade nicht abrufbar.'));
       });
   }
 
@@ -1332,6 +1343,8 @@
         </div>`;
       }
       html += '</div>';
+    } else if (standings?._error) {
+      html = _widgetPlaceholder(true, 'Tabelle gerade nicht abrufbar.');
     } else {
       html = '<div style="color:var(--muted);font-size:0.8rem;padding:12px 0;">Tabelle wird geladen…</div>';
     }
@@ -1341,20 +1354,33 @@
   // ── Standings nachladen ────────────────────────────────────────
 
   async function _fetchStandings(code) {
-    if (_standingsCache[code]) return;
+    // Fehler-Sentinel zählt bewusst nicht als "schon geladen" — beim nächsten
+    // Poll-Zyklus wird ein zuvor fehlgeschlagener Abruf automatisch neu versucht.
+    if (_standingsCache[code] && !_standingsCache[code]._error) return;
     try {
       const r = await fetch(`/liga/standings?code=${encodeURIComponent(code)}`, { cache: 'no-store' });
-      if (r.ok) _standingsCache[code] = await r.json();
-    } catch {}
+      _standingsCache[code] = r.ok ? await r.json() : _widgetLoadError();
+    } catch { _standingsCache[code] = _widgetLoadError(); }
   }
 
   // ── Polling ────────────────────────────────────────────────────
 
+  let _pollError = false;
+
+  function _renderCenterError() {
+    const overlay = document.getElementById('cal-overlay');
+    if (!overlay) return;
+    overlay.innerHTML = _widgetPlaceholder(true, 'Liga-Daten gerade nicht abrufbar.');
+    overlay.classList.add('active');
+    _lastCenterFp = null; // erzwingt vollen Re-Render sobald wieder Daten ankommen
+  }
+
   async function _poll() {
     try {
       const r = await fetch('/liga/state', { cache: 'no-store' });
-      if (!r.ok) return;
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       _ligaData = await r.json();
+      _pollError = false;
       if (!_ligaData.enabled) { _clearOverlay(); return; }
 
       if (!_selectedCode && _ligaData.leagues?.length) {
@@ -1371,7 +1397,15 @@
         }
         _renderRight();
       }
-    } catch {}
+    } catch {
+      // Nur beim Übergang in den Fehlerzustand rendern — nicht bei jedem
+      // 10s-Poll neu, sonst flackert die Anzeige während eines Ausfalls.
+      const wasAlreadyFailing = _pollError;
+      _pollError = true;
+      if (!wasAlreadyFailing && _fullViewOpen && !_kaderOpen && !_teamViewOpen) {
+        _renderCenterError();
+      }
+    }
   }
 
   function _clearOverlay() {
