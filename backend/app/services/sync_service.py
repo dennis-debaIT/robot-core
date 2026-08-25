@@ -596,6 +596,36 @@ def _set_state_ts(key: str, ts: str) -> None:
         )
 
 
+def _push_dismissal(sync_id: str, local_id: int) -> None:
+    """Wie _sync_request PATCH, unterscheidet aber 404 (Erinnerung existiert
+    serverseitig nicht mehr) von anderen Fehlern: bei 404 wird die lokale
+    Verknüpfung gelöst, damit push_reminders() sie nicht jede Minute erneut
+    (erfolglos) an denselben inzwischen gelöschten Server-Datensatz schickt."""
+    url_base, token = get_credentials()
+    if not url_base or not token:
+        return
+    req = _req.Request(
+        f"{url_base}/reminders/{sync_id}",
+        data=json.dumps({"dismissed": True}).encode(),
+        method="PATCH",
+    )
+    req.add_header("Authorization", f"Bearer {token}")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with _req.urlopen(req, timeout=8, context=_SSL_CTX) as resp:
+            resp.read()
+    except _req.HTTPError as exc:
+        if exc.code == 404:
+            with get_connection() as conn:
+                conn.execute("UPDATE reminders SET sync_server_id=NULL WHERE id=?", (local_id,))
+        else:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="sync", message=f"Sync-Request PATCH /reminders/{sync_id} fehlgeschlagen: HTTPError: {exc}")
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="sync", message=f"Sync-Request PATCH /reminders/{sync_id} fehlgeschlagen: {type(exc).__name__}: {exc}")
+
+
 def push_reminders() -> int:
     since = _get_reminders_last_sync()
     with get_connection() as conn:
@@ -635,7 +665,7 @@ def push_reminders() -> int:
             count += 1
     # Push dismissals for reminders that were already synced before last push
     for r in dismissed_rows:
-        _sync_request("PATCH", f"/reminders/{r['sync_server_id']}", {"dismissed": True})
+        _push_dismissal(r["sync_server_id"], r["id"])
     if count > 0:
         _set_reminders_last_sync(now)
     return count

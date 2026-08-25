@@ -169,7 +169,7 @@ def _module_weather(int_cfg: dict) -> str | None:
     try:
         from app.search.providers.weather import WeatherProvider
         wp = WeatherProvider()
-        data = wp.get_current()
+        data = wp.get_display_data()
         if not data:
             return None
         temp = data.get("temperature")
