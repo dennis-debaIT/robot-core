@@ -404,7 +404,9 @@ class FootballProvider:
             with urllib.request.urlopen(req, timeout=8) as resp:
                 matches = json.loads(resp.read().decode())
             mark_success("football")
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="football", message=f"openligadb.de nicht erreichbar (getmatchdata): {type(exc).__name__}: {exc}")
             return None
 
         if not isinstance(matches, list):
@@ -498,5 +500,7 @@ class FootballProvider:
             if result is not None:
                 mark_success("football")
             return result
-        except Exception:
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="football", message=f"openligadb.de nicht erreichbar (getbltable): {type(exc).__name__}: {exc}")
             return None

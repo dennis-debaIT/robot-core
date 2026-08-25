@@ -72,7 +72,9 @@ def _tmde_get(url: str, timeout: int = 30) -> str | None:
             if "gzip" in enc:
                 raw = gzip.decompress(raw)
             return raw.decode("utf-8", errors="replace")
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="transfermarkt", message=f"transfermarkt.de nicht erreichbar: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -236,7 +238,9 @@ def _get(path: str) -> dict | None:
         )
         with urllib.request.urlopen(req, timeout=14) as resp:
             return json.loads(resp.read().decode())
-    except Exception:
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="transfermarkt", message=f"transfermarkt-api nicht erreichbar ({path}): {type(exc).__name__}: {exc}")
         return None
 
 
