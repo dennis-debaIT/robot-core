@@ -132,8 +132,15 @@ class ExternalLLMClient:
                 "max_tokens": max_tokens,
             }
             if is_local:
-                # Qwen3 Thinking-Modus deaktivieren — nur für lokale Modelle
+                # Qwen3 Thinking-Modus deaktivieren — lokale Server (LM Studio/vLLM)
+                # verstehen dieses Feld.
                 body["enable_thinking"] = False
+            else:
+                # Externe OpenAI-kompatible Provider (z.B. Groq) kennen enable_thinking
+                # nicht — dort läuft die Denkkette sonst ungefiltert in "content" statt
+                # in einem separaten Feld zu landen. reasoning_format=hidden ist Groqs
+                # dokumentierter Weg, nur die finale Antwort zu bekommen.
+                body["reasoning_format"] = "hidden"
             if stream:
                 body["stream"] = True
             return body
