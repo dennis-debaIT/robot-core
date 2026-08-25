@@ -17,6 +17,7 @@
     period: 'week',
     overallWinnerEnabled: true,
     showingOverall: false,
+    hallOfFameCache: null,
   };
 
   // Wird true zwischen open()/close() — verhindert, dass eine spät auflösende
@@ -371,6 +372,7 @@
 
     const data = await _fetchHallOfFame();
     if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
+    state.hallOfFameCache = data;
     if (!data || !data.hall_of_fame.length) {
       overlay.innerHTML = '<div class="cal-placeholder">Noch keine abgeschlossenen Wochen — die Hall of Fame füllt sich ab nächster Woche.</div>';
       return;
@@ -397,10 +399,16 @@
   async function showHallOfFamePerson(personId) {
     const overlay = document.getElementById('cal-overlay');
     if (!overlay) return;
-    overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
 
-    const data = await _fetchHallOfFame();
-    if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
+    // Rangliste wurde gerade erst geladen (showHallOfFame()) — dieselben Daten
+    // wiederverwenden statt die teure Aggregation ein zweites Mal anzustoßen.
+    let data = state.hallOfFameCache;
+    if (!data) {
+      overlay.innerHTML = '<div class="cal-placeholder">Lade…</div>';
+      data = await _fetchHallOfFame();
+      if (!_isOpen) return; // während des Ladens geschlossen/wegnavigiert
+      state.hallOfFameCache = data;
+    }
     if (!data) { overlay.innerHTML = '<div class="cal-placeholder">Fehler beim Laden.</div>'; return; }
 
     const person = data.hall_of_fame.find(p => p.person_id === personId);
@@ -516,6 +524,7 @@
     state.selectedTaskId = null;
     state.selectedPersonId = null;
     state.showingOverall = false;
+    state.hallOfFameCache = null;
     const overlay = document.getElementById('cal-overlay');
     if (overlay) { overlay.classList.remove('active'); overlay.innerHTML = ''; }
     const lc = document.getElementById('left-content');

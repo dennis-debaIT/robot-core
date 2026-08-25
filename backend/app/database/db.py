@@ -39,6 +39,12 @@ def ensure_db_directory() -> None:
 def create_connection() -> sqlite3.Connection:
     conn = sqlite3.connect(get_db_path(), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # WAL: Schreiber blockieren keine gleichzeitigen Leser mehr (Standardmodus
+    # tut das) — jede der zahlreichen Hintergrund-Loops (Fahrzeug, PV, Einkaufsliste,
+    # ...) öffnet pro Schreibzugriff eine eigene Verbindung, ohne WAL hätte das
+    # gelegentlich parallele Lesezugriffe (z.B. Widget-Aufrufe) blockiert.
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
     return conn
 
 
