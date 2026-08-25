@@ -5466,8 +5466,9 @@
   }
 
   function renderCameraList(cameras) {
+    if (cameras === null) return _widgetPlaceholder(true, 'Kameras gerade nicht abrufbar.');
     const live = _liveCameras(cameras);
-    if (!live.length) return '<div class="cal-placeholder">Keine Kameras</div>';
+    if (!live.length) return _widgetPlaceholder(false, 'Keine Kameras');
     const allSel = _selectedCamera === null ? ' selected' : '';
     let html = `<div class="cam-list-item${allSel}" onclick="selectCamera(null)">
       <span style="font-size:1rem;">📷</span>
@@ -5548,8 +5549,9 @@
   }
 
   function renderCameraTiles(cameras) {
+    if (cameras === null) return _widgetPlaceholder(true, 'Kameras gerade nicht abrufbar.');
     const live = _liveCameras(cameras);
-    if (!live.length) return '<div class="cal-placeholder">Keine Kameras verfügbar</div>';
+    if (!live.length) return _widgetPlaceholder(false, 'Keine Kameras verfügbar');
     const single = _camGridMode === 'auto';
     return `<div class="cam-tile-wrap">
       <div class="cam-grid-bar">
@@ -5742,13 +5744,13 @@
     document.getElementById('left-label').textContent = 'Kameras';
     const leftContent = document.getElementById('left-content');
     leftContent.style.overflowY = 'auto';
-    leftContent.innerHTML = renderCameraList(cameras || []);
+    leftContent.innerHTML = renderCameraList(cameras);
 
     // Mitte: Overlay
     const overlay = document.getElementById('cal-overlay');
     if (overlay) {
       const cam = cameras?.find(c => c.entity_id === _selectedCamera);
-      overlay.innerHTML = cam ? renderCameraDetail(cam) : renderCameraTiles(cameras || []);
+      overlay.innerHTML = cam ? renderCameraDetail(cam) : renderCameraTiles(cameras);
       overlay.classList.toggle('active', true);
       overlay.classList.toggle('cam-expanded', _cameraExpanded && !!cam);
     }
