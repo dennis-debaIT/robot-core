@@ -37,10 +37,12 @@
     return POINTS_COLORS[Math.min(Math.max(1, pts || 1), 5)] || '#94a3b8';
   }
 
-  function _ptsBadge(pts) {
-    if (!pts || pts <= 1) return '';
+  function _ptsBadge(pts, opts) {
+    opts = opts || {};
+    if (!opts.always && (!pts || pts <= 1)) return '';
     const color = _pointsColor(pts);
-    return `<span style="font-size:0.6rem;background:${color}22;color:${color};border:1px solid ${color}66;border-radius:999px;padding:1px 7px;margin-left:6px;font-weight:700;">${pts} Pkt</span>`;
+    const label = opts.text || `${pts} Pkt`;
+    return `<span style="font-size:${opts.fontSize || '0.6rem'};background:${color}22;color:${color};border:1px solid ${color}66;border-radius:999px;padding:1px ${opts.padX || '7px'};margin-left:${opts.marginLeft || '6px'};font-weight:700;">${label}</span>`;
   }
 
   async function _loadTasks() {
@@ -225,8 +227,7 @@
     const persons = stats.persons || [];
     const taskPts = stats.task_points ?? 1;
     const ptsLabel = taskPts === 1 ? '1 Punkt' : `${taskPts} Punkte`;
-    const pColor = _pointsColor(taskPts);
-    const ptsBadge = `<span style="font-size:0.65rem;background:${pColor}22;color:${pColor};border:1px solid ${pColor}66;border-radius:999px;padding:1px 8px;margin-left:8px;">${ptsLabel} pro Erledigung</span>`;
+    const ptsBadge = _ptsBadge(taskPts, { always: true, text: `${ptsLabel} pro Erledigung`, fontSize: '0.65rem', padX: '8px', marginLeft: '8px' });
     const leaderHtml = stats.leader
       ? `<div class="chore-leader">🏆 ${PERIOD_LABEL[stats.period]}: ${escapeHTML(stats.leader.name)} (${stats.leader.points_total ?? stats.leader.count} ${(stats.leader.points_total ?? stats.leader.count) === 1 ? 'Punkt' : 'Punkte'})</div>`
       : '<div class="chore-leader" style="color:var(--muted);">Noch keine Erledigungen in diesem Zeitraum.</div>';
