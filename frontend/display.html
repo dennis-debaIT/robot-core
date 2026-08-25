@@ -3128,7 +3128,7 @@
     document.body.appendChild(wave);
 
     let _silenceTimer = null;
-    const SILENCE_MS  = 2000;
+    const SILENCE_MS  = _attentionConfig.silence_timeout_ms || 2000;
 
     const resetSilenceTimer = () => {
       clearTimeout(_silenceTimer);
@@ -7610,7 +7610,7 @@
   _pollReminders();
 
   // ── Wake Word + Gesichtserkennung ─────────────────────────
-  let _attentionConfig = { wake_word_enabled: false, wake_word: 'erika', face_recognition_enabled: false };
+  let _attentionConfig = { wake_word_enabled: false, wake_word: 'erika', face_recognition_enabled: false, silence_timeout_ms: 2000 };
   let _wakeRec = null;
   let _wakeActive = false;
   let _faceVideo = null;
