@@ -1840,11 +1840,12 @@
       padding-top: 8px;
       margin-top: 4px;
     }
-    /* erste Child-Elemente in einem Slot brauchen keinen oberen Abstand */
+    /* Erste Child-Elemente in einem Slot brauchen keinen oberen Rand — aber nur
+       margin, nicht padding/border: sonst verliert z.B. die "Nächster Termin"-
+       Box im Kalender-Widget ihren eigenen oberen Rahmen/Innenabstand, weil
+       sie selbst das erste (und einzige) Kind ihres Slots ist. */
     .widget-slot > *:first-child {
       margin-top: 0 !important;
-      padding-top: 0 !important;
-      border-top: none !important;
     }
 
     .home-left-stack {

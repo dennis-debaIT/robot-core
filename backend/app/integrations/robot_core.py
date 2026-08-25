@@ -1645,15 +1645,18 @@ class RobotCore:
                     "proposed_memories": proposed_memories,
                 })
                 full_reply = ""
-                provider, fragments, used_fallback = self.llm.stream_generate(payload)
+                provider, fragments, used_fallback = self.llm.stream_generate(
+                    payload, timeout_seconds=settings.llm_timeout_seconds
+                )
                 try:
                     for fragment in fragments:
                         full_reply += fragment
                         for piece in self._stream_delta_pieces(fragment):
                             yield self._sse_event("delta", {"text": piece})
                             self._store_reply_text(full_reply, done=False)
-                except Exception:
+                except Exception as _llm_exc:
                     if not full_reply:
+                        self.audit.log_error(source="llm", message=f"LLM-Stream fehlgeschlagen: {type(_llm_exc).__name__}: {_llm_exc}")
                         full_reply = "Das kann ich leider gerade nicht beantworten."
                         yield self._sse_event("delta", {"text": full_reply})
                 reply = self._sanitize_reply_text(full_reply)
