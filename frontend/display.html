@@ -2072,12 +2072,12 @@
       const d = await r.json();
       const sensors = d.sensors || [];
       if (!sensors.length) {
-        content.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:40px 0;">Keine Sensoren konfiguriert</div>';
+        content.innerHTML = `<div style="padding:40px 0;">${_widgetPlaceholder(false, 'Keine Sensoren konfiguriert.')}</div>`;
         return;
       }
       content.innerHTML = sensors.map(s => _renderEnergySensorCard(s, view)).join('');
     } catch (e) {
-      content.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
+      content.innerHTML = `<div style="padding:40px 0;">${_widgetPlaceholder(true, 'Energiedaten gerade nicht abrufbar.')}</div>`;
     }
   }
 

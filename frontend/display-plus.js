@@ -535,7 +535,7 @@
         <div style="font-size:0.72rem;font-weight:700;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
         ${chart}${totalHtml}${savingsHtml}${autarkieHtml}${gridHtml}`;
     } catch(e) {
-      content.innerHTML = `<div style="color:var(--danger);font-size:0.85rem;text-align:center;padding:40px 0;">Fehler: ${e.message}</div>`;
+      content.innerHTML = `<div style="padding:40px 0;">${_widgetPlaceholder(true, 'PV-Statistik gerade nicht abrufbar.')}</div>`;
     }
   }
 
