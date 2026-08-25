@@ -515,6 +515,39 @@ async def _liga_cache_daemon(interval_hours: int = 12) -> None:
         await asyncio.sleep(interval_hours * 3600)
 
 
+def _run_warmup() -> None:
+    """Synchrone Helferfunktion — läuft in einem Executor-Thread.
+    Erzwingt die teuren Erstzugriffe (TTS-Modell laden, LLM-Verbindung,
+    STT-Modell-Download anstoßen) einmalig im Hintergrund, damit die erste
+    echte Nutzeranfrage nach einem Neustart/Deploy nicht die volle
+    Cold-Start-Kosten trägt (gemessen: ~5-6s statt ~0.2-0.8s im Warmzustand)."""
+    try:
+        deps.get_core().tts.synthesize("Bereit.")
+    except Exception as exc:
+        from app.audit.service import AuditService
+        AuditService().log_warn(source="warmup", message=f"TTS-Warmup fehlgeschlagen: {type(exc).__name__}: {exc}")
+    try:
+        from app.api.routers.system import _run_llm_test
+        result = _run_llm_test()
+        if not result.get("ok") and result.get("error") != "Keine LLM-URL konfiguriert":
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="warmup", message=f"LLM-Warmup fehlgeschlagen: {result.get('error')}")
+    except Exception:
+        pass
+    try:
+        from app.voice import stt_service
+        stt_service.ensure_downloaded()
+    except Exception:
+        pass
+
+
+async def _warmup_task() -> None:
+    """Startet 5 Sekunden nach Hochfahren, läuft einmalig (kein Loop)."""
+    await asyncio.sleep(5)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _run_warmup)
+
+
 def _migrate_deprecated_llm_models() -> None:
     """Ersetzt abgekündigte LLM-Modelle automatisch durch den empfohlenen Nachfolger."""
     _REPLACEMENTS = {"llama-3.1-8b-instant": "openai/gpt-oss-20b"}
@@ -557,6 +590,7 @@ async def lifespan(_: FastAPI) -> Any:
     ha_lights_ws_task = asyncio.create_task(_ha_lights_ws_loop())
     liga_cache_task = asyncio.create_task(_liga_cache_daemon())
     deps.set_runtime(core, settings_service)
+    warmup_task = asyncio.create_task(_warmup_task())
     try:
         yield
     finally:
@@ -575,6 +609,7 @@ async def lifespan(_: FastAPI) -> Any:
         light_cmd_poll_task.cancel()
         ha_lights_ws_task.cancel()
         liga_cache_task.cancel()
+        warmup_task.cancel()
         with suppress(asyncio.CancelledError):
             await history_task
         with suppress(asyncio.CancelledError):
@@ -595,6 +630,8 @@ async def lifespan(_: FastAPI) -> Any:
             await license_task
         with suppress(asyncio.CancelledError):
             await liga_cache_task
+        with suppress(asyncio.CancelledError):
+            await warmup_task
         deps.clear_runtime()
 
 
