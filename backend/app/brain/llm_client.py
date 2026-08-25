@@ -138,9 +138,12 @@ class ExternalLLMClient:
             else:
                 # Externe OpenAI-kompatible Provider (z.B. Groq) kennen enable_thinking
                 # nicht — dort läuft die Denkkette sonst ungefiltert in "content" statt
-                # in einem separaten Feld zu landen. reasoning_format=hidden ist Groqs
-                # dokumentierter Weg, nur die finale Antwort zu bekommen.
-                body["reasoning_format"] = "hidden"
+                # in einem separaten Feld zu landen. reasoning_format=hidden würde die
+                # Denkkette zwar verstecken, aber weiterhin berechnen — das frisst bei
+                # knappem max_tokens-Budget den gesamten Rahmen und liefert leere
+                # Antworten. reasoning_effort=none (Groq, u.a. Qwen-3.6-Reihe) schaltet
+                # das Nachdenken stattdessen komplett ab.
+                body["reasoning_effort"] = "none"
             if stream:
                 body["stream"] = True
             return body
