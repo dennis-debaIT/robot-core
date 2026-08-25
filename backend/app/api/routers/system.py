@@ -510,10 +510,16 @@ def save_llm_config(payload: dict[str, Any]) -> dict[str, Any]:
     }
     with get_connection() as conn:
         write_state(conn, "llm_config", cfg)
+
+    # Sofort testen statt erst beim nächsten echten Gespräch zu merken, dass die
+    # neue Konfiguration nicht funktioniert (z.B. falscher Modellname, kein API-Key).
+    test_result = _run_llm_test()
+
     get_core().audit.log(
         action="llm.config_updated",
         target_type="llm_config",
-        summary="LLM-Konfiguration wurde geändert.",
+        summary="LLM-Konfiguration wurde geändert." if test_result["ok"] else "LLM-Konfiguration geändert — Verbindungstest fehlgeschlagen!",
+        level="info" if test_result["ok"] else "warning",
         details={
             "api_provider": cfg["api_provider"],
             "api_url": cfg["api_url"],
@@ -522,9 +528,10 @@ def save_llm_config(payload: dict[str, Any]) -> dict[str, Any]:
             "max_tokens": cfg["max_tokens"],
             "temperature": cfg["temperature"],
             "api_key_set": bool(cfg["api_key"]),
+            "test_result": test_result,
         },
     )
-    return {"ok": True}
+    return {"ok": True, "test": test_result}
 
 
 _models_cache: dict[str, Any] = {"models": [], "fetched_at": 0.0}
@@ -578,12 +585,14 @@ def get_llm_models() -> dict[str, Any]:
         return {"models": _models_cache.get("models", []), "error": str(exc)}
 
 
-@router.post("/llm/test")
-def test_llm_config() -> dict[str, Any]:
+def _run_llm_test() -> dict[str, Any]:
+    """Schickt eine minimale Testanfrage an die aktuell konfigurierte LLM.
+    Wirft nie — gibt {"ok": False, "error": ...} statt einer Exception zurück,
+    damit save_llm_config() das Ergebnis einfach mitliefern kann."""
     from app.brain.llm_client import ExternalLLMClient
     client = ExternalLLMClient()
     if not client.is_configured():
-        raise HTTPException(status_code=400, detail="Keine LLM-URL konfiguriert")
+        return {"ok": False, "error": "Keine LLM-URL konfiguriert"}
     try:
         result = client.generate({
             "message": "Antworte mit genau einem Wort: Hallo",
@@ -598,7 +607,16 @@ def test_llm_config() -> dict[str, Any]:
     except Exception as exc:
         from app.audit.service import AuditService
         AuditService().log_warn(source="llm", message=f"LLM-Verbindungstest fehlgeschlagen (Modell {client.model}): {type(exc).__name__}: {exc}")
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"ok": False, "error": str(exc), "model": client.model}
+
+
+@router.post("/llm/test")
+def test_llm_config() -> dict[str, Any]:
+    result = _run_llm_test()
+    if not result["ok"]:
+        status = 400 if result["error"] == "Keine LLM-URL konfiguriert" else 502
+        raise HTTPException(status_code=status, detail=result["error"])
+    return result
 
 
 @router.get("/llm/usage")
