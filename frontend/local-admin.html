@@ -1704,7 +1704,7 @@
               </label>
               <label class="field-block">
                 <span class="field-label">Stille-Timeout (Sekunden)</span>
-                <input class="field-input" id="attention-silence-timeout" type="number" min="1" max="5" step="0.5" placeholder="2">
+                <input class="field-input" id="attention-silence-timeout" type="number" min="1" max="5" step="0.5" placeholder="3">
               </label>
               <div class="field-block" id="stt-local-hint" style="display:none;">
                 <span class="field-label"> </span>
@@ -6431,7 +6431,7 @@
         if (gPvEl)    gPvEl.checked    = att.greeting_context_pv !== false;
         if (gTopicEl) gTopicEl.checked = att.greeting_context_topics !== false;
         const silenceEl = document.getElementById('attention-silence-timeout');
-        if (silenceEl) silenceEl.value = att.silence_timeout_ms != null ? att.silence_timeout_ms / 1000 : 2;
+        if (silenceEl) silenceEl.value = att.silence_timeout_ms != null ? att.silence_timeout_ms / 1000 : 3;
         const sttEl = document.getElementById('attention-stt-provider');
         if (sttEl) {
           sttEl.value = att.stt_provider || 'online';
@@ -6647,7 +6647,7 @@
               greeting_context_pv: document.getElementById('attention-greeting-ctx-pv')?.checked ?? true,
               greeting_context_topics: document.getElementById('attention-greeting-ctx-topics')?.checked ?? true,
               stt_provider: document.getElementById('attention-stt-provider')?.value || 'online',
-              silence_timeout_ms: Math.round((parseFloat(document.getElementById('attention-silence-timeout')?.value) || 2) * 1000),
+              silence_timeout_ms: Math.round((parseFloat(document.getElementById('attention-silence-timeout')?.value) || 3) * 1000),
             },
           }),
         });
