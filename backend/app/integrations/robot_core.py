@@ -24,6 +24,7 @@ from app.profile.service import PersonProfileService
 from app.profile.relationship import PersonRelationshipService
 from app.voice.service import TtsService
 from app.search.service import SearchService
+from app.skills.base import SkillContext
 
 
 def now_iso() -> str:
@@ -1278,27 +1279,6 @@ class RobotCore:
             return query
         return user_message.strip()
 
-    def _try_extract_fact_update(self, message: str, person_name: str) -> None:
-        import re as _re
-        for pattern, trait_type in self._FACT_PATTERNS:
-            m = _re.search(pattern, message, _re.IGNORECASE)
-            if m:
-                value = m.group(1).strip().rstrip('.,!? ')
-                if not value or (not value.isdigit() and len(value) < 2):
-                    continue
-                value = value[0].upper() + value[1:]
-                try:
-                    self.profile.upsert_fact(
-                        person_name=person_name,
-                        trait_type=trait_type,
-                        value=value,
-                        source_memory_id=None,
-                        confidence=0.95,
-                    )
-                except Exception:
-                    pass
-                break  # nur ein Fakt pro Nachricht
-
     def _record_direct_chat_input(self, captured: str, person_name: str | None) -> None:
         self._log_event("speech_input", {"text": captured, "person_name": person_name})
         self._log_message("user", captured, person_name)
@@ -1429,68 +1409,50 @@ class RobotCore:
 
         return f"Über {person_name} weiß ich aktuell noch nichts."
 
+    def _dispatch_skills(self, ctx: SkillContext) -> tuple[str | None, str, Any | None]:
+        """Iteriert die Skill-Registry (app/skills/), gibt (reply, reason, extra)
+        des ersten Treffers zurück, oder (None, "", None) wenn nichts passt.
+
+        Ersetzt die früher zwei unabhängigen, auseinandergelaufenen if/elif-Ketten
+        in chat() und stream_chat() — beide riefen bisher unterschiedliche Teilmengen
+        der ~18 Command-Handler auf (chat() kannte z.B. keine Kalender-/Erinnerungs-/
+        Timer-Befehle). Template-Suche (_try_template_search) bleibt bewusst
+        AUSSERHALB dieser Schleife: sie läuft im Original-Code erst NACH
+        _prepare_chat() (Decision-Engine + Memory-Vorschläge), nicht davor — das
+        wird unten in chat()/stream_chat() weiterhin exakt so sequenziert."""
+        from app.skills.registry import get_skills
+        for skill in get_skills():
+            if not skill.can_handle(ctx):
+                continue
+            reply, extra = skill.handle(ctx)
+            if reply:
+                return reply, skill.reason, extra
+        return None, "", None
+
     def chat(self, message: str, person_name: str | None = None) -> dict[str, Any]:
         captured = self.microphone.capture_text(message)
         self._save_evening_recap_response(captured, person_name)
-        direct_reply = self._try_answer_runtime_question(captured)
-        if direct_reply is None:
-            direct_reply = self._try_answer_person_knowledge_question(captured)
-        if direct_reply is None:
-            light_sched_reply = self._try_light_schedule_command(captured, person_name)
-            if light_sched_reply:
-                direct_reply = light_sched_reply
-        if direct_reply is None:
-            light_reply = self._try_light_command(captured)
-            if light_reply:
-                direct_reply = light_reply
-                self._set_lights_display_intent()
-        if direct_reply is not None:
+        ctx = SkillContext(message=message, captured=captured, person_name=person_name, core=self)
+        reply, reason, extra = self._dispatch_skills(ctx)
+        if reply is not None:
             self._learn_from_interaction(person_name, captured)
             self._record_direct_chat_input(captured, person_name)
-            reply = self._sanitize_reply_text(direct_reply)
-            self._finalize_chat(reply, person_name)
-            self._store_reply_text(reply)
-            return {
-                "reply": reply,
-                "llm_provider": "core",
+            sanitized = self._sanitize_reply_text(reply)
+            self._finalize_chat(sanitized, person_name)
+            self._store_reply_text(sanitized)
+            if extra:
+                self._update_display_intent(extra, person_name)
+            result: dict[str, Any] = {
+                "reply": sanitized,
+                "llm_provider": "core" if reason == "core_direct_answer" else "template",
                 "used_fallback": False,
-                "llm_context": self.preview_chat_prompt(captured, person_name),
-                "decision": {"should_respond": True, "response_reason": "core_direct_answer", "candidates": []},
+                "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
                 "proposed_memories": [],
                 "status": self.get_status(),
             }
-
-        robot_reply = self._try_robot_query(captured) or self._try_robot_command(captured)
-        if robot_reply:
-            self._learn_from_interaction(person_name, captured)
-            self._record_direct_chat_input(captured, person_name)
-            reply = self._sanitize_reply_text(robot_reply)
-            self._finalize_chat(reply, person_name)
-            self._store_reply_text(reply)
-            return {
-                "reply": reply,
-                "llm_provider": "template",
-                "used_fallback": False,
-                "decision": {"should_respond": True, "response_reason": "robot_command", "candidates": []},
-                "proposed_memories": [],
-                "status": self.get_status(),
-            }
-
-        shopping_reply = self._try_shopping_command(captured)
-        if shopping_reply:
-            self._learn_from_interaction(person_name, captured)
-            self._record_direct_chat_input(captured, person_name)
-            reply = self._sanitize_reply_text(shopping_reply)
-            self._finalize_chat(reply, person_name)
-            self._store_reply_text(reply)
-            return {
-                "reply": reply,
-                "llm_provider": "template",
-                "used_fallback": False,
-                "decision": {"should_respond": True, "response_reason": "shopping_command", "candidates": []},
-                "proposed_memories": [],
-                "status": self.get_status(),
-            }
+            if reason == "core_direct_answer":
+                result["llm_context"] = self.preview_chat_prompt(captured, person_name)
+            return result
 
         # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
         captured, payload, proposed_memories, decision, search_result = self._prepare_chat(message, person_name)
@@ -1540,79 +1502,37 @@ class RobotCore:
         settings = self.settings.get_effective()
         captured = self.microphone.capture_text(message)
         self._save_evening_recap_response(captured, person_name)
-        direct_reply = self._try_answer_runtime_question(captured)
-        if direct_reply is None:
-            direct_reply = self._try_answer_person_knowledge_question(captured)
-        if direct_reply is None:
-            light_sched_reply = self._try_light_schedule_command(captured, person_name)
-            if light_sched_reply:
-                direct_reply = light_sched_reply
-        if direct_reply is None:
-            light_reply = self._try_light_command(captured)
-            if light_reply:
-                direct_reply = light_reply
-                self._set_lights_display_intent()
-        if direct_reply is None:
-            scene_reply = self._try_scene_command(captured)
-            if scene_reply:
-                direct_reply = scene_reply
-        if direct_reply is None:
-            calendar_reply = self._try_calendar_command(captured, person_name)
-            if calendar_reply:
-                direct_reply = calendar_reply
-        if direct_reply is None:
-            vehicle_reply = self._try_vehicle_query(captured)
-            if vehicle_reply:
-                direct_reply = vehicle_reply
-        if direct_reply is None:
-            pv_reply = self._try_pv_query(captured)
-            if pv_reply:
-                direct_reply = pv_reply
-        if direct_reply is None:
-            conv_summary = self._try_conversation_summary(captured, person_name)
-            if conv_summary:
-                direct_reply = conv_summary
-        if direct_reply is None:
-            summary_reply = self._try_summary_command(captured, person_name)
-            if summary_reply:
-                direct_reply = summary_reply
-        if direct_reply is None:
-            reminder_reply = self._try_reminder_command(captured, person_name)
-            if reminder_reply:
-                direct_reply = reminder_reply
-        if direct_reply is None:
-            note_reply = self._try_note_command(captured, person_name)
-            if note_reply:
-                direct_reply = note_reply
-        if direct_reply is None:
-            timer_reply = self._try_timer_command(captured)
-            if timer_reply:
-                direct_reply = timer_reply
+        ctx = SkillContext(message=message, captured=captured, person_name=person_name, core=self)
+        direct_reply, reason, extra = self._dispatch_skills(ctx)
+
         if direct_reply is not None:
             self._record_direct_chat_input(captured, person_name)
             self._learn_from_interaction(person_name, captured)
+            provider = "core" if reason == "core_direct_answer" else "template"
 
             def direct_generate() -> Any:
                 direct_text = self._sanitize_reply_text(direct_reply)
                 yield self._sse_event(
                     "meta",
                     {
-                        "llm_provider": "core",
+                        "llm_provider": provider,
                         "used_fallback": False,
-                        "decision": {"should_respond": True, "response_reason": "core_direct_answer", "candidates": []},
+                        "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
                         "proposed_memories": [],
                     },
                 )
                 yield self._sse_event("delta", {"text": direct_text})
                 self._finalize_chat(direct_text, person_name)
                 self._store_reply_text(direct_text, done=True)
+                if extra:
+                    self._update_display_intent(extra, person_name)
                 yield self._sse_event(
                     "done",
                     {
                         "reply": direct_text,
-                        "llm_provider": "core",
+                        "llm_provider": provider,
                         "used_fallback": False,
-                        "decision": {"should_respond": True, "response_reason": "core_direct_answer", "candidates": []},
+                        "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
                         "proposed_memories": [],
                         "status": self.get_status(),
                     },
@@ -1620,78 +1540,68 @@ class RobotCore:
 
             return direct_generate()
 
-        robot_reply = self._try_robot_query(captured) or self._try_robot_command(captured)
-        template_search_result = None
-        if robot_reply:
-            template_text = robot_reply
-            reason = "robot_command"
-        else:
-            shopping_reply = self._try_shopping_command(captured)
-            if shopping_reply:
-                template_text = shopping_reply
-                reason = "shopping_command"
-            else:
-                template_text, template_search_result = self._try_template_search(captured)
-                reason = "template" if template_text else "llm"
+        # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
+        # (auch für den nachfolgenden Template-Suche-Versuch — läuft absichtlich erst
+        # NACH _prepare_chat, siehe Kommentar in _dispatch_skills)
+        captured, payload, proposed_memories, decision, search_result = self._prepare_chat(message, person_name)
+        payload["llm_max_tokens"] = self._dynamic_max_tokens(captured, payload.get("llm_max_tokens", settings.llm_max_tokens))
+        template_text, template_search_result = self._try_template_search(captured)
+        reason = "template" if template_text else "llm"
 
-        if not template_text:
-            # LLM-Pfad: _prepare_chat übernimmt Logging, Decision-Engine und Memory-Vorschläge
-            captured, payload, proposed_memories, decision, search_result = self._prepare_chat(message, person_name)
-            payload["llm_max_tokens"] = self._dynamic_max_tokens(captured, payload.get("llm_max_tokens", settings.llm_max_tokens))
+        if template_text:
+            self._record_direct_chat_input(captured, person_name)
+            self._learn_from_interaction(person_name, captured)
 
-            def llm_generate() -> Any:
-                yield self._sse_event("meta", {
-                    "llm_provider": "external", "used_fallback": False,
-                    "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
-                    "proposed_memories": proposed_memories,
-                })
-                full_reply = ""
-                provider, fragments, used_fallback = self.llm.stream_generate(
-                    payload, timeout_seconds=settings.llm_timeout_seconds
-                )
-                try:
-                    for fragment in fragments:
-                        full_reply += fragment
-                        for piece in self._stream_delta_pieces(fragment):
-                            yield self._sse_event("delta", {"text": piece})
-                            self._store_reply_text(full_reply, done=False)
-                except Exception as _llm_exc:
-                    if not full_reply:
-                        self.audit.log_error(source="llm", message=f"LLM-Stream fehlgeschlagen: {type(_llm_exc).__name__}: {_llm_exc}")
-                        full_reply = "Das kann ich leider gerade nicht beantworten."
-                        yield self._sse_event("delta", {"text": full_reply})
-                reply = self._sanitize_reply_text(full_reply)
-                self._finalize_chat(reply, person_name)
-                self._store_reply_text(reply, done=True)
-                if search_result:
-                    self._update_display_intent(search_result, person_name)
-                yield self._sse_event("done", {
-                    "reply": reply, "llm_provider": provider, "used_fallback": used_fallback,
-                    "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
-                    "proposed_memories": proposed_memories, "status": self.get_status(),
-                })
+            def template_generate() -> Any:
+                text = self._sanitize_reply_text(template_text)
+                yield self._sse_event("meta", {"llm_provider": "template", "used_fallback": False,
+                                               "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
+                                               "proposed_memories": []})
+                yield self._sse_event("delta", {"text": text})
+                self._finalize_chat(text, person_name)
+                self._store_reply_text(text, done=True)
+                if template_search_result:
+                    self._update_display_intent(template_search_result, person_name)
+                yield self._sse_event("done", {"reply": text, "llm_provider": "template",
+                                               "used_fallback": False,
+                                               "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
+                                               "proposed_memories": [], "status": self.get_status()})
 
-            return llm_generate()
+            return template_generate()
 
-        self._record_direct_chat_input(captured, person_name)
-        self._learn_from_interaction(person_name, captured)
+        def llm_generate() -> Any:
+            yield self._sse_event("meta", {
+                "llm_provider": "external", "used_fallback": False,
+                "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+                "proposed_memories": proposed_memories,
+            })
+            full_reply = ""
+            provider, fragments, used_fallback = self.llm.stream_generate(
+                payload, timeout_seconds=settings.llm_timeout_seconds
+            )
+            try:
+                for fragment in fragments:
+                    full_reply += fragment
+                    for piece in self._stream_delta_pieces(fragment):
+                        yield self._sse_event("delta", {"text": piece})
+                        self._store_reply_text(full_reply, done=False)
+            except Exception as _llm_exc:
+                if not full_reply:
+                    self.audit.log_error(source="llm", message=f"LLM-Stream fehlgeschlagen: {type(_llm_exc).__name__}: {_llm_exc}")
+                    full_reply = "Das kann ich leider gerade nicht beantworten."
+                    yield self._sse_event("delta", {"text": full_reply})
+            reply = self._sanitize_reply_text(full_reply)
+            self._finalize_chat(reply, person_name)
+            self._store_reply_text(reply, done=True)
+            if search_result:
+                self._update_display_intent(search_result, person_name)
+            yield self._sse_event("done", {
+                "reply": reply, "llm_provider": provider, "used_fallback": used_fallback,
+                "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+                "proposed_memories": proposed_memories, "status": self.get_status(),
+            })
 
-        def template_generate() -> Any:
-            text = self._sanitize_reply_text(template_text)
-            yield self._sse_event("meta", {"llm_provider": "template", "used_fallback": False,
-                                           "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
-                                           "proposed_memories": []})
-            yield self._sse_event("delta", {"text": text})
-            self._finalize_chat(text, person_name)
-            self._store_reply_text(text, done=True)
-            if template_search_result:
-                self._update_display_intent(template_search_result, person_name)
-            yield self._sse_event("done", {"reply": text, "llm_provider": "template",
-                                           "used_fallback": False,
-                                           "decision": {"should_respond": True, "response_reason": reason, "candidates": []},
-                                           "proposed_memories": [], "status": self.get_status()})
-
-        return template_generate()
+        return llm_generate()
 
     @staticmethod
     def _stream_delta_pieces(fragment: str, max_chars: int = 80) -> list[str]:
