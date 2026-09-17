@@ -113,6 +113,10 @@ class IntegrationConfigService:
                 "pv_surplus_threshold_watts": 1500,
                 "weather_tomorrow_enabled": True,
                 "robot_status_enabled": True,
+                "vehicle_status_enabled": True,
+                "vehicle_battery_low_threshold_pct": 20,
+                "severe_weather_enabled": False,
+                "severe_weather_entity_id": "",
             },
             "printer": {
                 "enabled":        False,
@@ -377,6 +381,13 @@ class IntegrationConfigService:
         insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", True))
         insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", True))
         insights["robot_status_enabled"] = bool(insights.get("robot_status_enabled", True))
+        insights["vehicle_status_enabled"] = bool(insights.get("vehicle_status_enabled", True))
+        insights["severe_weather_enabled"] = bool(insights.get("severe_weather_enabled", False))
+        insights["severe_weather_entity_id"] = str(insights.get("severe_weather_entity_id") or "").strip()
+        try:
+            insights["vehicle_battery_low_threshold_pct"] = max(5, min(80, int(insights.get("vehicle_battery_low_threshold_pct", 20))))
+        except (TypeError, ValueError):
+            insights["vehicle_battery_low_threshold_pct"] = 20
         try:
             insights["pv_surplus_threshold_watts"] = max(200, min(10000, int(insights.get("pv_surplus_threshold_watts", 1500))))
         except (TypeError, ValueError):
@@ -505,6 +516,13 @@ class IntegrationConfigService:
         insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", True))
         insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", True))
         insights["robot_status_enabled"] = bool(insights.get("robot_status_enabled", True))
+        insights["vehicle_status_enabled"] = bool(insights.get("vehicle_status_enabled", True))
+        insights["severe_weather_enabled"] = bool(insights.get("severe_weather_enabled", False))
+        insights["severe_weather_entity_id"] = str(insights.get("severe_weather_entity_id") or "").strip()
+        try:
+            insights["vehicle_battery_low_threshold_pct"] = max(5, min(80, int(insights.get("vehicle_battery_low_threshold_pct", 20))))
+        except (TypeError, ValueError):
+            insights["vehicle_battery_low_threshold_pct"] = 20
         try:
             insights["pv_surplus_threshold_watts"] = max(200, min(10000, int(insights.get("pv_surplus_threshold_watts", 1500))))
         except (TypeError, ValueError):

@@ -473,3 +473,201 @@ def test_run_checks_creates_notification_for_robot_status(monkeypatch, temp_db):
     assert fired[0]["kind"] == "robot_status"
     assert len(notifications.created) == 1
     assert notifications.created[0]["title"] == "🤖 Krümel Knecht"
+
+
+# ── Fahrzeuge (Ladung fertig / Batterie niedrig) ────────────────────
+
+from app.services.vehicle_service import VehicleService as _RealVehicleService  # noqa: E402
+
+
+class FakeVehicleService(_RealVehicleService):
+    """Erbt von der echten VehicleService, damit die echten
+    _is_charging_state/_is_plug_connected_state-Staticmethods verwendet
+    werden (kein eigener Nachbau) — nur list_vehicles() wird für Tests
+    kontrolliert."""
+    data: dict = {"enabled": True, "vehicles": []}
+
+    def __init__(self, ha=None):
+        pass
+
+    def list_vehicles(self, config):
+        return type(self).data
+
+
+def _vehicle_entry(battery_pct, charging_state=None, plug_state=None, vehicle_id="veh1", label="Testauto"):
+    entry = {
+        "id": vehicle_id, "label": label, "ev_profile_enabled": True,
+        "battery": {"state": str(battery_pct)},
+    }
+    if charging_state is not None:
+        entry["charging"] = {"state": charging_state}
+    if plug_state is not None:
+        entry["plug"] = {"state": plug_state}
+    return entry
+
+
+def _patch_vehicle_service(monkeypatch, vehicles, enabled=True):
+    FakeVehicleService.data = {"enabled": enabled, "vehicles": vehicles}
+    monkeypatch.setattr("app.services.vehicle_service.VehicleService", FakeVehicleService)
+
+
+_VEHICLE_INSIGHTS_CFG = {"vehicle_battery_low_threshold_pct": 20}
+
+
+def test_vehicle_charging_finished_fires_on_transition(monkeypatch, temp_db):
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(85, "charging", "connected")])
+    svc = InsightService(notifications=FakeNotifications())
+    first = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert first == []  # erster Lauf etabliert nur die Baseline
+
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(88, "not_charging", "connected")])
+    _fake_llm(monkeypatch, reply="Testauto ist voll, kann abgesteckt werden.")
+    second = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert len(second) == 1
+    assert second[0]["kind"] == "vehicle_charged"
+    assert second[0]["message"] == "Testauto ist voll, kann abgesteckt werden."
+
+
+def test_vehicle_charging_no_fire_while_continuously_charging(monkeypatch, temp_db):
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(50, "charging", "connected")])
+    svc = InsightService(notifications=FakeNotifications())
+    svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(60, "charging", "connected")])
+    second = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert second == []
+
+
+def test_vehicle_charging_no_fire_when_unplugged_after_charging(monkeypatch, temp_db):
+    """Übergang lädt->lädt nicht mehr OHNE Stecker (weggefahren) ist kein
+    "Ladung fertig"-Ereignis."""
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(85, "charging", "connected")])
+    svc = InsightService(notifications=FakeNotifications())
+    svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(84, "not_charging", "disconnected")])
+    second = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert second == []
+
+
+def test_vehicle_battery_low_fires_when_idle_and_below_threshold(monkeypatch, temp_db):
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(15, "not_charging", "disconnected")])
+    _fake_llm(monkeypatch, reply="Testauto hat nur noch 15% Akku.")
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert len(result) == 1
+    assert result[0]["kind"] == "vehicle_battery_low"
+    assert result[0]["message"] == "Testauto hat nur noch 15% Akku."
+
+
+def test_vehicle_battery_low_no_fire_while_charging(monkeypatch, temp_db):
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(15, "charging", "connected")])
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert result == []
+
+
+def test_vehicle_battery_low_no_refire_while_active(monkeypatch, temp_db):
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(15, "not_charging", "disconnected")])
+    _fake_llm(monkeypatch, reply="Niedriger Akku.")
+    svc = InsightService(notifications=FakeNotifications())
+    first = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert len(first) == 1
+    second = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert second == []
+
+
+def test_vehicle_status_skips_non_ev_or_missing_battery(monkeypatch, temp_db):
+    entry = {"id": "veh2", "label": "Diesel-Auto", "ev_profile_enabled": False}
+    _patch_vehicle_service(monkeypatch, [entry])
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_vehicles({}, _VEHICLE_INSIGHTS_CFG)
+    assert result == []
+
+
+def test_run_checks_creates_notification_for_vehicle_status(monkeypatch, temp_db):
+    _enable_insight({"insights": {
+        "vehicle_status_enabled": True,
+        "fuel_price_enabled": False,
+        "pv_surplus_enabled": False,
+        "weather_tomorrow_enabled": False,
+        "robot_status_enabled": False,
+    }})
+    _patch_vehicle_service(monkeypatch, [_vehicle_entry(10, "not_charging", "disconnected")])
+    _fake_llm(monkeypatch, reply="Akku niedrig.")
+    notifications = FakeNotifications()
+    svc = InsightService(notifications=notifications)
+    fired = svc.run_checks()
+    assert len(fired) == 1
+    assert fired[0]["kind"] == "vehicle_battery_low"
+    assert notifications.created[0]["title"] == "🔋 Testauto"
+
+
+# ── Unwetterwarnung ──────────────────────────────────────────────────
+
+class FakeHAState:
+    def __init__(self, states):
+        self._states = states
+
+    def get_state(self, entity_id):
+        return self._states.get(entity_id)
+
+
+def test_severe_weather_no_entity_configured_returns_none(temp_db):
+    svc = InsightService(ha=FakeHAState({}), notifications=FakeNotifications())
+    result = svc._check_severe_weather({"severe_weather_entity_id": ""})
+    assert result is None
+
+
+def test_severe_weather_below_threshold_does_not_fire(temp_db):
+    states = {"sensor.warn": {"state": "2", "attributes": {"warning_1_headline": "Markante Wetterwarnung"}}}
+    svc = InsightService(ha=FakeHAState(states), notifications=FakeNotifications())
+    result = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert result is None
+
+
+def test_severe_weather_fires_at_level_3(monkeypatch, temp_db):
+    states = {"sensor.warn": {"state": "3", "attributes": {
+        "warning_1_headline": "Unwetterwarnung vor Sturmböen",
+        "warning_1_description": "Schwere Sturmböen bis 100 km/h",
+        "region_name": "Melsungen",
+    }}}
+    _fake_llm(monkeypatch, reply="Achtung, schwere Sturmböen in Melsungen erwartet.")
+    svc = InsightService(ha=FakeHAState(states), notifications=FakeNotifications())
+    result = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert result == "Achtung, schwere Sturmböen in Melsungen erwartet."
+
+
+def test_severe_weather_falls_back_to_attribute_level(monkeypatch, temp_db):
+    """Falls der Sensor-Zustand selbst nicht numerisch ist, wird auf das
+    warning_1_level-Attribut ausgewichen."""
+    states = {"sensor.warn": {"state": "unknown", "attributes": {
+        "warning_1_level": "3", "warning_1_headline": "Unwetterwarnung", "region_name": "Melsungen",
+    }}}
+    _fake_llm(monkeypatch, reply="Warnung Text.")
+    svc = InsightService(ha=FakeHAState(states), notifications=FakeNotifications())
+    result = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert result == "Warnung Text."
+
+
+def test_severe_weather_no_refire_for_same_warning(monkeypatch, temp_db):
+    states = {"sensor.warn": {"state": "3", "attributes": {"warning_1_headline": "Unwetterwarnung", "region_name": "Melsungen"}}}
+    _fake_llm(monkeypatch, reply="Text.")
+    svc = InsightService(ha=FakeHAState(states), notifications=FakeNotifications())
+    first = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert first is not None
+    second = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert second is None
+
+
+def test_severe_weather_refires_for_new_warning(monkeypatch, temp_db):
+    states = {"sensor.warn": {"state": "3", "attributes": {"warning_1_headline": "Unwetterwarnung Sturm", "region_name": "Melsungen"}}}
+    ha = FakeHAState(states)
+    _fake_llm(monkeypatch, reply="Text 1.")
+    svc = InsightService(ha=ha, notifications=FakeNotifications())
+    first = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert first is not None
+
+    ha._states["sensor.warn"] = {"state": "4", "attributes": {"warning_1_headline": "Extreme Unwetterwarnung Tornado", "region_name": "Melsungen"}}
+    _fake_llm(monkeypatch, reply="Text 2.")
+    second = svc._check_severe_weather({"severe_weather_entity_id": "sensor.warn"})
+    assert second is not None
+    assert second != first

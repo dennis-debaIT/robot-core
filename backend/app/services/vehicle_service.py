@@ -68,14 +68,13 @@ class VehicleService:
                     continue
                 charging_entity = self._read_entity(vehicle_cfg.get("charging_entity"))
                 plug_entity = self._read_entity(vehicle_cfg.get("plug_entity"))
-                is_charging = int(
-                    (charging_entity or {}).get("state", "").lower()
-                    in ("on", "charging", "in_charge", "true", "1")
+                is_charging_bool = self._is_charging_state((charging_entity or {}).get("state", ""))
+                plug_connected_bool = (
+                    self._is_plug_connected_state((plug_entity or {}).get("state", ""))
+                    if plug_entity else is_charging_bool
                 )
-                plug_connected = int(
-                    (plug_entity or {}).get("state", "").lower()
-                    in ("on", "plugged_in", "connected", "true", "1", "charging", "in_charge")
-                ) if plug_entity else is_charging
+                is_charging = int(is_charging_bool)
+                plug_connected = int(plug_connected_bool)
                 try:
                     conn.execute(
                         """
@@ -634,3 +633,13 @@ class VehicleService:
             return float(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _is_charging_state(value: str) -> bool:
+        return (value or "").strip().lower() in ("on", "charging", "in_charge", "true", "1")
+
+    @staticmethod
+    def _is_plug_connected_state(value: str) -> bool:
+        return (value or "").strip().lower() in (
+            "on", "plugged_in", "connected", "true", "1", "charging", "in_charge",
+        )

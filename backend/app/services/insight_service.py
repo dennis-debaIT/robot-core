@@ -85,6 +85,26 @@ class InsightService:
             except Exception as exc:
                 self._log_error("robot_status", exc)
 
+        if insights_cfg.get("vehicle_status_enabled"):
+            try:
+                entries = self._check_vehicles(config, insights_cfg)
+                for entry in entries:
+                    self.notifications.create_manual_notification(
+                        entry["message"], entity_id=entry["entity_id"], title=entry["title"]
+                    )
+                    fired.append({"kind": entry["kind"], "message": entry["message"], "entity_id": entry["entity_id"]})
+            except Exception as exc:
+                self._log_error("vehicle_status", exc)
+
+        if insights_cfg.get("severe_weather_enabled"):
+            try:
+                msg = self._check_severe_weather(insights_cfg)
+                if msg:
+                    self.notifications.create_manual_notification(msg, entity_id="severe_weather", title="⛈️ Unwetterwarnung")
+                    fired.append({"kind": "severe_weather", "message": msg})
+            except Exception as exc:
+                self._log_error("severe_weather", exc)
+
         return fired
 
     @staticmethod
@@ -412,6 +432,157 @@ class InsightService:
         if normalized in rules["critical"]:
             return "error"
         return None
+
+    # ── Fahrzeuge (Ladung fertig / Batterie niedrig) ────────────────
+
+    def _check_vehicles(self, config: dict[str, Any], insights_cfg: dict[str, Any]) -> list[dict[str, Any]]:
+        """Prüft alle konfigurierten E-Fahrzeuge auf zwei Ereignisse:
+        Ladung beendet (noch eingesteckt) und niedriger Akkustand (weder
+        ladend noch eingesteckt). Nutzt dieselbe Lade-/Steckererkennung wie
+        VehicleService.record_charging() — keine eigene Interpretation der
+        markenabhängigen Rohzustände."""
+        from app.services.vehicle_service import VehicleService
+
+        vehicle_service = VehicleService(ha=self.ha)
+        data = vehicle_service.list_vehicles(config)
+        if not data.get("enabled"):
+            return []
+
+        threshold = float(insights_cfg.get("vehicle_battery_low_threshold_pct", 20))
+        now = datetime.now(timezone.utc)
+        results: list[dict[str, Any]] = []
+
+        for vehicle in data.get("vehicles") or []:
+            if not vehicle.get("ev_profile_enabled"):
+                continue
+            battery = vehicle.get("battery")
+            if not battery:
+                continue
+            try:
+                battery_pct = float(battery["state"])
+            except (TypeError, ValueError):
+                continue
+
+            vehicle_id = vehicle.get("id") or vehicle.get("label") or "vehicle"
+            label = vehicle.get("label") or vehicle_id
+
+            charging_state = (vehicle.get("charging") or {}).get("state")
+            plug_state = (vehicle.get("plug") or {}).get("state")
+            is_charging = VehicleService._is_charging_state(charging_state or "")
+            plug_connected = (
+                VehicleService._is_plug_connected_state(plug_state)
+                if plug_state is not None else is_charging
+            )
+
+            # ── Ladung fertig ───────────────────────────────────
+            if charging_state is not None:
+                charge_key = f"insight_vehicle_charging:{vehicle_id}"
+                with get_connection() as conn:
+                    last_charging = read_state(conn, charge_key, None)
+                    write_state(conn, charge_key, is_charging)
+                if last_charging is True and not is_charging and plug_connected:
+                    prompt = (
+                        f"Fahrzeug-Beobachtung: {label} hat den Ladevorgang beendet und ist noch "
+                        f"eingesteckt, Akku bei {battery_pct:.0f}%. Formuliere daraus einen kurzen, "
+                        "natürlichen Hinweis (max. 1 Satz, kein Markdown, keine Anführungszeichen, "
+                        "auf Deutsch)."
+                    )
+                    fallback = f"{label}: Ladevorgang beendet ({battery_pct:.0f}%), aber noch eingesteckt."
+                    results.append({
+                        "entity_id": vehicle_id, "kind": "vehicle_charged",
+                        "title": f"🔌 {label}", "message": self._llm_narrate(prompt) or fallback,
+                    })
+
+            # ── Batterie niedrig ────────────────────────────────
+            low_active_key = f"insight_vehicle_battery_low_active:{vehicle_id}"
+            low_fired_key = f"insight_vehicle_battery_low_last_fired_at:{vehicle_id}"
+            with get_connection() as conn:
+                active = bool(read_state(conn, low_active_key, False))
+                last_fired_iso = read_state(conn, low_fired_key, None)
+
+            is_low_and_idle = battery_pct < threshold and not is_charging and not plug_connected
+            if not is_low_and_idle:
+                if active:
+                    with get_connection() as conn:
+                        write_state(conn, low_active_key, False)
+                continue
+            if active:
+                continue
+            if last_fired_iso:
+                try:
+                    last_fired = datetime.fromisoformat(last_fired_iso)
+                    if (now - last_fired).total_seconds() < _PV_SURPLUS_COOLDOWN_SECONDS:
+                        with get_connection() as conn:
+                            write_state(conn, low_active_key, True)
+                        continue
+                except ValueError:
+                    pass
+
+            with get_connection() as conn:
+                write_state(conn, low_active_key, True)
+                write_state(conn, low_fired_key, now.isoformat())
+
+            prompt = (
+                f"Fahrzeug-Beobachtung: {label} hat einen niedrigen Akkustand ({battery_pct:.0f}%) "
+                "und lädt gerade nicht. Formuliere daraus einen kurzen, natürlichen Hinweis, bevor "
+                "man losfährt (max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
+            )
+            fallback = f"{label}: Akku bei {battery_pct:.0f}%, aktuell nicht am Laden."
+            results.append({
+                "entity_id": vehicle_id, "kind": "vehicle_battery_low",
+                "title": f"🔋 {label}", "message": self._llm_narrate(prompt) or fallback,
+            })
+
+        return results
+
+    # ── Unwetterwarnung (fester Sensor, z.B. DWD Weather Warnings) ──
+
+    def _check_severe_weather(self, insights_cfg: dict[str, Any]) -> str | None:
+        """Liest einen vom Nutzer konfigurierten HA-Sensor (z.B. aus der
+        offiziellen "DWD Weather Warnings"-Integration) aus — kein eigener
+        DWD-Datenabruf, robot-core behandelt ihn wie jeden anderen
+        HA-Sensor. Meldet nur ab Stufe 3 (Unwetterwarnung/Extreme
+        Unwetterwarnung)."""
+        entity_id = str(insights_cfg.get("severe_weather_entity_id") or "").strip()
+        if not entity_id:
+            return None
+        state = self.ha.get_state(entity_id)
+        if not state:
+            return None
+
+        attrs = state.get("attributes") or {}
+        try:
+            level = int(state.get("state"))
+        except (TypeError, ValueError):
+            try:
+                level = int(attrs.get("warning_1_level"))
+            except (TypeError, ValueError):
+                return None
+
+        if level < 3:
+            return None
+
+        headline = str(attrs.get("warning_1_headline") or "Unwetterwarnung").strip()
+        region = str(attrs.get("region_name") or "").strip()
+        description = str(attrs.get("warning_1_description") or "").strip()
+
+        signature = f"{level}|{headline}"
+        with get_connection() as conn:
+            last_signature = read_state(conn, "insight_severe_weather_last_signature", None)
+            write_state(conn, "insight_severe_weather_last_signature", signature)
+        if signature == last_signature:
+            return None
+
+        region_part = f" für {region}" if region else ""
+        prompt = (
+            f"Unwetterwarnung{region_part}: '{headline}' (Stufe {level} von 4). "
+            f"{('Details: ' + description) if description else ''} "
+            "Formuliere daraus einen kurzen, sachlichen Warnhinweis für die Familie — HIER KEIN "
+            "Humor oder Sarkasmus, das ist eine echte Sicherheitswarnung, kein beiläufiger Hinweis "
+            "(max. 1-2 Sätze, kein Markdown, keine Anführungszeichen, auf Deutsch)."
+        )
+        fallback = f"⚠️ {headline}{region_part} (Stufe {level})."
+        return self._llm_narrate(prompt) or fallback
 
     # ── LLM-Formulierung ─────────────────────────────────────────
 

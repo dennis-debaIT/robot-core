@@ -1743,6 +1743,30 @@
                 </label>
                 <span class="field-hint">Meldet neue Problemzustände bei Robotern ohne eigene Benachrichtigungsregel.</span>
               </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Fahrzeuge</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="insights-vehicle-status-enabled">
+                  <span>🤖 Aktiv (LLM-formuliert)</span>
+                </label>
+                <span class="field-hint">Meldet, wenn die Ladung fertig ist (noch eingesteckt) oder der Akku niedrig ist (nicht ladend).</span>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Batterie-niedrig-Schwelle (%)</span>
+                <input class="field-input" id="insights-vehicle-battery-low-threshold" type="number" min="5" max="80" step="5" value="20">
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Unwetterwarnung</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="insights-severe-weather-enabled">
+                  <span>🤖 Aktiv (LLM-formuliert)</span>
+                </label>
+                <span class="field-hint">Braucht die HA-Integration "DWD Weather Warnings" (Einstellungen → Geräte & Dienste → hinzufügen, Warncell auswählen) — trage unten den dabei entstehenden Sensor ein.</span>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Unwetter-Sensor (Entity-ID)</span>
+                <input class="field-input" id="insights-severe-weather-entity" type="text" placeholder="sensor.melsungen_current_warning_level">
+              </label>
             </div>
 
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Spracherkennung (STT)</div>
@@ -6494,11 +6518,19 @@
         const pvThresholdEl = document.getElementById('insights-pv-surplus-threshold');
         const weatherInsightEl = document.getElementById('insights-weather-tomorrow-enabled');
         const robotStatusInsightEl = document.getElementById('insights-robot-status-enabled');
+        const vehicleInsightEl = document.getElementById('insights-vehicle-status-enabled');
+        const vehicleThresholdEl = document.getElementById('insights-vehicle-battery-low-threshold');
+        const severeWeatherInsightEl = document.getElementById('insights-severe-weather-enabled');
+        const severeWeatherEntityEl = document.getElementById('insights-severe-weather-entity');
         if (fuelInsightEl) fuelInsightEl.checked = !!insights.fuel_price_enabled;
         if (pvInsightEl) pvInsightEl.checked = !!insights.pv_surplus_enabled;
         if (pvThresholdEl) pvThresholdEl.value = insights.pv_surplus_threshold_watts ?? 1500;
         if (weatherInsightEl) weatherInsightEl.checked = !!insights.weather_tomorrow_enabled;
         if (robotStatusInsightEl) robotStatusInsightEl.checked = !!insights.robot_status_enabled;
+        if (vehicleInsightEl) vehicleInsightEl.checked = !!insights.vehicle_status_enabled;
+        if (vehicleThresholdEl) vehicleThresholdEl.value = insights.vehicle_battery_low_threshold_pct ?? 20;
+        if (severeWeatherInsightEl) severeWeatherInsightEl.checked = !!insights.severe_weather_enabled;
+        if (severeWeatherEntityEl) severeWeatherEntityEl.value = insights.severe_weather_entity_id || '';
         const gLlmEl   = document.getElementById('attention-greeting-use-llm');
         const gTimeEl  = document.getElementById('attention-greeting-ctx-time');
         const gCalEl   = document.getElementById('attention-greeting-ctx-calendar');
@@ -6736,6 +6768,10 @@
               pv_surplus_threshold_watts: parseInt(document.getElementById('insights-pv-surplus-threshold')?.value) || 1500,
               weather_tomorrow_enabled: document.getElementById('insights-weather-tomorrow-enabled')?.checked ?? false,
               robot_status_enabled: document.getElementById('insights-robot-status-enabled')?.checked ?? false,
+              vehicle_status_enabled: document.getElementById('insights-vehicle-status-enabled')?.checked ?? false,
+              vehicle_battery_low_threshold_pct: parseInt(document.getElementById('insights-vehicle-battery-low-threshold')?.value) || 20,
+              severe_weather_enabled: document.getElementById('insights-severe-weather-enabled')?.checked ?? false,
+              severe_weather_entity_id: document.getElementById('insights-severe-weather-entity')?.value.trim() || '',
             },
           }),
         });

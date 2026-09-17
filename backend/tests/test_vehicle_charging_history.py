@@ -169,3 +169,59 @@ def test_charging_history_year_empty_when_no_data(temp_db):
     assert result["min_pct"] == []
     assert result["max_pct"] == []
     assert result["charged_pct"] == []
+
+
+# ── Extrahierte Lade-/Steckerkennung (Regressionsschutz für die Insight-Wiederverwendung) ──
+
+def test_is_charging_state_matches_known_values():
+    assert VehicleService._is_charging_state("charging") is True
+    assert VehicleService._is_charging_state("ON") is True
+    assert VehicleService._is_charging_state("in_charge") is True
+    assert VehicleService._is_charging_state("not_charging") is False
+    assert VehicleService._is_charging_state("") is False
+    assert VehicleService._is_charging_state(None) is False
+
+
+def test_is_plug_connected_state_matches_known_values():
+    assert VehicleService._is_plug_connected_state("plugged_in") is True
+    assert VehicleService._is_plug_connected_state("connected") is True
+    assert VehicleService._is_plug_connected_state("charging") is True
+    assert VehicleService._is_plug_connected_state("off") is False
+    assert VehicleService._is_plug_connected_state(None) is False
+
+
+class FakeHAStates:
+    def __init__(self, states):
+        self._states = states
+
+    def get_state(self, entity_id):
+        return self._states.get(entity_id)
+
+
+def test_record_charging_uses_extracted_state_helpers(temp_db):
+    """Regressionsschutz: nach dem Herausziehen der Lade-/Steckererkennung
+    in eigene Staticmethods (für die Wiederverwendung im proaktiven
+    Fahrzeug-Insight) muss record_charging() weiterhin identisch werten."""
+    vehicle_cfg = VehicleService.default_vehicle()
+    vehicle_cfg["id"] = "veh_test"
+    vehicle_cfg["ev_profile_enabled"] = True
+    vehicle_cfg["battery_entity"] = "sensor.battery"
+    vehicle_cfg["charging_entity"] = "sensor.charging"
+    vehicle_cfg["plug_entity"] = "binary_sensor.plug"
+
+    states = {
+        "sensor.battery": {"state": "77", "attributes": {}},
+        "sensor.charging": {"state": "charging", "attributes": {}},
+        "binary_sensor.plug": {"state": "connected", "attributes": {}},
+    }
+    svc = VehicleService(ha=FakeHAStates(states))
+    config = {"vehicles": {"items": [vehicle_cfg]}}
+    svc.record_charging(config)
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT is_charging, plug_connected FROM vehicle_charging_history WHERE vehicle_id=?",
+            ("veh_test",),
+        ).fetchone()
+    assert row["is_charging"] == 1
+    assert row["plug_connected"] == 1
