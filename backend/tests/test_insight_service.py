@@ -263,6 +263,14 @@ def test_weather_combines_calendar_event_location(monkeypatch, temp_db):
 # ── run_checks: Toggles ────────────────────────────────────────────
 
 def test_run_checks_skips_disabled_sources(temp_db):
+    # Insights sind standardmäßig aktiv (opt-out) — für diesen Test explizit
+    # abschalten, um das Überspringen bei deaktivierter Quelle zu prüfen.
+    _enable_insight({"insights": {
+        "fuel_price_enabled": False,
+        "pv_surplus_enabled": False,
+        "weather_tomorrow_enabled": False,
+    }})
+
     class ExplodingPv:
         def get_state(self, sensors):
             raise AssertionError("sollte bei deaktiviertem Insight nicht aufgerufen werden")

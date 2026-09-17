@@ -108,10 +108,10 @@ class IntegrationConfigService:
                 "appointment_reminder_minutes_before": 15,
             },
             "insights": {
-                "fuel_price_enabled": False,
-                "pv_surplus_enabled": False,
+                "fuel_price_enabled": True,
+                "pv_surplus_enabled": True,
                 "pv_surplus_threshold_watts": 1500,
-                "weather_tomorrow_enabled": False,
+                "weather_tomorrow_enabled": True,
             },
             "printer": {
                 "enabled":        False,
@@ -372,9 +372,9 @@ class IntegrationConfigService:
         except (TypeError, ValueError):
             attention["appointment_reminder_minutes_before"] = 15
         insights = merged.setdefault("insights", {})
-        insights["fuel_price_enabled"] = bool(insights.get("fuel_price_enabled", False))
-        insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", False))
-        insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", False))
+        insights["fuel_price_enabled"] = bool(insights.get("fuel_price_enabled", True))
+        insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", True))
+        insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", True))
         try:
             insights["pv_surplus_threshold_watts"] = max(200, min(10000, int(insights.get("pv_surplus_threshold_watts", 1500))))
         except (TypeError, ValueError):
@@ -499,9 +499,9 @@ class IntegrationConfigService:
         except (TypeError, ValueError):
             attention["appointment_reminder_minutes_before"] = 15
         insights = updated.setdefault("insights", {})
-        insights["fuel_price_enabled"] = bool(insights.get("fuel_price_enabled", False))
-        insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", False))
-        insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", False))
+        insights["fuel_price_enabled"] = bool(insights.get("fuel_price_enabled", True))
+        insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", True))
+        insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", True))
         try:
             insights["pv_surplus_threshold_watts"] = max(200, min(10000, int(insights.get("pv_surplus_threshold_watts", 1500))))
         except (TypeError, ValueError):

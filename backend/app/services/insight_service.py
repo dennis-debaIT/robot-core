@@ -339,7 +339,9 @@ class InsightService:
                             "selbständig Sensordaten und gibst hilfreiche, kurze Hinweise — freundlich, "
                             "mit einer Prise trockenem Humor, aber nicht übertrieben, da dies keine "
                             "Fehler- oder Alarmmeldungen sind, sondern beiläufige Beobachtungen. "
-                            "Erfinde keine Zahlen oder Fakten, die nicht im Prompt genannt wurden. "
+                            "Erfinde keine Zahlen oder Fakten, die nicht im Prompt genannt wurden, und "
+                            "keine Gegenstände, Werkzeuge, Körperteile oder biologischen Handlungen, die "
+                            "zu einem erwähnten Gerät nicht passen. "
                             "Antworte ausschließlich auf Deutsch, kurz und natürlich."
                         )},
                         {"role": "user", "content": prompt},
