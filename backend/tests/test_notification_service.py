@@ -29,7 +29,7 @@ def test_llm_message_falls_back_to_none_on_exception(monkeypatch):
     assert result is None
 
 
-def test_llm_message_prompt_uses_translated_state_not_raw_slug(monkeypatch):
+def test_llm_message_prompt_uses_translated_state_not_raw_slug(monkeypatch, temp_db):
     """Regression: das LLM hat "outside_wire" fälschlich als "wartet auf sein
     Kabel" gedeutet, weil der rohe HA-Wert unübersetzt in den Prompt kam.
     Der tatsächlich gesendete Prompt muss die deutsche Übersetzung enthalten,
@@ -48,7 +48,7 @@ def test_llm_message_prompt_uses_translated_state_not_raw_slug(monkeypatch):
     assert "outside_wire" not in user_prompt
 
 
-def test_llm_message_returns_text_on_success(monkeypatch):
+def test_llm_message_returns_text_on_success(monkeypatch, temp_db):
     class FakeRouter:
         def generate(self, payload, timeout_seconds=15):
             return {"reply": "Robert steckt gerade fest."}
