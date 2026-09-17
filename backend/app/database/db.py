@@ -438,6 +438,10 @@ def init_db() -> None:
         if "sync_server_id" not in note_columns:
             conn.execute("ALTER TABLE person_notes ADD COLUMN sync_server_id TEXT")
 
+        notification_rule_columns = {row["name"] for row in conn.execute("PRAGMA table_info(notification_rules)").fetchall()}
+        if "use_llm" not in notification_rule_columns:
+            conn.execute("ALTER TABLE notification_rules ADD COLUMN use_llm INTEGER NOT NULL DEFAULT 0")
+
         audit_columns = {row["name"] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
         if "level" not in audit_columns:
             conn.execute("ALTER TABLE audit_log ADD COLUMN level TEXT NOT NULL DEFAULT 'info'")

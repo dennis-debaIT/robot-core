@@ -1691,6 +1691,17 @@
                 <span class="field-label">Fazit-Uhrzeit</span>
                 <input class="field-input" id="attention-evening-recap-time" type="time" value="20:00">
               </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Termin-Erinnerung</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="attention-appointment-reminder-enabled">
+                  <span>🤖 Erika kündigt bevorstehende Kalendertermine proaktiv an (LLM-formuliert)</span>
+                </label>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Vorlaufzeit (Minuten)</span>
+                <input class="field-input" id="attention-appointment-reminder-minutes" type="number" min="1" max="120" value="15">
+              </label>
             </div>
 
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Spracherkennung (STT)</div>
@@ -6144,7 +6155,8 @@
           <div id="notif-rule-view-${r.id}" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.78rem;color:var(--muted);">
             <span>Entity: <strong style="color:var(--text);">${escapeHtml(r.entity_id)}</strong></span>
             <span>Bedingung: <strong style="color:var(--text);">${CONDITION_TYPES.find(c=>c.value===r.condition_type)?.label || r.condition_type}${r.condition_value ? ' ' + r.condition_value : ''}</strong></span>
-            ${r.message ? `<span style="grid-column:1/-1;">Text: <em>${escapeHtml(r.message)}</em></span>` : ''}
+            ${r.use_llm ? `<span style="grid-column:1/-1;">🤖 Nachricht wird vom LLM formuliert</span>`
+              : r.message ? `<span style="grid-column:1/-1;">Text: <em>${escapeHtml(r.message)}</em></span>` : ''}
           </div>
           <div id="notif-rule-edit-${r.id}" style="display:none;margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
             <div class="field-grid">
@@ -6168,7 +6180,12 @@
               </label>
               <label class="field-block" style="grid-column:1/-1;">
                 <span class="field-label">Eigener Text</span>
-                <input class="field-input" id="ne-msg-${r.id}" type="text" value="${escapeHtml(r.message||'')}">
+                <input class="field-input" id="ne-msg-${r.id}" type="text" value="${escapeHtml(r.message||'')}" ${r.use_llm ? 'disabled' : ''}>
+              </label>
+              <label class="mini-check" style="grid-column:1/-1;margin:0;">
+                <input type="checkbox" id="ne-llm-${r.id}" ${r.use_llm ? 'checked' : ''}
+                  onchange="document.getElementById('ne-msg-${r.id}').disabled = this.checked">
+                <span>🤖 Nachricht vom LLM formulieren lassen (statt eigener Text)</span>
               </label>
             </div>
             <div style="display:flex;gap:8px;margin-top:10px;">
@@ -6195,12 +6212,13 @@
       const ctype  = document.getElementById(`ne-ctype-${id}`)?.value;
       const cval   = document.getElementById(`ne-cval-${id}`)?.value.trim();
       const msg    = document.getElementById(`ne-msg-${id}`)?.value.trim();
+      const useLlm = document.getElementById(`ne-llm-${id}`)?.checked ?? false;
       if (!label || !entity) return;
       const enabled = document.querySelector(`#notif-rule-${id} input[type=checkbox]`)?.checked ?? true;
       await fetch(`/notification-rules/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, entity_id: entity, condition_type: ctype, condition_value: cval || null, message: msg || null, enabled }),
+        body: JSON.stringify({ label, entity_id: entity, condition_type: ctype, condition_value: cval || null, message: msg || null, enabled, use_llm: useLlm }),
       });
       loadNotifRules();
     }
@@ -6254,6 +6272,10 @@
             <span class="field-label">Eigener Text (leer = automatisch)</span>
             <input class="field-input" id="nf-msg" type="text" placeholder='z.B. "Robert muss geladen werden"'>
           </label>
+          <label class="mini-check" style="grid-column:1/-1;margin:0;">
+            <input type="checkbox" id="nf-llm" onchange="document.getElementById('nf-msg').disabled = this.checked">
+            <span>🤖 Nachricht vom LLM formulieren lassen (statt eigener Text)</span>
+          </label>
         </div>
         <div style="display:flex;gap:10px;margin-top:12px;">
           <button type="button" class="primary" onclick="saveNotifRule()">Speichern</button>
@@ -6268,11 +6290,12 @@
       const ctype   = document.getElementById('nf-ctype')?.value;
       const cval    = document.getElementById('nf-cval')?.value.trim();
       const msg     = document.getElementById('nf-msg')?.value.trim();
+      const useLlm  = document.getElementById('nf-llm')?.checked ?? false;
       if (!label || !entity) return alert('Bezeichnung und Entity-ID sind Pflicht.');
       await fetch('/notification-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label, entity_id: entity, condition_type: ctype, condition_value: cval || null, message: msg || null, enabled: true }),
+        body: JSON.stringify({ label, entity_id: entity, condition_type: ctype, condition_value: cval || null, message: msg || null, enabled: true, use_llm: useLlm }),
       });
       document.getElementById('notif-add-form')?.remove();
       loadNotifRules();
@@ -6420,6 +6443,10 @@
         if (endEl) endEl.value = att.proactive_end || '22:00';
         if (recapEl) recapEl.checked = !!att.evening_recap_enabled;
         if (recapTimeEl) recapTimeEl.value = att.evening_recap_time || '20:00';
+        const apptEl = document.getElementById('attention-appointment-reminder-enabled');
+        const apptMinEl = document.getElementById('attention-appointment-reminder-minutes');
+        if (apptEl) apptEl.checked = !!att.appointment_reminder_enabled;
+        if (apptMinEl) apptMinEl.value = att.appointment_reminder_minutes_before ?? 15;
         const gLlmEl   = document.getElementById('attention-greeting-use-llm');
         const gTimeEl  = document.getElementById('attention-greeting-ctx-time');
         const gCalEl   = document.getElementById('attention-greeting-ctx-calendar');
@@ -6641,6 +6668,8 @@
               proactive_end: document.getElementById('attention-proactive-end')?.value || '22:00',
               evening_recap_enabled: document.getElementById('attention-evening-recap-enabled')?.checked ?? false,
               evening_recap_time: document.getElementById('attention-evening-recap-time')?.value || '20:00',
+              appointment_reminder_enabled: document.getElementById('attention-appointment-reminder-enabled')?.checked ?? false,
+              appointment_reminder_minutes_before: parseInt(document.getElementById('attention-appointment-reminder-minutes')?.value) || 15,
               greeting_use_llm: document.getElementById('attention-greeting-use-llm')?.checked ?? true,
               greeting_context_time: document.getElementById('attention-greeting-ctx-time')?.checked ?? true,
               greeting_context_calendar: document.getElementById('attention-greeting-ctx-calendar')?.checked ?? true,

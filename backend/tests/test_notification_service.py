@@ -1,0 +1,66 @@
+from app.services.notification_service import NotificationService
+
+
+class FakeHA:
+    def __init__(self, state: str):
+        self._state = state
+
+    def get_state(self, entity_id):
+        return {"state": self._state}
+
+
+def test_llm_message_falls_back_to_none_on_empty_reply(monkeypatch):
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            return {"reply": "   "}  # leer/nur Leerzeichen
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    result = NotificationService._llm_message("Robert", "changed_to", "trapped", "trapped")
+    assert result is None
+
+
+def test_llm_message_falls_back_to_none_on_exception(monkeypatch):
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            raise RuntimeError("kein Netzwerk")
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    result = NotificationService._llm_message("Robert", "changed_to", "trapped", "trapped")
+    assert result is None
+
+
+def test_llm_message_returns_text_on_success(monkeypatch):
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            return {"reply": "Robert steckt gerade fest."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    result = NotificationService._llm_message("Robert", "changed_to", "trapped", "trapped")
+    assert result == "Robert steckt gerade fest."
+
+
+def test_check_rules_with_use_llm_falls_back_to_auto_message_never_empty(monkeypatch, temp_db):
+    """Auch wenn use_llm=1 gesetzt ist und die LLM-Formulierung fehlschlägt,
+    darf niemals eine leere Benachrichtigung entstehen."""
+    monkeypatch.setattr(NotificationService, "_llm_message", staticmethod(lambda *a, **kw: None))
+
+    svc = NotificationService(ha=FakeHA("trapped"))
+    svc.create_rule({
+        "label": "Robert", "entity_id": "lawn_mower.robert",
+        "condition_type": "changed_to", "condition_value": "trapped",
+        "use_llm": True, "enabled": True,
+    })
+    triggered = svc.check_rules()
+    assert len(triggered) == 1
+    assert triggered[0]["message"]  # nicht leer
+    assert triggered[0]["message"] == "Robert: gewechselt zu trapped"  # _auto_message-Fallback
+
+
+def test_create_manual_notification_has_no_rule_id(temp_db):
+    svc = NotificationService(ha=FakeHA("idle"))
+    notif_id = svc.create_manual_notification("Gleich steht ein Termin an: Zahnarzt um 14:00 Uhr.", entity_id="calendar")
+    notifications = svc.list_notifications()
+    match = next(n for n in notifications if n["id"] == notif_id)
+    assert match["rule_id"] is None
+    assert match["entity_id"] == "calendar"
+    assert "Zahnarzt" in match["message"]

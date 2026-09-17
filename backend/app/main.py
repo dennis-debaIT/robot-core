@@ -177,6 +177,99 @@ async def _reminder_watcher_loop() -> None:
         await asyncio.sleep(5)
 
 
+def _llm_appointment_message(summary: str, local_time: str) -> str | None:
+    """Wie NotificationService._llm_message — kleiner Prompt, LLM, bei Fehler
+    None (Aufrufer fällt dann auf einen festen Text zurück)."""
+    try:
+        from app.brain.llm_client import LLMRouter
+        prompt = (
+            f"Termin steht bevor: {summary} um {local_time} Uhr. "
+            "Formuliere eine kurze, natürliche Erinnerung für eine Familie "
+            "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
+        )
+        result = LLMRouter().generate(
+            {
+                "messages": [
+                    {"role": "system", "content": "Du bist Erika, ein sozialer Haushaltsassistent. Antworte ausschließlich auf Deutsch, kurz und natürlich."},
+                    {"role": "user", "content": prompt},
+                ],
+                "llm_max_tokens": 60,
+            },
+            timeout_seconds=8,
+        )
+        text = (result.get("reply") or "").strip()
+        return text or None
+    except Exception:
+        return None
+
+
+async def _appointment_announce_loop() -> None:
+    """Kündigt bevorstehende Kalendertermine proaktiv an (opt-in über
+    attention.appointment_reminder_enabled), mit vom LLM formulierter
+    Nachricht. Zustellung läuft über die bestehende Benachrichtigungs-
+    Glocke/TTS-Pipeline (NotificationService.create_manual_notification) —
+    keine eigene Frontend-Logik nötig. Läuft alle 2 Minuten."""
+    from app.audit.service import AuditService
+    _audit = AuditService()
+    await asyncio.sleep(60)
+    while True:
+        try:
+            from datetime import datetime, timezone
+            from app.database.db import get_connection, read_state, write_state
+            from app.services.integration_config_service import IntegrationConfigService
+            from app.search.providers.homeassistant import HomeAssistantProvider
+            from app.services.notification_service import NotificationService
+
+            cfg = IntegrationConfigService().get_config()
+            attention = cfg.get("attention", {})
+            if attention.get("appointment_reminder_enabled"):
+                minutes_before = int(attention.get("appointment_reminder_minutes_before", 15))
+                cal_cfg = cfg.get("calendar", {})
+                selected = cal_cfg.get("selected_calendars") or []
+                events = HomeAssistantProvider().get_events_upcoming(days=1, selected_calendars=selected or None)
+                now = datetime.now(timezone.utc)
+
+                with get_connection() as conn:
+                    sent = list(read_state(conn, "appointment_announcements_sent", []) or [])
+                sent_keys = set(sent)
+                changed = False
+
+                for ev in events:
+                    start_raw = (ev.get("start") or {}).get("dateTime")
+                    if not start_raw:
+                        continue  # ganztägige Termine haben keine feste Uhrzeit — nicht ankündigbar
+                    try:
+                        start_dt = datetime.fromisoformat(start_raw)
+                    except ValueError:
+                        continue
+                    if start_dt.tzinfo is None:
+                        start_dt = start_dt.replace(tzinfo=timezone.utc)
+                    minutes_until = (start_dt - now).total_seconds() / 60
+                    if not (0 <= minutes_until <= minutes_before):
+                        continue
+
+                    summary = ev.get("summary") or "Termin"
+                    key = f"{ev.get('_calendar', '')}|{start_raw}|{summary}"
+                    if key in sent_keys:
+                        continue
+
+                    local_time = start_dt.astimezone().strftime("%H:%M")
+                    text = _llm_appointment_message(summary, local_time) \
+                        or f"Gleich steht ein Termin an: {summary} um {local_time} Uhr."
+                    NotificationService().create_manual_notification(text, entity_id="calendar")
+                    _audit.log_info(source="appointment_reminder", message=f"Termin-Erinnerung ausgelöst: {summary} um {local_time}")
+                    sent.append(key)
+                    sent_keys.add(key)
+                    changed = True
+
+                if changed:
+                    with get_connection() as conn:
+                        write_state(conn, "appointment_announcements_sent", sent[-200:])
+        except Exception as exc:
+            _audit.log_error(source="appointment_announce_loop", message=str(exc))
+        await asyncio.sleep(120)
+
+
 async def _waste_push_loop() -> None:
     """Sendet täglich zur konfigurierten Uhrzeit eine Push-Notification
     falls morgen Müllabfuhr ist. Verhindert Doppelsendungen per Tages-Flag."""
@@ -580,6 +673,7 @@ async def lifespan(_: FastAPI) -> Any:
     timer_task = asyncio.create_task(_timer_watcher_loop())
     notification_task = asyncio.create_task(_notification_check_loop())
     reminder_task = asyncio.create_task(_reminder_watcher_loop())
+    appointment_task = asyncio.create_task(_appointment_announce_loop())
     waste_push_task = asyncio.create_task(_waste_push_loop())
     memory_task = asyncio.create_task(_memory_maintenance_loop())
     license_task = asyncio.create_task(_license_renewal_loop())
@@ -600,6 +694,7 @@ async def lifespan(_: FastAPI) -> Any:
         timer_task.cancel()
         notification_task.cancel()
         reminder_task.cancel()
+        appointment_task.cancel()
         waste_push_task.cancel()
         memory_task.cancel()
         license_task.cancel()
@@ -622,6 +717,8 @@ async def lifespan(_: FastAPI) -> Any:
             await notification_task
         with suppress(asyncio.CancelledError):
             await reminder_task
+        with suppress(asyncio.CancelledError):
+            await appointment_task
         with suppress(asyncio.CancelledError):
             await waste_push_task
         with suppress(asyncio.CancelledError):

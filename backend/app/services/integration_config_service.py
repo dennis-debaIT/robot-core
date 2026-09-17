@@ -104,6 +104,8 @@ class IntegrationConfigService:
                 "evening_recap_enabled": False,
                 "evening_recap_time": "20:00",
                 "stt_provider": "online",
+                "appointment_reminder_enabled": False,
+                "appointment_reminder_minutes_before": 15,
             },
             "printer": {
                 "enabled":        False,
@@ -358,6 +360,11 @@ class IntegrationConfigService:
         attention["greeting_context_pv"] = bool(attention.get("greeting_context_pv", True))
         attention["greeting_context_topics"] = bool(attention.get("greeting_context_topics", True))
         attention["stt_provider"] = attention.get("stt_provider") if attention.get("stt_provider") in ("online", "local") else "online"
+        attention["appointment_reminder_enabled"] = bool(attention.get("appointment_reminder_enabled", False))
+        try:
+            attention["appointment_reminder_minutes_before"] = max(1, min(120, int(attention.get("appointment_reminder_minutes_before", 15))))
+        except (TypeError, ValueError):
+            attention["appointment_reminder_minutes_before"] = 15
         meta = merged.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(meta.get("version", 1))
         return merged
@@ -472,6 +479,11 @@ class IntegrationConfigService:
         attention["greeting_context_pv"] = bool(attention.get("greeting_context_pv", True))
         attention["greeting_context_topics"] = bool(attention.get("greeting_context_topics", True))
         attention["stt_provider"] = attention.get("stt_provider") if attention.get("stt_provider") in ("online", "local") else "online"
+        attention["appointment_reminder_enabled"] = bool(attention.get("appointment_reminder_enabled", False))
+        try:
+            attention["appointment_reminder_minutes_before"] = max(1, min(120, int(attention.get("appointment_reminder_minutes_before", 15))))
+        except (TypeError, ValueError):
+            attention["appointment_reminder_minutes_before"] = 15
         meta = updated.setdefault("meta", {})
         meta["version"] = self._sanitize_config_version(current.get("meta", {}).get("version", 1)) + 1
         with get_connection() as conn:

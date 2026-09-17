@@ -29,12 +29,13 @@ class NotificationService:
         now = datetime.now(timezone.utc).isoformat()
         with get_connection() as conn:
             cur = conn.execute(
-                """INSERT INTO notification_rules(label, entity_id, condition_type, condition_value, message, enabled, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                """INSERT INTO notification_rules(label, entity_id, condition_type, condition_value, message, enabled, use_llm, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (label, entity_id, condition_type,
                  str(payload.get("condition_value") or "").strip() or None,
                  str(payload.get("message") or "").strip() or None,
-                 1 if payload.get("enabled", True) else 0, now),
+                 1 if payload.get("enabled", True) else 0,
+                 1 if payload.get("use_llm") else 0, now),
             )
             rule_id = cur.lastrowid
         return {"id": rule_id, "label": label}
@@ -43,13 +44,14 @@ class NotificationService:
         with get_connection() as conn:
             conn.execute(
                 """UPDATE notification_rules SET label=?, entity_id=?, condition_type=?,
-                   condition_value=?, message=?, enabled=? WHERE id=?""",
+                   condition_value=?, message=?, enabled=?, use_llm=? WHERE id=?""",
                 (str(payload.get("label") or "").strip(),
                  str(payload.get("entity_id") or "").strip(),
                  str(payload.get("condition_type") or "").strip(),
                  str(payload.get("condition_value") or "").strip() or None,
                  str(payload.get("message") or "").strip() or None,
                  1 if payload.get("enabled", True) else 0,
+                 1 if payload.get("use_llm") else 0,
                  rule_id),
             )
 
@@ -164,7 +166,11 @@ class NotificationService:
                         )
 
                 if fire:
-                    msg = custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
+                    if rule["use_llm"]:
+                        msg = self._llm_message(label, condition_type, condition_value, current_value) \
+                            or custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
+                    else:
+                        msg = custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
                     notif_id = self._create_notification(conn, rule_id, msg, entity_id)
                     conn.execute(
                         "INSERT OR REPLACE INTO notification_rule_state(rule_id, last_value, last_fired_at, condition_active) VALUES (?,?,?,1)",
@@ -199,6 +205,51 @@ class NotificationService:
         except (TypeError, ValueError):
             pass
         return False
+
+    def create_manual_notification(self, message: str, entity_id: str | None = None) -> int:
+        """Für Benachrichtigungen ohne zugehörige Regel (z.B. proaktive
+        Kalender-Erinnerungen) — nutzt dieselbe Zustellung (Glocke + TTS)
+        wie regelbasierte Benachrichtigungen."""
+        with get_connection() as conn:
+            return self._create_notification(conn, None, message, entity_id)
+
+    @staticmethod
+    def _llm_message(label: str, condition_type: str, target: str, current: str) -> str | None:
+        """Lässt das LLM eine natürliche Formulierung für ein ausgelöstes
+        Ereignis bauen. Gibt bei jedem Fehler/leerer Antwort None zurück —
+        der Aufrufer fällt dann auf die feste Vorlage zurück, es entsteht
+        nie eine leere Benachrichtigung."""
+        try:
+            from app.brain.llm_client import LLMRouter
+            cond_map = {
+                "lt": f"ist unter {target} gefallen (aktuell {current})",
+                "gt": f"ist über {target} gestiegen (aktuell {current})",
+                "eq": f"hat den Wert {target} erreicht",
+                "changed_to": f"ist jetzt im Zustand '{target}'",
+                "changed": f"hat sich geändert auf '{current}'",
+            }
+            event = cond_map.get(condition_type, f"{condition_type} ({current})")
+            prompt = (
+                f"Ereignis: {label} {event}. "
+                "Formuliere daraus eine kurze, natürliche Benachrichtigung für eine Familie "
+                "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
+            )
+            result = LLMRouter().generate(
+                {
+                    "messages": [
+                        {"role": "system", "content": "Du bist Erika, ein sozialer Haushaltsassistent. Antworte ausschließlich auf Deutsch, kurz und natürlich."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "llm_max_tokens": 60,
+                },
+                timeout_seconds=8,
+            )
+            text = (result.get("reply") or "").strip()
+            return text or None
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="notification", message=f"LLM-Formulierung fehlgeschlagen ({label}): {type(exc).__name__}: {exc}")
+            return None
 
     @staticmethod
     def _auto_message(label: str, condition_type: str, target: str, current: str) -> str:
