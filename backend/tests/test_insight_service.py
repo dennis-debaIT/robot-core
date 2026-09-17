@@ -281,7 +281,14 @@ def test_run_checks_skips_disabled_sources(temp_db):
 
 
 def test_run_checks_creates_notification_for_fired_insight(monkeypatch, temp_db):
-    _enable_insight({"insights": {"pv_surplus_enabled": True}, "pv": {"enabled": True, "sensors": {}}})
+    # Nur PV-Überschuss isoliert testen — die anderen beiden Quellen sind
+    # seit der Default-Umstellung auf opt-out ebenfalls aktiv und würden
+    # sonst echte HA/Wetter-Aufrufe auslösen.
+    _enable_insight({"insights": {
+        "pv_surplus_enabled": True,
+        "fuel_price_enabled": False,
+        "weather_tomorrow_enabled": False,
+    }, "pv": {"enabled": True, "sensors": {}}})
     _fake_llm(monkeypatch, reply="Viel PV-Überschuss gerade.")
     notifications = FakeNotifications()
     svc = InsightService(pv=FakePv(2000), notifications=notifications)
