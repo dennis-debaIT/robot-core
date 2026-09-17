@@ -167,7 +167,8 @@ class NotificationService:
 
                 if fire:
                     if rule["use_llm"]:
-                        msg = self._llm_message(label, condition_type, condition_value, current_value) \
+                        style_examples = self._sibling_style_examples(conn, label, rule_id)
+                        msg = self._llm_message(label, condition_type, condition_value, current_value, style_examples) \
                             or custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
                     else:
                         msg = custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
@@ -214,7 +215,22 @@ class NotificationService:
             return self._create_notification(conn, None, message, entity_id)
 
     @staticmethod
-    def _llm_message(label: str, condition_type: str, target: str, current: str) -> str | None:
+    def _sibling_style_examples(conn: Any, label: str, exclude_rule_id: int) -> list[str]:
+        """Holt vorhandene eigene Texte anderer Regeln zum selben Gerät
+        (grobe Zuordnung über das erste Wort des Labels, z.B. "Robert") als
+        Stilvorlage fürs LLM — damit generierte Meldungen zum etablierten
+        Ton passen statt generisch zu klingen."""
+        prefix = (label or "").split()[0] if label else ""
+        if not prefix:
+            return []
+        rows = conn.execute(
+            "SELECT message FROM notification_rules WHERE id != ? AND message IS NOT NULL AND label LIKE ?",
+            (exclude_rule_id, f"%{prefix}%"),
+        ).fetchall()
+        return [r["message"] for r in rows if r["message"]]
+
+    @staticmethod
+    def _llm_message(label: str, condition_type: str, target: str, current: str, style_examples: list[str] | None = None) -> str | None:
         """Lässt das LLM eine natürliche Formulierung für ein ausgelöstes
         Ereignis bauen. Gibt bei jedem Fehler/leerer Antwort None zurück —
         der Aufrufer fällt dann auf die feste Vorlage zurück, es entsteht
@@ -229,15 +245,33 @@ class NotificationService:
                 "changed": f"hat sich geändert auf '{current}'",
             }
             event = cond_map.get(condition_type, f"{condition_type} ({current})")
+
+            examples_block = ""
+            if style_examples:
+                examples_lines = "\n".join(f"- {e}" for e in style_examples[:4])
+                examples_block = (
+                    "\n\nSo klangen frühere Meldungen zu diesem Gerät (genau diesen Ton treffen):\n"
+                    f"{examples_lines}"
+                )
+
             prompt = (
-                f"Ereignis: {label} {event}. "
-                "Formuliere daraus eine kurze, natürliche Benachrichtigung für eine Familie "
-                "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
+                f"Ereignis: {label} {event}."
+                f"{examples_block}\n\n"
+                "Formuliere daraus eine kurze, NEUE Benachrichtigung im selben Tonfall wie oben "
+                "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch). "
+                "Nicht eines der Beispiele wiederholen, sondern eine eigene, passende Formulierung finden."
             )
             result = LLMRouter().generate(
                 {
                     "messages": [
-                        {"role": "system", "content": "Du bist Erika, ein sozialer Haushaltsassistent. Antworte ausschließlich auf Deutsch, kurz und natürlich."},
+                        {"role": "system", "content": (
+                            "Du bist Erika, ein Haushaltsassistent mit trocken-humorvollem, leicht "
+                            "süffisantem Tonfall — kein neutraler Systemton. Bei Fehlern oder Problemen "
+                            "(feststecken, blockiert, Kabel verloren, hängengeblieben o.ä.) darf es ruhig "
+                            "sarkastisch werden. Bei normalen Status-Meldungen (läuft, ist fertig, ist "
+                            "zurück) bleibt der Ton locker mit einem Augenzwinkern, nicht übertrieben. "
+                            "Antworte ausschließlich auf Deutsch, kurz und natürlich."
+                        )},
                         {"role": "user", "content": prompt},
                     ],
                     "llm_max_tokens": 60,
