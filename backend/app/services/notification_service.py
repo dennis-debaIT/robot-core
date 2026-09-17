@@ -95,12 +95,20 @@ class NotificationService:
         with get_connection() as conn:
             conn.execute("DELETE FROM notifications")
 
-    def _create_notification(self, conn: Any, rule_id: int | None, message: str, entity_id: str | None) -> int:
+    def _create_notification(
+        self, conn: Any, rule_id: int | None, message: str, entity_id: str | None, title: str = "Erika"
+    ) -> int:
         now = datetime.now(timezone.utc).isoformat()
         cur = conn.execute(
             "INSERT INTO notifications(rule_id, message, entity_id, read, created_at) VALUES (?,?,?,0,?)",
             (rule_id, message, entity_id, now),
         )
+        try:
+            from app.services.push_service import send_notification
+            send_notification(title=title, body=message, channel="reminders")
+        except Exception as exc:
+            from app.audit.service import AuditService
+            AuditService().log_warn(source="push", message=f"Push-Weiterleitung fehlgeschlagen: {type(exc).__name__}: {exc}")
         return cur.lastrowid
 
     # ── Regel-Check-Loop ─────────────────────────────────────────
@@ -172,7 +180,7 @@ class NotificationService:
                             or custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
                     else:
                         msg = custom_msg or self._auto_message(label, condition_type, condition_value, current_value)
-                    notif_id = self._create_notification(conn, rule_id, msg, entity_id)
+                    notif_id = self._create_notification(conn, rule_id, msg, entity_id, title=label or "Erika")
                     conn.execute(
                         "INSERT OR REPLACE INTO notification_rule_state(rule_id, last_value, last_fired_at, condition_active) VALUES (?,?,?,1)",
                         (rule_id, current_value, now_iso),
@@ -207,12 +215,22 @@ class NotificationService:
             pass
         return False
 
-    def create_manual_notification(self, message: str, entity_id: str | None = None) -> int:
+    def create_manual_notification(self, message: str, entity_id: str | None = None, title: str = "Erika") -> int:
         """Für Benachrichtigungen ohne zugehörige Regel (z.B. proaktive
-        Kalender-Erinnerungen) — nutzt dieselbe Zustellung (Glocke + TTS)
-        wie regelbasierte Benachrichtigungen."""
+        Kalender-Erinnerungen, Insights) — nutzt dieselbe Zustellung
+        (Glocke + TTS + Push) wie regelbasierte Benachrichtigungen."""
         with get_connection() as conn:
-            return self._create_notification(conn, None, message, entity_id)
+            return self._create_notification(conn, None, message, entity_id, title=title)
+
+    def _entities_with_enabled_rules(self) -> set[str]:
+        """Entity-IDs, für die bereits eine aktive Benachrichtigungsregel
+        existiert — genutzt vom Roboter-Status-Insight, um Roboter nicht
+        doppelt zu melden, die schon über eine eigene Regel abgedeckt sind."""
+        with get_connection() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT entity_id FROM notification_rules WHERE enabled=1"
+            ).fetchall()
+        return {row["entity_id"] for row in rows if row["entity_id"]}
 
     @staticmethod
     def _sibling_style_examples(conn: Any, label: str, exclude_rule_id: int) -> list[str]:

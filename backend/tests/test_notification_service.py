@@ -83,3 +83,69 @@ def test_create_manual_notification_has_no_rule_id(temp_db):
     assert match["rule_id"] is None
     assert match["entity_id"] == "calendar"
     assert "Zahnarzt" in match["message"]
+
+
+def test_create_notification_sends_push_with_title(monkeypatch, temp_db):
+    calls = []
+
+    def fake_send(title, body, channel="reminders"):
+        calls.append({"title": title, "body": body, "channel": channel})
+        return 1
+
+    monkeypatch.setattr("app.services.push_service.send_notification", fake_send)
+
+    svc = NotificationService(ha=FakeHA("idle"))
+    svc.create_manual_notification("Testnachricht", entity_id="test", title="🔔 Test-Titel")
+
+    assert len(calls) == 1
+    assert calls[0]["title"] == "🔔 Test-Titel"
+    assert calls[0]["body"] == "Testnachricht"
+    assert calls[0]["channel"] == "reminders"
+
+
+def test_check_rules_uses_rule_label_as_push_title(monkeypatch, temp_db):
+    calls = []
+
+    def fake_send(title, body, channel="reminders"):
+        calls.append({"title": title, "body": body})
+        return 1
+
+    monkeypatch.setattr("app.services.push_service.send_notification", fake_send)
+
+    svc = NotificationService(ha=FakeHA("trapped"))
+    svc.create_rule({
+        "label": "Robert", "entity_id": "lawn_mower.robert",
+        "condition_type": "changed_to", "condition_value": "trapped", "enabled": True,
+    })
+    svc.check_rules()
+
+    assert len(calls) == 1
+    assert calls[0]["title"] == "Robert"
+
+
+def test_notification_still_created_when_push_raises(monkeypatch, temp_db):
+    def failing_send(title, body, channel="reminders"):
+        raise RuntimeError("FCM kaputt")
+
+    monkeypatch.setattr("app.services.push_service.send_notification", failing_send)
+
+    svc = NotificationService(ha=FakeHA("idle"))
+    notif_id = svc.create_manual_notification("Trotzdem gespeichert", entity_id="test")
+
+    notifications = svc.list_notifications()
+    match = next(n for n in notifications if n["id"] == notif_id)
+    assert match["message"] == "Trotzdem gespeichert"
+
+
+def test_entities_with_enabled_rules_excludes_disabled(temp_db):
+    svc = NotificationService(ha=FakeHA("idle"))
+    svc.create_rule({
+        "label": "Robert", "entity_id": "lawn_mower.robert",
+        "condition_type": "changed_to", "condition_value": "trapped", "enabled": True,
+    })
+    svc.create_rule({
+        "label": "Alt", "entity_id": "vacuum.old_disabled",
+        "condition_type": "changed_to", "condition_value": "error", "enabled": False,
+    })
+    covered = svc._entities_with_enabled_rules()
+    assert covered == {"lawn_mower.robert"}

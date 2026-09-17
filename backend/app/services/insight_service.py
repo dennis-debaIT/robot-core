@@ -51,7 +51,7 @@ class InsightService:
             try:
                 msg = self._check_pv_surplus(config, insights_cfg)
                 if msg:
-                    self.notifications.create_manual_notification(msg, entity_id="pv")
+                    self.notifications.create_manual_notification(msg, entity_id="pv", title="☀️ PV-Überschuss")
                     fired.append({"kind": "pv_surplus", "message": msg})
             except Exception as exc:
                 self._log_error("pv_surplus", exc)
@@ -60,7 +60,7 @@ class InsightService:
             try:
                 msg = self._check_fuel_price(config)
                 if msg:
-                    self.notifications.create_manual_notification(msg, entity_id="fuel")
+                    self.notifications.create_manual_notification(msg, entity_id="fuel", title="⛽ Kraftstoffpreis")
                     fired.append({"kind": "fuel_price", "message": msg})
             except Exception as exc:
                 self._log_error("fuel_price", exc)
@@ -69,10 +69,21 @@ class InsightService:
             try:
                 msg = self._check_weather_tomorrow(config)
                 if msg:
-                    self.notifications.create_manual_notification(msg, entity_id="weather")
+                    self.notifications.create_manual_notification(msg, entity_id="weather", title="🌤️ Wetter morgen")
                     fired.append({"kind": "weather_tomorrow", "message": msg})
             except Exception as exc:
                 self._log_error("weather_tomorrow", exc)
+
+        if insights_cfg.get("robot_status_enabled"):
+            try:
+                entries = self._check_robot_status(config)
+                for entry in entries:
+                    self.notifications.create_manual_notification(
+                        entry["message"], entity_id=entry["entity_id"], title=entry["title"]
+                    )
+                    fired.append({"kind": "robot_status", "message": entry["message"], "entity_id": entry["entity_id"]})
+            except Exception as exc:
+                self._log_error("robot_status", exc)
 
         return fired
 
@@ -324,6 +335,58 @@ class InsightService:
         if tmax is not None and tmax > _WEATHER_HOT_C:
             return True
         return False
+
+    # ── Roboter-Status (Geräte ohne eigene Benachrichtigungsregel) ──
+
+    def _check_robot_status(self, config: dict[str, Any]) -> list[dict[str, Any]]:
+        """Prüft ALLE konfigurierten Roboter (Mäher + Sauger) auf neue
+        Warn-/Fehlerzustände — aber nur solche, für die noch keine eigene
+        Benachrichtigungsregel existiert (die bleibt die primäre Quelle für
+        ihren Roboter). Nutzt die bereits vorhandene, deterministische
+        Severity-Klassifizierung aus RobotService — keine LLM-Trigger-
+        Entscheidung, das LLM formuliert nur."""
+        from app.services.notification_service import NotificationService
+        from app.services.robot_service import RobotService
+
+        robot_service = RobotService(ha=self.ha)
+        robots = robot_service.list_robots_with_config(config)
+        if not robots:
+            return []
+
+        covered = NotificationService(ha=self.ha)._entities_with_enabled_rules()
+
+        results: list[dict[str, Any]] = []
+        for robot in robots:
+            entity_id = robot.get("entity_id") or ""
+            if not entity_id or entity_id in covered:
+                continue
+
+            raw_state = robot.get("state") or ""
+            severity = robot_service._severity_for_state(entity_id, raw_state, config)
+
+            state_key = f"insight_robot_status_last_severity:{entity_id}"
+            with get_connection() as conn:
+                last_severity = read_state(conn, state_key, None)
+            if severity == last_severity:
+                continue
+            with get_connection() as conn:
+                write_state(conn, state_key, severity)
+
+            if severity not in ("warning", "error"):
+                continue  # nur neue Probleme melden, nicht die Rückkehr zu ok
+
+            label = robot.get("name") or entity_id
+            translated = robot_service._translate_error_state(raw_state)
+            prompt = (
+                f"Roboter-Beobachtung: {label} meldet einen neuen Problemzustand: '{translated}'. "
+                "Formuliere daraus eine kurze, natürliche Meldung "
+                "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
+            )
+            fallback = f"{label}: {translated}."
+            message = self._llm_narrate(prompt) or fallback
+            results.append({"entity_id": entity_id, "title": f"🤖 {label}", "message": message})
+
+        return results
 
     # ── LLM-Formulierung ─────────────────────────────────────────
 

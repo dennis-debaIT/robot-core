@@ -27,8 +27,8 @@ class FakeNotifications:
     def __init__(self):
         self.created = []
 
-    def create_manual_notification(self, message, entity_id=None):
-        self.created.append({"message": message, "entity_id": entity_id})
+    def create_manual_notification(self, message, entity_id=None, title="Erika"):
+        self.created.append({"message": message, "entity_id": entity_id, "title": title})
         return len(self.created)
 
 
@@ -269,6 +269,7 @@ def test_run_checks_skips_disabled_sources(temp_db):
         "fuel_price_enabled": False,
         "pv_surplus_enabled": False,
         "weather_tomorrow_enabled": False,
+        "robot_status_enabled": False,
     }})
 
     class ExplodingPv:
@@ -288,6 +289,7 @@ def test_run_checks_creates_notification_for_fired_insight(monkeypatch, temp_db)
         "pv_surplus_enabled": True,
         "fuel_price_enabled": False,
         "weather_tomorrow_enabled": False,
+        "robot_status_enabled": False,
     }, "pv": {"enabled": True, "sensors": {}}})
     _fake_llm(monkeypatch, reply="Viel PV-Überschuss gerade.")
     notifications = FakeNotifications()
@@ -297,3 +299,143 @@ def test_run_checks_creates_notification_for_fired_insight(monkeypatch, temp_db)
     assert fired[0]["kind"] == "pv_surplus"
     assert len(notifications.created) == 1
     assert notifications.created[0]["entity_id"] == "pv"
+
+
+# ── Roboter-Status (Geräte ohne eigene Benachrichtigungsregel) ─────
+
+class FakeRobotService:
+    """Konfigurierbarer Ersatz für RobotService — Klassenattribute werden
+    pro Test vor dem Monkeypatch gesetzt."""
+    robots: list = []
+    severities: dict = {}
+    translations: dict = {}
+
+    def __init__(self, ha=None):
+        pass
+
+    def list_robots_with_config(self, config):
+        return type(self).robots
+
+    def _severity_for_state(self, entity_id, raw_state, config):
+        return type(self).severities.get(entity_id, "ok")
+
+    def _translate_error_state(self, raw_state):
+        return type(self).translations.get(raw_state, raw_state)
+
+
+def _patch_robot_service(monkeypatch, robots, severities, translations=None):
+    FakeRobotService.robots = robots
+    FakeRobotService.severities = severities
+    FakeRobotService.translations = translations or {}
+    monkeypatch.setattr("app.services.robot_service.RobotService", FakeRobotService)
+
+
+def test_robot_status_fires_for_new_warning_uncovered_robot(monkeypatch, temp_db):
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
+        severities={"vacuum.krumel_knecht": "warning"},
+        translations={"error_stuck": "Festgefahren"},
+    )
+    _fake_llm(monkeypatch, reply="Krümel Knecht hat sich mal wieder festgefahren.")
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_robot_status({})
+    assert result == [{
+        "entity_id": "vacuum.krumel_knecht",
+        "title": "🤖 Krümel Knecht",
+        "message": "Krümel Knecht hat sich mal wieder festgefahren.",
+    }]
+
+
+def test_robot_status_skips_entity_with_enabled_rule(monkeypatch, temp_db):
+    from app.services.notification_service import NotificationService
+    NotificationService().create_rule({
+        "label": "Robert", "entity_id": "lawn_mower.robert",
+        "condition_type": "changed_to", "condition_value": "trapped", "enabled": True,
+    })
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "lawn_mower.robert", "name": "Robert", "state": "trapped"}],
+        severities={"lawn_mower.robert": "error"},
+    )
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_robot_status({})
+    assert result == []
+
+
+def test_robot_status_no_refire_on_unchanged_severity(monkeypatch, temp_db):
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
+        severities={"vacuum.krumel_knecht": "warning"},
+        translations={"error_stuck": "Festgefahren"},
+    )
+    _fake_llm(monkeypatch, reply="Krümel Knecht hat sich festgefahren.")
+    svc = InsightService(notifications=FakeNotifications())
+    first = svc._check_robot_status({})
+    assert len(first) == 1
+    second = svc._check_robot_status({})
+    assert second == []
+
+
+def test_robot_status_no_fire_on_transition_to_ok_then_fires_on_new_problem(monkeypatch, temp_db):
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "cleaning"}],
+        severities={"vacuum.krumel_knecht": "ok"},
+    )
+    svc = InsightService(notifications=FakeNotifications())
+    baseline = svc._check_robot_status({})
+    assert baseline == []  # ok wird nicht gemeldet, nur als Baseline gespeichert
+
+    FakeRobotService.severities = {"vacuum.krumel_knecht": "warning"}
+    FakeRobotService.translations = {"cleaning": "Reinigt"}
+    _fake_llm(monkeypatch, reply="Krümel Knecht hat jetzt ein Problem.")
+    second = svc._check_robot_status({})
+    assert len(second) == 1
+    assert second[0]["entity_id"] == "vacuum.krumel_knecht"
+
+
+def test_robot_status_llm_failure_falls_back_to_template(monkeypatch, temp_db):
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
+        severities={"vacuum.krumel_knecht": "error"},
+        translations={"error_stuck": "Festgefahren"},
+    )
+
+    class FailingRouter:
+        def generate(self, payload, timeout_seconds=15):
+            raise RuntimeError("kein Netzwerk")
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FailingRouter)
+
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_robot_status({})
+    assert result == [{
+        "entity_id": "vacuum.krumel_knecht",
+        "title": "🤖 Krümel Knecht",
+        "message": "Krümel Knecht: Festgefahren.",
+    }]
+
+
+def test_run_checks_creates_notification_for_robot_status(monkeypatch, temp_db):
+    _enable_insight({"insights": {
+        "robot_status_enabled": True,
+        "fuel_price_enabled": False,
+        "pv_surplus_enabled": False,
+        "weather_tomorrow_enabled": False,
+    }})
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
+        severities={"vacuum.krumel_knecht": "warning"},
+        translations={"error_stuck": "Festgefahren"},
+    )
+    _fake_llm(monkeypatch, reply="Krümel Knecht hat sich festgefahren.")
+    notifications = FakeNotifications()
+    svc = InsightService(notifications=notifications)
+    fired = svc.run_checks()
+    assert len(fired) == 1
+    assert fired[0]["kind"] == "robot_status"
+    assert len(notifications.created) == 1
+    assert notifications.created[0]["title"] == "🤖 Krümel Knecht"

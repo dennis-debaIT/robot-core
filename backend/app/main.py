@@ -262,7 +262,7 @@ async def _appointment_announce_loop() -> None:
                     local_time = start_dt.astimezone().strftime("%H:%M")
                     text = _llm_appointment_message(summary, local_time) \
                         or f"Gleich steht ein Termin an: {summary} um {local_time} Uhr."
-                    NotificationService().create_manual_notification(text, entity_id="calendar")
+                    NotificationService().create_manual_notification(text, entity_id="calendar", title="📅 Termin-Erinnerung")
                     _audit.log_info(source="appointment_reminder", message=f"Termin-Erinnerung ausgelöst: {summary} um {local_time}")
                     sent.append(key)
                     sent_keys.add(key)

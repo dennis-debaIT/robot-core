@@ -112,6 +112,7 @@ class IntegrationConfigService:
                 "pv_surplus_enabled": True,
                 "pv_surplus_threshold_watts": 1500,
                 "weather_tomorrow_enabled": True,
+                "robot_status_enabled": True,
             },
             "printer": {
                 "enabled":        False,
@@ -375,6 +376,7 @@ class IntegrationConfigService:
         insights["fuel_price_enabled"] = bool(insights.get("fuel_price_enabled", True))
         insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", True))
         insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", True))
+        insights["robot_status_enabled"] = bool(insights.get("robot_status_enabled", True))
         try:
             insights["pv_surplus_threshold_watts"] = max(200, min(10000, int(insights.get("pv_surplus_threshold_watts", 1500))))
         except (TypeError, ValueError):
@@ -502,6 +504,7 @@ class IntegrationConfigService:
         insights["fuel_price_enabled"] = bool(insights.get("fuel_price_enabled", True))
         insights["pv_surplus_enabled"] = bool(insights.get("pv_surplus_enabled", True))
         insights["weather_tomorrow_enabled"] = bool(insights.get("weather_tomorrow_enabled", True))
+        insights["robot_status_enabled"] = bool(insights.get("robot_status_enabled", True))
         try:
             insights["pv_surplus_threshold_watts"] = max(200, min(10000, int(insights.get("pv_surplus_threshold_watts", 1500))))
         except (TypeError, ValueError):

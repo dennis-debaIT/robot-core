@@ -1735,6 +1735,14 @@
                 </label>
                 <span class="field-hint">Meldet abends auffälliges Wetter für morgen, inkl. Kalender-Termin-Ort falls gesetzt (z.B. "Morgen nach Darmstadt, dort soll es regnen").</span>
               </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Roboter-Status</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="insights-robot-status-enabled">
+                  <span>🤖 Aktiv (LLM-formuliert)</span>
+                </label>
+                <span class="field-hint">Meldet neue Problemzustände bei Robotern ohne eigene Benachrichtigungsregel.</span>
+              </label>
             </div>
 
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Spracherkennung (STT)</div>
@@ -6485,10 +6493,12 @@
         const pvInsightEl = document.getElementById('insights-pv-surplus-enabled');
         const pvThresholdEl = document.getElementById('insights-pv-surplus-threshold');
         const weatherInsightEl = document.getElementById('insights-weather-tomorrow-enabled');
+        const robotStatusInsightEl = document.getElementById('insights-robot-status-enabled');
         if (fuelInsightEl) fuelInsightEl.checked = !!insights.fuel_price_enabled;
         if (pvInsightEl) pvInsightEl.checked = !!insights.pv_surplus_enabled;
         if (pvThresholdEl) pvThresholdEl.value = insights.pv_surplus_threshold_watts ?? 1500;
         if (weatherInsightEl) weatherInsightEl.checked = !!insights.weather_tomorrow_enabled;
+        if (robotStatusInsightEl) robotStatusInsightEl.checked = !!insights.robot_status_enabled;
         const gLlmEl   = document.getElementById('attention-greeting-use-llm');
         const gTimeEl  = document.getElementById('attention-greeting-ctx-time');
         const gCalEl   = document.getElementById('attention-greeting-ctx-calendar');
@@ -6725,6 +6735,7 @@
               pv_surplus_enabled: document.getElementById('insights-pv-surplus-enabled')?.checked ?? false,
               pv_surplus_threshold_watts: parseInt(document.getElementById('insights-pv-surplus-threshold')?.value) || 1500,
               weather_tomorrow_enabled: document.getElementById('insights-weather-tomorrow-enabled')?.checked ?? false,
+              robot_status_enabled: document.getElementById('insights-robot-status-enabled')?.checked ?? false,
             },
           }),
         });
