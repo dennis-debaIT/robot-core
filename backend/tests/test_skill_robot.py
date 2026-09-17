@@ -28,7 +28,7 @@ def test_robot_skill_prefers_query_over_command():
     assert reply == "Der Staubsauger ist im Ladedock."
     assert extra is None
     assert core.query_calls == 1
-    assert core.command_calls == 1  # "or" wertet beide aus wie im Original
+    assert core.command_calls == 0  # "or" ist kurzschlussauswertend, wie im Original — command wird nicht mehr geprüft
 
 
 def test_robot_skill_falls_back_to_command():
