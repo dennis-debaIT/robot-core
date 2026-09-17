@@ -362,7 +362,9 @@ class InsightService:
                 continue
 
             raw_state = robot.get("state") or ""
-            severity = robot_service._severity_for_state(entity_id, raw_state, config)
+            severity = self._robot_severity(robot_service, entity_id, raw_state, config)
+            if severity is None:
+                continue  # nicht eindeutig klassifiziert -> nicht proaktiv melden
 
             state_key = f"insight_robot_status_last_severity:{entity_id}"
             with get_connection() as conn:
@@ -387,6 +389,29 @@ class InsightService:
             results.append({"entity_id": entity_id, "title": f"🤖 {label}", "message": message})
 
         return results
+
+    @staticmethod
+    def _robot_severity(robot_service: Any, entity_id: str, raw_state: str, config: dict[str, Any]) -> str | None:
+        """Konservativere Variante von RobotService._severity_for_state:
+        nur explizit als ok/warn/critical eingestufte Zustände zählen.
+        RobotService._severity_for_state() wertet unbekannte Zustände
+        standardmäßig als "error" — sinnvoll fürs Fehlerprotokoll (ein
+        False-Positive dort ist billig), aber hier würde es zu Fehlalarm-
+        Push-Benachrichtigungen führen: harmlose, saugerspezifische Zustände
+        wie "charging_completed" oder "drying" stehen nicht in den eher
+        mäher-lastigen Default-Listen und würden sonst als Fehler gemeldet.
+        Unbekannte Zustände geben hier None zurück und werden nicht gemeldet
+        (können aber über robots.state_mappings im Admin-Bereich explizit
+        eingeordnet werden, dann greifen sie normal)."""
+        normalized = robot_service._normalize_error_state(raw_state)
+        rules = robot_service._robot_state_rules(config, entity_id)
+        if normalized in rules["no_error"] or normalized in rules["ok"]:
+            return "ok"
+        if normalized in rules["warn"]:
+            return "warning"
+        if normalized in rules["critical"]:
+            return "error"
+        return None
 
     # ── LLM-Formulierung ─────────────────────────────────────────
 

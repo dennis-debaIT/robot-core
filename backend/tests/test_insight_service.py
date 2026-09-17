@@ -305,9 +305,14 @@ def test_run_checks_creates_notification_for_fired_insight(monkeypatch, temp_db)
 
 class FakeRobotService:
     """Konfigurierbarer Ersatz für RobotService — Klassenattribute werden
-    pro Test vor dem Monkeypatch gesetzt."""
+    pro Test vor dem Monkeypatch gesetzt. `classify` bildet entity_id auf
+    "ok"/"warning"/"error" ab; ein fehlender Eintrag simuliert einen nicht
+    eindeutig klassifizierten Zustand (z.B. "charging_completed", "drying")
+    — die reale RobotService._robot_state_rules()/_normalize_error_state()-
+    Kombination wird hier nachgebildet, nicht abgekürzt, damit der Test die
+    echte Konservativitäts-Logik in InsightService._robot_severity prüft."""
     robots: list = []
-    severities: dict = {}
+    classify: dict = {}
     translations: dict = {}
 
     def __init__(self, ha=None):
@@ -316,16 +321,27 @@ class FakeRobotService:
     def list_robots_with_config(self, config):
         return type(self).robots
 
-    def _severity_for_state(self, entity_id, raw_state, config):
-        return type(self).severities.get(entity_id, "ok")
+    def _normalize_error_state(self, state):
+        return (state or "").strip().lower()
+
+    def _robot_state_rules(self, config, entity_id):
+        buckets = {"no_error": set(), "ok": set(), "warn": set(), "critical": set()}
+        target = type(self).classify.get(entity_id)
+        if target is None:
+            return buckets
+        robot = next((r for r in type(self).robots if r["entity_id"] == entity_id), None)
+        state = self._normalize_error_state(robot["state"]) if robot else ""
+        bucket_key = {"ok": "ok", "warning": "warn", "error": "critical"}[target]
+        buckets[bucket_key].add(state)
+        return buckets
 
     def _translate_error_state(self, raw_state):
         return type(self).translations.get(raw_state, raw_state)
 
 
-def _patch_robot_service(monkeypatch, robots, severities, translations=None):
+def _patch_robot_service(monkeypatch, robots, classify, translations=None):
     FakeRobotService.robots = robots
-    FakeRobotService.severities = severities
+    FakeRobotService.classify = classify
     FakeRobotService.translations = translations or {}
     monkeypatch.setattr("app.services.robot_service.RobotService", FakeRobotService)
 
@@ -334,7 +350,7 @@ def test_robot_status_fires_for_new_warning_uncovered_robot(monkeypatch, temp_db
     _patch_robot_service(
         monkeypatch,
         robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
-        severities={"vacuum.krumel_knecht": "warning"},
+        classify={"vacuum.krumel_knecht": "warning"},
         translations={"error_stuck": "Festgefahren"},
     )
     _fake_llm(monkeypatch, reply="Krümel Knecht hat sich mal wieder festgefahren.")
@@ -356,7 +372,25 @@ def test_robot_status_skips_entity_with_enabled_rule(monkeypatch, temp_db):
     _patch_robot_service(
         monkeypatch,
         robots=[{"entity_id": "lawn_mower.robert", "name": "Robert", "state": "trapped"}],
-        severities={"lawn_mower.robert": "error"},
+        classify={"lawn_mower.robert": "error"},
+    )
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_robot_status({})
+    assert result == []
+
+
+def test_robot_status_unclassified_state_does_not_fire(monkeypatch, temp_db):
+    """Regression: Live-Check auf erika zeigte, dass saugerspezifische,
+    harmlose Zustände wie "charging_completed" oder "drying" in keiner der
+    mäher-lastigen Default-Listen stehen und über den alten, generischen
+    _severity_for_state()-Fallback fälschlich als "error" durchgerutscht
+    wären — das hätte bei jedem Insight-Lauf einen Fehlalarm-Push für
+    Carsten/Krümel Knecht ausgelöst. Ein nicht eindeutig klassifizierter
+    Zustand darf nie proaktiv gemeldet werden."""
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.carsten_carsten", "name": "Carsten", "state": "charging_completed"}],
+        classify={},  # bewusst kein Eintrag -> nicht klassifiziert
     )
     svc = InsightService(notifications=FakeNotifications())
     result = svc._check_robot_status({})
@@ -367,7 +401,7 @@ def test_robot_status_no_refire_on_unchanged_severity(monkeypatch, temp_db):
     _patch_robot_service(
         monkeypatch,
         robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
-        severities={"vacuum.krumel_knecht": "warning"},
+        classify={"vacuum.krumel_knecht": "warning"},
         translations={"error_stuck": "Festgefahren"},
     )
     _fake_llm(monkeypatch, reply="Krümel Knecht hat sich festgefahren.")
@@ -382,13 +416,13 @@ def test_robot_status_no_fire_on_transition_to_ok_then_fires_on_new_problem(monk
     _patch_robot_service(
         monkeypatch,
         robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "cleaning"}],
-        severities={"vacuum.krumel_knecht": "ok"},
+        classify={"vacuum.krumel_knecht": "ok"},
     )
     svc = InsightService(notifications=FakeNotifications())
     baseline = svc._check_robot_status({})
     assert baseline == []  # ok wird nicht gemeldet, nur als Baseline gespeichert
 
-    FakeRobotService.severities = {"vacuum.krumel_knecht": "warning"}
+    FakeRobotService.classify = {"vacuum.krumel_knecht": "warning"}
     FakeRobotService.translations = {"cleaning": "Reinigt"}
     _fake_llm(monkeypatch, reply="Krümel Knecht hat jetzt ein Problem.")
     second = svc._check_robot_status({})
@@ -400,7 +434,7 @@ def test_robot_status_llm_failure_falls_back_to_template(monkeypatch, temp_db):
     _patch_robot_service(
         monkeypatch,
         robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
-        severities={"vacuum.krumel_knecht": "error"},
+        classify={"vacuum.krumel_knecht": "error"},
         translations={"error_stuck": "Festgefahren"},
     )
 
@@ -428,7 +462,7 @@ def test_run_checks_creates_notification_for_robot_status(monkeypatch, temp_db):
     _patch_robot_service(
         monkeypatch,
         robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error_stuck"}],
-        severities={"vacuum.krumel_knecht": "warning"},
+        classify={"vacuum.krumel_knecht": "warning"},
         translations={"error_stuck": "Festgefahren"},
     )
     _fake_llm(monkeypatch, reply="Krümel Knecht hat sich festgefahren.")
