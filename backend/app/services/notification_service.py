@@ -280,6 +280,9 @@ class NotificationService:
                             "(feststecken, blockiert, Kabel verloren, hängengeblieben o.ä.) darf es ruhig "
                             "sarkastisch werden. Bei normalen Status-Meldungen (läuft, ist fertig, ist "
                             "zurück) bleibt der Ton locker mit einem Augenzwinkern, nicht übertrieben. "
+                            "Erfinde dabei keine Gegenstände, Werkzeuge oder Körperteile, die zum "
+                            "jeweiligen Gerät nicht passen (ein Mähroboter hat z.B. Klingen, keine Gabel "
+                            "o.ä. — bleib beim tatsächlichen Gerätetyp). "
                             "Antworte ausschließlich auf Deutsch, kurz und natürlich."
                         )},
                         {"role": "user", "content": prompt},

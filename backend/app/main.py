@@ -190,7 +190,12 @@ def _llm_appointment_message(summary: str, local_time: str) -> str | None:
         result = LLMRouter().generate(
             {
                 "messages": [
-                    {"role": "system", "content": "Du bist Erika, ein sozialer Haushaltsassistent. Antworte ausschließlich auf Deutsch, kurz und natürlich."},
+                    {"role": "system", "content": (
+                        "Du bist Erika, ein sozialer Haushaltsassistent mit trocken-humorvollem Tonfall, "
+                        "leichter Sarkasmus ist willkommen. Erfinde dabei keine Gegenstände, Werkzeuge oder "
+                        "Körperteile, die zum jeweiligen Gerät nicht passen (z.B. hat ein Mähroboter Klingen, "
+                        "keine Gabel o.ä.). Antworte ausschließlich auf Deutsch, kurz und natürlich."
+                    )},
                     {"role": "user", "content": prompt},
                 ],
                 "llm_max_tokens": 60,
@@ -268,6 +273,24 @@ async def _appointment_announce_loop() -> None:
         except Exception as exc:
             _audit.log_error(source="appointment_announce_loop", message=str(exc))
         await asyncio.sleep(120)
+
+
+async def _proactive_insights_loop() -> None:
+    """Wertet proaktiv Kraftstoff-Trend, PV-Überschuss und Wetter-morgen
+    aus (jeweils opt-in über insights.*_enabled) und meldet Auffälligkeiten
+    über dieselbe Benachrichtigungs-Pipeline wie Regeln/Kalender-Erinnerung.
+    15-Minuten-Takt wegen PV-Überschuss — Kraftstoff/Wetter gaten sich
+    intern selbst auf 1x/Tag."""
+    from app.audit.service import AuditService
+    _audit = AuditService()
+    await asyncio.sleep(90)
+    while True:
+        try:
+            from app.services.insight_service import InsightService
+            InsightService().run_checks()
+        except Exception as exc:
+            _audit.log_error(source="proactive_insights_loop", message=str(exc))
+        await asyncio.sleep(900)
 
 
 async def _waste_push_loop() -> None:
@@ -674,6 +697,7 @@ async def lifespan(_: FastAPI) -> Any:
     notification_task = asyncio.create_task(_notification_check_loop())
     reminder_task = asyncio.create_task(_reminder_watcher_loop())
     appointment_task = asyncio.create_task(_appointment_announce_loop())
+    insights_task = asyncio.create_task(_proactive_insights_loop())
     waste_push_task = asyncio.create_task(_waste_push_loop())
     memory_task = asyncio.create_task(_memory_maintenance_loop())
     license_task = asyncio.create_task(_license_renewal_loop())
@@ -695,6 +719,7 @@ async def lifespan(_: FastAPI) -> Any:
         notification_task.cancel()
         reminder_task.cancel()
         appointment_task.cancel()
+        insights_task.cancel()
         waste_push_task.cancel()
         memory_task.cancel()
         license_task.cancel()
@@ -719,6 +744,8 @@ async def lifespan(_: FastAPI) -> Any:
             await reminder_task
         with suppress(asyncio.CancelledError):
             await appointment_task
+        with suppress(asyncio.CancelledError):
+            await insights_task
         with suppress(asyncio.CancelledError):
             await waste_push_task
         with suppress(asyncio.CancelledError):

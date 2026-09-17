@@ -1704,6 +1704,35 @@
               </label>
             </div>
 
+            <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Proaktive Insights</div>
+            <div class="field-grid">
+              <label class="field-block checkbox-block">
+                <span class="field-label">Kraftstoffpreis-Trend</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="insights-fuel-price-enabled">
+                  <span>🤖 Erika meldet abends, wenn der Preis auffällig gesunken oder gestiegen ist</span>
+                </label>
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">PV-Überschuss</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="insights-pv-surplus-enabled">
+                  <span>🤖 Erika meldet, wenn gerade viel PV-Überschuss ins Netz geht</span>
+                </label>
+              </label>
+              <label class="field-block">
+                <span class="field-label">Überschuss-Schwelle (Watt)</span>
+                <input class="field-input" id="insights-pv-surplus-threshold" type="number" min="200" max="10000" step="100" value="1500">
+              </label>
+              <label class="field-block checkbox-block">
+                <span class="field-label">Wetter morgen</span>
+                <label class="mini-check">
+                  <input type="checkbox" id="insights-weather-tomorrow-enabled">
+                  <span>🤖 Erika meldet abends auffälliges Wetter für morgen — inkl. Kalender-Termin-Ort, falls einer gesetzt ist (z.B. "Morgen nach Darmstadt, dort soll es regnen")</span>
+                </label>
+              </label>
+            </div>
+
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Spracherkennung (STT)</div>
             <div class="field-grid">
               <label class="field-block">
@@ -6447,6 +6476,15 @@
         const apptMinEl = document.getElementById('attention-appointment-reminder-minutes');
         if (apptEl) apptEl.checked = !!att.appointment_reminder_enabled;
         if (apptMinEl) apptMinEl.value = att.appointment_reminder_minutes_before ?? 15;
+        const insights = (cfg.config || cfg).insights || {};
+        const fuelInsightEl = document.getElementById('insights-fuel-price-enabled');
+        const pvInsightEl = document.getElementById('insights-pv-surplus-enabled');
+        const pvThresholdEl = document.getElementById('insights-pv-surplus-threshold');
+        const weatherInsightEl = document.getElementById('insights-weather-tomorrow-enabled');
+        if (fuelInsightEl) fuelInsightEl.checked = !!insights.fuel_price_enabled;
+        if (pvInsightEl) pvInsightEl.checked = !!insights.pv_surplus_enabled;
+        if (pvThresholdEl) pvThresholdEl.value = insights.pv_surplus_threshold_watts ?? 1500;
+        if (weatherInsightEl) weatherInsightEl.checked = !!insights.weather_tomorrow_enabled;
         const gLlmEl   = document.getElementById('attention-greeting-use-llm');
         const gTimeEl  = document.getElementById('attention-greeting-ctx-time');
         const gCalEl   = document.getElementById('attention-greeting-ctx-calendar');
@@ -6677,6 +6715,12 @@
               greeting_context_topics: document.getElementById('attention-greeting-ctx-topics')?.checked ?? true,
               stt_provider: document.getElementById('attention-stt-provider')?.value || 'online',
               silence_timeout_ms: Math.round((parseFloat(document.getElementById('attention-silence-timeout')?.value) || 3) * 1000),
+            },
+            insights: {
+              fuel_price_enabled: document.getElementById('insights-fuel-price-enabled')?.checked ?? false,
+              pv_surplus_enabled: document.getElementById('insights-pv-surplus-enabled')?.checked ?? false,
+              pv_surplus_threshold_watts: parseInt(document.getElementById('insights-pv-surplus-threshold')?.value) || 1500,
+              weather_tomorrow_enabled: document.getElementById('insights-weather-tomorrow-enabled')?.checked ?? false,
             },
           }),
         });
