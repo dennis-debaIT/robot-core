@@ -237,14 +237,24 @@ class NotificationService:
         nie eine leere Benachrichtigung."""
         try:
             from app.brain.llm_client import LLMRouter
+            # Rohe HA-Zustandswerte (z.B. "outside_wire") sagen dem LLM nichts —
+            # es hat "outside_wire" zuletzt fälschlich als "wartet auf sein Kabel"
+            # gedeutet statt "außerhalb des Begrenzungsdrahts". Über dieselbe
+            # Übersetzungstabelle wie im Roboter-Fehlerprotokoll auflösen, bevor
+            # der Wert in den Prompt wandert.
+            from app.services.robot_service import RobotService
+            _translate = RobotService()._translate_error_state
+            target_de = _translate(target) if target else target
+            current_de = _translate(current) if current else current
+
             cond_map = {
-                "lt": f"ist unter {target} gefallen (aktuell {current})",
-                "gt": f"ist über {target} gestiegen (aktuell {current})",
-                "eq": f"hat den Wert {target} erreicht",
-                "changed_to": f"ist jetzt im Zustand '{target}'",
-                "changed": f"hat sich geändert auf '{current}'",
+                "lt": f"ist unter {target_de} gefallen (aktuell {current_de})",
+                "gt": f"ist über {target_de} gestiegen (aktuell {current_de})",
+                "eq": f"hat den Wert {target_de} erreicht",
+                "changed_to": f"ist jetzt im Zustand '{target_de}'",
+                "changed": f"hat sich geändert auf '{current_de}'",
             }
-            event = cond_map.get(condition_type, f"{condition_type} ({current})")
+            event = cond_map.get(condition_type, f"{condition_type} ({current_de})")
 
             examples_block = ""
             if style_examples:
@@ -287,6 +297,13 @@ class NotificationService:
 
     @staticmethod
     def _auto_message(label: str, condition_type: str, target: str, current: str) -> str:
+        try:
+            from app.services.robot_service import RobotService
+            _translate = RobotService()._translate_error_state
+            target = _translate(target) if target else target
+            current = _translate(current) if current else current
+        except Exception:
+            pass
         cond_map = {
             "lt": f"unter {target}",
             "gt": f"über {target}",

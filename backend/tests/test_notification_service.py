@@ -29,6 +29,25 @@ def test_llm_message_falls_back_to_none_on_exception(monkeypatch):
     assert result is None
 
 
+def test_llm_message_prompt_uses_translated_state_not_raw_slug(monkeypatch):
+    """Regression: das LLM hat "outside_wire" fälschlich als "wartet auf sein
+    Kabel" gedeutet, weil der rohe HA-Wert unübersetzt in den Prompt kam.
+    Der tatsächlich gesendete Prompt muss die deutsche Übersetzung enthalten,
+    nicht den rohen Slug."""
+    captured_payload = {}
+
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_payload.update(payload)
+            return {"reply": "Robert ist außerhalb der Begrenzung."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    NotificationService._llm_message("robert ouside wire", "changed_to", "outside_wire", "outside_wire")
+    user_prompt = captured_payload["messages"][1]["content"]
+    assert "Außerhalb Begrenzungsdraht" in user_prompt
+    assert "outside_wire" not in user_prompt
+
+
 def test_llm_message_returns_text_on_success(monkeypatch):
     class FakeRouter:
         def generate(self, payload, timeout_seconds=15):
@@ -53,7 +72,7 @@ def test_check_rules_with_use_llm_falls_back_to_auto_message_never_empty(monkeyp
     triggered = svc.check_rules()
     assert len(triggered) == 1
     assert triggered[0]["message"]  # nicht leer
-    assert triggered[0]["message"] == "Robert: gewechselt zu trapped"  # _auto_message-Fallback
+    assert triggered[0]["message"] == "Robert: gewechselt zu Blockiert"  # _auto_message-Fallback, jetzt übersetzt statt Rohwert
 
 
 def test_create_manual_notification_has_no_rule_id(temp_db):
