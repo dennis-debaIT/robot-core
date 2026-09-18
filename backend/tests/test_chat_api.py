@@ -2,6 +2,175 @@ import importlib
 
 from fastapi.testclient import TestClient
 
+from app.integrations.robot_core import RobotCore
+
+
+# ── SUCHE:-Marker-Erkennung ──────────────────────────────────────────
+
+def test_extract_search_marker_recognizes_prefix():
+    assert RobotCore._extract_search_marker("SUCHE: Alexander von Humboldt") == "Alexander von Humboldt"
+
+
+def test_extract_search_marker_case_and_whitespace_tolerant():
+    assert RobotCore._extract_search_marker("  suche:   Hauptstadt von Kasachstan  ") == "Hauptstadt von Kasachstan"
+
+
+def test_extract_search_marker_none_for_normal_reply():
+    assert RobotCore._extract_search_marker("Die Hauptstadt von Frankreich ist Paris.") is None
+
+
+def test_extract_search_marker_none_for_empty_or_bare_marker():
+    assert RobotCore._extract_search_marker("") is None
+    assert RobotCore._extract_search_marker("SUCHE:") is None
+    assert RobotCore._extract_search_marker("SUCHE:   ") is None
+
+
+class FakeLLMRouter:
+    """Liefert vorab festgelegte Antworten der Reihe nach, eine pro Aufruf
+    (generate) bzw. als Ein-Fragment-Stream (stream_generate)."""
+    def __init__(self, replies):
+        self._replies = list(replies)
+        self.payloads = []
+
+    def _next_reply(self):
+        return self._replies.pop(0) if self._replies else "…"
+
+    def generate(self, payload, timeout_seconds=15):
+        self.payloads.append(payload)
+        return {"reply": self._next_reply(), "provider": "fake", "used_fallback": False}
+
+    def stream_generate(self, payload, timeout_seconds=15):
+        self.payloads.append(payload)
+        return ("fake", iter([self._next_reply()]), False)
+
+
+class FakeSearchService:
+    """Ersetzt SearchService komplett — kein echter Netzwerkzugriff im Test."""
+    _RESULT = "Astana ist die Hauptstadt von Kasachstan."
+
+    def search(self, query):
+        return self._RESULT
+
+    def format_prompt_block(self, result):
+        return f"[Test-Recherche]: {result}"
+
+
+class FakeSearchServiceNoResult:
+    def search(self, query):
+        return None
+
+    def format_prompt_block(self, result):
+        return ""
+
+
+# Nachricht bewusst so gewählt, dass sie KEINEM der bestehenden
+# needs_search()-Regex-Muster entspricht (kein "wer/was ist", keine
+# Fußball-/Wetter-/Kalender-/Datums-Formulierung) — sonst würde bereits die
+# alte Vorab-Suche greifen und der neue reaktive SUCHE:-Pfad gar nicht erst
+# getestet werden.
+_OPEN_QUESTION = "Nenne mir die Hauptstadt von Kasachstan."
+
+
+def test_chat_reactive_search_grounds_final_answer(temp_db, monkeypatch):
+    import app.database.db as db_module
+    import app.main as main_module
+
+    importlib.reload(db_module)
+    importlib.reload(main_module)
+
+    fake_router = FakeLLMRouter([
+        "SUCHE: Hauptstadt Kasachstan",
+        "Die Hauptstadt von Kasachstan ist Astana.",
+    ])
+    monkeypatch.setattr("app.integrations.robot_core.LLMRouter", lambda: fake_router)
+    monkeypatch.setattr("app.integrations.robot_core.SearchService", FakeSearchService)
+
+    with TestClient(main_module.app) as client:
+        response = client.post("/chat", json={"message": _OPEN_QUESTION, "person_name": "Dennis"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reply"] == "Die Hauptstadt von Kasachstan ist Astana."
+        assert len(fake_router.payloads) == 2
+        assert "Test-Recherche" in fake_router.payloads[1]["messages"][-1]["content"]
+
+
+def test_chat_reactive_search_falls_back_when_no_result(temp_db, monkeypatch):
+    import app.database.db as db_module
+    import app.main as main_module
+
+    importlib.reload(db_module)
+    importlib.reload(main_module)
+
+    fake_router = FakeLLMRouter(["SUCHE: irgendwas ganz Obskures"])
+    monkeypatch.setattr("app.integrations.robot_core.LLMRouter", lambda: fake_router)
+    monkeypatch.setattr("app.integrations.robot_core.SearchService", FakeSearchServiceNoResult)
+
+    with TestClient(main_module.app) as client:
+        response = client.post("/chat", json={"message": _OPEN_QUESTION, "person_name": "Dennis"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reply"]  # nie leer
+        assert "auch nicht herausfinden" in data["reply"]
+
+
+def test_chat_normal_reply_uses_single_llm_call(temp_db, monkeypatch):
+    """Ohne SUCHE:-Marker bleibt es beim heutigen Verhalten: genau ein
+    LLM-Aufruf, keine zusätzliche Latenz für den Normalfall."""
+    import app.database.db as db_module
+    import app.main as main_module
+
+    importlib.reload(db_module)
+    importlib.reload(main_module)
+
+    fake_router = FakeLLMRouter(["Kasachstans Hauptstadt ist Astana."])
+    monkeypatch.setattr("app.integrations.robot_core.LLMRouter", lambda: fake_router)
+
+    with TestClient(main_module.app) as client:
+        response = client.post("/chat", json={"message": _OPEN_QUESTION, "person_name": "Dennis"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reply"] == "Kasachstans Hauptstadt ist Astana."
+        assert len(fake_router.payloads) == 1
+
+
+def test_chat_stream_reactive_search_emits_searching_and_filler(temp_db, monkeypatch):
+    import app.database.db as db_module
+    import app.main as main_module
+
+    importlib.reload(db_module)
+    importlib.reload(main_module)
+
+    fake_router = FakeLLMRouter([
+        "SUCHE: Hauptstadt Kasachstan",
+        "Die Hauptstadt von Kasachstan ist Astana.",
+    ])
+    monkeypatch.setattr("app.integrations.robot_core.LLMRouter", lambda: fake_router)
+    monkeypatch.setattr("app.integrations.robot_core.SearchService", FakeSearchService)
+
+    with TestClient(main_module.app) as client:
+        response = client.post("/chat/stream", json={"message": _OPEN_QUESTION, "person_name": "Dennis"})
+        assert response.status_code == 200
+        assert "event: searching" in response.text
+        assert "Astana" in response.text
+        assert "event: done" in response.text
+
+
+def test_chat_stream_normal_reply_has_no_searching_event(temp_db, monkeypatch):
+    import app.database.db as db_module
+    import app.main as main_module
+
+    importlib.reload(db_module)
+    importlib.reload(main_module)
+
+    fake_router = FakeLLMRouter(["Kasachstans Hauptstadt ist Astana."])
+    monkeypatch.setattr("app.integrations.robot_core.LLMRouter", lambda: fake_router)
+
+    with TestClient(main_module.app) as client:
+        response = client.post("/chat/stream", json={"message": _OPEN_QUESTION, "person_name": "Dennis"})
+        assert response.status_code == 200
+        assert "event: searching" not in response.text
+        assert "Astana" in response.text
+
 
 def test_chat_preview_returns_system_prompt_and_messages(temp_db):
     import app.database.db as db_module

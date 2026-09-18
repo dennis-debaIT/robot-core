@@ -135,6 +135,18 @@ class PromptBuilder:
             if context.get("search_context")
             else ""
         )
+        # Nur wenn NOCH KEIN Recherche-Ergebnis vorliegt darf das LLM Unsicherheit
+        # signalisieren — sonst würde der zweite (bereits recherchierte) Aufruf
+        # erneut "SUCHE:" antworten können (Endlos-Schleife).
+        search_marker_instruction = (
+            "Wenn du eine Frage NICHT sicher beantworten kannst (Fakten, Daten, Namen, "
+            "aktuelle Ereignisse oder Ähnliches, die du nicht genau kennst oder bei denen "
+            "dein Wissen veraltet sein könnte), antworte AUSSCHLIESSLICH mit "
+            "'SUCHE: <präzise Suchanfrage>' — kein weiterer Text davor oder danach. "
+            "Sonst antworte wie gewohnt normal. "
+            if not context.get("search_context")
+            else ""
+        )
         notes = context.get("notes_lines") or []
         notes_sentence = (
             "Gespeicherte Notizen der Person (direkt verwenden wenn gefragt): "
@@ -181,6 +193,7 @@ class PromptBuilder:
             f"{search_sentence}"
             "Du kannst anbieten Wetter oder Kalender nachzuschlagen – der Nutzer muss dann nur 'ja' sagen. "
             "Wenn keine Recherche-Ergebnisse vorliegen: kurz und ehrlich antworten, nichts erfinden. "
+            f"{search_marker_instruction}"
             "Kein Markdown und keine Listen, wenn ein kurzer Fließtext reicht. "
             "Antworte kurz: meist 1 bis 3 Sätze. Keine Wiederholungen. Keine unnötigen Emojis, Witze oder Meta-Erklärungen. "
             "SPRACHPFLICHT — ABSOLUT: Antworte auf JEDE Frage — Mathe, Rechnen, Zahlen, Fakten — AUSSCHLIESSLICH auf Deutsch. "

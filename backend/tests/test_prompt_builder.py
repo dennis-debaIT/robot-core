@@ -42,3 +42,43 @@ def test_prompt_builder_creates_system_message_with_identity_and_memories():
     assert payload["messages"][1] == {"role": "user", "content": "Nenne mir vier Zahlen."}
     assert payload["messages"][2] == {"role": "assistant", "content": "1, 2, 3, 4"}
     assert payload["messages"][3] == {"role": "user", "content": "Hallo"}
+
+
+_PERSONALITY = {
+    "friendliness": 0.5, "humor": 0.5, "curiosity": 0.5, "talkativeness": 0.5,
+    "caution": 0.5, "directness": 0.5, "sarcasm": 0.5, "patience": 0.5,
+}
+_RUNTIME_FACTS = {"battery_level": 100, "display_status": "ready", "device_state": "ready"}
+
+
+def test_search_marker_instruction_present_without_search_context():
+    """Ohne bereits vorliegendes Recherche-Ergebnis darf das LLM Unsicherheit
+    signalisieren (SUCHE:-Marker) — Grundlage für die reaktive Websuche."""
+    payload = PromptBuilder().build_chat_payload(
+        message="Nenne mir die Hauptstadt von Kasachstan.",
+        person_name="Dennis",
+        personality=_PERSONALITY,
+        approved_memories=[],
+        recent_messages=[],
+        runtime_facts=_RUNTIME_FACTS,
+        response_style="kurz",
+        explain_only_on_request=True,
+    )
+    assert "SUCHE:" in payload["system_prompt"]
+
+
+def test_search_marker_instruction_absent_with_search_context():
+    """Sobald ein Recherche-Ergebnis vorliegt (zweiter, bereits gegroundeter
+    Aufruf), darf die Anweisung NICHT mehr auftauchen — sonst Endlos-Schleife."""
+    payload = PromptBuilder().build_chat_payload(
+        message="Nenne mir die Hauptstadt von Kasachstan.",
+        person_name="Dennis",
+        personality=_PERSONALITY,
+        approved_memories=[],
+        recent_messages=[],
+        runtime_facts=_RUNTIME_FACTS,
+        response_style="kurz",
+        explain_only_on_request=True,
+        search_context="[Wikipedia]: Astana ist die Hauptstadt von Kasachstan.",
+    )
+    assert "SUCHE:" not in payload["system_prompt"]

@@ -253,6 +253,7 @@
       </svg>
     </div>
     <div class="speech-text" id="speech-text"></div>
+    <div class="loading-dots" id="search-indicator" style="display:none;color:var(--muted);font-size:0.85rem;text-align:center;margin-top:6px;">Erika sucht</div>
   </div>
 
 
@@ -3496,12 +3497,20 @@
           if (!line.startsWith('data: ')) continue;
           try {
             const d = JSON.parse(line.slice(6));
+            if (d.searching) {
+              const ind = document.getElementById('search-indicator');
+              if (ind) ind.style.display = '';
+            }
             if (d.text) {
+              const ind = document.getElementById('search-indicator');
+              if (ind) ind.style.display = 'none';
               fullReply += d.text;
               showReplyText(fullReply, false);
               feedTts(d.text);          // Sofort in TTS-Queue
             }
             if (d.reply) {
+              const ind = document.getElementById('search-indicator');
+              if (ind) ind.style.display = 'none';
               fullReply = d.reply;
               showReplyText(fullReply, true);
               feedTts('', true);        // Rest aus Buffer abspielen

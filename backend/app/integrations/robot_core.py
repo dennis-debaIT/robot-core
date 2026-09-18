@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import json
+import random
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -1429,6 +1430,24 @@ class RobotCore:
                 return reply, skill.reason, extra
         return None, "", None
 
+    _SEARCH_MARKER = "SUCHE:"
+    _SEARCH_FILLERS = [
+        "Lass mich kurz nachschauen …",
+        "Moment, ich schaue nach …",
+        "Einen Moment, ich recherchiere kurz …",
+    ]
+
+    @classmethod
+    def _extract_search_marker(cls, reply: str) -> str | None:
+        """Erkennt das vom LLM selbst gesetzte Unsicherheits-Signal
+        "SUCHE: <anfrage>" (case-/whitespace-tolerant) und liefert die
+        Suchanfrage — oder None, wenn die Antwort bereits final ist."""
+        text = (reply or "").strip()
+        if text[:len(cls._SEARCH_MARKER)].upper() != cls._SEARCH_MARKER:
+            return None
+        query = text[len(cls._SEARCH_MARKER):].strip(" :\"'")
+        return query or None
+
     def chat(self, message: str, person_name: str | None = None) -> dict[str, Any]:
         captured = self.microphone.capture_text(message)
         self._save_evening_recap_response(captured, person_name)
@@ -1483,6 +1502,26 @@ class RobotCore:
         except Exception as _llm_exc:
             self.audit.log_error(source="llm", message=f"LLM nicht erreichbar: {type(_llm_exc).__name__}: {_llm_exc}")
             llm_result = {"reply": "Das kann ich leider gerade nicht beantworten.", "provider": "mock", "used_fallback": True}
+
+        # Reaktive Websuche: das LLM signalisiert selbst Unsicherheit via SUCHE:-Marker
+        # (siehe Anweisung in prompt_builder.py), statt dass wir Hedging-Phrasen raten müssen.
+        search_query = self._extract_search_marker(llm_result.get("reply", ""))
+        if search_query:
+            followup = SearchService().search(search_query)
+            if followup:
+                search_ctx_block = SearchService().format_prompt_block(followup)
+                payload = self.preview_chat_prompt(captured, person_name, search_context=search_ctx_block)
+                payload["llm_max_tokens"] = self._dynamic_max_tokens(
+                    captured, payload.get("llm_max_tokens", settings.llm_max_tokens)
+                )
+                try:
+                    llm_result = self.llm.generate(payload, timeout_seconds=settings.llm_timeout_seconds)
+                except Exception as _llm_exc:
+                    self.audit.log_error(source="llm", message=f"LLM nach Websuche nicht erreichbar: {type(_llm_exc).__name__}: {_llm_exc}")
+                    llm_result = {"reply": "Das konnte ich leider auch nicht herausfinden.", "provider": "mock", "used_fallback": True}
+            else:
+                llm_result = {"reply": "Das konnte ich leider auch nicht herausfinden.", "provider": llm_result.get("provider", "mock"), "used_fallback": True}
+
         reply = self._sanitize_reply_text(llm_result["reply"])
         self._finalize_chat(reply, person_name)
         self._store_reply_text(reply)
@@ -1576,12 +1615,33 @@ class RobotCore:
                 "proposed_memories": proposed_memories,
             })
             full_reply = ""
+            # Nur die ersten paar Zeichen zurückhalten, um auf den SUCHE:-Marker zu
+            # prüfen — der Rest streamt normal weiter (echtes Token-Streaming bleibt
+            # für den Normalfall erhalten, keine spürbare Extra-Latenz).
+            marker_len = len(self._SEARCH_MARKER)
+            peek_buffer = ""
+            peeking = True
+            is_search = False
             provider, fragments, used_fallback = self.llm.stream_generate(
                 payload, timeout_seconds=settings.llm_timeout_seconds
             )
             try:
                 for fragment in fragments:
                     full_reply += fragment
+                    if peeking:
+                        peek_buffer += fragment
+                        if len(peek_buffer) < marker_len:
+                            continue
+                        peeking = False
+                        if peek_buffer.strip().upper().startswith(self._SEARCH_MARKER):
+                            is_search = True
+                            continue  # nichts sprechen, Marker-Text nur sammeln
+                        for piece in self._stream_delta_pieces(peek_buffer):
+                            yield self._sse_event("delta", {"text": piece})
+                            self._store_reply_text(full_reply, done=False)
+                        continue
+                    if is_search:
+                        continue  # weiter sammeln bis der Marker-Satz komplett ist
                     for piece in self._stream_delta_pieces(fragment):
                         yield self._sse_event("delta", {"text": piece})
                         self._store_reply_text(full_reply, done=False)
@@ -1590,6 +1650,68 @@ class RobotCore:
                     self.audit.log_error(source="llm", message=f"LLM-Stream fehlgeschlagen: {type(_llm_exc).__name__}: {_llm_exc}")
                     full_reply = "Das kann ich leider gerade nicht beantworten."
                     yield self._sse_event("delta", {"text": full_reply})
+                    reply = self._sanitize_reply_text(full_reply)
+                    self._finalize_chat(reply, person_name)
+                    self._store_reply_text(reply, done=True)
+                    yield self._sse_event("done", {
+                        "reply": reply, "llm_provider": provider, "used_fallback": True,
+                        "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+                        "proposed_memories": proposed_memories, "status": self.get_status(),
+                    })
+                    return
+
+            if peeking:
+                # Antwort war kürzer als der Marker selbst — hier entscheiden/ausgeben.
+                peeking = False
+                if peek_buffer.strip().upper().startswith(self._SEARCH_MARKER):
+                    is_search = True
+                else:
+                    for piece in self._stream_delta_pieces(peek_buffer):
+                        yield self._sse_event("delta", {"text": piece})
+                        self._store_reply_text(full_reply, done=False)
+
+            if is_search:
+                search_query = self._extract_search_marker(full_reply) or ""
+                yield self._sse_event("searching", {"searching": True})
+                filler = random.choice(self._SEARCH_FILLERS)
+                yield self._sse_event("delta", {"text": filler})
+                self._store_reply_text(filler, done=False)
+
+                followup = SearchService().search(search_query) if search_query else None
+                if not followup:
+                    fallback_text = "Das konnte ich leider auch nicht herausfinden."
+                    yield self._sse_event("delta", {"text": fallback_text})
+                    reply = self._sanitize_reply_text(fallback_text)
+                    self._finalize_chat(reply, person_name)
+                    self._store_reply_text(reply, done=True)
+                    yield self._sse_event("done", {
+                        "reply": reply, "llm_provider": provider, "used_fallback": True,
+                        "decision": {"should_respond": True, "response_reason": "llm", "candidates": []},
+                        "proposed_memories": proposed_memories, "status": self.get_status(),
+                    })
+                    return
+
+                search_ctx_block = SearchService().format_prompt_block(followup)
+                search_payload = self.preview_chat_prompt(captured, person_name, search_context=search_ctx_block)
+                search_payload["llm_max_tokens"] = self._dynamic_max_tokens(
+                    captured, search_payload.get("llm_max_tokens", settings.llm_max_tokens)
+                )
+                full_reply = ""
+                provider, fragments, used_fallback = self.llm.stream_generate(
+                    search_payload, timeout_seconds=settings.llm_timeout_seconds
+                )
+                try:
+                    for fragment in fragments:
+                        full_reply += fragment
+                        for piece in self._stream_delta_pieces(fragment):
+                            yield self._sse_event("delta", {"text": piece})
+                            self._store_reply_text(full_reply, done=False)
+                except Exception as _llm_exc:
+                    if not full_reply:
+                        self.audit.log_error(source="llm", message=f"LLM nach Websuche fehlgeschlagen: {type(_llm_exc).__name__}: {_llm_exc}")
+                        full_reply = "Das konnte ich leider auch nicht herausfinden."
+                        yield self._sse_event("delta", {"text": full_reply})
+
             reply = self._sanitize_reply_text(full_reply)
             self._finalize_chat(reply, person_name)
             self._store_reply_text(reply, done=True)
