@@ -94,7 +94,7 @@ def test_pv_grid_migration_runs_once_and_persists(temp_db):
     assert config["energy"]["enabled"] is True
     assert config["energy"]["tariffs"]["base_price_eur_year"] == 50.4
     assert config["energy"]["sensors"] == [
-        {"id": "gesamt-netzbezug", "label": "Gesamt-Netzbezug", "entity_id": "sensor.netzbezug", "role": "grid"},
+        {"id": "gesamt-netzbezug", "label": "Gesamt-Netzbezug", "entity_id": "sensor.netzbezug", "role": "grid", "min_power_w": 0.0},
     ]
 
     with get_connection() as conn:
