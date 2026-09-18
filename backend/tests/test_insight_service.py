@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import app.services.insight_service as insight_module
-from app.database.db import get_connection, read_state
+from app.database.db import get_connection, read_state, write_state
 from app.services.insight_service import InsightService
 from app.services.integration_config_service import IntegrationConfigService
 
@@ -221,6 +221,12 @@ def test_pv_surplus_avoids_repeating_previous_message(monkeypatch, temp_db):
     assert first == "Erste Formulierung."
 
     InsightService(pv=FakePv(500), notifications=FakeNotifications())._check_pv_surplus(cfg, insights_cfg)  # Reset
+
+    # Cooldown künstlich umgehen (Test läuft in Millisekunden ab, der reale
+    # 2h-Cooldown würde das zweite Feuern sonst blockieren — hier geht's
+    # nur um die Wiederholungs-Vermeidung, nicht um den Cooldown selbst).
+    with get_connection() as conn:
+        write_state(conn, "insight_pv_surplus_last_fired_at", "2020-01-01T00:00:00+00:00")
 
     second = InsightService(pv=FakePv(2000), notifications=FakeNotifications())._check_pv_surplus(cfg, insights_cfg)
     assert second == "Zweite, andere Formulierung."
