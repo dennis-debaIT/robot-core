@@ -33,6 +33,7 @@ class RobotService:
     _ROBOT_EXTRA_KEYS = [
         "batterie",
         "fehler",
+        "error",
         "ladevorgang",
         "taglicher_fortschritt",
         "verbleibende_regenverzogerung",
@@ -75,6 +76,7 @@ class RobotService:
         "no_home_signal": "Kein Heimatsignal",
         "obstacle": "Hindernis erkannt",
         "lifted_during_mowing": "Angehoben während Mähens",
+        "dust_bag_full": "Staubbeutel voll",
     }
     _LAWN_COMMANDS = {"start_mowing", "dock", "pause"}
     _VACUUM_COMMANDS = {"start", "pause", "stop", "return_to_base", "clean_spot"}
@@ -167,13 +169,14 @@ class RobotService:
         base_last_changed: str,
         extras: dict[str, dict[str, Any]],
     ) -> None:
-        error_extra = extras.get("fehler") or {}
+        error_key = "fehler" if "fehler" in extras else "error"
+        error_extra = extras.get("fehler") or extras.get("error") or {}
         error_state = (error_extra.get("state") or "").strip()
         error_changed = error_extra.get("last_changed") or base_last_changed
         if error_state:
             self._store_error_entry(
                 entity_id,
-                f"sensor.{entity_id.split('.', 1)[-1]}_fehler",
+                f"sensor.{entity_id.split('.', 1)[-1]}_{error_key}",
                 error_state,
                 error_changed,
                 "ha_sensor",
@@ -612,7 +615,8 @@ class RobotService:
             robot_state = detailed_state
 
         rules = self._robot_state_rules(config, entity_id)
-        error_state = self._normalize_error_state(extras.get("fehler", {}).get("state") or "")
+        error_extra = extras.get("fehler") or extras.get("error") or {}
+        error_state = self._normalize_error_state(error_extra.get("state") or "")
         if error_state in rules["warn"]:
             return error_state
         if error_state in rules["critical"]:

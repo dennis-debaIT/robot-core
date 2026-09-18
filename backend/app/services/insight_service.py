@@ -437,7 +437,11 @@ class InsightService:
             return "ok"
         if normalized in rules["warn"]:
             return "warning"
-        if normalized in rules["critical"]:
+        # "error" ist der generische Marker, auf den RobotService._resolve_state()
+        # jeden nicht explizit zugeordneten Fehler-Sensor-Wert reduziert (z.B.
+        # über sensor.<slug>_error/_fehler) — muss hier wie critical behandelt
+        # werden, sonst würden echte Fehler wieder als "unbekannt" durchfallen.
+        if normalized in rules["critical"] or normalized == "error":
             return "error"
         return None
 

@@ -457,6 +457,25 @@ def test_robot_status_unclassified_state_does_not_fire(monkeypatch, temp_db):
     assert result == []
 
 
+def test_robot_status_fires_for_generic_error_marker_even_when_unclassified(monkeypatch, temp_db):
+    """Der literale Zustand "error" (von RobotService._resolve_state() als
+    generischer Marker für jeden erkannten Fehler-Sensor-Wert zurückgegeben,
+    z.B. über sensor.krumel_knecht_error) muss immer als kritisch gelten,
+    auch ohne expliziten Eintrag in robots.state_mappings — sonst würden
+    echte Fehler wie bei Krümel Knecht (dust_bag_full, battery_low) wieder
+    als "unbekannt" durchfallen."""
+    _patch_robot_service(
+        monkeypatch,
+        robots=[{"entity_id": "vacuum.krumel_knecht", "name": "Krümel Knecht", "state": "error"}],
+        classify={},  # bewusst nicht explizit in robots.state_mappings eingeordnet
+    )
+    _fake_llm(monkeypatch, reply="Krümel Knecht meldet einen Fehler.")
+    svc = InsightService(notifications=FakeNotifications())
+    result = svc._check_robot_status({})
+    assert len(result) == 1
+    assert result[0]["entity_id"] == "vacuum.krumel_knecht"
+
+
 def test_robot_status_no_refire_on_unchanged_severity(monkeypatch, temp_db):
     _patch_robot_service(
         monkeypatch,
