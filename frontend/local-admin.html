@@ -1687,8 +1687,8 @@
               <label class="field-block">
                 <span class="field-label">Zeitfenster Wochenende Bis</span>
                 <input class="field-input" id="attention-proactive-weekend-end" type="time" value="22:00">
-                <span class="field-hint">Gilt auch für alle Benachrichtigungs-Ansagen (Regeln, Insights, Termine) — außerhalb bleiben sie still (Push + Glocke kommen trotzdem an).</span>
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Gilt auch für alle Benachrichtigungs-Ansagen (Regeln, Insights, Termine) — außerhalb bleiben sie still (Push + Glocke kommen trotzdem an).</div>
               <label class="field-block checkbox-block">
                 <span class="field-label">Tägliches Fazit</span>
                 <label class="mini-check">
@@ -1706,12 +1706,12 @@
                   <input type="checkbox" id="attention-appointment-reminder-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Kündigt bevorstehende Kalendertermine proaktiv an.</span>
               </label>
               <label class="field-block">
                 <span class="field-label">Vorlaufzeit (Minuten)</span>
                 <input class="field-input" id="attention-appointment-reminder-minutes" type="number" min="1" max="120" value="15">
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Kündigt bevorstehende Kalendertermine proaktiv an.</div>
             </div>
 
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Proaktive Insights</div>
@@ -1722,60 +1722,65 @@
                   <input type="checkbox" id="insights-fuel-price-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Meldet abends, wenn der Preis auffällig gesunken oder gestiegen ist.</span>
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Meldet abends, wenn der Preis auffällig gesunken oder gestiegen ist.</div>
+
               <label class="field-block checkbox-block">
                 <span class="field-label">PV-Überschuss</span>
                 <label class="mini-check">
                   <input type="checkbox" id="insights-pv-surplus-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Meldet, wenn gerade viel PV-Überschuss ins Netz geht.</span>
               </label>
               <label class="field-block">
                 <span class="field-label">Überschuss-Schwelle (Watt)</span>
                 <input class="field-input" id="insights-pv-surplus-threshold" type="number" min="200" max="10000" step="100" value="1500">
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Meldet, wenn gerade viel PV-Überschuss ins Netz geht.</div>
+
               <label class="field-block checkbox-block">
                 <span class="field-label">Wetter morgen</span>
                 <label class="mini-check">
                   <input type="checkbox" id="insights-weather-tomorrow-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Meldet abends auffälliges Wetter für morgen, inkl. Kalender-Termin-Ort falls gesetzt (z.B. "Morgen nach Darmstadt, dort soll es regnen").</span>
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Meldet abends auffälliges Wetter für morgen, inkl. Kalender-Termin-Ort falls gesetzt (z.B. "Morgen nach Darmstadt, dort soll es regnen").</div>
+
               <label class="field-block checkbox-block">
                 <span class="field-label">Roboter-Status</span>
                 <label class="mini-check">
                   <input type="checkbox" id="insights-robot-status-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Meldet neue Problemzustände bei Robotern ohne eigene Benachrichtigungsregel.</span>
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Meldet neue Problemzustände bei Robotern ohne eigene Benachrichtigungsregel.</div>
+
               <label class="field-block checkbox-block">
                 <span class="field-label">Fahrzeuge</span>
                 <label class="mini-check">
                   <input type="checkbox" id="insights-vehicle-status-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Meldet, wenn die Ladung fertig ist (noch eingesteckt) oder der Akku niedrig ist (nicht ladend).</span>
               </label>
               <label class="field-block">
                 <span class="field-label">Batterie-niedrig-Schwelle (%)</span>
                 <input class="field-input" id="insights-vehicle-battery-low-threshold" type="number" min="5" max="80" step="5" value="20">
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Meldet, wenn die Ladung fertig ist (noch eingesteckt) oder der Akku niedrig ist (nicht ladend).</div>
+
               <label class="field-block checkbox-block">
                 <span class="field-label">Unwetterwarnung</span>
                 <label class="mini-check">
                   <input type="checkbox" id="insights-severe-weather-enabled">
                   <span>🤖 Aktiv (LLM-formuliert)</span>
                 </label>
-                <span class="field-hint">Braucht die HA-Integration "DWD Weather Warnings" (Einstellungen → Geräte & Dienste → hinzufügen, Warncell auswählen) — trage unten den dabei entstehenden Sensor ein.</span>
               </label>
               <label class="field-block">
                 <span class="field-label">Unwetter-Sensor (Entity-ID)</span>
                 <input class="field-input" id="insights-severe-weather-entity" type="text" placeholder="sensor.melsungen_current_warning_level">
               </label>
+              <div class="field-hint" style="grid-column:1/-1;">Braucht die HA-Integration "DWD Weather Warnings" (Einstellungen → Geräte & Dienste → hinzufügen, Warncell auswählen) — trage unten den dabei entstehenden Sensor ein.</div>
             </div>
 
             <div style="font-size:0.72rem;font-weight:800;letter-spacing:0.1em;color:var(--accent);margin:18px 0 8px;text-transform:uppercase;">Spracherkennung (STT)</div>
