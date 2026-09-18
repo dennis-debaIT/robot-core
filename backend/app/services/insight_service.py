@@ -181,7 +181,9 @@ class InsightService:
             "Erfinde keine zusätzlichen Zahlen, nutze nur die genannten."
         )
         fallback = f"{label}: aktuell {current_price:.3f} €/L, {note}."
-        return self._llm_narrate(prompt) or fallback
+        message = self._llm_narrate(prompt, avoid=self._recent_messages("fuel_price")) or fallback
+        self._record_message("fuel_price", message)
+        return message
 
     @staticmethod
     def _mark_fuel_run(today_str: str) -> None:
@@ -243,7 +245,9 @@ class InsightService:
             "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
         )
         fallback = f"Die PV-Anlage produziert gerade {grid_w:.0f} Watt Überschuss — guter Moment für stromintensive Aufgaben."
-        return self._llm_narrate(prompt) or fallback
+        message = self._llm_narrate(prompt, avoid=self._recent_messages("pv_surplus")) or fallback
+        self._record_message("pv_surplus", message)
+        return message
 
     # ── Wetter morgen (+ Kalender-Kombi) ─────────────────────────
 
@@ -332,7 +336,9 @@ class InsightService:
             f"Morgen: {home_tomorrow.get('description', 'wechselhaft')}, "
             f"{home_tomorrow.get('temp_min')}–{home_tomorrow.get('temp_max')}°C."
         )
-        return self._llm_narrate(prompt) or fallback
+        message = self._llm_narrate(prompt, avoid=self._recent_messages("weather_tomorrow")) or fallback
+        self._record_message("weather_tomorrow", message)
+        return message
 
     @staticmethod
     def _is_notable_weather(day: dict[str, Any]) -> bool:
@@ -405,7 +411,9 @@ class InsightService:
                 "(max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
             )
             fallback = f"{label}: {translated}."
-            message = self._llm_narrate(prompt) or fallback
+            history_key = f"robot_status:{entity_id}"
+            message = self._llm_narrate(prompt, avoid=self._recent_messages(history_key)) or fallback
+            self._record_message(history_key, message)
             results.append({"entity_id": entity_id, "title": f"🤖 {label}", "message": message})
 
         return results
@@ -488,9 +496,12 @@ class InsightService:
                         "auf Deutsch)."
                     )
                     fallback = f"{label}: Ladevorgang beendet ({battery_pct:.0f}%), aber noch eingesteckt."
+                    history_key = f"vehicle_charged:{vehicle_id}"
+                    message = self._llm_narrate(prompt, avoid=self._recent_messages(history_key)) or fallback
+                    self._record_message(history_key, message)
                     results.append({
                         "entity_id": vehicle_id, "kind": "vehicle_charged",
-                        "title": f"🔌 {label}", "message": self._llm_narrate(prompt) or fallback,
+                        "title": f"🔌 {label}", "message": message,
                     })
 
             # ── Batterie niedrig ────────────────────────────────
@@ -528,9 +539,12 @@ class InsightService:
                 "man losfährt (max. 1 Satz, kein Markdown, keine Anführungszeichen, auf Deutsch)."
             )
             fallback = f"{label}: Akku bei {battery_pct:.0f}%, aktuell nicht am Laden."
+            history_key = f"vehicle_battery_low:{vehicle_id}"
+            message = self._llm_narrate(prompt, avoid=self._recent_messages(history_key)) or fallback
+            self._record_message(history_key, message)
             results.append({
                 "entity_id": vehicle_id, "kind": "vehicle_battery_low",
-                "title": f"🔋 {label}", "message": self._llm_narrate(prompt) or fallback,
+                "title": f"🔋 {label}", "message": message,
             })
 
         return results
@@ -582,14 +596,45 @@ class InsightService:
             "(max. 1-2 Sätze, kein Markdown, keine Anführungszeichen, auf Deutsch)."
         )
         fallback = f"⚠️ {headline}{region_part} (Stufe {level})."
-        return self._llm_narrate(prompt) or fallback
+        message = self._llm_narrate(prompt, avoid=self._recent_messages("severe_weather")) or fallback
+        self._record_message("severe_weather", message)
+        return message
+
+    # ── Wiederholungs-Vermeidung ─────────────────────────────────
+
+    def _recent_messages(self, key: str, limit: int = 3) -> list[str]:
+        """Letzte generierte Meldungen für dieses Ereignis (z.B. 'pv_surplus'
+        oder 'robot_status:vacuum.krumel_knecht') — dienen _llm_narrate als
+        Negativbeispiele, damit nicht immer dieselbe Formulierung kommt."""
+        with get_connection() as conn:
+            history = read_state(conn, f"insight_recent_messages:{key}", [])
+        return list(history)[-limit:] if isinstance(history, list) else []
+
+    def _record_message(self, key: str, message: str, keep: int = 5) -> None:
+        if not message:
+            return
+        with get_connection() as conn:
+            history = read_state(conn, f"insight_recent_messages:{key}", [])
+            history = list(history) if isinstance(history, list) else []
+            history.append(message)
+            write_state(conn, f"insight_recent_messages:{key}", history[-keep:])
 
     # ── LLM-Formulierung ─────────────────────────────────────────
 
     @staticmethod
-    def _llm_narrate(prompt: str) -> str | None:
+    def _llm_narrate(prompt: str, avoid: list[str] | None = None) -> str | None:
         try:
             from app.brain.llm_client import LLMRouter
+            variety_hint = (
+                "Variiere Wortwahl und Satzbau von Meldung zu Meldung — klinge nicht wie eine "
+                "feste Vorlage, die nur die Zahlen austauscht. "
+            )
+            if avoid:
+                examples = "\n".join(f"- {m}" for m in avoid[-3:])
+                variety_hint += (
+                    "Diese Formulierungen wurden für ein ähnliches Ereignis bereits verwendet — "
+                    f"NICHT wiederholen, eine erkennbar andere Formulierung finden:\n{examples}\n"
+                )
             result = LLMRouter().generate(
                 {
                     "messages": [
@@ -601,6 +646,7 @@ class InsightService:
                             "Erfinde keine Zahlen oder Fakten, die nicht im Prompt genannt wurden, und "
                             "keine Gegenstände, Werkzeuge, Körperteile oder biologischen Handlungen, die "
                             "zu einem erwähnten Gerät nicht passen. "
+                            f"{variety_hint}"
                             "Antworte ausschließlich auf Deutsch, kurz und natürlich."
                         )},
                         {"role": "user", "content": prompt},

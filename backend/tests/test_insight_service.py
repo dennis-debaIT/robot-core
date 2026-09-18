@@ -201,6 +201,60 @@ def test_pv_surplus_disabled_module_skips(monkeypatch, temp_db):
     assert result is None
 
 
+def test_pv_surplus_avoids_repeating_previous_message(monkeypatch, temp_db):
+    """Regression: der Nutzer bemerkte, dass PV-Meldungen sich wortgleich
+    wiederholten — die zweite Formulierung muss die erste als
+    Negativbeispiel im Prompt sehen und tatsächlich etwas anderes liefern."""
+    cfg = {"pv": {"enabled": True, "sensors": {}}}
+    insights_cfg = {"pv_surplus_threshold_watts": 1500}
+    replies = iter(["Erste Formulierung.", "Zweite, andere Formulierung."])
+    captured_prompts = []
+
+    class TrackingRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_prompts.append(payload["messages"][0]["content"])
+            return {"reply": next(replies)}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", TrackingRouter)
+
+    first = InsightService(pv=FakePv(2000), notifications=FakeNotifications())._check_pv_surplus(cfg, insights_cfg)
+    assert first == "Erste Formulierung."
+
+    InsightService(pv=FakePv(500), notifications=FakeNotifications())._check_pv_surplus(cfg, insights_cfg)  # Reset
+
+    second = InsightService(pv=FakePv(2000), notifications=FakeNotifications())._check_pv_surplus(cfg, insights_cfg)
+    assert second == "Zweite, andere Formulierung."
+    assert len(captured_prompts) == 2
+    assert "Erste Formulierung." not in captured_prompts[0]
+    assert "Erste Formulierung." in captured_prompts[1]
+
+
+# ── Wiederholungs-Vermeidung (_recent_messages/_record_message) ────
+
+def test_record_and_recall_recent_messages(temp_db):
+    svc = InsightService(notifications=FakeNotifications())
+    assert svc._recent_messages("test_key") == []
+    svc._record_message("test_key", "Erste Nachricht.")
+    svc._record_message("test_key", "Zweite Nachricht.")
+    assert svc._recent_messages("test_key") == ["Erste Nachricht.", "Zweite Nachricht."]
+
+
+def test_record_message_caps_history(temp_db):
+    svc = InsightService(notifications=FakeNotifications())
+    for i in range(10):
+        svc._record_message("test_key", f"Nachricht {i}", keep=5)
+    history = svc._recent_messages("test_key", limit=10)
+    assert len(history) == 5
+    assert history[-1] == "Nachricht 9"
+
+
+def test_record_message_ignores_empty():
+    svc = InsightService.__new__(InsightService)  # keine DB nötig für diesen Zweig
+    # _record_message greift nur bei nicht-leerer message auf die DB zu —
+    # ein leerer String darf also ohne temp_db/Connection funktionieren.
+    svc._record_message("test_key", "")
+
+
 # ── Wetter morgen (+ Kalender-Kombi) ───────────────────────────────
 
 def test_weather_no_run_before_17_uhr(monkeypatch, temp_db):
