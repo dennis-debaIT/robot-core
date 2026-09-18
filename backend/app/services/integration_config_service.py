@@ -207,6 +207,7 @@ class IntegrationConfigService:
         current_vehicle_items = (current.get("vehicles") or {}).get("items") if isinstance(current, dict) else None
         current_weather = current.get("weather") if isinstance(current, dict) else None
         current_system_weather = (current.get("system") or {}).get("weather") if isinstance(current, dict) else None
+        self._migrate_proactive_window(current)
         merged = self._merge_dicts(self.default_config(), current)
         news = merged.setdefault("news", {})
         if "item_count" in news and "lookback_hours" not in news:
@@ -363,22 +364,6 @@ class IntegrationConfigService:
         attention["wake_word"] = str(attention.get("wake_word") or "erika").strip() or "erika"
         attention["face_recognition_enabled"] = bool(attention.get("face_recognition_enabled", False))
         attention["proactive_enabled"] = bool(attention.get("proactive_enabled", True))
-        # Migration: das alte, einheitliche Zeitfenster wird durch getrennte
-        # Wochentag-/Wochenend-Felder ersetzt — bestehende Anpassungen für
-        # beide Tagestypen übernehmen, statt sie durch die neuen Defaults
-        # zu überschreiben.
-        if "proactive_start" in attention and "proactive_weekday_start" not in attention:
-            old_start = attention.pop("proactive_start")
-            attention.setdefault("proactive_weekday_start", old_start)
-            attention.setdefault("proactive_weekend_start", old_start)
-        else:
-            attention.pop("proactive_start", None)
-        if "proactive_end" in attention and "proactive_weekday_end" not in attention:
-            old_end = attention.pop("proactive_end")
-            attention.setdefault("proactive_weekday_end", old_end)
-            attention.setdefault("proactive_weekend_end", old_end)
-        else:
-            attention.pop("proactive_end", None)
         attention["proactive_weekday_start"] = self._sanitize_time_hhmm(attention.get("proactive_weekday_start"), "06:00")
         attention["proactive_weekday_end"] = self._sanitize_time_hhmm(attention.get("proactive_weekday_end"), "22:00")
         attention["proactive_weekend_start"] = self._sanitize_time_hhmm(attention.get("proactive_weekend_start"), "08:00")
@@ -1075,6 +1060,31 @@ class IntegrationConfigService:
         if _re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", s):
             return s
         return default
+
+    @staticmethod
+    def _migrate_proactive_window(current: Any) -> None:
+        """Migriert das alte, einheitliche Zeitfenster (proactive_start/
+        _end) in die neuen Wochentag-/Wochenend-Felder — MUSS vor dem
+        Merge mit default_config() laufen, sonst enthält attention durch
+        den Merge bereits die neuen Default-Werte und die Migration greift
+        nicht mehr (die "not in attention"-Prüfung wäre dann immer falsch)."""
+        if not isinstance(current, dict):
+            return
+        attention = current.get("attention")
+        if not isinstance(attention, dict):
+            return
+        if "proactive_start" in attention and "proactive_weekday_start" not in attention:
+            old_start = attention.pop("proactive_start")
+            attention.setdefault("proactive_weekday_start", old_start)
+            attention.setdefault("proactive_weekend_start", old_start)
+        else:
+            attention.pop("proactive_start", None)
+        if "proactive_end" in attention and "proactive_weekday_end" not in attention:
+            old_end = attention.pop("proactive_end")
+            attention.setdefault("proactive_weekday_end", old_end)
+            attention.setdefault("proactive_weekend_end", old_end)
+        else:
+            attention.pop("proactive_end", None)
 
     @staticmethod
     def _sanitize_tariff_ct(value: Any) -> float:
