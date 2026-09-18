@@ -191,7 +191,7 @@ def test_router_generate_falls_back_to_mock_when_both_models_fail(monkeypatch, t
     monkeypatch.setattr(mod, "ExternalLLMClient", _FakeExternalGenerate)
     _configure_fallback_model("fallback-model")
 
-    result = LLMRouter().generate({"messages": [], "message": "Hallo", "personality": {"directness": 0.9}})
+    result = LLMRouter().generate({"messages": [], "message": "Hallo", "personality": {"directness": 0.9, "humor": 0.5}})
 
     assert result["provider"] == "mock"
     entries = _error_log_entries()
@@ -207,7 +207,7 @@ def test_router_generate_without_configured_fallback_model_goes_straight_to_mock
     monkeypatch.setattr(mod, "ExternalLLMClient", _FakeExternalGenerate)
     _configure_fallback_model(None)
 
-    result = LLMRouter().generate({"messages": [], "message": "Hallo", "personality": {"directness": 0.9}})
+    result = LLMRouter().generate({"messages": [], "message": "Hallo", "personality": {"directness": 0.9, "humor": 0.5}})
 
     assert result["provider"] == "mock"
     entries = _error_log_entries()
@@ -285,7 +285,7 @@ def test_router_stream_generate_falls_back_to_mock_when_both_models_fail(monkeyp
     monkeypatch.setattr(mod, "ExternalLLMClient", _FakeExternalStream)
     _configure_fallback_model("fallback-model")
 
-    provider, fragments, used_fallback = LLMRouter().stream_generate({"messages": [], "message": "Hallo", "personality": {"directness": 0.9}})
+    provider, fragments, used_fallback = LLMRouter().stream_generate({"messages": [], "message": "Hallo", "personality": {"directness": 0.9, "humor": 0.5}})
 
     assert provider == "mock"
     assert used_fallback is True
