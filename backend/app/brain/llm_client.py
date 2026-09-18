@@ -339,35 +339,83 @@ class LLMRouter:
         except Exception:
             return None
 
+    @staticmethod
+    def _log_issue(message: str, error: bool = False) -> None:
+        try:
+            from app.audit.service import AuditService
+            audit = AuditService()
+            if error:
+                audit.log_error(source="llm.fallback", message=message)
+            else:
+                audit.log_warn(source="llm.fallback", message=message)
+        except Exception:
+            pass
+
     def generate(self, payload: dict[str, Any], timeout_seconds: int = 15) -> dict[str, Any]:
         external = ExternalLLMClient()
         if external.is_configured():
             try:
                 return external.generate(payload, timeout_seconds=timeout_seconds)
-            except RateLimitError:
+            except RuntimeError as exc:
+                # RateLimitError ist eine RuntimeError-Unterklasse — ein
+                # einziger except-Zweig deckt damit 429 UND Timeouts/
+                # Verbindungsfehler ab. Vorher wurde bei einem reinen Timeout
+                # (kein 429) nie das Fallback-Modell versucht, sondern sofort
+                # der Mock zurückgegeben.
+                self._log_issue(f"Primäres LLM ({external.model}) nicht erreichbar: {type(exc).__name__}: {exc}")
                 fb = self._fallback_model()
                 if fb and fb != external.model:
                     try:
-                        return ExternalLLMClient(model_override=fb).generate(payload, timeout_seconds=timeout_seconds)
-                    except RuntimeError:
-                        pass
-            except RuntimeError:
-                pass
+                        result = ExternalLLMClient(model_override=fb).generate(payload, timeout_seconds=timeout_seconds)
+                        self._log_issue(f"Fallback-Modell ({fb}) verwendet, primäres Modell war nicht erreichbar")
+                        return result
+                    except RuntimeError as fb_exc:
+                        self._log_issue(
+                            f"Fallback-Modell ({fb}) ebenfalls nicht erreichbar: {type(fb_exc).__name__}: {fb_exc}",
+                            error=True,
+                        )
+        self._log_issue("Kein LLM erreichbar — Mock-Antwort wird verwendet", error=True)
         return self.mock.generate(payload)
+
+    @staticmethod
+    def _prime(fragments: Any) -> Any:
+        """Zieht das erste Fragment aus dem Stream-Generator.
+
+        stream_generate() auf ExternalLLMClient ist selbst eine Generator-
+        Funktion — der reine Aufruf führt keinen Code aus und kann daher nie
+        eine Verbindungs-/Timeout-Exception auslösen. Ohne dieses Anstupsen
+        bliebe ein Fehler unbemerkt, bis der Aufrufer (robot_core.py) viel
+        später selbst zu iterieren beginnt — zu spät, um hier noch aufs
+        Fallback-Modell umzuschalten.
+        """
+        from itertools import chain
+        first = next(fragments)
+        return chain([first], fragments)
 
     def stream_generate(self, payload: dict[str, Any], timeout_seconds: int = 15) -> tuple[str, Any, bool]:
         external = ExternalLLMClient()
         if external.is_configured():
             try:
-                return "external", external.stream_generate(payload, timeout_seconds=timeout_seconds), False
-            except RateLimitError:
+                primed = self._prime(external.stream_generate(payload, timeout_seconds=timeout_seconds))
+                return "external", primed, False
+            except StopIteration:
+                return "external", iter(()), False
+            except RuntimeError as exc:
+                self._log_issue(f"Primäres LLM ({external.model}) nicht erreichbar: {type(exc).__name__}: {exc}")
                 fb = self._fallback_model()
                 if fb and fb != external.model:
+                    fb_client = ExternalLLMClient(model_override=fb)
                     try:
-                        fb_client = ExternalLLMClient(model_override=fb)
-                        return "external_fallback", fb_client.stream_generate(payload, timeout_seconds=timeout_seconds), False
-                    except RuntimeError:
-                        pass
-            except RuntimeError:
-                pass
+                        primed = self._prime(fb_client.stream_generate(payload, timeout_seconds=timeout_seconds))
+                        self._log_issue(f"Fallback-Modell ({fb}) verwendet, primäres Modell war nicht erreichbar")
+                        return "external_fallback", primed, False
+                    except StopIteration:
+                        self._log_issue(f"Fallback-Modell ({fb}) verwendet, primäres Modell war nicht erreichbar")
+                        return "external_fallback", iter(()), False
+                    except RuntimeError as fb_exc:
+                        self._log_issue(
+                            f"Fallback-Modell ({fb}) ebenfalls nicht erreichbar: {type(fb_exc).__name__}: {fb_exc}",
+                            error=True,
+                        )
+        self._log_issue("Kein LLM erreichbar — Mock-Antwort wird verwendet", error=True)
         return "mock", self.mock.stream_generate(payload), True
