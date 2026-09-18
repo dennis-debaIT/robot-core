@@ -3,6 +3,7 @@ import importlib
 from fastapi.testclient import TestClient
 
 from app.integrations.robot_core import RobotCore
+from app.search.service import SearchService as _RealSearchService
 
 
 # ── SUCHE:-Marker-Erkennung ──────────────────────────────────────────
@@ -44,8 +45,11 @@ class FakeLLMRouter:
         return ("fake", iter([self._next_reply()]), False)
 
 
-class FakeSearchService:
-    """Ersetzt SearchService komplett — kein echter Netzwerkzugriff im Test."""
+class FakeSearchService(_RealSearchService):
+    """Erbt von der echten SearchService, damit needs_search()/extract_query()
+    (vom bestehenden, unveränderten Vorab-Regex-Pfad in _prepare_chat weiter
+    benötigt) funktionsfähig bleiben — nur search()/format_prompt_block()
+    werden für den Test ersetzt, kein echter Netzwerkzugriff."""
     _RESULT = "Astana ist die Hauptstadt von Kasachstan."
 
     def search(self, query):
@@ -55,7 +59,7 @@ class FakeSearchService:
         return f"[Test-Recherche]: {result}"
 
 
-class FakeSearchServiceNoResult:
+class FakeSearchServiceNoResult(_RealSearchService):
     def search(self, query):
         return None
 
