@@ -274,7 +274,8 @@ def init_db() -> None:
                 message TEXT NOT NULL,
                 entity_id TEXT,
                 read INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                silent INTEGER NOT NULL DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS notification_rule_state (
@@ -441,6 +442,10 @@ def init_db() -> None:
         notification_rule_columns = {row["name"] for row in conn.execute("PRAGMA table_info(notification_rules)").fetchall()}
         if "use_llm" not in notification_rule_columns:
             conn.execute("ALTER TABLE notification_rules ADD COLUMN use_llm INTEGER NOT NULL DEFAULT 0")
+
+        notification_columns = {row["name"] for row in conn.execute("PRAGMA table_info(notifications)").fetchall()}
+        if "silent" not in notification_columns:
+            conn.execute("ALTER TABLE notifications ADD COLUMN silent INTEGER NOT NULL DEFAULT 0")
 
         audit_columns = {row["name"] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()}
         if "level" not in audit_columns:

@@ -99,9 +99,10 @@ class NotificationService:
         self, conn: Any, rule_id: int | None, message: str, entity_id: str | None, title: str = "Erika"
     ) -> int:
         now = datetime.now(timezone.utc).isoformat()
+        silent = 0 if self._is_within_announce_window() else 1
         cur = conn.execute(
-            "INSERT INTO notifications(rule_id, message, entity_id, read, created_at) VALUES (?,?,?,0,?)",
-            (rule_id, message, entity_id, now),
+            "INSERT INTO notifications(rule_id, message, entity_id, read, created_at, silent) VALUES (?,?,?,0,?,?)",
+            (rule_id, message, entity_id, now, silent),
         )
         try:
             from app.services.push_service import send_notification
@@ -110,6 +111,37 @@ class NotificationService:
             from app.audit.service import AuditService
             AuditService().log_warn(source="push", message=f"Push-Weiterleitung fehlgeschlagen: {type(exc).__name__}: {exc}")
         return cur.lastrowid
+
+    @staticmethod
+    def _is_within_announce_window() -> bool:
+        """Bestimmt, ob eine neue Benachrichtigung gerade laut vorgelesen
+        werden darf (TTS) — außerhalb des Zeitfensters kommt sie trotzdem
+        auf dem Handy (Push) und in der Glocke an, bleibt aber still.
+        Nutzt dasselbe Wochentag-Zeitfenster wie die "Proaktive Ansprache"
+        (attention.proactive_weekday_*/proactive_weekend_*)."""
+        try:
+            from app.services.integration_config_service import IntegrationConfigService
+            attention = IntegrationConfigService().get_config().get("attention") or {}
+            if not attention.get("proactive_enabled", True):
+                return False
+            now = datetime.now()
+            is_weekend = now.weekday() >= 5
+            if is_weekend:
+                start_str = attention.get("proactive_weekend_start") or "08:00"
+                end_str = attention.get("proactive_weekend_end") or "22:00"
+            else:
+                start_str = attention.get("proactive_weekday_start") or "06:00"
+                end_str = attention.get("proactive_weekday_end") or "22:00"
+            sh, sm = (int(part) for part in start_str.split(":"))
+            eh, em = (int(part) for part in end_str.split(":"))
+            cur = now.hour * 60 + now.minute
+            start = sh * 60 + sm
+            end = eh * 60 + em
+            if start <= end:
+                return start <= cur < end
+            return cur >= start or cur < end
+        except Exception:
+            return True  # bei kaputter Config lieber laut als Meldungen stillschweigend zu unterdrücken
 
     # ── Regel-Check-Loop ─────────────────────────────────────────
 
