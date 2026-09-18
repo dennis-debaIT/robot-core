@@ -1507,7 +1507,9 @@ class RobotCore:
         # (siehe Anweisung in prompt_builder.py), statt dass wir Hedging-Phrasen raten müssen.
         search_query = self._extract_search_marker(llm_result.get("reply", ""))
         if search_query:
+            self.audit.log_info(source="chat.search_marker", message=f"SUCHE:-Marker ausgelöst — Nachricht: '{captured}' → Suchanfrage: '{search_query}'")
             followup = SearchService().search(search_query)
+            self.audit.log_info(source="chat.search_marker", message=f"Websuche für '{search_query}': {'Treffer' if followup else 'KEIN Treffer'}")
             if followup:
                 search_ctx_block = SearchService().format_prompt_block(followup)
                 payload = self.preview_chat_prompt(captured, person_name, search_context=search_ctx_block)
@@ -1672,12 +1674,14 @@ class RobotCore:
 
             if is_search:
                 search_query = self._extract_search_marker(full_reply) or ""
+                self.audit.log_info(source="chat.search_marker", message=f"SUCHE:-Marker ausgelöst (Stream) — Nachricht: '{captured}' → Suchanfrage: '{search_query}'")
                 yield self._sse_event("searching", {"searching": True})
                 filler = random.choice(self._SEARCH_FILLERS)
                 yield self._sse_event("delta", {"text": filler})
                 self._store_reply_text(filler, done=False)
 
                 followup = SearchService().search(search_query) if search_query else None
+                self.audit.log_info(source="chat.search_marker", message=f"Websuche für '{search_query}': {'Treffer' if followup else 'KEIN Treffer'}")
                 if not followup:
                     fallback_text = "Das konnte ich leider auch nicht herausfinden."
                     yield self._sse_event("delta", {"text": fallback_text})
