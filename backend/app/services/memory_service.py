@@ -2,11 +2,31 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
+from app.conversation.topic_stemming import stem_topic
 from app.database.db import get_connection
 
 
 class MemoryService:
+    @staticmethod
+    def _group_topics_by_stem(rows: list[Any]) -> dict[str, dict[str, Any]]:
+        """Fasst topic_mentions-Zeilen nach Wortstamm zusammen (z.B. 'Katze'/
+        'Katzen'), damit Singular-/Pluralvarianten nicht als getrennte Themen
+        gezählt werden. Da rows nach created_at ASC sortiert erwartet werden,
+        bleibt die zuerst gesehene Original-Schreibweise das Label."""
+        groups: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            stem = row["topic_stem"] or stem_topic(row["topic"])
+            group = groups.setdefault(
+                stem, {"label": row["topic"], "total_score": 0.0, "count": 0, "last_seen": row["created_at"]}
+            )
+            group["total_score"] += float(row["score"] or 0)
+            group["count"] += 1
+            if row["created_at"] > group["last_seen"]:
+                group["last_seen"] = row["created_at"]
+        return groups
+
     def build_session_context(self, person_name: str | None) -> str | None:
         if not person_name:
             return None
@@ -56,15 +76,17 @@ class MemoryService:
 
         with get_connection() as conn:
             rows = conn.execute(
-                "SELECT topic, SUM(score) as total_score FROM topic_mentions "
+                "SELECT topic, topic_stem, score, created_at FROM topic_mentions "
                 "WHERE created_at >= ? AND created_at <= ? AND person_name = ? "
-                "GROUP BY topic ORDER BY total_score DESC LIMIT 8",
+                "ORDER BY created_at ASC",
                 (today_start, today_end, person_name),
             ).fetchall()
             if not rows:
                 return
 
-            topics_str = ", ".join(r["topic"] for r in rows)
+            grouped = self._group_topics_by_stem(rows)
+            top = sorted(grouped.values(), key=lambda g: -g["total_score"])[:8]
+            topics_str = ", ".join(g["label"] for g in top)
 
             msgs = conn.execute(
                 "SELECT message FROM conversation_messages "
@@ -98,15 +120,17 @@ class MemoryService:
             )
 
             rows = conn.execute(
-                "SELECT topic, COUNT(*) as cnt, MAX(created_at) as last_seen, SUM(score) as total_score "
-                "FROM topic_mentions "
+                "SELECT topic, topic_stem, score, created_at FROM topic_mentions "
                 "WHERE person_name = ? AND created_at >= ? "
-                "GROUP BY topic ORDER BY total_score DESC LIMIT 20",
+                "ORDER BY created_at ASC",
                 (person_name, cutoff_recent),
             ).fetchall()
 
-            for row in rows:
-                importance = min(1.0, 0.1 + row["cnt"] / 20.0)
+            grouped = self._group_topics_by_stem(rows)
+            top = sorted(grouped.values(), key=lambda g: -g["total_score"])[:20]
+
+            for group in top:
+                importance = min(1.0, 0.1 + group["count"] / 20.0)
                 conn.execute(
                     """
                     INSERT INTO active_topics(
@@ -120,7 +144,7 @@ class MemoryService:
                         status = 'active',
                         updated_at = excluded.updated_at
                     """,
-                    (person_name, row["topic"], importance, row["last_seen"], row["cnt"], now_iso, now_iso),
+                    (person_name, group["label"], importance, group["last_seen"], group["count"], now_iso, now_iso),
                 )
 
     def compress_dailies_to_weekly(self, person_name: str) -> None:

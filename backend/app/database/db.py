@@ -426,8 +426,17 @@ def init_db() -> None:
             conn.execute("ALTER TABLE topic_mentions ADD COLUMN topic_kind TEXT")
         if "score" not in topic_columns:
             conn.execute("ALTER TABLE topic_mentions ADD COLUMN score REAL")
+        if "topic_stem" not in topic_columns:
+            conn.execute("ALTER TABLE topic_mentions ADD COLUMN topic_stem TEXT")
         conn.execute("UPDATE topic_mentions SET topic_kind = 'neutral' WHERE topic_kind IS NULL")
         conn.execute("UPDATE topic_mentions SET score = 1.0 WHERE score IS NULL")
+        if "topic_stem" not in topic_columns:
+            from app.conversation.topic_stemming import stem_topic
+            rows = conn.execute("SELECT id, topic FROM topic_mentions WHERE topic_stem IS NULL").fetchall()
+            conn.executemany(
+                "UPDATE topic_mentions SET topic_stem = ? WHERE id = ?",
+                [(stem_topic(row["topic"]), row["id"]) for row in rows],
+            )
 
         reminder_columns = {row["name"] for row in conn.execute("PRAGMA table_info(reminders)").fetchall()}
         if "light_command" not in reminder_columns:

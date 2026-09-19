@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.conversation.stopwords_de import STOPWORDS_DE
+from app.conversation.topic_stemming import stem_topic
 from app.database.db import get_connection
 
 
@@ -56,9 +57,29 @@ class ConversationService:
         r"\b(problem|hilfe|fehler|kaputt|reparier|support|störung|geht nicht|funktioniert nicht)\b",
         re.IGNORECASE,
     )
+    # Allgemeine W-Fragen ("Wie hoch ist der Mount Everest?") ohne
+    # Selbstbezug sind Wissensfragen an Erika, keine Aussagen über den
+    # Sprecher — dürfen also nicht als persönliches Thema/Interesse gezählt
+    # werden (siehe [[project_memory_and_ambient_listening_roadmap]]).
+    KNOWLEDGE_QUESTION_PATTERN = re.compile(
+        r"\b(wer|was|wann|wo|wie|warum|weshalb|wieso|welche[rsmn]?)\b",
+        re.IGNORECASE,
+    )
+    SELF_REFERENCE_PATTERN = re.compile(
+        r"\b(ich|mein[esrmn]*|mir|mich|wir|unser[esrmn]*|uns)\b",
+        re.IGNORECASE,
+    )
 
     def is_greeting(self, text: str) -> bool:
         return bool(self.GREETING_ONLY_PATTERN.match(text.strip()))
+
+    def _is_knowledge_question(self, text: str) -> bool:
+        stripped = text.strip()
+        if not stripped:
+            return False
+        if not self.KNOWLEDGE_QUESTION_PATTERN.search(stripped):
+            return False
+        return not self.SELF_REFERENCE_PATTERN.search(stripped)
 
     def extract_topics(self, text: str) -> list[str]:
         if self.is_greeting(text):
@@ -83,6 +104,8 @@ class ConversationService:
         return bool(self.FOLLOW_UP_PATTERN.search(stripped))
 
     def record_user_topics(self, person_name: str | None, text: str) -> None:
+        if self._is_knowledge_question(text):
+            return
         topics = self.extract_topics(text)
         if not person_name or not topics:
             return
@@ -93,10 +116,10 @@ class ConversationService:
             for topic in topics:
                 conn.execute(
                     """
-                    INSERT INTO topic_mentions(person_name, topic, source_role, topic_kind, score, created_at)
-                    VALUES (?, ?, 'user', ?, ?, ?)
+                    INSERT INTO topic_mentions(person_name, topic, topic_stem, source_role, topic_kind, score, created_at)
+                    VALUES (?, ?, ?, 'user', ?, ?, ?)
                     """,
-                    (person_name, topic, topic_kind, score, created_at),
+                    (person_name, topic, stem_topic(topic), topic_kind, score, created_at),
                 )
 
     def detect_interest_signal(
@@ -108,6 +131,8 @@ class ConversationService:
         window_days: int,
     ) -> dict[str, Any] | None:
         if not person_name:
+            return None
+        if self._is_knowledge_question(text):
             return None
 
         topics = self.extract_topics(text)
@@ -126,10 +151,10 @@ class ConversationService:
                     SELECT COALESCE(SUM(score), 0) AS total_score
                     FROM topic_mentions
                     WHERE lower(coalesce(person_name, '')) = lower(?)
-                      AND topic = ?
+                      AND topic_stem = ?
                       AND created_at >= ?
                     """,
-                    (person_name, topic, cutoff),
+                    (person_name, stem_topic(topic), cutoff),
                 ).fetchone()
                 topic_kind, current_score = self.classify_topic_signal(text)
                 total_score = float(row["total_score"]) + current_score

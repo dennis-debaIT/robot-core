@@ -10,3 +10,4 @@ cryptography>=42.0
 trafilatura>=2.0,<3.0
 firebase-admin>=6.0,<7.0
 faster-whisper>=1.0,<2.0
+snowballstemmer>=2.2,<3.0
