@@ -2,7 +2,15 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pydantic==2.9.2
 sherpa-onnx>=1.12.34,<1.13
-duckduckgo-search>=6.0,<8.0
+duckduckgo-search==7.5.5
+# primp ist eine transitive Abhängigkeit von duckduckgo-search (HTTP-Backend
+# mit Browser-Impersonation). Ohne festen Pin installierte ein Rebuild
+# primp 2.0.1, dessen Impersonation-Profile nicht mehr zu denen passen, die
+# duckduckgo-search 7.5.5 intern anfragt -> harter Absturz
+# (BuilderError: Invalid impersonate) statt gracefulem Fallback auf
+# "random". primp 1.3.1 ist die letzte 1.x-Version und verhält sich hier
+# nachweislich robust (verifiziert auf erika, 2026-09-19).
+primp==1.3.1
 websockets>=12.0,<14.0
 python-multipart>=0.0.9
 edge-tts>=6.1.9
