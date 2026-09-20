@@ -22,9 +22,20 @@ class WebProvider:
         re.IGNORECASE,
     )
     _SEASON_PATTERN = re.compile(r"\b(20\d\d)[/-](20?\d\d)\b")
+    _SPORTS_QUERY_PATTERN = re.compile(
+        r"\b(tabelle|spieltag|torschütze|torschuetze|ergebnis|spielstand|liga|verein|mannschaft)\b",
+        re.IGNORECASE,
+    )
 
     def can_handle(self, query: str) -> bool:
         return True  # Immer als Fallback
+
+    def _is_sports_query(self, query: str) -> bool:
+        return bool(
+            self._LEAGUE_PATTERN.search(query)
+            or self._RANK_PATTERN.search(query)
+            or self._SPORTS_QUERY_PATTERN.search(query)
+        )
 
     def search(self, query: str) -> dict[str, Any] | None:
         try:
@@ -35,11 +46,20 @@ class WebProvider:
         current_year = str(datetime.now().year)
         prev_year = str(datetime.now().year - 1)
 
-        queries = [
-            f"{query} {current_year}",
-            f"{query} aktuell {current_year}",
-            query,
-        ]
+        # Die Jahres-Erweiterung und die Rang/Liga/Aktualitäts-Priorisierung
+        # in _pick_best() sind auf Fußball-/Tabellenanfragen zugeschnitten
+        # (aktuelle Saison zählt, alte Snippets sind wertlos). Bei
+        # allgemeinen Wissensfragen (z.B. aus der reaktiven Websuche) macht
+        # das "aktuelles Jahr" erzwingen die Ergebnisse eher schlechter —
+        # ein Treffer, der zufällig die Jahreszahl enthält (z.B. ein
+        # Branchenbericht "PAPIER 2026"), gewinnt sonst gegen die
+        # eigentlich passende, aber undatierte Antwort.
+        is_sports_query = self._is_sports_query(query)
+        queries = (
+            [f"{query} {current_year}", f"{query} aktuell {current_year}", query]
+            if is_sports_query
+            else [query]
+        )
 
         all_results: list[dict] = []
         try:
@@ -71,7 +91,11 @@ class WebProvider:
                 seen.add(key)
                 unique.append(r)
 
-        best = self._pick_best(unique, current_year=current_year, prev_year=prev_year)
+        best = (
+            self._pick_best(unique, current_year=current_year, prev_year=prev_year)
+            if is_sports_query
+            else self._pick_first_substantial(unique)
+        )
         if not best:
             return None
 
@@ -100,6 +124,17 @@ class WebProvider:
             "url": best.get("href") or best.get("url", ""),
             "is_stable": False,
         }
+
+    @staticmethod
+    def _pick_first_substantial(results: list[dict]) -> dict | None:
+        """Für allgemeine (nicht-sportliche) Anfragen: vertraut DuckDuckGos
+        eigener Relevanz-Reihenfolge, statt sie mit Jahres-/Rang-Heuristiken
+        zu überstimmen — nimmt einfach den ersten Treffer mit brauchbarem
+        Snippet."""
+        for r in results:
+            if len(r.get("body") or r.get("excerpt") or "") > 40:
+                return r
+        return results[0] if results else None
 
     def _pick_best(
         self,
