@@ -89,6 +89,90 @@ def test_llm_message_returns_text_on_success(monkeypatch, temp_db):
     assert result == "Robert steckt gerade fest."
 
 
+def test_llm_message_system_prompt_forbids_fabricated_actions(monkeypatch, temp_db):
+    """Regression: 'Robert hat die Klingen geölt und macht sich an die
+    Arbeit.' — das LLM erfand ein Ereignis (Ölen), das im tatsächlichen
+    Event (nur 'ist jetzt im Zustand mowing') gar nicht vorkam."""
+    captured_payload = {}
+
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_payload.update(payload)
+            return {"reply": "Robert mäht wieder."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    NotificationService._llm_message("Robert", "changed_to", "mowing", "mowing")
+    system_prompt = captured_payload["messages"][0]["content"]
+    assert "erfundene Handlung" in system_prompt or "zusätzliches Ölen" in system_prompt
+
+
+def test_llm_message_system_prompt_forbids_reinterpreting_the_event(monkeypatch, temp_db):
+    """Regression: 'Robert glaubt, er ist gerade aus der Garage geflohen.'
+    für den Zustand 'Außerhalb Begrenzungsdraht' — eine erfundene,
+    inhaltlich falsche Alternativgeschichte statt der echten Bedeutung."""
+    captured_payload = {}
+
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_payload.update(payload)
+            return {"reply": "Robert hat den Begrenzungsdraht verloren."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    NotificationService._llm_message("robert ouside wire", "changed_to", "outside_wire", "outside_wire")
+    system_prompt = captured_payload["messages"][0]["content"]
+    assert "Begrenzungsdraht verloren" in system_prompt
+    assert "weggelaufen" in system_prompt or "geflohen" in system_prompt
+
+
+def test_llm_message_system_prompt_forbids_floating_for_ground_robots(monkeypatch, temp_db):
+    """Regression: 'Krümel Knecht ... schwebt nun dem Ladekabel entgegen.'
+    — ein Saugroboter fährt, er schwebt nicht."""
+    captured_payload = {}
+
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_payload.update(payload)
+            return {"reply": "Krümel Knecht fährt zurück zur Ladestation."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    NotificationService._llm_message("Krümel Knecht", "changed_to", "returning", "returning")
+    system_prompt = captured_payload["messages"][0]["content"]
+    assert "fahren oder rollen" in system_prompt
+
+
+def test_llm_message_system_prompt_forbids_self_contradiction(monkeypatch, temp_db):
+    """Regression: 'schleppt sich nun selbstbewusst zurück zur Basis' —
+    'schleppen' (müde/mühsam) widerspricht 'selbstbewusst' im selben Satz."""
+    captured_payload = {}
+
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_payload.update(payload)
+            return {"reply": "Krümel Knecht macht sich auf den Heimweg."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    NotificationService._llm_message("Krümel Knecht", "changed_to", "returning", "returning")
+    system_prompt = captured_payload["messages"][0]["content"]
+    assert "widersprechen" in system_prompt
+
+
+def test_llm_message_system_prompt_requires_exact_device_name_spelling(monkeypatch, temp_db):
+    """Regression: 'Krumel Knecht' statt 'Krümel Knecht' in derselben
+    Meldungs-Serie — der Gerätename muss exakt (inkl. Umlaute) übernommen
+    werden."""
+    captured_payload = {}
+
+    class FakeRouter:
+        def generate(self, payload, timeout_seconds=15):
+            captured_payload.update(payload)
+            return {"reply": "Krümel Knecht macht sich auf den Heimweg."}
+
+    monkeypatch.setattr("app.brain.llm_client.LLMRouter", FakeRouter)
+    NotificationService._llm_message("Krümel Knecht", "changed_to", "returning", "returning")
+    system_prompt = captured_payload["messages"][0]["content"]
+    assert "exakt wie im Ereignis" in system_prompt
+
+
 def test_check_rules_with_use_llm_falls_back_to_auto_message_never_empty(monkeypatch, temp_db):
     """Auch wenn use_llm=1 gesetzt ist und die LLM-Formulierung fehlschlägt,
     darf niemals eine leere Benachrichtigung entstehen."""
